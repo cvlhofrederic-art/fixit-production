@@ -53,7 +53,8 @@ export function resumeVerification(manquants: number, enPanne: number, isPt: boo
 /** Message affiché pour un refus de /api/btp/outillage (code d'erreur de la route). */
 export function messageErreurOutillage(code: string, isPt: boolean): string {
   const messages: Record<string, [string, string]> = {
-    acces_refuse: ['Ce module ne vous est pas ouvert. Demandez-le à votre gérant.', 'Este módulo não lhe está aberto. Peça-o ao seu gerente.'],
+    acces_refuse: ['Vous n’avez pas accès à ce module. Demandez-le à votre gérant.', 'Não tem acesso a este módulo. Peça acesso ao seu gerente.'],
+    observations_requises: ['Aucun outil sur ce chantier : écrivez une remarque pour envoyer la vérification.', 'Nenhuma ferramenta nesta obra: escreva uma observação para enviar a verificação.'],
     reserve_btp: ['Module réservé aux sociétés du BTP.', 'Módulo reservado às empresas de construção.'],
     reserve_a_la_gestion: ['Seul le gérant (ou un compte en accès complet) modifie le répertoire.', 'Só o gerente (ou uma conta com acesso total) altera o inventário.'],
     chantier_non_affecte: ['Ce chantier ne vous est pas affecté (ou n’est plus en cours).', 'Esta obra não lhe está atribuída (ou já não está em curso).'],

@@ -45,8 +45,8 @@ describe('migration 20261126 — outillage BTP', () => {
       expect((await db.query(`SELECT count(*)::int AS n FROM public.${table}`)).rows).toEqual([{ n: 0 }])
     }
     await db.exec(`INSERT INTO public.outillage_btp (owner_id, nom, chantier_id) VALUES ('${SOCIETE}', 'Betoneira', '${CHANTIER}')`)
-    expect((await db.query(`SELECT type, quantite, etat, retire_le, created_at IS NOT NULL AS date FROM public.outillage_btp`)).rows)
-      .toEqual([{ type: 'outil', quantite: 1, etat: 'ok', retire_le: null, date: true }])
+    expect((await db.query(`SELECT type, quantite, etat, retire_le, created_at IS NOT NULL AS date, chantier_depuis IS NOT NULL AS sur_place FROM public.outillage_btp`)).rows)
+      .toEqual([{ type: 'outil', quantite: 1, etat: 'ok', retire_le: null, date: true, sur_place: true }])
   })
 
   it('refuse ce que la route refuse aussi : type, état, nom vide, quantité, longueurs', async () => {

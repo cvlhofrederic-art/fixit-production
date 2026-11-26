@@ -69,8 +69,8 @@ export interface OutilEcran {
   chantierId: string | null
   etat: EtatOutil
   notes: string | null
-  /** Date (AAAA-MM-JJ, UTC) d'entrée au répertoire. */
-  ajouteLe: string
+  /** Date (AAAA-MM-JJ, UTC) d'arrivée à son emplacement actuel (chantier ou dépôt). */
+  surPlaceDepuis: string
 }
 
 /** Une ligne de la liste vérifiée, figée au moment de la vérification. */
@@ -163,22 +163,22 @@ export function decalerDate(date: string, jours: number): string {
 /**
  * État de la vérification d'un chantier pour la semaine du vendredi `vendredi`.
  * `outilsDuChantier` : ses outils non retirés ; « en retard » seulement si l'un d'eux y était déjà ce vendredi-là
- * (entré au répertoire ce jour ou avant) : la première semaine, rien n'est en retard.
+ * (arrivé sur le chantier ce jour ou avant) : la première semaine, ou pour un outil déplacé depuis, rien n'est en retard.
  */
 export function etatVerification(params: {
   aujourdhui: string
   vendredi: string
   faite: boolean
-  outilsDuChantier: readonly Pick<OutilEcran, 'ajouteLe'>[]
+  outilsDuChantier: readonly Pick<OutilEcran, 'surPlaceDepuis'>[]
 }): EtatVerification {
   const { aujourdhui, vendredi, faite, outilsDuChantier } = params
   if (faite) return 'faite'
   if (outilsDuChantier.length === 0) return 'sans_outils'
   if (aujourdhui === vendredi) return 'a_faire'
-  return outilsDuChantier.some(o => o.ajouteLe <= vendredi) ? 'en_retard' : 'prochaine'
+  return outilsDuChantier.some(o => o.surPlaceDepuis <= vendredi) ? 'en_retard' : 'prochaine'
 }
 
-export type RefusLignes = 'liste_changee' | 'quantite_invalide'
+export type RefusLignes = 'liste_changee' | 'quantite_invalide' | 'observations_requises'
 
 /**
  * Lignes reçues confrontées aux outils actuellement sur le chantier : chaque outil une fois et une seule, aucun autre,
@@ -188,7 +188,10 @@ export type RefusLignes = 'liste_changee' | 'quantite_invalide'
 export function lignesAEnregistrer(
   outils: readonly OutilEcran[],
   recues: readonly LigneVerifieeSaisie[],
+  observations: string | null = null,
 ): { lignes: LigneVerifiee[]; manquants: number; enPanne: number } | { refus: RefusLignes } {
+  // Chantier sans outil : la vérification n'a de sens que si elle signale quelque chose.
+  if (outils.length === 0 && recues.length === 0 && !observations) return { refus: 'observations_requises' }
   const parId = new Map(outils.map(o => [o.id, o]))
   const vues = new Set<string>()
   const lignes: LigneVerifiee[] = []
@@ -199,7 +202,8 @@ export function lignesAEnregistrer(
     vues.add(recue.outilId)
     lignes.push({
       outilId: outil.id, nom: outil.nom, type: outil.type, reference: outil.reference,
-      attendus: outil.quantite, presents: recue.presents, enPanne: recue.enPanne, remarque: recue.remarque,
+      attendus: outil.quantite, presents: recue.presents, enPanne: recue.enPanne,
+      remarque: recue.presents < outil.quantite || recue.enPanne ? recue.remarque : null,
     })
   }
   if (vues.size !== outils.length) return { refus: 'liste_changee' }
@@ -209,6 +213,8 @@ export function lignesAEnregistrer(
     enPanne: lignes.filter(l => l.enPanne).length,
   }
 }
+
+const dateDuJour = (instant: unknown): string | null => (typeof instant === 'string' && instant.length >= 10 ? instant.slice(0, 10) : null)
 
 /** Ligne d'outillage_btp telle que lue en base, pour l'écran ; null si elle ne ressemble pas à un outil. */
 export function outilPourEcran(ligne: Record<string, unknown>): OutilEcran | null {
@@ -224,7 +230,7 @@ export function outilPourEcran(ligne: Record<string, unknown>): OutilEcran | nul
     chantierId: typeof ligne.chantier_id === 'string' ? ligne.chantier_id : null,
     etat: ligne.etat === 'en_panne' ? 'en_panne' : 'ok',
     notes: typeof ligne.notes === 'string' && ligne.notes ? ligne.notes : null,
-    ajouteLe: typeof ligne.created_at === 'string' ? ligne.created_at.slice(0, 10) : '1970-01-01',
+    surPlaceDepuis: dateDuJour(ligne.chantier_depuis) ?? dateDuJour(ligne.created_at) ?? '1970-01-01',
   }
 }
 

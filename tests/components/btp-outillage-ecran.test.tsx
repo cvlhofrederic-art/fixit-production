@@ -24,8 +24,8 @@ const contexteChef = (): ContexteOutillage => ({
   chantiers: [{ id: VILLA, titre: 'Moradia Gaia', adresse: 'Rua A, Gaia', etat: 'a_faire', derniere: null }],
   lieux: [],
   outils: [
-    { id: BETONEIRA, type: 'outil', nom: 'Betoneira', reference: null, quantite: 1, chantierId: VILLA, etat: 'ok', notes: null, ajouteLe: '2026-11-20' },
-    { id: ESCADOTES, type: 'outil', nom: 'Escadotes', reference: null, quantite: 4, chantierId: VILLA, etat: 'ok', notes: null, ajouteLe: '2026-11-20' },
+    { id: BETONEIRA, type: 'outil', nom: 'Betoneira', reference: null, quantite: 1, chantierId: VILLA, etat: 'ok', notes: null, surPlaceDepuis: '2026-11-20' },
+    { id: ESCADOTES, type: 'outil', nom: 'Escadotes', reference: null, quantite: 4, chantierId: VILLA, etat: 'ok', notes: null, surPlaceDepuis: '2026-11-20' },
   ],
   verifications: [],
 })
@@ -85,6 +85,33 @@ describe('Ferramentas e viaturas — o encarregado', () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalled())
   })
 
+  it('observação escondida (elemento de novo presente): não é enviada', async () => {
+    render(<OutillageSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
+    fireEvent.click(screen.getByRole('button', { name: '✖ Em falta' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Observação sobre Betoneira' }), { target: { value: 'Levada para Porto' } })
+    fireEvent.click(screen.getByRole('button', { name: '✔ Presente' }))
+    expect(screen.queryByRole('textbox', { name: 'Observação sobre Betoneira' })).toBeNull()
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Validar a verificação' }))
+    await waitFor(() => expect(envois).toHaveLength(1))
+    expect((envois[0].lignes as Array<Record<string, unknown>>)[0]).toEqual({ outilId: BETONEIRA, presents: 1, enPanne: false, remarque: null })
+  })
+
+  it('obra sem ferramentas: só se envia com uma observação', async () => {
+    reponses.get = { ...contexteChef(), chantiers: [{ id: VILLA, titre: 'Moradia Gaia', adresse: '', etat: 'sans_outils', derniere: null }], outils: [] }
+    render(<OutillageSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
+    const validar = screen.getByRole('button', { name: 'Validar a verificação' }) as HTMLButtonElement
+    expect(validar.disabled).toBe(true)
+    expect(screen.getByText('Escreva uma observação para enviar.')).toBeTruthy()
+    fireEvent.change(screen.getByRole('textbox', { name: /Observações/ }), { target: { value: 'Precisamos de um andaime' } })
+    expect(validar.disabled).toBe(false)
+    fireEvent.click(validar)
+    await waitFor(() => expect(envois).toHaveLength(1))
+    expect(envois[0]).toMatchObject({ lignes: [], observations: 'Precisamos de um andaime' })
+  })
+
   it('« Marcar tudo presente » marca cada elemento com a quantidade prevista', async () => {
     render(<OutillageSection />)
     fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
@@ -114,7 +141,7 @@ describe('Ferramentas e viaturas — o encarregado', () => {
   it('módulo fechado (operário): mensagem clara, sem botão « Tentar novamente »', async () => {
     reponses.get = { status: 403, error: 'acces_refuse' }
     render(<OutillageSection />)
-    expect(await screen.findByText(/Este módulo não lhe está aberto/)).toBeTruthy()
+    expect(await screen.findByText(/Não tem acesso a este módulo/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull()
   })
 

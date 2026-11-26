@@ -14,7 +14,7 @@ const CHANTIER = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a01'
 
 const outil = (id: string, quantite = 1, valeurs: Partial<OutilEcran> = {}): OutilEcran => ({
   id, type: 'outil', nom: `Outil ${id.slice(-2)}`, reference: null, quantite, chantierId: CHANTIER, etat: 'ok', notes: null,
-  ajouteLe: '2026-11-02', ...valeurs,
+  surPlaceDepuis: '2026-11-02', ...valeurs,
 })
 
 describe('vendrediDeReference — la semaine va du vendredi au jeudi', () => {
@@ -46,7 +46,7 @@ describe('vendrediDeReference — la semaine va du vendredi au jeudi', () => {
 })
 
 describe('etatVerification', () => {
-  const outils = [{ ajouteLe: '2026-11-10' }]
+  const outils = [{ surPlaceDepuis: '2026-11-10' }]
   it('faite l’emporte sur tout le reste', () => {
     expect(etatVerification({ aujourdhui: '2026-11-30', vendredi: '2026-11-27', faite: true, outilsDuChantier: outils })).toBe('faite')
     expect(etatVerification({ aujourdhui: '2026-11-30', vendredi: '2026-11-27', faite: true, outilsDuChantier: [] })).toBe('faite')
@@ -55,10 +55,10 @@ describe('etatVerification', () => {
     expect(etatVerification({ aujourdhui: '2026-11-27', vendredi: '2026-11-27', faite: false, outilsDuChantier: outils })).toBe('a_faire')
     expect(etatVerification({ aujourdhui: '2026-11-30', vendredi: '2026-11-27', faite: false, outilsDuChantier: outils })).toBe('en_retard')
   })
-  it('la première semaine rien n’est en retard : les outils sont arrivés après le vendredi', () => {
-    expect(etatVerification({ aujourdhui: '2026-11-26', vendredi: '2026-11-20', faite: false, outilsDuChantier: [{ ajouteLe: '2026-11-26' }] })).toBe('prochaine')
+  it('rien n’est en retard pour un outil arrivé sur le chantier après le vendredi (1re semaine, ou déplacé depuis)', () => {
+    expect(etatVerification({ aujourdhui: '2026-11-26', vendredi: '2026-11-20', faite: false, outilsDuChantier: [{ surPlaceDepuis: '2026-11-26' }] })).toBe('prochaine')
     // Un outil entré le vendredi même compte pour ce vendredi.
-    expect(etatVerification({ aujourdhui: '2026-11-30', vendredi: '2026-11-27', faite: false, outilsDuChantier: [{ ajouteLe: '2026-11-27' }] })).toBe('en_retard')
+    expect(etatVerification({ aujourdhui: '2026-11-30', vendredi: '2026-11-27', faite: false, outilsDuChantier: [{ surPlaceDepuis: '2026-11-27' }] })).toBe('en_retard')
   })
   it('un chantier sans outil n’a rien à vérifier', () => {
     expect(etatVerification({ aujourdhui: '2026-11-27', vendredi: '2026-11-27', faite: false, outilsDuChantier: [] })).toBe('sans_outils')
@@ -105,8 +105,16 @@ describe('lignesAEnregistrer — la liste reçue doit être celle du chantier', 
     expect(lignesAEnregistrer([outil(ID_A, 2)], [{ outilId: ID_A, presents: 3, enPanne: false, remarque: null }])).toEqual({ refus: 'quantite_invalide' })
   })
 
-  it('un chantier sans outil se valide avec une liste vide', () => {
-    expect(lignesAEnregistrer([], [])).toEqual({ lignes: [], manquants: 0, enPanne: 0 })
+  it('un chantier sans outil : la vérification ne part qu’avec une observation', () => {
+    expect(lignesAEnregistrer([], [])).toEqual({ refus: 'observations_requises' })
+    expect(lignesAEnregistrer([], [], 'Falta uma rebarbadora')).toEqual({ lignes: [], manquants: 0, enPanne: 0 })
+  })
+
+  it('la remarque d’un élément présent et en état n’est pas gardée (le champ n’est pas affiché)', () => {
+    const r = lignesAEnregistrer([outil(ID_A)], [{ outilId: ID_A, presents: 1, enPanne: false, remarque: 'Levada para Porto' }])
+    expect('lignes' in r && r.lignes[0].remarque).toBeNull()
+    const enPanne = lignesAEnregistrer([outil(ID_A)], [{ outilId: ID_A, presents: 1, enPanne: true, remarque: 'Cabo partido' }])
+    expect('lignes' in enPanne && enPanne.lignes[0].remarque).toBe('Cabo partido')
   })
 })
 
@@ -137,7 +145,9 @@ describe('formulaires reçus', () => {
 describe('lignes de la base vers l’écran', () => {
   it('outil : valeurs absentes ramenées à des valeurs sûres, type inconnu écarté', () => {
     expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'Escadote', quantite: 3, chantier_id: CHANTIER, etat: 'en_panne', created_at: '2026-11-26T10:00:00Z' }))
-      .toEqual({ id: ID_A, type: 'outil', nom: 'Escadote', reference: null, quantite: 3, chantierId: CHANTIER, etat: 'en_panne', notes: null, ajouteLe: '2026-11-26' })
+      .toEqual({ id: ID_A, type: 'outil', nom: 'Escadote', reference: null, quantite: 3, chantierId: CHANTIER, etat: 'en_panne', notes: null, surPlaceDepuis: '2026-11-26' })
+    // L'arrivée sur le chantier (chantier_depuis) prime sur l'entrée au répertoire.
+    expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'X', created_at: '2026-11-02T10:00:00Z', chantier_depuis: '2026-12-02T08:00:00Z' })?.surPlaceDepuis).toBe('2026-12-02')
     expect(outilPourEcran({ id: ID_A, type: 'grue', nom: 'X' })).toBeNull()
     expect(outilPourEcran({ id: ID_A, type: 'outil' })).toBeNull()
   })

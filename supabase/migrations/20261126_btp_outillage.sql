@@ -6,8 +6,9 @@
 --
 -- 1. outillage_btp (une ligne par outil, lot d'outils identiques ou véhicule) : type (outil | vehicule), nom,
 --    référence (numéro interne, numéro de série ou immatriculation), quantité, chantier où il se trouve (vide =
---    au dépôt), état (ok | en_panne), notes. Un outil retiré du répertoire garde sa ligne (retire_le) : les
---    vérifications passées le citent encore.
+--    au dépôt) et depuis quand il y est (chantier_depuis : un outil arrivé après le vendredi n'y met pas la
+--    vérification en retard), état (ok | en_panne), notes. Un outil retiré du répertoire garde sa ligne (retire_le) :
+--    les vérifications passées le citent encore.
 --    chantier_id sans clé étrangère, comme chantier_nom dans pointages_btp : un chantier supprimé ne doit ni
 --    effacer l'outil ni faire échouer la suppression ; la route traite un chantier introuvable comme le dépôt.
 -- 2. verifications_outillage_btp (une ligne par vérification) : chantier, vendredi de la semaine vérifiée, qui a
@@ -40,6 +41,7 @@ create table if not exists public.outillage_btp (
   reference   text,
   quantite    integer not null default 1,
   chantier_id uuid,
+  chantier_depuis timestamptz not null default now(),
   etat        text not null default 'ok',
   notes       text,
   retire_le   timestamptz,

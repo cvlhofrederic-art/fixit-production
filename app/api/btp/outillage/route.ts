@@ -58,6 +58,7 @@ const corpsSchema = z.discriminatedUnion('action', [
 ])
 
 const refus = (status: number, error: string) => NextResponse.json({ error }, { status })
+const SANS_CACHE = { 'Cache-Control': 'private, no-store' }
 
 class MigrationRequise extends Error {}
 
@@ -70,6 +71,8 @@ function echec(error: { code?: unknown; message?: string }, quoi: string): Error
 interface Acces {
   user: User
   societeId: string
+  /** Titulaire du compte de la société (son nom de compte vaut signature) ; faux pour tout sous-compte. */
+  titulaire: boolean
   gestion: boolean
   resolution: ResolutionMembre
   /** Chantiers en cours que le compte vérifie : tous pour la gestion, ses chantiers affectés sinon. */
@@ -90,29 +93,41 @@ async function lireAcces(user: User): Promise<Acces | NextResponse> {
   let verifiables: ChantierBtp[] = []
   if (gestion) verifiables = enCours
   else if (resolution.statut === 'relie') verifiables = chantiersAffectes(resolution.membre, enCours, donnees.equipes)
-  return { user, societeId: perimetre.societeId, gestion, resolution, verifiables }
+  return { user, societeId: perimetre.societeId, titulaire: perimetre.titulaire, gestion, resolution, verifiables }
 }
 
-/** Outils non retirés de la société. */
-async function lireOutils(societeId: string): Promise<OutilEcran[]> {
-  const { data, error } = await supabaseAdmin
+/**
+ * Ce que lit un responsable : les seuls chantiers donnés, filtrés par la base (avant les limites de lecture) ; une
+ * liste vide ne lit rien, mais interroge tout de même la table, pour savoir si la migration est appliquée.
+ */
+function bornerAuxChantiers<T extends { in: (colonne: string, valeurs: string[]) => T; limit: (n: number) => T }>(
+  requete: T, chantierIds: readonly string[] | null,
+): T {
+  if (chantierIds === null) return requete
+  return chantierIds.length > 0 ? requete.in('chantier_id', [...chantierIds]) : requete.limit(0)
+}
+
+/** Outils non retirés de la société ; ceux des chantiers donnés seulement si `chantierIds` n'est pas null. */
+async function lireOutils(societeId: string, chantierIds: readonly string[] | null = null): Promise<OutilEcran[]> {
+  const { data, error } = await bornerAuxChantiers(supabaseAdmin
     .from('outillage_btp').select('*').eq('owner_id', societeId).is('retire_le', null)
-    .order('created_at', { ascending: true }).limit(MAX_OUTILS)
+    .order('created_at', { ascending: true }).limit(MAX_OUTILS), chantierIds)
   if (error) throw echec(error, 'lecture de l’outillage')
   return ((data ?? []) as Ligne[]).map(outilPourEcran).filter((o): o is OutilEcran => o !== null)
 }
 
-async function lireVerifications(societeId: string, depuis: string): Promise<VerificationEcran[]> {
-  const { data, error } = await supabaseAdmin
+async function lireVerifications(societeId: string, depuis: string, chantierIds: readonly string[] | null): Promise<VerificationEcran[]> {
+  const { data, error } = await bornerAuxChantiers(supabaseAdmin
     .from('verifications_outillage_btp').select('*').eq('owner_id', societeId).gte('vendredi', depuis)
-    .order('vendredi', { ascending: false }).order('created_at', { ascending: false }).limit(MAX_VERIFICATIONS)
+    .order('vendredi', { ascending: false }).order('created_at', { ascending: false }).limit(MAX_VERIFICATIONS), chantierIds)
   if (error) throw echec(error, 'lecture des vérifications')
   return ((data ?? []) as Ligne[]).map(verificationPourEcran).filter((v): v is VerificationEcran => v !== null)
 }
 
 /** Tous les chantiers de la société (où se trouve un outil, où l'envoyer), pour la gestion. */
 async function lireLieux(societeId: string): Promise<ContexteOutillage['lieux']> {
-  const { data, error } = await supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', societeId).limit(500)
+  const { data, error } = await supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', societeId)
+    .order('created_at', { ascending: false }).limit(1000)
   if (error) throw new Error(`lecture des chantiers : ${error.message}`)
   return ((data ?? []) as Ligne[]).flatMap(c => (typeof c.id === 'string'
     ? [{ id: c.id, titre: typeof c.titre === 'string' ? c.titre : '', statut: typeof c.statut === 'string' ? c.statut : '' }]
@@ -138,23 +153,25 @@ export async function GET(request: NextRequest) {
     const aujourdhui = aujourdhuiDans(request.nextUrl.searchParams.get('fuseau'))
     const vendredi = vendrediDeReference(aujourdhui)
 
+    // Un responsable ne lit que ses chantiers : leurs outils et leurs vérifications, rien du dépôt ni des autres.
+    const siens = acces.gestion ? null : acces.verifiables.map(c => c.id)
     let outils: OutilEcran[]
     let verifications: VerificationEcran[]
     try {
       ;[outils, verifications] = await Promise.all([
-        lireOutils(acces.societeId),
-        lireVerifications(acces.societeId, decalerDate(vendredi, -7 * SEMAINES_HISTORIQUE)),
+        lireOutils(acces.societeId, siens),
+        lireVerifications(acces.societeId, decalerDate(vendredi, -7 * SEMAINES_HISTORIQUE), siens),
       ])
     } catch (err) {
-      if (err instanceof MigrationRequise) return NextResponse.json(contexteVide(acces, aujourdhui, vendredi, false))
+      if (err instanceof MigrationRequise) return NextResponse.json(contexteVide(acces, aujourdhui, vendredi, false), { headers: SANS_CACHE })
       throw err
     }
 
-    // Un responsable ne voit que ses chantiers : leurs outils et leurs vérifications, rien du dépôt ni des autres.
-    if (!acces.gestion) {
-      const siens = new Set(acces.verifiables.map(c => c.id))
-      outils = outils.filter(o => o.chantierId !== null && siens.has(o.chantierId))
-      verifications = verifications.filter(v => siens.has(v.chantierId))
+    // Second filet, si la base ignorait le filtre : jamais une ligne d'un autre chantier.
+    if (siens !== null) {
+      const ensemble = new Set(siens)
+      outils = outils.filter(o => o.chantierId !== null && ensemble.has(o.chantierId))
+      verifications = verifications.filter(v => ensemble.has(v.chantierId))
     }
 
     const chantiers: ChantierOutillage[] = acces.verifiables.map(c => {
@@ -175,7 +192,7 @@ export async function GET(request: NextRequest) {
       outils,
       verifications,
     }
-    return NextResponse.json(corps, { headers: { 'Cache-Control': 'private, no-store' } })
+    return NextResponse.json(corps, { headers: SANS_CACHE })
   } catch (err) {
     logger.error('[btp/outillage] GET', { error: err instanceof Error ? err.message : err })
     return refus(500, 'Erreur serveur')
@@ -194,12 +211,31 @@ const colonnesOutil = (outil: OutilSaisi) => ({
   chantier_id: outil.chantierId, etat: outil.etat, notes: outil.notes,
 })
 
+/**
+ * Modification d'un outil de la société encore au répertoire ; null s'il n'existe pas (ou plus). Un changement
+ * d'emplacement remet à maintenant la date d'arrivée sur place (chantier_depuis) : la vérification du chantier qu'il
+ * rejoint n'est pas « en retard » pour un vendredi où il n'y était pas.
+ */
+async function modificationsDeLOutil(acces: Acces, id: string, outil: OutilSaisi): Promise<Ligne | null> {
+  const { data, error } = await supabaseAdmin.from('outillage_btp').select('chantier_id')
+    .eq('id', id).eq('owner_id', acces.societeId).is('retire_le', null).maybeSingle()
+  if (error) throw echec(error, 'lecture de l’outil')
+  if (!data) return null
+  const maintenant = new Date().toISOString()
+  const deplace = ((data as Ligne).chantier_id ?? null) !== outil.chantierId
+  return { ...colonnesOutil(outil), updated_at: maintenant, ...(deplace ? { chantier_depuis: maintenant } : {}) }
+}
+
 async function enregistrerOutil(acces: Acces, outil: OutilSaisi, id: string | null): Promise<NextResponse> {
   if (outil.chantierId && !(await chantierDeLaSociete(acces.societeId, outil.chantierId))) return refus(422, 'chantier_inconnu')
-  const requete = id === null
-    ? supabaseAdmin.from('outillage_btp').insert({ owner_id: acces.societeId, ...colonnesOutil(outil) })
-    : supabaseAdmin.from('outillage_btp').update({ ...colonnesOutil(outil), updated_at: new Date().toISOString() })
-      .eq('id', id).eq('owner_id', acces.societeId).is('retire_le', null)
+  let requete
+  if (id === null) {
+    requete = supabaseAdmin.from('outillage_btp').insert({ owner_id: acces.societeId, ...colonnesOutil(outil) })
+  } else {
+    const changements = await modificationsDeLOutil(acces, id, outil)
+    if (!changements) return refus(404, 'outil_introuvable')
+    requete = supabaseAdmin.from('outillage_btp').update(changements).eq('id', id).eq('owner_id', acces.societeId).is('retire_le', null)
+  }
   const { data, error } = await requete.select('*')
   if (error) throw echec(error, 'enregistrement de l’outil')
   const ligne = ((data ?? []) as Ligne[])[0]
@@ -216,16 +252,24 @@ async function retirerOutil(acces: Acces, id: string): Promise<NextResponse> {
   return NextResponse.json({ retire: id })
 }
 
-/** Nom du compte qui valide : sa fiche employé, sinon le nom de son compte, sinon son adresse. */
-function nomDuValidateur(acces: Acces): string {
+/**
+ * Nom qui signe la vérification, montré aux responsables : sa fiche employé, sinon le nom posé par le serveur à
+ * l'invitation (pro_team_members), sinon, pour le seul titulaire, le nom de son compte. Jamais l'adresse e-mail, et
+ * jamais le nom qu'un sous-compte peut changer lui-même (user_metadata) : valide_par garde de toute façon le compte.
+ */
+async function nomDuValidateur(acces: Acces): Promise<string> {
   if (acces.resolution.statut === 'relie') {
     const { prenom, nom } = acces.resolution.membre
     const complet = [prenom, nom].filter(Boolean).join(' ').trim()
     if (complet) return complet
   }
+  const { data, error } = await supabaseAdmin.from('pro_team_members').select('full_name')
+    .eq('company_id', acces.societeId).eq('user_id', acces.user.id).eq('is_active', true).limit(1)
+  if (error) logger.warn('[btp/outillage] nom du compte illisible', { error: error.message })
+  const nomEquipe = (data as Ligne[] | null)?.[0]?.full_name
+  if (typeof nomEquipe === 'string' && nomEquipe.trim()) return nomEquipe.trim()
   const meta = acces.user.user_metadata as Record<string, unknown> | undefined
-  const nomCompte = typeof meta?.full_name === 'string' ? meta.full_name.trim() : ''
-  return nomCompte || acces.user.email || ''
+  return acces.titulaire && typeof meta?.full_name === 'string' ? meta.full_name.trim() : ''
 }
 
 async function valider(acces: Acces, corps: z.infer<typeof verificationSchema> & { fuseau?: string }): Promise<NextResponse> {
@@ -236,8 +280,8 @@ async function valider(acces: Acces, corps: z.infer<typeof verificationSchema> &
   const chantier = acces.verifiables.find(c => c.id === corps.chantierId)
   if (!chantier) return refus(403, 'chantier_non_affecte')
 
-  const surLeChantier = (await lireOutils(acces.societeId)).filter(o => o.chantierId === chantier.id)
-  const resultat = lignesAEnregistrer(surLeChantier, corps.lignes)
+  const surLeChantier = (await lireOutils(acces.societeId, [chantier.id])).filter(o => o.chantierId === chantier.id)
+  const resultat = lignesAEnregistrer(surLeChantier, corps.lignes, corps.observations)
   if ('refus' in resultat) return refus(resultat.refus === 'liste_changee' ? 409 : 422, resultat.refus)
 
   const { data, error } = await supabaseAdmin.from('verifications_outillage_btp').insert({
@@ -247,7 +291,7 @@ async function valider(acces: Acces, corps: z.infer<typeof verificationSchema> &
     vendredi: vendrediDeReference(aujourdhuiDans(corps.fuseau)),
     membre_id: acces.resolution.statut === 'relie' ? acces.resolution.membre.id : null,
     valide_par: acces.user.id,
-    valide_par_nom: nomDuValidateur(acces),
+    valide_par_nom: await nomDuValidateur(acces),
     lignes: resultat.lignes,
     manquants: resultat.manquants,
     en_panne: resultat.enPanne,

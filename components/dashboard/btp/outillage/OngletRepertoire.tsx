@@ -53,7 +53,7 @@ interface Props {
   recharger: () => Promise<void>
 }
 
-export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Props) {
+export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonly<Props>) {
   const [recherche, setRecherche] = useState('')
   const [filtreType, setFiltreType] = useState<'' | TypeOutil>('')
   const [filtreLieu, setFiltreLieu] = useState('')
@@ -149,7 +149,7 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Props) 
             </label>
             <label className="v5-fl">{isPt ? 'Nome' : 'Nom'} *
               <input className="v5-fi" value={b.nom} maxLength={LIMITES_OUTIL.nom} onChange={e => modifier({ nom: e.target.value })}
-                placeholder={b.type === 'vehicule' ? (isPt ? 'Ex.: Carrinha Renault Master' : 'Ex. : Camionnette Renault Master') : (isPt ? 'Ex.: Berbequim Hilti' : 'Ex. : Perforateur Hilti')} />
+                placeholder={b.type === 'vehicule' ? (isPt ? 'Ex.: Carrinha Renault Master' : 'Ex. : Camionnette Renault Master') : (isPt ? 'Ex.: Martelo perfurador Hilti' : 'Ex. : Perforateur Hilti')} />
             </label>
             <label className="v5-fl">{b.type === 'vehicule' ? (isPt ? 'Matrícula' : 'Immatriculation') : (isPt ? 'Referência / n.º de série' : 'Référence / n° de série')}
               <input className="v5-fi" value={b.reference} maxLength={LIMITES_OUTIL.reference} onChange={e => modifier({ reference: e.target.value })} />

@@ -25,13 +25,13 @@ interface Props {
 
 const parType = (a: OutilEcran, b: OutilEcran) => (a.type === b.type ? a.nom.localeCompare(b.nom, 'pt') : a.type === 'outil' ? -1 : 1)
 
-function Formulaire({ chantier, outils, isPt, envoyer, onFini }: {
+function Formulaire({ chantier, outils, isPt, envoyer, onFini }: Readonly<{
   chantier: ChantierOutillage
   outils: OutilEcran[]
   isPt: boolean
   envoyer: EnvoyerOutillage
   onFini: (rechargerSeulement: boolean) => void
-}) {
+}>) {
   const [reponses, setReponses] = useState<Record<string, Reponse>>({})
   const [observations, setObservations] = useState('')
   const [envoi, setEnvoi] = useState(false)
@@ -39,15 +39,21 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: {
   const reponse = (id: string): Reponse => reponses[id] ?? { presents: null, enPanne: false, remarque: '' }
   const changer = (id: string, valeur: Partial<Reponse>) => setReponses(r => ({ ...r, [id]: { ...reponse(id), ...valeur } }))
   const restants = outils.filter(o => reponse(o.id).presents === null).length
+  // Chantier sans outil : la vérification ne part qu'avec une observation (sinon elle ne dirait rien).
+  const observationManquante = outils.length === 0 && !observations.trim()
+  const bloque = restants > 0 || observationManquante
 
   const toutPresent = () => setReponses(r => Object.fromEntries(outils.map(o => [o.id, { ...(r[o.id] ?? { enPanne: false, remarque: '' }), presents: o.quantite }])))
 
   async function valider() {
-    if (restants > 0 || envoi) return
+    if (bloque || envoi) return
     setEnvoi(true)
     const lignes: LigneVerifieeSaisie[] = outils.map(o => {
       const r = reponse(o.id)
-      return { outilId: o.id, presents: r.presents ?? 0, enPanne: r.enPanne, remarque: r.remarque.trim() || null }
+      const presents = r.presents ?? 0
+      // La remarque n'est visible (et n'a de sens) que pour un élément incomplet ou en panne.
+      const aSignaler = presents < o.quantite || r.enPanne
+      return { outilId: o.id, presents, enPanne: r.enPanne, remarque: aSignaler ? r.remarque.trim() || null : null }
     })
     const resultat = await envoyer({ action: 'valider', chantierId: chantier.id, lignes, observations: observations.trim() || null })
     setEnvoi(false)
@@ -146,7 +152,7 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: {
       </label>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-        <button type="button" className="v5-btn v5-btn-p" disabled={restants > 0 || envoi} onClick={() => { void valider() }}>
+        <button type="button" className="v5-btn v5-btn-p" disabled={bloque || envoi} onClick={() => { void valider() }}>
           {envoi ? (isPt ? 'A enviar…' : 'Envoi…') : (isPt ? 'Validar a verificação' : 'Valider la vérification')}
         </button>
         <button type="button" className="v5-btn" disabled={envoi} onClick={() => onFini(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
@@ -155,12 +161,17 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: {
             {isPt ? `Falta marcar ${restants} elemento${restants > 1 ? 's' : ''}.` : `Encore ${restants} élément${restants > 1 ? 's' : ''} à marquer.`}
           </span>
         )}
+        {observationManquante && (
+          <span style={{ fontSize: 13, color: GRIS }} aria-live="polite">
+            {isPt ? 'Escreva uma observação para enviar.' : 'Écrivez une remarque pour l’envoyer.'}
+          </span>
+        )}
       </div>
     </div>
   )
 }
 
-export function OngletVerification({ contexte, isPt, envoyer, recharger }: Props) {
+export function OngletVerification({ contexte, isPt, envoyer, recharger }: Readonly<Props>) {
   const [ouvert, setOuvert] = useState<string | null>(null)
   const outilsPar = useMemo(() => {
     const carte = new Map<string, OutilEcran[]>()
@@ -220,8 +231,8 @@ export function OngletVerification({ contexte, isPt, envoyer, recharger }: Props
             {c.derniere && (
               <div style={{ fontSize: 13, marginTop: 6 }}>
                 {isPt
-                  ? `Verificada por ${c.derniere.par || '—'}, ${dateEtHeure(c.derniere.le, true)} — `
-                  : `Vérifiée par ${c.derniere.par || '—'}, le ${dateEtHeure(c.derniere.le, false)} — `}
+                  ? `Verificada por ${c.derniere.par || '—'}, ${dateEtHeure(c.derniere.le, true)}: `
+                  : `Vérifiée par ${c.derniere.par || '—'}, le ${dateEtHeure(c.derniere.le, false)} : `}
                 <strong style={{ color: c.derniere.manquants > 0 || c.derniere.enPanne > 0 ? '#b91c1c' : '#15803d' }}>
                   {resumeVerification(c.derniere.manquants, c.derniere.enPanne, isPt)}
                 </strong>

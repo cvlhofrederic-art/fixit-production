@@ -10,22 +10,29 @@ const GRIS = '#555'
 
 const aSignaler = (l: LigneVerifiee) => l.presents < l.attendus || l.enPanne
 
-function Ligne({ ligne, isPt }: { ligne: LigneVerifiee; isPt: boolean }) {
+/** « em falta », ou pour un lot « faltam 3 de 4 » / « 3 manquants sur 4 ». */
+function textePourManque(manque: number, attendus: number, isPt: boolean): string {
+  if (attendus <= 1) return isPt ? 'em falta' : 'manquant'
+  if (isPt) return `${manque > 1 ? 'faltam' : 'falta'} ${manque} de ${attendus}`
+  return `${manque} manquant${manque > 1 ? 's' : ''} sur ${attendus}`
+}
+
+function Ligne({ ligne, isPt }: Readonly<{ ligne: LigneVerifiee; isPt: boolean }>) {
   const manque = ligne.attendus - ligne.presents
   const etats: string[] = []
-  if (manque > 0) etats.push(ligne.attendus > 1 ? (isPt ? `${manque} em falta de ${ligne.attendus}` : `${manque} manquant${manque > 1 ? 's' : ''} sur ${ligne.attendus}`) : (isPt ? 'em falta' : 'manquant'))
+  if (manque > 0) etats.push(textePourManque(manque, ligne.attendus, isPt))
   if (ligne.enPanne) etats.push(isPt ? 'avariada' : 'en panne')
   if (etats.length === 0) etats.push(isPt ? 'presente' : 'présent')
   return (
     <li style={{ fontSize: 13, color: aSignaler(ligne) ? '#b91c1c' : GRIS }}>
       <span aria-hidden="true">{iconeType(ligne.type)} </span>
-      {ligne.nom}{ligne.reference ? ` (${ligne.reference})` : ''} — {etats.join(', ')}
+      {ligne.nom}{ligne.reference ? ` (${ligne.reference})` : ''}: {etats.join(', ')}
       {ligne.remarque && <span style={{ color: GRIS }}> · « {ligne.remarque} »</span>}
     </li>
   )
 }
 
-export function OngletHistorique({ contexte, isPt }: { contexte: ContexteOutillage; isPt: boolean }) {
+export function OngletHistorique({ contexte, isPt }: Readonly<{ contexte: ContexteOutillage; isPt: boolean }>) {
   if (contexte.verifications.length === 0) {
     return (
       <div className="v5-card" style={{ fontSize: 13, color: GRIS }}>

@@ -125,7 +125,8 @@ describe('GET /api/btp/outillage — qui voit quoi', () => {
     expect(json).toMatchObject({ gestion: false, rattachement: 'relie', lieux: [] })
     expect(json.chantiers.map((c: Ligne) => c.id)).toEqual([C_VILLA])
     expect(json.chantiers[0]).toMatchObject({ titre: 'Villa', adresse: '1 rue des Lilas, 13008 Marseille', etat: 'a_faire', derniere: null })
-    expect(json.chantiers[0]).not.toHaveProperty('budget')
+    expect(Object.keys(json.chantiers[0]).sort()).toEqual(['adresse', 'derniere', 'etat', 'id', 'titre'])
+    expect(JSON.stringify(json)).not.toContain('Mme X')
     expect(json.outils.map((o: Ligne) => o.id).sort()).toEqual([O_BETONEIRA, O_ESCADOTES].sort())
   })
 
@@ -177,8 +178,37 @@ describe('POST valider — la vérification du vendredi', () => {
   it('refuse un chantier qui ne lui est pas affecté, sans rien écrire', async () => {
     expect(await envoyer({ ...toutPresent(), chantierId: C_GARAGE, lignes: [{ outilId: O_GARAGE, presents: 1, enPanne: false, remarque: null }] }))
       .toMatchObject({ status: 403, json: { error: 'chantier_non_affecte' } })
+    // Même si le chantier de la société B désigne sa fiche : la société est celle du compte, jamais celle du chantier.
+    const chantierB = etat.tables.chantiers_btp.find(c => c.id === C_SOC_B) as Ligne
+    chantierB.membres_ids = [...(chantierB.membres_ids as string[]), M_CHEF]
     expect(await envoyer({ ...toutPresent(), chantierId: C_SOC_B, lignes: [{ outilId: O_SOC_B, presents: 1, enPanne: false, remarque: null }] }))
       .toMatchObject({ status: 403, json: { error: 'chantier_non_affecte' } })
+    expect((await lire()).json.chantiers.map((c: Ligne) => c.id)).toEqual([C_VILLA])
+    expect(ecrituresOutillage()).toEqual([])
+  })
+
+  it('un chantier sans outil : 422 sans observation, accepté avec une', async () => {
+    etat.user = GERANT_A
+    const vide = { action: 'valider', chantierId: C_IMMEUBLE, fuseau: 'Europe/Lisbon', lignes: [], observations: null }
+    expect(await envoyer(vide)).toMatchObject({ status: 422, json: { error: 'observations_requises' } })
+    expect(await envoyer({ ...vide, observations: '   ' })).toMatchObject({ status: 422 })
+    expect(ecrituresOutillage()).toEqual([])
+    expect((await envoyer({ ...vide, observations: 'Falta um andaime' })).status).toBe(201)
+  })
+
+  it('la remarque d’un élément présent et en état n’est pas gardée', async () => {
+    const corps = toutPresent()
+    corps.lignes[0] = { outilId: O_BETONEIRA, presents: 1, enPanne: false, remarque: 'Levada para Porto' }
+    expect((await envoyer(corps)).status).toBe(201)
+    expect((verifications()[0].lignes as Ligne[])[0]).toMatchObject({ outilId: O_BETONEIRA, remarque: null })
+  })
+
+  it('un co-gérant invité désactivé n’a plus accès (aucune ligne d’équipe active)', async () => {
+    const U_COGERANT = randomUUID()
+    etat.tables.pro_team_members.push({ id: randomUUID(), company_id: SOC_A, user_id: U_COGERANT, email: 'cogerant@a.example', role: 'GERANT', is_active: false })
+    etat.user = { id: U_COGERANT, email: 'cogerant@a.example', app_metadata: { role: 'pro_societe', pro_team_role: 'GERANT', company_id: SOC_A } }
+    expect(await lire()).toMatchObject({ status: 403, json: { error: 'acces_refuse' } })
+    expect(await envoyer({ action: 'creer', outil: outilValide })).toMatchObject({ status: 403 })
     expect(ecrituresOutillage()).toEqual([])
   })
 
@@ -223,8 +253,22 @@ describe('POST valider — la vérification du vendredi', () => {
     etat.user = GERANT_A
     const { status, json } = await envoyer({ ...toutPresent(), chantierId: C_GARAGE, lignes: [{ outilId: O_GARAGE, presents: 0, enPanne: false, remarque: null }] })
     expect(status).toBe(201)
-    expect(json.verification).toMatchObject({ manquants: 1, par: 'gerant@a.example' })
+    expect(json.verification).toMatchObject({ manquants: 1, par: '' })
     expect(verifications()[0]).toMatchObject({ owner_id: SOC_A, membre_id: null, valide_par: SOC_A })
+    expect(JSON.stringify(verifications())).not.toContain('gerant@a.example')
+    // Avec le nom de son compte (titulaire : il est la société), c'est ce nom qui signe.
+    etat.user = { ...GERANT_A, user_metadata: { full_name: 'Frédéric Exemple' } }
+    const { json: suite } = await envoyer({ ...toutPresent(), chantierId: C_GARAGE, lignes: [{ outilId: O_GARAGE, presents: 1, enPanne: false, remarque: null }] })
+    expect(suite.verification).toMatchObject({ par: 'Frédéric Exemple' })
+  })
+
+  it('un sous-compte sans fiche signe du nom posé à l’invitation, jamais du nom qu’il se donne', async () => {
+    const U_SEC = randomUUID()
+    etat.tables.pro_team_members.push({ id: randomUUID(), company_id: SOC_A, user_id: U_SEC, email: 'sec@a.example', full_name: 'Tatiana Exemple', role: 'SECRETAIRE', is_active: true })
+    etat.user = { id: U_SEC, email: 'sec@a.example', user_metadata: { full_name: 'Le Gérant' }, app_metadata: { role: 'pro_societe', pro_team_role: 'SECRETAIRE', company_id: SOC_A } }
+    const { status, json } = await envoyer(toutPresent())
+    expect(status).toBe(201)
+    expect(json.verification).toMatchObject({ par: 'Tatiana Exemple' })
   })
 
   it('migration non appliquée : 409 migration_requise', async () => {
@@ -266,6 +310,25 @@ describe('POST creer / modifier / retirer — le répertoire', () => {
     expect(await envoyer({ action: 'modifier', id: O_SOC_B, outil: outilValide })).toMatchObject({ status: 404, json: { error: 'outil_introuvable' } })
     expect(await envoyer({ action: 'modifier', id: O_RETIRE, outil: outilValide })).toMatchObject({ status: 404 })
     expect((etat.tables.outillage_btp as Ligne[]).find(o => o.id === O_SOC_B)).toMatchObject({ nom: 'Outil de la société B', owner_id: SOC_B })
+  })
+
+  it('déplacer un outil remet sa date d’arrivée : le chantier qu’il rejoint n’est pas « en retard » pour un vendredi passé', async () => {
+    etat.user = GERANT_A
+    // Mercredi 02/12 : la carrinha, au dépôt depuis le 20/11, part sur l'Immeuble (sans outil jusque-là).
+    vi.setSystemTime(Date.UTC(2026, 11, 2, 9, 0, 0))
+    const deplacement = { action: 'modifier', id: O_CARRINHA, outil: { type: 'vehicule', nom: 'Carrinha', reference: 'AA-00-BB', quantite: 1, chantierId: C_IMMEUBLE, etat: 'ok', notes: null } }
+    expect((await envoyer(deplacement)).status).toBe(200)
+    const carrinha = (etat.tables.outillage_btp as Ligne[]).find(o => o.id === O_CARRINHA) as Ligne
+    expect(carrinha.chantier_depuis).toBe('2026-12-02T09:00:00.000Z')
+    const immeuble = (await lire()).json.chantiers.find((c: Ligne) => c.id === C_IMMEUBLE)
+    expect(immeuble).toMatchObject({ etat: 'prochaine' })
+    // Une modification sans déplacement (nom) ne touche pas à la date d'arrivée.
+    vi.setSystemTime(Date.UTC(2026, 11, 3, 9, 0, 0))
+    expect((await envoyer({ ...deplacement, outil: { ...deplacement.outil, nom: 'Carrinha Master' } })).status).toBe(200)
+    expect(carrinha.chantier_depuis).toBe('2026-12-02T09:00:00.000Z')
+    // Le vendredi suivant passé sans vérification, il est bien en retard.
+    vi.setSystemTime(Date.UTC(2026, 11, 7, 9, 0, 0))
+    expect((await lire()).json.chantiers.find((c: Ligne) => c.id === C_IMMEUBLE)).toMatchObject({ etat: 'en_retard' })
   })
 
   it('retirer garde la ligne (les vérifications passées la citent) et la sort du répertoire', async () => {
