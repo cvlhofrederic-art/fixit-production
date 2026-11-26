@@ -13,6 +13,7 @@
 // bornée, même insertion que l'adresse soit juste ou fausse) sont exécutées sur un vrai PostgreSQL ailleurs
 // (tests/migrations/signalements_qr_diffusion.execution.test.ts). Aucune donnée réelle : adresses en exemple.test.
 
+import { createHmac, hkdfSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
@@ -705,5 +706,102 @@ describe('D-P5b GET un clic : aucun effet, 303 vers la page en mode réduit (jet
     const r = await ouvrirUnClic(jeton)
     expect(r.status).toBe(429)
     expect(simulQr.limites).toEqual(['qr_desinscription_un_clic_get_203.0.113.7'])
+  })
+})
+
+// ── Compatibilité avec l'ancien nom du produit (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, blocs B, C, F) ──
+// Message de diffusion envoyé AVANT le renommage : ses deux liens ont été signés sous l'ancien contexte HKDF et les
+// anciens usages, et son en-tête List-Unsubscribe porte l'ancienne adresse un clic (réécrite vers cette même route par
+// next.config.ts : la route reçoit le jeton tel quel). Chaque route publique les honore comme ceux d'aujourd'hui.
+describe('liens d’un message envoyé avant le renommage du produit', () => {
+  /** Jetons signés comme le faisait le code d'avant (oracle node:crypto ; vecteurs figés : tests/lib/vitfixsignal-ancien-nom.test.ts). */
+  function jetonsDAvant(id = DEST, secret = CLE): { page: string; unClic: string } {
+    const cle = Buffer.from(hkdfSync('sha256', secret, 'vitfix', 'aj-signalement-desinscription-v1', 32))
+    const signer = (usage: string) => createHmac('sha256', cle).update(JSON.stringify(['v1', usage, id])).digest('hex')
+    const hex = id.replaceAll('-', '')
+    return { page: `${hex}.${signer('aj-diffusion-page')}`, unClic: `${hex}.${signer('aj-diffusion-un-clic')}` }
+  }
+  const requeteAncienneAdresse = (jeton: string) => new NextRequest(`https://vitfix.io/api/aj-signalement/desinscription/un-clic/${jeton}`, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: CORPS_UN_CLIC,
+  })
+
+  it('ces jetons ne sont pas ceux que le code signe aujourd’hui', async () => {
+    const aujourdhui = await jetons()
+    expect(jetonsDAvant().page).not.toBe(aujourdhui.page)
+    expect(jetonsDAvant().unClic).not.toBe(aujourdhui.unClic)
+  })
+
+  it('D-P5 POST un clic reçu sous l’ancienne adresse : opposition d’origine un_clic, 200 corps vide', async () => {
+    const { unClic: jeton } = jetonsDAvant()
+    const r = await unClic(jeton, requeteAncienneAdresse(jeton))
+    expect(r.status).toBe(200)
+    expect(await r.text()).toBe('')
+    expect(appelsDe('signalements_qr_diffusion_opposer').map((a) => a.args)).toEqual([{ p_destinataire: DEST, p_origine: 'un_clic' }])
+  })
+
+  it('D-P5 jeton d’avant falsifié : même 200, AUCUNE opposition', async () => {
+    const { unClic: jeton } = jetonsDAvant()
+    const faux = signatureFausse(jeton)
+    const r = await unClic(faux, requeteAncienneAdresse(faux))
+    expect(r.status).toBe(200)
+    expect(appelsDe('signalements_qr_diffusion_opposer')).toEqual([])
+  })
+
+  it('D-P5 jeton de PAGE d’avant présenté au un clic : refusé (un usage ne vaut pas pour l’autre)', async () => {
+    const { page } = jetonsDAvant()
+    expect((await unClic(page)).status).toBe(200)
+    expect(appelsDe('signalements_qr_diffusion_opposer')).toEqual([])
+  })
+
+  it('D-P5b GET un clic d’avant : 303 vers la page de désinscription du cabinet, aucun effet', async () => {
+    const { unClic: jeton } = jetonsDAvant()
+    const r = await ouvrirUnClic(jeton)
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe(`https://vitfix.io/cabinet-exemple/desinscription/#${jeton}`)
+    expect(appelsDe('signalements_qr_diffusion_opposer')).toEqual([])
+  })
+
+  it('D-P1 à D-P3 bouton du corps de l’e-mail (jeton de page d’avant) : lu « valide », opposition, puis « Recevoir à nouveau »', async () => {
+    const { page } = jetonsDAvant()
+    const lu = await lire(page)
+    expect(lu.status).toBe(200)
+    expect(await lu.json()).toMatchObject({ etat: 'valide', type: 'page', copropriete: 'Résidence Exemple', oppose: false })
+    expect((await opposer(page)).status).toBe(200)
+    expect(appelsDe('signalements_qr_diffusion_opposer').map((a) => a.args.p_destinataire)).toEqual([DEST])
+    expect((await reprendre(page)).status).toBe(200)
+    expect(appelsDe('signalements_qr_diffusion_lever').map((a) => a.args.p_destinataire)).toEqual([DEST])
+  })
+
+  it('jeton d’avant sous le chemin d’un AUTRE cabinet : « inconnu », comme aujourd’hui', async () => {
+    const r = await lire(jetonsDAvant().page, 'autre-cabinet')
+    expect(await r.json()).toMatchObject({ etat: 'inconnu' })
+  })
+
+  it('jeton d’avant signé par la clé PRÉCÉDENTE : « expiré » (repli par l’adresse) ; le un clic reste honoré', async () => {
+    const { page, unClic: jeton } = jetonsDAvant(DEST, CLE_PRECEDENTE)
+    expect(await (await lire(page)).json()).toMatchObject({ etat: 'expire' })
+    expect((await unClic(jeton)).status).toBe(200)
+    expect(appelsDe('signalements_qr_diffusion_opposer').map((a) => a.args)).toEqual([{ p_destinataire: DEST, p_origine: 'un_clic' }])
+  })
+
+  it('secret du Worker encore posé sous son ANCIEN nom seulement (état de la production au déploiement) : tout marche', async () => {
+    vi.stubEnv('VITFIXSIGNAL_CLE_LIENS_DIFFUSION', '')
+    vi.stubEnv('VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE', '')
+    vi.stubEnv('AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION', CLE)
+    const { unClic: jeton, page } = jetonsDAvant()
+    expect(await (await lire(page)).json()).toMatchObject({ etat: 'valide' })
+    expect((await unClic(jeton)).status).toBe(200)
+    expect(appelsDe('signalements_qr_diffusion_opposer').map((a) => a.args)).toEqual([{ p_destinataire: DEST, p_origine: 'un_clic' }])
+    // Un lien signé aujourd'hui avec ce même secret est honoré aussi.
+    const neuf = await signerLiensDiffusionQr(DEST, { AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION: CLE })
+    if (!neuf.ok) throw new Error(neuf.code)
+    expect(await (await lire(neuf.page)).json()).toMatchObject({ etat: 'valide' })
+  })
+
+  it('aucun des deux noms posé : 503 (rien n’est honoré à tort)', async () => {
+    vi.stubEnv('VITFIXSIGNAL_CLE_LIENS_DIFFUSION', '')
+    vi.stubEnv('AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION', '')
+    expect((await unClic(jetonsDAvant().unClic)).status).toBe(503)
+    expect(appelsDe('signalements_qr_diffusion_opposer')).toEqual([])
   })
 })

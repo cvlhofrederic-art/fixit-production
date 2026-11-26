@@ -296,3 +296,88 @@ describe('e-mails de Vitfix Signal : ni objet ni texte du rebond dans Sentry', (
     expect(h.captureMessage.mock.calls[0][1]).toMatchObject({ extra: { subject: 'Votre devis', message: 'Adresse inconnue' } })
   })
 })
+
+// ── Compatibilité avec l'ancien nom du produit (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc G) ──────
+// Les e-mails envoyés avant le renommage portent les étiquettes « type » d'avant ; leurs événements arrivent encore
+// (une plainte « indésirable » peut venir tant que le message est dans une boîte). Ils sont traités comme les autres.
+describe('e-mails envoyés avant le renommage du produit (anciennes étiquettes)', () => {
+  const TAGS_DIFFUSION_D_AVANT = { type: 'aj-diffusion', diffusion: DIFFUSION, destinataire: DESTINATAIRE }
+
+  it('plainte sur un message de diffusion d’avant : opposition « plainte » pour ce destinataire, 200', async () => {
+    const res = await poster(evenement('email.complained', { tags: TAGS_DIFFUSION_D_AVANT }))
+    expect(res.status).toBe(200)
+    expect(appelsOpposer()).toEqual([['signalements_qr_diffusion_opposer', { p_destinataire: DESTINATAIRE, p_origine: 'plainte' }]])
+  })
+
+  it('même plainte, étiquettes sous la forme de l’envoi ([{ name, value }]) : même opposition', async () => {
+    const tags = Object.entries(TAGS_DIFFUSION_D_AVANT).map(([name, value]) => ({ name, value }))
+    expect((await poster(evenement('email.complained', { tags }))).status).toBe(200)
+    expect(appelsOpposer()).toEqual([['signalements_qr_diffusion_opposer', { p_destinataire: DESTINATAIRE, p_origine: 'plainte' }]])
+  })
+
+  it('base indisponible : 503 (Resend réessaie), comme pour une diffusion d’aujourd’hui', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+    expect((await poster(evenement('email.complained', { tags: TAGS_DIFFUSION_D_AVANT }))).status).toBe(503)
+  })
+
+  it('étiquette d’avant sans destinataire valable : aucun appel, avertissement, 200', async () => {
+    expect((await poster(evenement('email.complained', { tags: { type: 'aj-diffusion', diffusion: DIFFUSION } }))).status).toBe(200)
+    expect(h.rpc).not.toHaveBeenCalled()
+    expect(h.warn).toHaveBeenCalled()
+  })
+
+  it.each([
+    ['accusé de réception', { type: 'aj-signalement-confirmation' }],
+    ['e-mail d’un signalement', { type: 'aj-signalement' }],
+    ['alerte', { type: 'aj-signalement-alerte' }],
+    ['confirmation d’adresse', { type: 'aj-signalement-adresse' }],
+    ['accès', { type: 'aj-signalement-acces' }],
+    ['copie au cabinet', { type: 'aj-diffusion-copie', diffusion: DIFFUSION }],
+  ])('plainte sur un autre e-mail d’avant (%s) : aucune opposition, 200', async (_cas, tags) => {
+    expect((await poster(evenement('email.complained', { tags }))).status).toBe(200)
+    expect(h.rpc).not.toHaveBeenCalled()
+  })
+
+  it('rebond sur un message de diffusion d’avant : AUCUNE opposition (Resend écarte déjà l’adresse), 200', async () => {
+    const res = await poster(evenement('email.bounced', { tags: TAGS_DIFFUSION_D_AVANT, bounce: { type: 'Permanent', subType: 'General', message: 'x' } }))
+    expect(res.status).toBe(200)
+    expect(h.rpc).not.toHaveBeenCalled()
+  })
+
+  const OBJET = 'Résidence Exemple — Coupure d’eau au bâtiment B demain de 9 h à 10 h'
+  const ADRESSE = 'jean.declarant@exemple.test'
+  const REBOND = { type: 'Permanent', subType: 'General', message: `550 5.1.1 <${ADRESSE}>: Recipient address rejected: user unknown` }
+  const ETIQUETTES_D_AVANT: Array<[string, Record<string, unknown>]> = [
+    ['diffusion', TAGS_DIFFUSION_D_AVANT],
+    ['copie au cabinet', { type: 'aj-diffusion-copie', diffusion: DIFFUSION }],
+    ['accusé de réception', { type: 'aj-signalement-confirmation' }],
+    ['e-mail d’un signalement', { type: 'aj-signalement' }],
+    ['alerte', { type: 'aj-signalement-alerte' }],
+    ['confirmation d’adresse', { type: 'aj-signalement-adresse' }],
+    ['accès', { type: 'aj-signalement-acces' }],
+  ]
+  const cas = ETIQUETTES_D_AVANT.flatMap(([nom, tags]) => [
+    ['email.bounced', nom, tags, { bounce: REBOND }],
+    ['email.complained', nom, tags, { complaint: { type: 'abuse' } }],
+    ['email.delivery_delayed', nom, tags, {}],
+  ] as const)
+
+  it.each(cas)('%s, %s : Sentry ne reçoit ni l’objet ni le texte du rebond', async (type, _nom, tags, data) => {
+    expect((await poster(evenement(type, { to: [ADRESSE], subject: OBJET, tags, ...data }))).status).toBe(200)
+    expect(h.captureMessage).toHaveBeenCalledTimes(1)
+    const [titre, options] = h.captureMessage.mock.calls[0] as [string, { extra: Record<string, unknown> }]
+    const tout = JSON.stringify([titre, options])
+    expect(tout).not.toContain('Coupure d’eau')
+    expect(tout).not.toContain(ADRESSE)
+    expect(options.extra).not.toHaveProperty('subject')
+    expect(options.extra).not.toHaveProperty('message')
+    expect(options.extra).toMatchObject({ emailId: '56761188-7520-42d8-8898-ff6fc54ce618', recipientDomains: ['exemple.test'] })
+  })
+
+  it.each(['aj-signalements', 'aj', 'aj-autre', 'maj-signalement', 'xaj-diffusion'])(
+    'étiquette voisine « %s » : pas un e-mail du produit (objet gardé, aucune opposition)', async (type) => {
+      await poster(evenement('email.complained', { subject: 'Votre devis', tags: { type, diffusion: DIFFUSION, destinataire: DESTINATAIRE } }))
+      expect(h.captureMessage.mock.calls[0][1]).toMatchObject({ extra: { subject: 'Votre devis' } })
+      expect(h.rpc).not.toHaveBeenCalled()
+    })
+})

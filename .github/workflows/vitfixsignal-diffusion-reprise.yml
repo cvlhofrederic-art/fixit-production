@@ -16,6 +16,12 @@ name: Vitfix Signal — filet de reprise de la diffusion
 # la variable de dépôt VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE vaut « true » (GitHub > Settings > Secrets and variables > Actions >
 # Variables), à poser APRÈS la migration et les secrets ; absente ou autre valeur, le job est sauté (ni appel, ni échec),
 # lancement manuel compris. Ce n'est pas un secret : la condition ne lit ni secret ni donnée de l'événement.
+#
+# TRANSITION (décision du 26/11/2026 : le produit s'appelle « Vitfix Signal ») : la variable de dépôt posée avant le
+# renommage, AJ_DIFFUSION_REPRISE_ACTIVE, est encore lue ; le job tourne si l'UNE des deux vaut « true », pour que le
+# filet ne s'arrête pas à la fusion. À faire ensuite : créer VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE = true, supprimer
+# l'ancienne variable, puis retirer d'ici la seconde moitié de la condition (lib/vitfixsignal/ancien-nom.ts, bloc F).
+# La route appelée est la nouvelle ; l'ancienne adresse du filet reste servie par le Worker (réécriture interne).
 
 on:
   schedule:
@@ -32,7 +38,7 @@ concurrency:
 
 jobs:
   reprendre:
-    if: vars.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true'
+    if: vars.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true' || vars.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

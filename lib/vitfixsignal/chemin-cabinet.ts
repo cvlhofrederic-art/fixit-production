@@ -34,6 +34,8 @@
 //      réservée.
 
 import type { CheminCabinetQr, EspaceCabinetQr, ValidationIdentifiantCabinetQr } from '@/lib/vitfixsignal/types'
+// Chemin relatif : ce module est aussi chargé par next.config.ts, hors de l'alias « @/ ».
+import { ANCIENS_IDENTIFIANTS_RESERVES_QR } from './ancien-nom'
 
 /**
  * Chemin public d'un cabinet reconnu par cheminPublicCabinetQr : ceux des PR 1 et 2 (CheminCabinetQr), plus la
@@ -132,14 +134,25 @@ export const IDENTIFIANTS_RESERVES_QR: readonly string[] = [
   'connexion', 'login', 'logout', 'inscription', 'register', 'compte', 'account', 'dashboard', 'test', 'demo',
   // 2ᵉ segment de la désinscription des messages de diffusion (PR 3, lot 6).
   'desinscription',
+  // Nom du produit (décision du 26/11/2026) : « vitfixsignal » est plus haut (segment de l'espace) ; son écriture avec
+  // un tiret est gardée aussi. L'ancien segment de l'espace, redirigé par le middleware, reste réservé SANS LIMITE : un
+  // cabinet qui le prendrait recevrait les anciens liens (lib/vitfixsignal/ancien-nom.ts, bloc A).
+  'vitfix-signal',
+  ...ANCIENS_IDENTIFIANTS_RESERVES_QR,
 ]
 
 /**
  * Préfixes testés par startsWith SANS barre finale (ConditionalLayout : DASHBOARD_PATH_PREFIXES et
  * AUTH_BOOKING_PATH_PREFIXES ; middleware : '/administrateur-judiciaire') : un identifiant qui les prolonge
- * (« confirmation-x ») changerait l'habillage ou le contrôle de sa page. Garde : même test.
+ * (« confirmation-x ») changerait l'habillage ou le contrôle de sa page. Garde : même test. S'y ajoute l'ancien segment
+ * de l'espace (garde : tests/lib/vitfixsignal-ancien-nom.test.ts).
  */
-export const PREFIXES_RESERVES_QR: readonly string[] = ['vitfixsignal', 'administrateur-judiciaire', 'reserver', 'confirmation']
+export const PREFIXES_RESERVES_QR: readonly string[] = [
+  'vitfixsignal', 'administrateur-judiciaire', 'reserver', 'confirmation',
+  // Ancien segment de l'espace (préfixe réservé depuis l'origine, gardé après le renommage du 26/11/2026) : aucun
+  // identifiant ne le prolonge.
+  ...ANCIENS_IDENTIFIANTS_RESERVES_QR,
+]
 
 const RESERVES = new Set(IDENTIFIANTS_RESERVES_QR)
 

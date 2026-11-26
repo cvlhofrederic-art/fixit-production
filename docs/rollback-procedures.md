@@ -333,3 +333,26 @@ Aucune autre table n'est touchée.
 DROP TABLE IF EXISTS public.verifications_outillage_btp;
 DROP TABLE IF EXISTS public.outillage_btp;
 ```
+
+## Migration 20261126b — Vitfix Signal : renommage (`20261126b_vitfixsignal_renommage.sql`)
+
+La migration ne fait que deux choses : elle repose les commentaires (COMMENT ON) de 13 tables et d'une colonne
+`signalements_qr_*` avec le nouveau nom du produit, et elle renomme la clé du repère de routage des comptes des
+gestionnaires dans `auth.users.raw_app_meta_data` (ancienne clé → `vitfixsignal_cabinet`, même valeur). Aucune table,
+aucune ligne des tables `signalements_qr_*`, aucune fonction, aucune policy ni aucun droit n'est touché.
+
+Aucun retour arrière n'est nécessaire tant que le code du renommage est en production : il lit la nouvelle clé et, à
+défaut, l'ancienne (`lib/vitfixsignal/ancien-nom.ts`, bloc E), et les commentaires n'ont aucun effet. Un retour n'a de
+sens que si l'on redéploie le code d'AVANT le renommage, qui ne lit que l'ancienne clé : sans lui, les gestionnaires ne
+seraient plus aiguillés vers l'espace de leur cabinet (ils ne perdent aucun droit : chaque route relit leur fiche).
+Dans ce cas seulement, rejouer l'`UPDATE` de la migration en ÉCHANGEANT les deux noms de clé (l'ancien nom est écrit
+dans le fichier de la migration), sur le modèle ci-dessous où `<ancienne_cle>` est à remplacer. Les commentaires
+peuvent rester tels quels.
+
+```sql
+-- Rollback (seulement avec le code d'avant le renommage) : nouvelle clé → ancienne clé, même valeur.
+UPDATE auth.users
+   SET raw_app_meta_data = (raw_app_meta_data - 'vitfixsignal_cabinet')
+       || jsonb_build_object('<ancienne_cle>', raw_app_meta_data -> 'vitfixsignal_cabinet')
+ WHERE raw_app_meta_data -> 'vitfixsignal_cabinet' IS NOT NULL;
+```

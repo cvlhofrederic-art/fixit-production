@@ -18,6 +18,12 @@
 // lib/equipe/lien-invitation.ts. Rotation : l'ancienne valeur passe dans VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE
 // (facultatif) ; un lien signé par elle est « expiré » (repli par la saisie de l'adresse), aucune autre signature n'est
 // acceptée. Secret absent : configuration_incomplete (aucune diffusion ne peut partir, aucun lien n'a pu être émis).
+// Les deux secrets sont lus par lib/vitfixsignal/variables.ts (seul endroit de lecture).
+//
+// Transition (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc C) : les liens des messages envoyés avant le
+// renommage du produit ont été signés sous un autre contexte HKDF et d'autres usages. La SIGNATURE n'utilise que le
+// contexte et les usages actuels ; la VÉRIFICATION accepte aussi ceux d'avant, par la même clé (courante, puis
+// précédente), sans jamais croiser un contexte avec les usages de l'autre.
 //
 // Rien n'est stocké : le lien se recalcule à l'identique (un lot renvoyé produit le même message). L'identifiant du
 // destinataire est tiré au hasard par la base (122 bits) ; le lien ne contient ni adresse, ni identifiant de
@@ -27,7 +33,9 @@
 // Module sans dépendance serveur (Web Crypto seulement) : routes de diffusion, routes publiques de désinscription,
 // tests. Il ne lit la base nulle part : etatLienDiffusionQr reçoit la ligne de signalements_qr_diffusion_lien.
 
+import { ANCIENNE_INFO_HKDF_LIENS_QR, ANCIENS_USAGES_SIGNES_QR } from '@/lib/vitfixsignal/ancien-nom'
 import { FORMAT_IDENTIFIANT_CABINET_QR } from '@/lib/vitfixsignal/chemin-cabinet'
+import { lireVariableQr, type EnvVitfixSignalQr } from '@/lib/vitfixsignal/variables'
 
 /** Les deux usages d'un lien (cahier § 8.1). */
 export type UsageLienDiffusionQr = 'page' | 'un_clic'
@@ -45,11 +53,26 @@ export const LONGUEUR_MIN_CLE_LIENS_DIFFUSION_QR = 32
 export const ORIGINE_LIENS_DIFFUSION_QR = 'https://vitfix.io'
 
 /** Environnement lu (process.env par défaut ; un objet dans les tests). */
-export type EnvLiensDiffusionQr = Readonly<Record<string, string | undefined>>
+export type EnvLiensDiffusionQr = EnvVitfixSignalQr
 
-const VARIABLE_CLE = 'VITFIXSIGNAL_CLE_LIENS_DIFFUSION'
-const VARIABLE_CLE_PRECEDENTE = 'VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE'
-const USAGES_SIGNES: Readonly<Record<UsageLienDiffusionQr, string>> = { page: 'vitfixsignal-diffusion-page', un_clic: 'vitfixsignal-diffusion-un-clic' }
+/** Forme d'un lien signé : le contexte (info HKDF) de sa clé et le nom signé de chaque usage. */
+interface FormeLienSigne {
+  info: string
+  usages: Readonly<Record<UsageLienDiffusionQr, string>>
+}
+
+/** Forme actuelle : la seule qui SIGNE. */
+const FORME_ACTUELLE: FormeLienSigne = {
+  info: 'vitfixsignal-desinscription-v1',
+  usages: { page: 'vitfixsignal-diffusion-page', un_clic: 'vitfixsignal-diffusion-un-clic' },
+}
+
+/** Formes VÉRIFIÉES, dans l'ordre : l'actuelle, puis celle des messages envoyés avant le renommage (transition, bloc C). */
+const FORMES_VERIFIEES: readonly FormeLienSigne[] = [
+  FORME_ACTUELLE,
+  { info: ANCIENNE_INFO_HKDF_LIENS_QR, usages: ANCIENS_USAGES_SIGNES_QR },
+]
+
 const FORMAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const JOUR_MS = 24 * 60 * 60 * 1000
 const encodeur = new TextEncoder()
@@ -62,39 +85,47 @@ function secretDe(valeur: string | undefined): string | null {
   return secret.length >= LONGUEUR_MIN_CLE_LIENS_DIFFUSION_QR ? secret : null
 }
 
-// Clés dérivées, par secret (la clé courante et la précédente ; une rotation en ajoute une). Une dérivation échouée
-// n'est pas gardée.
+// Clés dérivées, par contexte et par secret (la clé courante et la précédente, sous les deux formes vérifiées ; une
+// rotation en ajoute deux). Une dérivation échouée n'est pas gardée.
 const clesEnCache = new Map<string, Promise<CryptoKey>>()
-const TAILLE_MAX_CACHE = 4
+const TAILLE_MAX_CACHE = 8
 
-function cleHmac(secret: string): Promise<CryptoKey> {
-  const enCache = clesEnCache.get(secret)
+function cleHmac(secret: string, info: string): Promise<CryptoKey> {
+  // Le contexte ne contient jamais de saut de ligne : la clé du cache est sans ambiguïté.
+  const entree = `${info}\n${secret}`
+  const enCache = clesEnCache.get(entree)
   if (enCache) return enCache
   if (clesEnCache.size >= TAILLE_MAX_CACHE) clesEnCache.clear()
   const cle = crypto.subtle
     .importKey('raw', encodeur.encode(secret), 'HKDF', false, ['deriveKey'])
     .then((base) => crypto.subtle.deriveKey(
-      { name: 'HKDF', hash: 'SHA-256', salt: encodeur.encode('vitfix'), info: encodeur.encode('vitfixsignal-desinscription-v1') },
+      { name: 'HKDF', hash: 'SHA-256', salt: encodeur.encode('vitfix'), info: encodeur.encode(info) },
       base,
       { name: 'HMAC', hash: 'SHA-256', length: 256 },
       false,
       ['sign', 'verify'],
     ))
-  cle.catch(() => clesEnCache.delete(secret))
-  clesEnCache.set(secret, cle)
+  cle.catch(() => clesEnCache.delete(entree))
+  clesEnCache.set(entree, cle)
   return cle
 }
 
+/** Clé courante (rognée, 32 caractères au moins), sinon null. */
+const cleCourante = (env: EnvLiensDiffusionQr) => secretDe(lireVariableQr('VITFIXSIGNAL_CLE_LIENS_DIFFUSION', env))
+
+/** Clé précédente, pendant une rotation (facultative), sinon null. */
+const clePrecedente = (env: EnvLiensDiffusionQr) => secretDe(lireVariableQr('VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE', env))
+
 /** La clé de signature est-elle configurée (D-R3, D-R4, D-C1 : 503 configuration_incomplete sinon) ? */
 export function cleLiensDiffusionConfigureeQr(env: EnvLiensDiffusionQr = process.env): boolean {
-  return secretDe(env[VARIABLE_CLE]) !== null
+  return cleCourante(env) !== null
 }
 
 // ── Signature ──
 
 /** Message signé : tableau JSON, sans ambiguïté (cahier § 8.1). */
-const message = (usage: UsageLienDiffusionQr, destinataireId: string) =>
-  encodeur.encode(JSON.stringify(['v1', USAGES_SIGNES[usage], destinataireId]))
+const message = (forme: FormeLienSigne, usage: UsageLienDiffusionQr, destinataireId: string) =>
+  encodeur.encode(JSON.stringify(['v1', forme.usages[usage], destinataireId]))
 
 const enHex = (octets: ArrayBuffer) => Array.from(new Uint8Array(octets), (o) => o.toString(16).padStart(2, '0')).join('')
 
@@ -117,15 +148,15 @@ export type SignatureLiensDiffusionQr =
  * (aucune exception pour ces deux cas ; seule une panne de Web Crypto rejetterait la promesse).
  */
 export async function signerLiensDiffusionQr(destinataireId: string, env: EnvLiensDiffusionQr = process.env): Promise<SignatureLiensDiffusionQr> {
-  const secret = secretDe(env[VARIABLE_CLE])
+  const secret = cleCourante(env)
   if (!secret) return { ok: false, code: 'configuration_incomplete' }
   const id = destinataireId.toLowerCase()
   if (!FORMAT_UUID.test(id)) return { ok: false, code: 'identifiant_invalide' }
-  const cle = await cleHmac(secret)
+  const cle = await cleHmac(secret, FORME_ACTUELLE.info)
   const hex = id.replaceAll('-', '')
   const [page, unClic] = await Promise.all([
-    crypto.subtle.sign('HMAC', cle, message('page', id)),
-    crypto.subtle.sign('HMAC', cle, message('un_clic', id)),
+    crypto.subtle.sign('HMAC', cle, message(FORME_ACTUELLE, 'page', id)),
+    crypto.subtle.sign('HMAC', cle, message(FORME_ACTUELLE, 'un_clic', id)),
   ])
   return { ok: true, page: `${hex}.${enHex(page)}`, unClic: `${hex}.${enHex(unClic)}` }
 }
@@ -144,27 +175,30 @@ export type VerificationJetonDiffusionQr = JetonSigneDiffusionQr | { statut: 'in
 
 /**
  * Vérifie la signature d'un jeton pour les usages acceptés, dans cet ordre : sous la clé courante, puis sous la clé
- * précédente (cahier § 8.1). Aucune ne vérifie, ou format faux → inconnu, quel que soit l'identifiant. Clé courante
- * absente → configuration_incomplete (D-P5 : 503 ; pages publiques : « inconnu »). Ne lit pas la base.
+ * précédente (cahier § 8.1) ; pour chaque clé, sous la forme actuelle puis sous celle d'avant le renommage (transition,
+ * FORMES_VERIFIEES). Aucune ne vérifie, ou format faux → inconnu, quel que soit l'identifiant. Clé courante absente →
+ * configuration_incomplete (D-P5 : 503 ; pages publiques : « inconnu »). Ne lit pas la base.
  */
 export async function verifierJetonDiffusionQr(
   jeton: string,
   usages: readonly UsageLienDiffusionQr[],
   env: EnvLiensDiffusionQr = process.env,
 ): Promise<VerificationJetonDiffusionQr> {
-  const courante = secretDe(env[VARIABLE_CLE])
+  const courante = cleCourante(env)
   if (!courante) return { statut: 'configuration_incomplete' }
   if (!FORMAT_JETON_DIFFUSION_QR.test(jeton)) return { statut: 'inconnu' }
   const destinataireId = uuidDepuisHex(jeton.slice(0, 32))
   const signature = depuisHex(jeton.slice(33))
-  const precedente = secretDe(env[VARIABLE_CLE_PRECEDENTE])
+  const precedente = clePrecedente(env)
   const cles: Array<[JetonSigneDiffusionQr['cle'], string]> = [['courante', courante]]
   if (precedente) cles.push(['precedente', precedente])
   for (const [nom, secret] of cles) {
-    const cle = await cleHmac(secret)
-    for (const usage of usages) {
-      if (await crypto.subtle.verify('HMAC', cle, signature, message(usage, destinataireId))) {
-        return { statut: 'signe', destinataireId, usage, cle: nom }
+    for (const forme of FORMES_VERIFIEES) {
+      const cle = await cleHmac(secret, forme.info)
+      for (const usage of usages) {
+        if (await crypto.subtle.verify('HMAC', cle, signature, message(forme, usage, destinataireId))) {
+          return { statut: 'signe', destinataireId, usage, cle: nom }
+        }
       }
     }
   }

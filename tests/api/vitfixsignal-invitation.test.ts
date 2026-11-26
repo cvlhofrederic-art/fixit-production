@@ -754,3 +754,82 @@ describe('« Ce n’est pas moi » (P2-R3b, publique)', () => {
     expect(baseQr.etat.appelsRpc).toEqual([])
   })
 })
+
+// ── Compatibilité avec l'ancien nom du produit (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, blocs D et E) ──
+// Envoi d'accès resté en attente, émis AVANT le renommage : son lien a été signé sous l'ancien nom de l'espace (aide des
+// tests : tests/helpers/lien-invitation-ancien-espace.ts, vérifiée par un vecteur figé dans
+// tests/lib/vitfixsignal-ancien-nom.test.ts). Il reste lisible et acceptable ; le compte ouvert reçoit la NOUVELLE clé
+// du repère de routage.
+describe('lien d’accès émis avant le renommage du produit (ancien nom d’espace signé)', () => {
+  const ID_ENVOI = 'e0000000-0000-4000-8000-0000000000a1'
+  const JETON_LIGNE = 'c1'.repeat(24)
+
+  async function preparerEnvoiDAvant(sur: Ligne = {}) {
+    const { jetonAncienEspace } = await import('../helpers/lien-invitation-ancien-espace')
+    baseQr.table('signalements_qr_invitations').push({
+      id: ID_ENVOI, gestionnaire_id: G, objet: 'acces', email: EMAIL, full_name: 'Marie Exemple', role: 'gestionnaire_signalement',
+      invite_token: JETON_LIGNE, created_at: new Date().toISOString(), invite_sent_at: new Date().toISOString(), accepted_at: null,
+      user_id: null, refus: null, envoye_par: ADMIN_QR.id, ...sur,
+    })
+    I.liaisonQr.vus.set(ID_ENVOI, null)
+    jeton = await jetonAncienEspace({ id: ID_ENVOI, email: EMAIL, invite_token: JETON_LIGNE, equipe_id: G })
+    idEnvoi = ID_ENVOI
+  }
+
+  beforeEach(() => {
+    simulQr.user = null
+  })
+
+  it('ce lien n’est pas celui que le code signe aujourd’hui pour la même ligne', async () => {
+    await preparerEnvoiDAvant()
+    const { jetonDuLien } = await import('@/lib/equipe/lien-invitation')
+    expect(await jetonDuLien('vitfixsignal', { id: ID_ENVOI, email: EMAIL, invite_token: JETON_LIGNE, equipe_id: G })).not.toBe(jeton)
+  })
+
+  it('lecture (P2-R2) : 200, comme un lien d’aujourd’hui', async () => {
+    await preparerEnvoiDAvant()
+    const res = await lire(corpsLien())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ cabinet: 'Cabinet Exemple' })
+  })
+
+  it('acceptation (P2-R3) : compte créé avec le rôle et la NOUVELLE clé du repère, envoi accepté, fiche reliée', async () => {
+    await preparerEnvoiDAvant()
+    const res = await accepter(corpsAcceptation())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ acces: 'ouvert' })
+    const creation = I.authQr.appels.find((a) => a.methode === 'createUser')?.args[0] as Record<string, unknown>
+    expect(creation.app_metadata).toEqual({ role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'cabinet-exemple' })
+    const compte = I.authQr.comptes[0]
+    expect(envoi(ID_ENVOI)).toMatchObject({ user_id: compte.id, accepted_at: expect.any(String), invite_token: null })
+    expect(laFiche()).toMatchObject({ user_id: compte.id, acces_ouvert_le: expect.any(String) })
+    // Le même lien ne vaut plus rien ensuite.
+    expect((await accepter(corpsAcceptation())).status).toBe(404)
+  })
+
+  it('compte existant ouvert avant le renommage (ancienne clé du repère) : rattaché, la nouvelle clé est posée', async () => {
+    await preparerEnvoiDAvant()
+    I.authQr.comptes.push({
+      id: COMPTE_EXISTANT, email: EMAIL, app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' }, user_metadata: {},
+    })
+    const res = await accepter(corpsAcceptation())
+    expect(res.status).toBe(200)
+    expect(I.authQr.comptes[0].app_metadata).toMatchObject({ role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'cabinet-exemple' })
+    expect(laFiche()).toMatchObject({ user_id: COMPTE_EXISTANT })
+  })
+
+  it('lien d’avant, cabinet du chemin ≠ cabinet de la fiche, ou signature altérée : le même 404 générique', async () => {
+    await preparerEnvoiDAvant()
+    expect((await lire(corpsLien({ cabinet: 'autre-cabinet' }))).status).toBe(404)
+    const faux = `${jeton.slice(0, -1)}${jeton.endsWith('0') ? '1' : '0'}`
+    expect((await lire(corpsLien({ token: faux }))).status).toBe(404)
+    expect((await accepter(corpsAcceptation({ token: faux }))).status).toBe(404)
+    expect(I.authQr.appels.filter((a) => a.methode === 'createUser')).toHaveLength(0)
+  })
+
+  it('lien d’avant de plus de 7 jours : expiré (410), comme aujourd’hui', async () => {
+    await preparerEnvoiDAvant({ created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString() })
+    expect((await lire(corpsLien())).status).toBe(410)
+    expect((await accepter(corpsAcceptation())).status).toBe(410)
+  })
+})

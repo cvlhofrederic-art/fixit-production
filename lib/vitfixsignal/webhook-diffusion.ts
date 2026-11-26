@@ -13,15 +13,24 @@
 //   - un rebond ne donne jamais d'opposition : Resend écarte déjà l'adresse (le webhook n'appelle pas ce module).
 // Aucune adresse n'est lue ni journalisée : la fonction SQL retrouve la copropriété et l'empreinte par l'identifiant du
 // destinataire. Erreur de la base (autre que la migration absente) : la route répond 503, pour que Resend réessaie.
+//
+// Transition (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc G) : les e-mails envoyés avant le renommage
+// du produit portent les étiquettes « type » d'avant. Un événement sur l'un d'eux est traité comme les autres : plainte
+// sur une diffusion → opposition ; objet et texte du rebond tus à Sentry.
 
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { ANCIEN_MOTIF_TYPE_EMAIL_QR, ANCIEN_TYPE_ETIQUETTE_DIFFUSION_QR } from '@/lib/vitfixsignal/ancien-nom'
 import { journaliserRepliDiffusionQr, structureAbsenteQr } from '@/lib/vitfixsignal/serveur'
 
 const CONTEXTE = '[VITFIX SIGNAL]'
 
 /** Étiquette « type » d'un message de diffusion (messageDiffusionQr, lib/vitfixsignal/email.ts). */
 export const TYPE_ETIQUETTE_DIFFUSION_QR = 'vitfixsignal-diffusion'
+
+/** Le message est-il une diffusion (ou son annonce) ? Étiquette actuelle, ou celle des messages d'avant le renommage. */
+const estTypeDiffusionQr = (type: string | undefined): boolean =>
+  type === TYPE_ETIQUETTE_DIFFUSION_QR || type === ANCIEN_TYPE_ETIQUETTE_DIFFUSION_QR
 
 const FORMAT_UUID_QR = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -53,7 +62,8 @@ const TYPE_EMAIL_VITFIXSIGNAL_QR = /^vitfixsignal(?:-|$)/
  * d'un rebond, qui cite souvent l'adresse du destinataire (cahier PR 3 § 8.2, « Journalisation » ; relecture 3).
  */
 export function emailVitfixSignalQr(tags: unknown): boolean {
-  return TYPE_EMAIL_VITFIXSIGNAL_QR.test(etiquettesResendQr(tags).get('type') ?? '')
+  const type = etiquettesResendQr(tags).get('type') ?? ''
+  return TYPE_EMAIL_VITFIXSIGNAL_QR.test(type) || ANCIEN_MOTIF_TYPE_EMAIL_QR.test(type)
 }
 
 /**
@@ -69,7 +79,7 @@ export type IssuePlainteDiffusionQr = 'hors_diffusion' | 'etiquette_invalide' | 
 /** Plainte « indésirable » reçue par le webhook : opposition « plainte » si le message est une diffusion (H13). */
 export async function traiterPlainteDiffusionQr(tags: unknown): Promise<IssuePlainteDiffusionQr> {
   const etiquettes = etiquettesResendQr(tags)
-  if (etiquettes.get('type') !== TYPE_ETIQUETTE_DIFFUSION_QR) return 'hors_diffusion'
+  if (!estTypeDiffusionQr(etiquettes.get('type'))) return 'hors_diffusion'
   const diffusion = etiquettes.get('diffusion')
   const ids = { diffusionId: diffusion && FORMAT_UUID_QR.test(diffusion) ? diffusion.toLowerCase() : 'inconnue' }
   const destinataire = etiquettes.get('destinataire')

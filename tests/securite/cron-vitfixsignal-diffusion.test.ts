@@ -98,15 +98,28 @@ describe('workflow vitfixsignal-diffusion-reprise.yml (modèle run-automations.y
   // 503 (base_absente, configuration_incomplete) et le workflow échouerait toutes les 5 minutes. Il reste donc inactif
   // tant qu'une personne n'a pas posé la variable de dépôt VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE à « true » (GitHub > Settings >
   // Secrets and variables > Actions > Variables) ; une variable absente vaut la chaîne vide, donc un job sauté.
-  it('inactif par défaut : condition de job sur la variable de dépôt VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == \'true\'', () => {
-    expect(yaml).toMatch(/^jobs:\n {2}reprendre:\n {4}if: vars\.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true'\n {4}runs-on: ubuntu-latest$/m)
-    // Une seule condition, au niveau du job (aucune condition de pas qui laisserait le job démarrer) ; elle ne lit qu'une
-    // variable de dépôt, jamais un secret ni une donnée de l'événement.
+  //
+  // Transition (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc F) : la variable de dépôt posée en production
+  // porte encore son nom d'avant le renommage du produit. Le job tourne si l'UNE des deux vaut « true » : le filet ne
+  // s'arrête pas à la fusion ; il suffit ensuite de créer la nouvelle variable, puis de supprimer l'ancienne.
+  const CONDITION = "vars.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true' || vars.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'"
+
+  it('inactif par défaut : condition de job sur la variable de dépôt VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == \'true\' (ou sur son ancien nom)', () => {
+    expect(yaml).toContain(`\njobs:\n  reprendre:\n    if: ${CONDITION}\n    runs-on: ubuntu-latest\n`)
+    // Une seule condition, au niveau du job (aucune condition de pas qui laisserait le job démarrer) ; elle ne lit que des
+    // variables de dépôt, jamais un secret ni une donnée de l'événement.
     const conditions = [...yaml.matchAll(/^(\s*)(?:- )?if:\s*(.*)$/gm)]
-    expect(conditions.map((c) => [c[1].length, c[2]])).toEqual([[4, "vars.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true'"]])
+    expect(conditions.map((c) => [c[1].length, c[2]])).toEqual([[4, CONDITION]])
     expect(yaml).not.toMatch(/if:.*(secrets\.|github\.event)/)
-    // Comparaison stricte à « true » : ni `!= 'false'` (une variable absente l'activerait), ni la variable seule.
-    expect(yaml).not.toMatch(/VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE\s*!=/)
+    // Comparaison stricte à « true » : ni `!= 'false'` (une variable absente l'activerait), ni la variable seule. Les deux
+    // variables absentes (chaîne vide) ou à toute autre valeur : chaque comparaison est fausse, le job est sauté.
+    expect(yaml).not.toMatch(/DIFFUSION_REPRISE_ACTIVE\s*!=/)
+    expect(CONDITION.split(' || ')).toEqual(["vars.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true'", "vars.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'"])
+  })
+
+  it('le job appelle la NOUVELLE route seulement, jamais celle d’avant le renommage', () => {
+    expect(blocsRun(yaml).join('\n')).not.toMatch(/api\/cron\/aj-/)
+    expect(yaml).not.toMatch(/api\/cron\/aj-/)
   })
 
   it('la condition d’activation est documentée dans l’en-tête (migration, secrets, variable)', () => {

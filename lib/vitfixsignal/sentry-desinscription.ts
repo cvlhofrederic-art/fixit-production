@@ -14,11 +14,19 @@
 // chaque erreur et chaque transaction par effacerJetonsDesinscriptionSentryQr : tout jeton de lien de diffusion (forme
 // fixe <32 hexadécimaux>.<64 hexadécimaux>), où qu'il soit, devient « [jeton] » ; le chemin de la page reste lisible.
 //
-// Module pur, sans dépendance : importé par sentry.server.config.ts, sentry.edge.config.ts (beforeSend et
+// Module pur, sans dépendance serveur : importé par sentry.server.config.ts, sentry.edge.config.ts (beforeSend et
 // beforeSendTransaction), instrumentation-client.ts (beforeBreadcrumb, beforeSend, beforeSendTransaction), et par les tests.
 
-/** Segment qui suit le préfixe un clic, jusqu'au prochain séparateur d'adresse ou de texte. */
-const MOTIF_JETON_UN_CLIC = /(\/api\/vitfixsignal\/desinscription\/un-clic\/)[^/?#\s"'<>]+/g
+// Chemin relatif : ce module est chargé par sentry.server.config.ts et sentry.edge.config.ts, hors de l'alias « @/ ».
+import { ANCIEN_PREFIXE_API_QR } from './ancien-nom'
+
+/**
+ * Segment qui suit le préfixe un clic, jusqu'au prochain séparateur d'adresse ou de texte. Deux préfixes : l'adresse
+ * actuelle et celle des messages envoyés avant le renommage du produit (réécrite vers la même route : l'événement porte
+ * l'adresse d'origine ; transition : lib/vitfixsignal/ancien-nom.ts, bloc B).
+ */
+const MOTIF_JETON_UN_CLIC = new RegExp(
+  String.raw`((?:/api/vitfixsignal|${ANCIEN_PREFIXE_API_QR})/desinscription/un-clic/)[^/?#\s"'<>]+`, 'g')
 
 /**
  * Jeton d'un lien de diffusion, de page ou un clic (`<identifiant, 32 hex>.<HMAC-SHA-256, 64 hex>`), où qu'il soit : en

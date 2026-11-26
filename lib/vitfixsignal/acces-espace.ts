@@ -25,6 +25,7 @@
 import type {
   CoproDroitsQr, DroitsCoproprieteQr, EspaceCabinetQr, FicheDroitsQr, PorteeQr, ProfilDroitsQr,
 } from '@/lib/vitfixsignal/types'
+import { ANCIENNE_CLE_REPERE_CABINET_QR } from '@/lib/vitfixsignal/ancien-nom'
 import { cheminConnexionCabinetQr, cheminSuiviCabinetQr, validerIdentifiantCabinetQr } from '@/lib/vitfixsignal/chemin-cabinet'
 
 /** Rôle serveur (app_metadata.role) d'un compte gestionnaire d'un cabinet client, posé à l'acceptation de son accès. */
@@ -33,7 +34,8 @@ export const ROLE_GESTIONNAIRE_QR = 'gestionnaire_signalement'
 /**
  * Repère de routage posé dans app_metadata à l'acceptation (identifiant du chemin de SON cabinet) : il sert au
  * middleware, qui n'a pas la base, à aiguiller le gestionnaire vers vitfix.io/<identifiant>/suivi/. Il ne donne AUCUN
- * droit : les routes ne lisent que la fiche.
+ * droit : les routes ne lisent que la fiche. Seule clé ÉCRITE ; la clé d'avant le renommage du produit est encore LUE
+ * à défaut (repereCabinetQr).
  */
 export const CLE_REPERE_CABINET_QR = 'vitfixsignal_cabinet'
 
@@ -98,7 +100,11 @@ const estSuperAdminQr = (metadonnees: MetadonneesApp): boolean => estObjet(metad
  */
 export function repereCabinetQr(metadonnees: MetadonneesApp): string | null {
   if (!estObjet(metadonnees) || metadonnees.role !== ROLE_GESTIONNAIRE_QR) return null
-  const repere = metadonnees[CLE_REPERE_CABINET_QR]
+  // Transition (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc E) : un compte ouvert avant le renommage
+  // porte encore l'ancienne clé, en base tant que la migration 20261126b n'est pas appliquée, puis dans le jeton d'une
+  // session ouverte jusqu'à son rafraîchissement. La clé actuelle, dès qu'elle est là, est seule lue (même mal formée).
+  const actuel = metadonnees[CLE_REPERE_CABINET_QR]
+  const repere = actuel === undefined || actuel === null ? metadonnees[ANCIENNE_CLE_REPERE_CABINET_QR] : actuel
   return typeof repere === 'string' && validerIdentifiantCabinetQr(repere).ok ? repere : null
 }
 

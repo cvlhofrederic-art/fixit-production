@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import {
   aiguillageGestionnaireQr, redirectionEspaceCabinetQr, redirectionEspaceQr, viseEspaceQr,
 } from '@/lib/vitfixsignal/acces-espace'
+import { redirectionAncienneAdresseQr } from '@/lib/vitfixsignal/ancien-nom'
 import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/vitfixsignal/chemin-cabinet'
 import { estPostUnClicDesinscriptionQr } from '@/lib/vitfixsignal/chemin-desinscription'
 import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
@@ -230,6 +231,20 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // ── Vitfix Signal : anciennes adresses des pages de l'espace (avant le renommage du produit, décision du 26/11/2026) ──
+  // Redirection PERMANENTE (308) vers la même page sous le nouveau segment, avec ou sans langue, requête gardée (favoris,
+  // liens des e-mails déjà reçus). Décidée ici, avant la langue, le cabinet et la session : une seule redirection
+  // permanente, puis la nouvelle adresse suit son parcours habituel (302 de langue, contrôle d'accès). Dans le middleware
+  // et non dans redirects() de next.config.ts : OpenNext renvoie les redirections de la configuration avec le seul
+  // en-tête Location (@opennextjs/aws core/routing/matcher.js, handleRedirects), sans X-Robots-Tag ni Cache-Control ;
+  // ici la réponse reste non indexable et n'est gardée par aucun cache (un 308 sans Cache-Control reste dans le
+  // navigateur). Les anciennes routes d'API ne passent PAS ici : next.config.ts les réécrit (jamais de redirection).
+  // Transition et condition de retrait : lib/vitfixsignal/ancien-nom.ts, bloc A.
+  const nouvelleAdresse = redirectionAncienneAdresseQr(pathname)
+  if (nouvelleAdresse) {
+    return enTetesEspacePrive(NextResponse.redirect(new URL(nouvelleAdresse + request.nextUrl.search, request.url), 308))
+  }
+
   // ── Vitfix Signal : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
   // /<identifiant>/confirmation-adresse/, /<identifiant>/invitation/ depuis la PR 2, et /<identifiant>/desinscription/
   // depuis la PR 3 : publique SANS session, même si l'espace du cabinet est sous session ; choix de Hugo du 10/11/2026).
@@ -270,6 +285,8 @@ export async function middleware(request: NextRequest) {
   // Seule exception (Vitfix Signal, PR 3, décision F3) : le POST « un clic » de désinscription (RFC 8058), envoyé par la
   // messagerie de la personne, qui peut porter un Origin étranger ou « null ». Effet borné par le jeton signé (une
   // opposition, idempotente), signature vérifiée par la route avant tout (lib/vitfixsignal/chemin-desinscription.ts).
+  // Reconnu sous son adresse actuelle ET sous celle des messages envoyés avant le renommage du produit : le middleware
+  // voit le chemin d'origine, la réécriture de next.config.ts vers la nouvelle route vient après lui.
   if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)
     && !estPostUnClicDesinscriptionQr(request.method, pathname)) {
     const origin = request.headers.get('origin')

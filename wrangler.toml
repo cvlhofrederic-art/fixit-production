@@ -170,8 +170,15 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   ADMIN_EMAIL_2
 #   ADMIN_PASSWORD_2
 #   INTERNAL_API_SECRET
+#   VITFIXSIGNAL_CLE_LIENS_DIFFUSION             (Vitfix Signal : signature des liens de désinscription, >= 32 caractères ;
+#                                                 sans elle aucune diffusion ne part — openssl rand -hex 32)
 #
 # MEDIUM:
+#   VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE  (Vitfix Signal : clé précédente, seulement pendant une rotation)
+#   VITFIXSIGNAL_EXPEDITEUR_DIFFUSION            (Vitfix Signal : adresse d'expédition des diffusions ; à défaut RESEND_FROM_EMAIL)
+#     Ces trois valeurs sont lues par lib/vitfixsignal/variables.ts, qui accepte encore leur nom d'avant le renommage du
+#     produit (transition, décision du 26/11/2026 : lib/vitfixsignal/ancien-nom.ts, bloc F). Les reposer sous ces noms-ci
+#     avec les MÊMES valeurs, puis supprimer les anciens secrets (wrangler secret delete).
 #   TAVILY_API_KEY
 #   OPENROUTER_API_KEY
 #   CEREBRAS_API_KEY              (fallback provider Groq)

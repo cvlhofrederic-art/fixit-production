@@ -52,6 +52,7 @@ import {
 } from '@/lib/vitfixsignal/affichage'
 import { parLangue } from '@/lib/vitfixsignal/bilingue'
 import { TEXTES_SIGNALEMENT_QR } from '@/lib/vitfixsignal/textes'
+import { lireVariableQr } from '@/lib/vitfixsignal/variables'
 import { remplir } from '@/lib/coproprietaire/textes'
 
 const ECHAPPEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -988,13 +989,14 @@ function adresseExpediteurQr(valeur: string | undefined): string | null {
 
 /**
  * Expéditeur d'une diffusion, figé à la création (fige_expediteur) : « "Nom du cabinet nettoyé" <adresse> ». Adresse :
- * secret VITFIXSIGNAL_EXPEDITEUR_DIFFUSION (wrangler secret put), à défaut la partie adresse de RESEND_FROM_EMAIL, à
+ * secret VITFIXSIGNAL_EXPEDITEUR_DIFFUSION (wrangler secret put ; lu par lib/vitfixsignal/variables.ts, qui accepte
+ * encore son nom d'avant le renommage du produit), à défaut la partie adresse de RESEND_FROM_EMAIL, à
  * défaut l'adresse sans réponse du service (lib/email.ts). Nom d'affichage : nom du cabinet sans « " », « \ », « < »,
  * « > », « , », « ; », retours ni caractères de contrôle ou invisibles, 70 caractères au plus ; vide une fois nettoyé :
  * l'adresse seule.
  */
 export function expediteurDiffusionQr(nomCabinet: string, env: Record<string, string | undefined> = process.env): string {
-  const adresse = adresseExpediteurQr(env.VITFIXSIGNAL_EXPEDITEUR_DIFFUSION) ?? adresseExpediteurQr(env.RESEND_FROM_EMAIL) ?? NOREPLY_EMAIL
+  const adresse = adresseExpediteurQr(lireVariableQr('VITFIXSIGNAL_EXPEDITEUR_DIFFUSION', env)) ?? adresseExpediteurQr(env.RESEND_FROM_EMAIL) ?? NOREPLY_EMAIL
   const nom = nettoyerLigneDiffusionQr(nettoyerLigneDiffusionQr(nomCabinet).replace(/["\\<>,;]/g, ' '), MAX_NOM_AFFICHAGE_QR)
   return nom ? `"${nom}" <${adresse}>` : adresse
 }

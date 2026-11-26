@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 // Chemin dédié à la configuration : l'import depuis « @sentry/nextjs » est déprécié depuis Sentry 10.73 et disparaît en v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
+import { ANCIEN_CHEMIN_CRON_REPRISE_QR, ANCIEN_PREFIXE_API_QR } from "./lib/vitfixsignal/ancien-nom";
 import { SOURCE_IDENTIFIANT_CABINET_QR } from "./lib/vitfixsignal/chemin-cabinet";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
@@ -146,6 +147,20 @@ const nextConfig: NextConfig = {
         // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
         { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
         { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
+        // ── Vitfix Signal : routes d'API d'avant le renommage du produit (décision du 26/11/2026) ──
+        // RÉÉCRITES vers les nouvelles, jamais redirigées : le POST « un clic » de l'en-tête List-Unsubscribe (RFC 8058)
+        // d'un message déjà envoyé vient d'une messagerie, qui ne suit pas une redirection ; une page restée ouverte
+        // pendant le déploiement appelle encore les anciennes routes. Le middleware, qui passe avant, voit le chemin
+        // d'origine (son exemption du contrôle d'Origin reconnaît les deux adresses un clic). « :path* » capture toujours
+        // au moins un segment pour une route qui existe : la destination est compilée par OpenNext (la racine seule,
+        // littérale, n'a pas de route : 404 comme avant). Le filet de reprise n'a aucun paramètre : paire exacte, avec et
+        // sans barre finale. Placées en fin de liste : aucune autre règle ne commence par /api/, et leurs destinations ne
+        // correspondent à aucune règle (next start les enchaîne). Les anciennes PAGES sont redirigées par le middleware.
+        // Transition et condition de retrait : lib/vitfixsignal/ancien-nom.ts, bloc B.
+        // Gardes : tests/next-config-routage-opennext.test.ts, tests/securite/acces-middleware-vitfixsignal.test.ts.
+        { source: `${ANCIEN_PREFIXE_API_QR}/:path*`, destination: '/api/vitfixsignal/:path*' },
+        { source: ANCIEN_CHEMIN_CRON_REPRISE_QR, destination: '/api/cron/vitfixsignal-diffusion-reprise' },
+        { source: `${ANCIEN_CHEMIN_CRON_REPRISE_QR}/`, destination: '/api/cron/vitfixsignal-diffusion-reprise/' },
       ],
       afterFiles: [],
       fallback: [],

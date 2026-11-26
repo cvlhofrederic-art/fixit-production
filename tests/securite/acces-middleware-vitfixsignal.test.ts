@@ -619,3 +619,150 @@ describe('contrôle d’Origin des requêtes mutantes sur /api/ : seule exceptio
     expect((await envoyer(UN_CLIC, 'GET', 'https://mail.exemple.test')).suite).toBe('1')
   })
 })
+
+// ── Compatibilité avec l'ancien nom du produit (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts) ──────────────
+// Tout ce qui existait en production sous l'ancien nom continue de marcher :
+//   - anciennes adresses des pages de l'espace (favoris, liens des e-mails déjà reçus) : UNE redirection permanente
+//     (308) vers la même page sous le nouveau segment, décidée AVANT tout le reste (langue, cabinet, session), jamais
+//     indexable, jamais gardée en cache (un 308 sans Cache-Control reste dans le navigateur) ;
+//   - anciennes routes d'API : laissées passer telles quelles (next.config.ts les réécrit ensuite vers les nouvelles),
+//     jamais redirigées ; le POST « un clic » de l'en-tête List-Unsubscribe des messages déjà envoyés reste exempté du
+//     contrôle d'Origin sous son ancienne adresse ;
+//   - comptes ouverts avant le renommage : l'ancienne clé du repère de routage est encore lue.
+describe('compatibilité avec l’ancien nom du produit', () => {
+  describe('anciennes adresses des pages : redirection permanente vers la nouvelle', () => {
+    it.each([
+      ['/fr/aj-signalement/', '/fr/vitfixsignal/'],
+      ['/fr/aj-signalement', '/fr/vitfixsignal'],
+      ['/fr/aj-signalement/connexion/', '/fr/vitfixsignal/connexion/'],
+      ['/pt/aj-signalement/', '/pt/vitfixsignal/'],
+      ['/pt/aj-signalement/connexion/', '/pt/vitfixsignal/connexion/'],
+      ['/en/aj-signalement/', '/en/vitfixsignal/'],
+      ['/nl/aj-signalement/connexion/', '/nl/vitfixsignal/connexion/'],
+      ['/es/aj-signalement/', '/es/vitfixsignal/'],
+      ['/aj-signalement/', '/vitfixsignal/'],
+      ['/aj-signalement/connexion/', '/vitfixsignal/connexion/'],
+    ])('%s : 308 vers %s, non indexable, privée, sans appel à Supabase', async (ancienne, nouvelle) => {
+      const r = await visiter(ancienne)
+      expect(r.statut).toBe(308)
+      expect(r.vers?.origin).toBe('https://vitfix.io')
+      expect(r.vers?.pathname).toBe(nouvelle)
+      expect(r.vers?.search).toBe('')
+      expect(r.robots).toBe(NOINDEX)
+      expect(r.cache).toBe('private, no-cache, no-store, max-age=0, must-revalidate')
+      expect(r.csp).toBeTruthy()
+      expect(appelsGetUser).toBe(0)
+    })
+
+    it('la requête est gardée (elle suit la page), sans jamais changer d’origine', async () => {
+      const r = await visiter('/fr/aj-signalement/connexion/?x=1&redirect=//evil.example')
+      expect(r.statut).toBe(308)
+      expect(r.vers?.origin).toBe('https://vitfix.io')
+      expect(r.vers?.pathname).toBe('/fr/vitfixsignal/connexion/')
+      expect(r.vers?.search).toBe('?x=1&redirect=//evil.example')
+    })
+
+    it('même redirection avec ou sans session, quel que soit le compte (aucun contrôle ici : la nouvelle page le fait)', async () => {
+      for (const app of [{ role: 'super_admin' }, { role: 'client' }, { role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'cabinet-exemple' }]) {
+        connecte(app)
+        const r = await visiter('/fr/aj-signalement/')
+        expect(r.statut).toBe(308)
+        expect(r.vers?.pathname).toBe('/fr/vitfixsignal/')
+      }
+      expect(appelsGetUser).toBe(0)
+    })
+
+    it('aucun cookie posé par la redirection (ni langue, ni session)', async () => {
+      const reponse = await middleware(new NextRequest('https://vitfix.io/aj-signalement/'))
+      expect(reponse.status).toBe(308)
+      expect(reponse.headers.getSetCookie()).toEqual([])
+    })
+
+    it('la nouvelle adresse suit ensuite son parcours habituel (une seule redirection permanente, aucune boucle)', async () => {
+      expect((await visiter('/fr/vitfixsignal/connexion/')).statut).toBe(200)
+      expect((await visiter('/vitfixsignal/')).statut).toBe(302)
+    })
+
+    it('l’ancien segment n’est jamais pris pour l’espace d’un cabinet (identifiant réservé)', async () => {
+      for (const chemin of ['/aj-signalement/connexion/', '/aj-signalement/suivi/', '/aj-signalement/']) {
+        const r = await visiter(chemin)
+        expect(r.statut, chemin).toBe(308)
+        expect(r.vers?.pathname, chemin).toBe(chemin.replace('/aj-signalement', '/vitfixsignal'))
+      }
+      expect(appelsGetUser).toBe(0)
+    })
+
+    it.each(['/fr/aj-signalements/', '/fr/blog/aj-signalement/'])('%s (segment voisin) : aucune redirection permanente', async (chemin) => {
+      expect((await visiter(chemin)).statut).not.toBe(308)
+    })
+  })
+
+  describe('anciennes routes d’API : jamais redirigées (la réécriture de next.config.ts mène à la nouvelle route)', () => {
+    const JETON_UN_CLIC = `${'a'.repeat(32)}.${'b'.repeat(64)}`
+    const ANCIEN_UN_CLIC = `/api/aj-signalement/desinscription/un-clic/${JETON_UN_CLIC}`
+
+    async function envoyer(chemin: string, methode: string, origine?: string) {
+      const headers: Record<string, string> = origine === undefined ? {} : { origin: origine }
+      const reponse = await middleware(new NextRequest(`https://vitfix.io${chemin}`, { method: methode, headers }))
+      return { statut: reponse.status, suite: reponse.headers.get('x-middleware-next'), vers: reponse.headers.get('location') }
+    }
+
+    it.each(['https://mail.exemple.test', 'null', undefined])(
+      'POST « un clic » d’un message déjà envoyé, Origin %s : laissé à la route, ni 403 ni redirection',
+      async (origine) => {
+        const r = await envoyer(ANCIEN_UN_CLIC, 'POST', origine)
+        expect(r).toEqual({ statut: 200, suite: '1', vers: null })
+        expect(appelsGetUser).toBe(0)
+      },
+    )
+
+    it.each([
+      ['/api/aj-signalement/tableau', 'GET'],
+      ['/api/aj-signalement/signalements', 'POST'],
+      ['/api/cron/aj-diffusion-reprise', 'POST'],
+      [ANCIEN_UN_CLIC, 'GET'],
+    ])('%s (%s, sans Origin étranger) : laissé passer, jamais redirigé', async (chemin, methode) => {
+      expect(await envoyer(chemin, methode)).toEqual({ statut: 200, suite: '1', vers: null })
+    })
+
+    it.each([
+      '/api/aj-signalement/desinscription',
+      '/api/aj-signalement/signalements',
+      `${ANCIEN_UN_CLIC}/autre`,
+      '/api/aj-signalement/desinscription/un-clic/pas-un-jeton',
+      '/api/cron/aj-diffusion-reprise',
+    ])('POST %s avec un Origin étranger : toujours 403 (le contrôle d’Origin vaut aussi sous l’ancien préfixe)', async (chemin) => {
+      expect((await envoyer(chemin, 'POST', 'https://mail.exemple.test')).statut).toBe(403)
+    })
+
+    it.each(['PATCH', 'PUT', 'DELETE'])('%s sur l’ancien chemin un clic avec un Origin étranger : 403', async (methode) => {
+      expect((await envoyer(ANCIEN_UN_CLIC, methode, 'https://mail.exemple.test')).statut).toBe(403)
+    })
+  })
+
+  describe('compte ouvert avant le renommage : ancienne clé du repère de routage', () => {
+    const G_D_AVANT = { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' }
+
+    it('espace de SON cabinet : servi', async () => {
+      connecte(G_D_AVANT)
+      const reponse = await middleware(new NextRequest('https://vitfix.io/cabinet-exemple/suivi/'))
+      expect(reponse.status).toBe(200)
+      expect(reponse.headers.get('location')).toBeNull()
+    })
+
+    it('espace d’un autre cabinet : renvoyé à la connexion de cet autre cabinet (message neutre)', async () => {
+      connecte(G_D_AVANT)
+      const r = await visiter('/autre-cabinet/suivi/')
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/autre-cabinet/connexion/')
+    })
+
+    it.each(['/fr/', '/fr/auth/login', '/fr/vitfixsignal/', '/fr/vitfixsignal/connexion/', '/fr/client/dashboard/'])(
+      'depuis %s : aiguillé vers /cabinet-exemple/suivi/', async (chemin) => {
+        connecte(G_D_AVANT)
+        const r = await visiter(chemin)
+        expect(r.statut).toBe(307)
+        expect(r.vers?.pathname).toBe('/cabinet-exemple/suivi/')
+      })
+  })
+})

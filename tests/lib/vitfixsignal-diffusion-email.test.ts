@@ -455,6 +455,16 @@ describe('expéditeur (fige_expediteur, calculé à la création)', () => {
     expect(expediteurDiffusionQr('Cabinet Exemple', { RESEND_FROM_EMAIL: 'noreply@exemple.test' })).toBe('"Cabinet Exemple" <noreply@exemple.test>')
   })
 
+  // Transition (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc F) : le secret posé en production porte
+  // encore son nom d'avant le renommage du produit ; il est lu en repli (lib/vitfixsignal/variables.ts).
+  it('adresse dédiée encore posée sous son ANCIEN nom : lue en repli ; le nouveau nom, s’il est renseigné, l’emporte', () => {
+    const DAvant = { AJ_SIGNALEMENT_EXPEDITEUR_DIFFUSION: 'avant@envoi.exemple.test', RESEND_FROM_EMAIL: 'VITFIX <noreply@exemple.test>' }
+    expect(expediteurDiffusionQr('Cabinet Exemple', DAvant)).toBe('"Cabinet Exemple" <avant@envoi.exemple.test>')
+    expect(expediteurDiffusionQr('Cabinet Exemple', { ...DAvant, VITFIXSIGNAL_EXPEDITEUR_DIFFUSION: '' })).toBe('"Cabinet Exemple" <avant@envoi.exemple.test>')
+    expect(expediteurDiffusionQr('Cabinet Exemple', { ...DAvant, VITFIXSIGNAL_EXPEDITEUR_DIFFUSION: 'diffusion@envoi.exemple.test' }))
+      .toBe('"Cabinet Exemple" <diffusion@envoi.exemple.test>')
+  })
+
   it('aucune des deux : adresse sans réponse du service (celle de lib/email.ts)', () => {
     expect(expediteurDiffusionQr('Cabinet Exemple', {})).toBe('"Cabinet Exemple" <noreply@vitfix.io>')
   })
