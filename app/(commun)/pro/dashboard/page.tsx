@@ -413,6 +413,10 @@ function DashboardPage() {
         user_id: titulaire.valeur.societeId,
         fiche_societe_id: titulaire.valeur.ficheId,
       })
+      // « Mon profil » part de la fiche de la société, comme pour le gérant. Sans cela le formulaire restait vide, sans
+      // valeurs de référence, et son premier enregistrement aurait effacé nom, coordonnées et mentions légales de la
+      // fiche. Aucune adresse de connexion en repli : celle du salarié n'est pas celle de l'entreprise.
+      initSettingsForm(ficheSociete, '', role)
 
       // Ses propres brouillons d'abord, pour que l'écran s'ouvre tout de suite, puis la liste de la société.
       try {

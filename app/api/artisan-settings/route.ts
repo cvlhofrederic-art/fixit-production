@@ -5,6 +5,7 @@ import { generateSlug } from '@/lib/utils'
 import { artisanSettingsPostSchema, validateBody } from '@/lib/validation'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { ficheSocieteDuSousCompte, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
 
 // ── Cache des colonnes existantes (évite de re-tester à chaque requête) ────────
 let knownColumns: Set<string> | null = null
@@ -81,11 +82,21 @@ export async function POST(request: NextRequest) {
 
     // Verify artisan ownership. Société BTP : la fiche entière (adresse publique, nom, ville) ; artisan : inchangé.
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
-    const { data: artisan, error: fetchError } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select(estSocieteBtp ? '*' : 'id')
-      .eq('user_id', user.id)
-      .single()
+    // Compte invité dans une société BTP (co-gérant, secrétaire…) : il n'a pas de fiche à lui, « Mon profil » est
+    // celle de sa société, et seul le module settings en FULL l'écrit. Tout autre compte : null, chemin d'origine.
+    const ficheSociete = estSocieteBtp
+      ? await ficheSocieteDuSousCompte(user, supabaseAdmin, peutModifierFicheSociete, '*')
+      : null
+    if (ficheSociete && !ficheSociete.ok) {
+      return NextResponse.json({ error: ficheSociete.message, code: ficheSociete.code }, { status: ficheSociete.status })
+    }
+    const { data: artisan, error: fetchError } = ficheSociete
+      ? { data: ficheSociete.fiche as { id: string }, error: null }
+      : await supabaseAdmin
+        .from('profiles_artisan')
+        .select(estSocieteBtp ? '*' : 'id')
+        .eq('user_id', user.id)
+        .single()
 
     if (fetchError || !artisan) {
       return NextResponse.json({ error: 'Profil artisan introuvable' }, { status: 404 })

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { estUrlStockageSupabase } from '@/lib/security/safe-url'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { ficheSocieteDuSousCompte, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { niveauSur, type PerimetreBtp } from '@/lib/btp/perimetre-compte'
+import type { User } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
@@ -17,6 +20,37 @@ import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/sec
  *   artisan_id? : string (pour mettre à jour le profil après upload)
  *   field?      : 'insurance_url' | 'kbis_url' | 'profile_photo_url'
  */
+
+const CHAMPS_DU_PROFIL = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
+
+/**
+ * Droit qu'un compte invité dans une société BTP doit avoir pour que ce champ de la fiche de SA société change : le
+ * logo et la photo relèvent de « Mon profil » (settings), les références du carnet de visite du module portfolio. Kbis,
+ * assurance et pièce d'identité jamais : ce sont les pièces du titulaire, qu'un sous-compte ne lit même pas
+ * (COLONNES_SECRETES, lib/btp/titulaire-documents.ts).
+ */
+function droitDuSousCompteSur(champ: string): (perimetre: PerimetreBtp) => boolean {
+  if (champ === 'logo_url' || champ === 'profile_photo_url') return peutModifierFicheSociete
+  if (champ === 'portfolio_photo') return (perimetre) => niveauSur(perimetre, 'portfolio') === 'FULL'
+  return () => false
+}
+
+/**
+ * Fiche visée par la mise à jour du profil pour un compte invité dans une société BTP, sans fiche à lui : celle de sa
+ * société, ou la réponse de refus. `null` pour tout autre compte, qui garde la recherche d'origine. Appelée AVANT
+ * l'envoi dans Storage : un refus ne laisse pas de fichier orphelin.
+ */
+async function ficheVisee(user: User, artisanId: string, champ: string): Promise<string | NextResponse | null> {
+  if (getUserRole(user) !== 'pro_societe') return null
+  const fiche = await ficheSocieteDuSousCompte(user, supabaseAdmin, droitDuSousCompteSur(champ))
+  if (!fiche) return null
+  if (!fiche.ok) return NextResponse.json({ error: fiche.message, code: fiche.code }, { status: fiche.status })
+  // L'écran envoie l'identifiant de la fiche de la société ou celui du compte : rien d'autre ne la désigne.
+  if (artisanId !== fiche.ficheId && artisanId !== user.id) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  }
+  return fiche.ficheId
+}
 export async function POST(request: NextRequest) {
   // Auth guard
   const user = await getAuthUser(request)
@@ -89,6 +123,11 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
     }
+
+    const ficheDeLaSociete = artisanId && field && CHAMPS_DU_PROFIL.includes(field)
+      ? await ficheVisee(user, artisanId, field)
+      : null
+    if (ficheDeLaSociete instanceof NextResponse) return ficheDeLaSociete
 
     // Vérifier taille max 10 Mo
     if (file.size > 10 * 1024 * 1024) {
@@ -188,8 +227,11 @@ export async function POST(request: NextRequest) {
 
     // Si artisan_id + field fournis, mettre à jour le profil
     if (artisanId && field) {
-      const allowedFields = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
-      if (allowedFields.includes(field)) {
+      if (CHAMPS_DU_PROFIL.includes(field)) {
+        let verifiedArtisanId: string
+        if (ficheDeLaSociete) {
+          verifiedArtisanId = ficheDeLaSociete
+        } else {
         // Trouver l'artisan : d'abord par id, puis par user_id (fallback). Sans portfolio_photos :
         // la colonne n'existe pas en production (relevé du 23/10/2026), la sélectionner faisait
         // échouer la recherche et chaque mise à jour du profil répondait 404.
@@ -221,7 +263,8 @@ export async function POST(request: NextRequest) {
         if (artisanRow.user_id !== user.id) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
         }
-        const verifiedArtisanId = artisanRow.id
+        verifiedArtisanId = artisanRow.id
+        }
 
         if (field === 'portfolio_photo') {
           // Append to portfolio_photos JSONB array

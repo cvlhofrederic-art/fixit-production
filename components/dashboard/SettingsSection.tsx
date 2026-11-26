@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase'
 import { redimensionnerImage } from '@/lib/images/redimensionner-image'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import { useThemeVars } from './useThemeVars'
 import { searchDepartements, searchCommunes, PHASE_TEST_REGIONS_FR, type FRDepartement, type FRCommune } from '@/lib/geo/fr-geo-data'
 import { searchDistritosPT, searchCommunesPT, PT_REGIOES, type PTDistrito, type PTCommune } from '@/lib/geo/pt-geo-data'
@@ -146,7 +148,7 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
         toast.success(isPt ? 'Informações de pagamento guardadas' : 'Informations de paiement enregistrées')
       } else {
         const errBody = await res.json().catch(() => ({}))
-        toast.error(`${isPt ? 'Erro' : 'Erreur'}: ${errBody.error || res.statusText}`)
+        toast.error(`${isPt ? 'Erro' : 'Erreur'}: ${messageRefusDocuments({ message: errBody.error || res.statusText, code: errBody.code }, isPt)}`)
       }
     } catch (e) {
       console.error('Payment info save failed:', e)
@@ -570,7 +572,7 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        toast.error(body.error || (isPt ? 'Erro ao guardar' : 'Erreur lors de la sauvegarde'))
+        toast.error(messageRefusDocuments({ message: body.error || (isPt ? 'Erro ao guardar' : 'Erreur lors de la sauvegarde'), code: body.code }, isPt))
       } else {
         toast.success(isPt ? 'Zonas de intervenção guardadas' : 'Zones d\'intervention enregistrées')
       }
@@ -1068,7 +1070,7 @@ export default function SettingsSection({
                               body: JSON.stringify({ base64, field: 'profile_photo_url' }),
                             })
                             const data = await res.json()
-                            if (!res.ok) throw new Error(data.error || (isPt ? 'Erro' : 'Erreur'))
+                            if (!res.ok) throw new Error(messageRefusDocuments({ message: data.error || (isPt ? 'Erro' : 'Erreur'), code: data.code }, isPt))
                             setUploadMsg({ text: isPt ? '✅ Foto guardada!' : '✅ Photo enregistrée !', type: 'success' })
                           } catch (err: unknown) {
                             setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
@@ -1112,7 +1114,7 @@ export default function SettingsSection({
                               body: JSON.stringify({ base64, field: 'logo_url' }),
                             })
                             const data = await res.json()
-                            if (!res.ok) throw new Error(data.error || (isPt ? 'Erro' : 'Erreur'))
+                            if (!res.ok) throw new Error(messageRefusDocuments({ message: data.error || (isPt ? 'Erro' : 'Erreur'), code: data.code }, isPt))
                             setUploadMsg({ text: isPt ? '✅ Logótipo guardado!' : '✅ Logo enregistré !', type: 'success' })
                           } catch (err: unknown) {
                             setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
@@ -1344,7 +1346,8 @@ export default function SettingsSection({
             </div>
 
             {/* Zones d'intervention — nouvelle feature matching HTML */}
-            <ZonesInterventionCard isV5={isV5} artisanId={artisan?.id} />
+            {/* Compte invité dans une société : les zones sont celles de la fiche de la société, pas de son compte */}
+            <ZonesInterventionCard isV5={isV5} artisanId={idFicheDocuments(artisan)} />
           </div>
         </div>
       </div>

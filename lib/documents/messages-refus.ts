@@ -12,6 +12,7 @@ export type CodeRefusDocuments =
   | 'fiche_societe_multiple'
   | 'aucun_droit'
   | 'aucun_droit_comptabilite'
+  | 'aucun_droit_fiche'
   | 'lecture_impossible'
 
 export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; pt: string }> = {
@@ -36,6 +37,11 @@ export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; 
   aucun_droit_comptabilite: {
     fr: "Votre rôle dans l'entreprise ne donne pas accès à la comptabilité.",
     pt: 'A sua função na empresa não dá acesso à contabilidade.',
+  },
+  // « Mon profil », logo, modes de paiement d'un compte invité : la fiche est celle de la société (lib/btp/fiche-societe.ts).
+  aucun_droit_fiche: {
+    fr: "Votre rôle dans l'entreprise ne permet pas de modifier la fiche de la société.",
+    pt: 'A sua função na empresa não permite alterar a ficha da empresa.',
   },
   lecture_impossible: {
     fr: 'Les documents de la société sont momentanément illisibles. Réessayez dans un instant.',

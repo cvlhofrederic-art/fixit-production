@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { ficheSocieteDuSousCompte, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
 import { validateBody, saveLogoSchema } from '@/lib/validation'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -18,7 +19,9 @@ import { envoyerImageArtisan, lireImageDataUrl, supprimerImageArtisan } from '@/
  * l'artisan garde son image précédente et l'erreur est journalisée. Au-delà de 10 envois en 10 minutes, la route
  * répond 429 : chaque envoi crée un fichier dans le bucket.
  *
- * La ligne modifiée est toujours celle de l'utilisateur connecté (recherche par user_id, service role).
+ * La ligne modifiée est celle de l'utilisateur connecté (recherche par user_id, service role). Compte invité dans une
+ * société BTP, sans fiche à lui : celle de sa société, si son rôle y a le module settings en FULL
+ * (lib/btp/fiche-societe.ts) ; le refus arrive avant tout envoi dans Storage.
  */
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
@@ -38,12 +41,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Format non supporté. Utilisez JPG, PNG ou WEBP.' }, { status: 400 })
     }
 
+    // Compte invité dans une société BTP : la fiche de sa société, si son rôle l'y autorise. Tout autre compte : null.
+    const ficheSociete = getUserRole(user) === 'pro_societe'
+      ? await ficheSocieteDuSousCompte(user, supabaseAdmin, peutModifierFicheSociete)
+      : null
+    if (ficheSociete && !ficheSociete.ok) {
+      return NextResponse.json({ error: ficheSociete.message, code: ficheSociete.code }, { status: ficheSociete.status })
+    }
+
     // Trouver l'artisan par user_id
-    const { data: artisan } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    const { data: artisan } = ficheSociete
+      ? { data: { id: ficheSociete.ficheId } }
+      : await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
 
     if (!artisan) {
       return NextResponse.json({ error: 'Profil artisan non trouvé' }, { status: 404 })

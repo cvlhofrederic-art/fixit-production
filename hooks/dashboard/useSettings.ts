@@ -4,6 +4,8 @@ import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 
 interface SettingsForm {
   company_name: string
@@ -90,6 +92,12 @@ export function useSettings(
         mediator_url: settingsForm.mediator_url,
       }
       const reference = valeursEnregistrees.current
+      // Compte invité dans une société : la fiche est celle de l'entreprise. Sans valeurs de référence (formulaire
+      // jamais chargé depuis elle), les 18 champs partiraient, vides, par-dessus la fiche : rien n'est envoyé.
+      if (!reference && estSousCompteSociete(artisan)) {
+        toast.error(t('proDash.alerts.cantSave'))
+        return
+      }
       const aEnregistrer = reference ? champsModifies(champs, reference) : champs
       if (reference && Object.keys(aEnregistrer).length === 0) {
         // Société BTP, rien de changé : la fiche est déjà à jour
@@ -106,7 +114,9 @@ export function useSettings(
         body: JSON.stringify(aEnregistrer),
       })
       const json = await res.json()
-      if (!res.ok) { alert(`\u274c ${t('proDash.alerts.error')}: ${json.error || t('proDash.alerts.cantSave')}`); setSavingSettings(false); return }
+      // Refus d'un compte invit\u00e9 (r\u00f4le sans droit sur la fiche, soci\u00e9t\u00e9 non r\u00e9solue) : dans la langue de l'\u00e9cran.
+      const motif = json.code ? messageRefusDocuments({ message: json.error || '', code: json.code }, isPt) : json.error
+      if (!res.ok) { alert(`\u274c ${t('proDash.alerts.error')}: ${motif || t('proDash.alerts.cantSave')}`); setSavingSettings(false); return }
 
       if (reference) valeursEnregistrees.current = { ...reference, ...aEnregistrer }
       setArtisan({
@@ -114,8 +124,8 @@ export function useSettings(
         ...aEnregistrer,
         ...(json.slug ? { slug: json.slug } : {}),
       })
-      // Re-save dayServices marker after bio update
-      if (Object.values(dayServices).some(arr => arr.length > 0)) {
+      // Re-save dayServices marker after bio update (pas pour un compte invité : `artisan.id` est son compte, pas une fiche)
+      if (!estSousCompteSociete(artisan) && Object.values(dayServices).some(arr => arr.length > 0)) {
         try {
           const token2 = (await supabase.auth.getSession()).data.session?.access_token
           if (token2) {
@@ -138,7 +148,7 @@ export function useSettings(
     } finally {
       setSavingSettings(false)
     }
-  }, [artisan, settingsForm, dayServices, setArtisan, t])
+  }, [artisan, settingsForm, dayServices, setArtisan, t, isPt])
 
   const uploadDocument = useCallback(async (
     file: File,

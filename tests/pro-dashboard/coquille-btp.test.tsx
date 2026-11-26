@@ -265,6 +265,18 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
+  it('compte invité : « Mon profil » part de la fiche de la société, sans l’adresse de connexion du salarié', async () => {
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    const { useSettings } = await import('@/hooks/dashboard')
+    const { initSettingsForm } = (useSettings as unknown as () => { initSettingsForm: ReturnType<typeof vi.fn> })()
+    const { container } = await ouvrir(utilisateur('pro_societe', CO_GERANT_INVITE))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    // Sans cet appel, le formulaire restait vide et sans référence : son premier enregistrement aurait effacé nom,
+    // coordonnées et mentions légales de la fiche de la société.
+    expect(initSettingsForm).toHaveBeenCalledWith(TITULAIRE_SOCIETE.valeur.fiche, '', 'pro_societe')
+  })
+
   it('compte invité, société non résolue : l’écran le dit au lieu d’ouvrir des listes vides', async () => {
     mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
     mocks.lireTitulaireSociete.mockResolvedValue({
