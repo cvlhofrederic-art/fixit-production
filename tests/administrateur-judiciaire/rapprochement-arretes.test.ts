@@ -115,7 +115,7 @@ describe('clôture et déclôture', () => {
   it('clôture refusée hors équilibre (écart dit par le domaine) ; acceptée à l’équilibre', async () => {
     await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
     const desequilibre = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
-    await expect(cloturerArreteCompte(desequilibre.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart -5000 centimes).')
+    await expect(cloturerArreteCompte(desequilibre.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart -50,00\u00a0€).')
     expect((await ajDb.rapprochements.get(desequilibre.id))?.statut).toBe('En cours')
     // Arrêté mal saisi : abandonné (rb-01), sans intervention dans la base, puis un nouveau, juste, à la même date.
     await abandonnerArreteCompte(desequilibre.id)
@@ -256,7 +256,7 @@ describe('solde compta recalculé à la clôture, puis figé (rb-01 C et rb-03 A
     await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
     const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
     await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-20', libelle: 'PRLV EAU', montant: -120.5 }])
-    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart 12050 centimes).')
+    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart 120,50\u00a0€).')
     // Refus : rien n'est écrit, ni le statut ni le solde.
     expect(await ajDb.rapprochements.get(ouvert.id)).toMatchObject({ statut: 'En cours', soldeComptaCentimes: 45_000 })
   })
@@ -274,7 +274,7 @@ describe('solde compta recalculé à la clôture, puis figé (rb-01 C et rb-03 A
 
     // Déclôturé, l'arrêté est de nouveau en cours : sa clôture recalcule le solde, avec la ligne arrivée entre-temps.
     await decloturerArreteCompte(ouvert.id)
-    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart 1200 centimes).')
+    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart 12,00\u00a0€).')
   })
 
   it('solde compta d’un arrêté : recalculé tant qu’il est en cours, figé une fois clôturé (lecture de l’écran)', () => {
@@ -338,5 +338,34 @@ describe('saisie et vue de l’arrêté (écran)', () => {
     expect(arreteCourant([])).toBeNull()
     expect(arreteCourant([arrete('a', '2026-05-31', 'Clôturé'), arrete('b', '2026-04-30', 'Clôturé')])?.id).toBe('a')
     expect(arreteCourant([arrete('a', '2026-05-31', 'Clôturé'), arrete('b', '2026-06-30', 'En cours')])?.id).toBe('b')
+  })
+})
+
+describe('message de clôture refusée (écart en euros)', () => {
+  it('dit l’écart en euros au format français, non en centimes', async () => {
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-20', libelle: 'PRLV EAU', montant: -1_345.5 }])
+    const erreur = await cloturerArreteCompte(ouvert.id).then(
+      () => null,
+      (e: unknown) => e as Error,
+    )
+    expect(erreur?.message).toBe('Clôture refusée : arrêté non équilibré (écart 1\u00a0345,50\u00a0€).')
+    expect(erreur?.message).not.toMatch(/centimes/)
+  })
+})
+
+describe('arrêté clôturé, déclôturé, puis abandonné', () => {
+  // comportement soumis au référent métier (question du 26/11/2026) : à adapter selon sa réponse
+  it('la période n’est plus arrêtée et l’arrêté abandonné n’apparaît pas dans la liste des arrêtés (comportement actuel)', async () => {
+    const arrete = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(arrete.id)
+    await decloturerArreteCompte(arrete.id)
+    await abandonnerArreteCompte(arrete.id)
+    expect((await ajDb.rapprochements.get(arrete.id))?.statut).toBe('Abandonné')
+    const { arretes, abandonnes } = await listerArretes(banqueId)
+    expect(arretes).toEqual([])
+    expect(abandonnes.map((a) => a.id)).toEqual([arrete.id])
+    expect(arreteCourant(arretes)).toBeNull()
   })
 })

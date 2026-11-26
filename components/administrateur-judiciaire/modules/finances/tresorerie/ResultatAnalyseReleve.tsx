@@ -80,30 +80,36 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
 function TableauRelevesLus({ releves }: Readonly<{ releves: readonly ReleveLu[] }>) {
   return (
     <div className="tbl-wrap" style={{ marginBottom: 12 }}>
-      <table className="tbl vfx-fiches" aria-label="Relevés lus">
-        <thead>
-          <tr>
-            <th>Relevé</th>
-            <th style={{ textAlign: 'right' }}>Ancien solde</th>
-            <th style={{ textAlign: 'right' }}>Nouveau solde</th>
-            <th style={{ textAlign: 'right' }}>Mouvements</th>
-            <th>État</th>
+      <table className="tbl vfx-fiches" aria-label="Relevés lus" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader">Relevé</th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Ancien solde
+            </th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Nouveau solde
+            </th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Mouvements
+            </th>
+            <th role="columnheader">État</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {releves.map((releve) => (
-            <tr key={releve.rang}>
-              <td data-label="Relevé">{releve.designation}</td>
-              <td className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Ancien solde">
+            <tr key={releve.rang} role="row">
+              <td role="cell" data-label="Relevé">{releve.designation}</td>
+              <td role="cell" className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Ancien solde">
                 {releve.ancienSolde}
               </td>
-              <td className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Nouveau solde">
+              <td role="cell" className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Nouveau solde">
                 {releve.nouveauSolde}
               </td>
-              <td className="num-cell" style={{ textAlign: 'right' }} data-label="Mouvements">
+              <td role="cell" className="num-cell" style={{ textAlign: 'right' }} data-label="Mouvements">
                 {releve.mouvements}
               </td>
-              <td data-label="État">
+              <td role="cell" data-label="État">
                 {releve.etat === 'nouveau' ? (
                   <Pill kind="sage" noDot>
                     Contrôlé

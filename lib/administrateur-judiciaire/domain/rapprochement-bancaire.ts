@@ -1,4 +1,5 @@
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 
 /**
  * Rapprochement bancaire par arrêtés successifs (cartographie Gestéam, tranche 29). Fonctions pures, montants en
@@ -113,11 +114,16 @@ export function ouvrirArrete(
 /**
  * Clôture un arrêté en cours, à l'équilibre seulement. Un arrêté déjà clôturé est refusé : ses soldes sont figés à la
  * clôture (décision du 26/11/2026, rb-03 A), seule une déclôture le rouvre.
+ * Le calcul de la base (cloturerArreteCompte : solde compta recalculé dans la transaction) fait foi ; l'écran n'en montre
+ * qu'une estimation. L'écart est dit en euros, comme dans le panneau (espaces insécables U+00A0, jamais U+202F).
  */
 export function cloturerArrete(arrete: ArreteRapprochement): ArreteRapprochement {
   if (arrete.statut !== 'En cours') throw new Error('Clôture refusée : arrêté déjà clôturé.')
   const { equilibre, ecartCentimes } = etatArrete(arrete)
-  if (!equilibre) throw new Error(`Clôture refusée : arrêté non équilibré (écart ${ecartCentimes} centimes).`)
+  if (!equilibre) {
+    const ecart = formatEurosCentimes(ecartCentimes / 100).replaceAll(' ', ' ')
+    throw new Error(`Clôture refusée : arrêté non équilibré (écart ${ecart}).`)
+  }
   return { ...arrete, statut: 'Clôturé' }
 }
 

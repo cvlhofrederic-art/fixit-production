@@ -70,6 +70,18 @@ async function rendre() {
 
 const panneau = () => screen.getByRole('heading', { level: 3, name: /^Rapprochement/ }).closest('.panel') as HTMLElement
 const dansPanneau = () => within(panneau())
+
+/** Rôles ARIA d'un tableau en fiches : le CSS le passe en blocs sur téléphone, les rôles gardent sa structure. */
+function verifierRolesTableau(tableau: HTMLElement) {
+  expect(tableau).toHaveAttribute('role', 'table')
+  expect(tableau.querySelector('thead')).toHaveAttribute('role', 'rowgroup')
+  expect(tableau.querySelector('tbody')).toHaveAttribute('role', 'rowgroup')
+  for (const ligne of Array.from(tableau.querySelectorAll('tr'))) expect(ligne).toHaveAttribute('role', 'row')
+  for (const th of Array.from(tableau.querySelectorAll('th'))) expect(th).toHaveAttribute('role', 'columnheader')
+  for (const td of Array.from(tableau.querySelectorAll('td'))) expect(td).toHaveAttribute('role', 'cell')
+  expect(within(tableau).getAllByRole('columnheader')).toHaveLength(5)
+  expect(within(tableau).getAllByRole('row')).toHaveLength(3)
+}
 const dialogue = () => within(screen.getByRole('dialog'))
 const dernierToast = () => pushCourant.mock.calls.at(-1)?.[0]
 
@@ -443,6 +455,15 @@ describe('Rapprochement : corrections de la décision du 26/11/2026 (rb-13, rb-c
     expect(tableau).toHaveClass('vfx-fiches')
     const cellules = within(within(tableau).getAllByRole('row')[1]).getAllByRole('cell')
     expect(cellules.map((cellule) => cellule.getAttribute('data-label'))).toEqual(['Date', 'Solde banque', 'Solde compta', 'Écart', 'Statut'])
+  })
+
+  it('rb-c04 A : « Arrêtés du compte » garde ses rôles de tableau pour les lecteurs d’écran (le CSS le passe en blocs sur téléphone)', async () => {
+    const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(premier.id)
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await rendre()
+    const tableau = dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })
+    verifierRolesTableau(tableau)
   })
 
   it('rb-c05 A : liste des comptes à libellé court, le nom du compte et la fin de l’IBAN', async () => {

@@ -234,6 +234,21 @@ describe('Import des relevés : petits défauts de texte (rb-c08 A, décision du
     expect(sansIban?.querySelector('p')?.textContent).toMatch(/^Compte choisi sans IBAN/)
   })
 
+  it('« Relevés lus » garde ses rôles de tableau pour les lecteurs d’écran (le CSS le passe en blocs sur téléphone)', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    await rendre()
+    analyser(CFONB_UN_COMPTE)
+    const tableau = dansImport().getByRole('table', { name: 'Relevés lus' })
+    expect(tableau).toHaveAttribute('role', 'table')
+    expect(tableau.querySelector('thead')).toHaveAttribute('role', 'rowgroup')
+    expect(tableau.querySelector('tbody')).toHaveAttribute('role', 'rowgroup')
+    for (const ligne of Array.from(tableau.querySelectorAll('tr'))) expect(ligne).toHaveAttribute('role', 'row')
+    for (const th of Array.from(tableau.querySelectorAll('th'))) expect(th).toHaveAttribute('role', 'columnheader')
+    for (const td of Array.from(tableau.querySelectorAll('td'))) expect(td).toHaveAttribute('role', 'cell')
+    expect(within(tableau).getAllByRole('columnheader')).toHaveLength(5)
+    expect(within(tableau).getAllByRole('cell').length).toBeGreaterThan(0)
+  })
+
   it('camt.053 : l’IBAN du relevé est groupé par quatre, dans « Relevés lus » comme dans les erreurs', async () => {
     await ajouterCompte(IBAN_FIXTURE)
     await rendre()

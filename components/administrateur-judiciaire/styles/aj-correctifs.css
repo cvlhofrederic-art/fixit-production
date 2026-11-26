@@ -114,7 +114,10 @@
  * rb-c04 : « Relevés lus » et « Arrêtés du compte » (tableaux de 720 px au minimum, sticky sur la première colonne) ne
  * montraient que leur première colonne à 375 px, le reste défilait hors du cadre sans que rien ne l'indique. Sous 769 px,
  * chaque ligne devient une fiche : les valeurs les unes sous les autres, l'étiquette de la colonne (data-label de chaque
- * cellule) à gauche, la valeur à droite. Les en-têtes restent dans la page pour les lecteurs d'écran. Seuls les tableaux qui
+ * cellule) à gauche, la valeur à droite. Les en-têtes sont masqués à l'œil mais restent dans la page. Passer table, tbody et
+ * tr en display:block fait perdre leur structure de tableau à certains lecteurs d'écran : les deux tableaux portent donc
+ * les rôles ARIA table, rowgroup, row, columnheader et cell (RapprochementPanel.tsx, ResultatAnalyseReleve.tsx), qui la
+ * rétablissent sans rien changer à l'affichage. Seuls les tableaux qui
  * portent la classe vfx-fiches changent ; au-dessus de 768 px, rien ne change.
  */
 @media (max-width: 768px){

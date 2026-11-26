@@ -26,6 +26,11 @@ export function demarrerApplication(): Promise<void> {
   return demarrage
 }
 
+/** Réservé aux tests : oublie le démarrage mémorisé pour en refaire un sur une base vidée ; sans effet sur l'application. */
+export function reinitialiserDemarrageEnTest(): void {
+  demarrage = null
+}
+
 interface ErrorBoundaryState {
   erreur: Error | null
 }

@@ -208,32 +208,38 @@ function ListeArretes({ arretes }: Readonly<{ arretes: readonly ArreteRapprochem
   const lignes = [...arretes].sort((a, b) => b.dateArrete.localeCompare(a.dateArrete))
   return (
     <div className="tbl-wrap" style={{ marginTop: 14 }}>
-      <table className="tbl vfx-fiches" aria-label="Arrêtés du compte">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th style={{ textAlign: 'right' }}>Solde banque</th>
-            <th style={{ textAlign: 'right' }}>Solde compta</th>
-            <th style={{ textAlign: 'right' }}>Écart</th>
-            <th>Statut</th>
+      <table className="tbl vfx-fiches" aria-label="Arrêtés du compte" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader">Date</th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Solde banque
+            </th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Solde compta
+            </th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Écart
+            </th>
+            <th role="columnheader">Statut</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {lignes.map((arrete) => (
-            <tr key={arrete.id}>
-              <td className="num-cell" data-label="Date">
+            <tr key={arrete.id} role="row">
+              <td role="cell" className="num-cell" data-label="Date">
                 {dateIsoVersFr(arrete.dateArrete)}
               </td>
-              <td className="num-cell" style={STYLE_MONTANT} data-label="Solde banque">
+              <td role="cell" className="num-cell" style={STYLE_MONTANT} data-label="Solde banque">
                 {euros(arrete.soldeBanqueCentimes)}
               </td>
-              <td className="num-cell" style={STYLE_MONTANT} data-label="Solde compta">
+              <td role="cell" className="num-cell" style={STYLE_MONTANT} data-label="Solde compta">
                 {euros(arrete.soldeComptaCentimes)}
               </td>
-              <td className="num-cell" style={STYLE_MONTANT} data-label="Écart">
+              <td role="cell" className="num-cell" style={STYLE_MONTANT} data-label="Écart">
                 {euros(etatArrete(arrete).ecartCentimes)}
               </td>
-              <td data-label="Statut">{arrete.statut}</td>
+              <td role="cell" data-label="Statut">{arrete.statut}</td>
             </tr>
           ))}
         </tbody>
