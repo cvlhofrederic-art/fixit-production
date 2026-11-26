@@ -462,18 +462,20 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     }
   }
 
-  // Fetch artisan company data once (with auth)
+  // Fetch artisan company data once (with auth). Fiche des documents : la sienne, ou celle de la société pour un compte
+  // invité (pour un artisan, c'est artisan.id, comme avant).
+  const ficheDesDocuments = idFicheDocuments(artisan)
   useEffect(() => {
-    if (!artisan?.id) return
+    if (!ficheDesDocuments) return
     ;(async () => {
       try {
         const headers = await getAuthHeaders()
-        const res = await fetch(`/api/artisan-company?artisan_id=${idFicheDocuments(artisan)}`, { headers })
+        const res = await fetch(`/api/artisan-company?artisan_id=${ficheDesDocuments}`, { headers })
         const d = await res.json()
         if (d.company) setCompanyData(d.company)
       } catch {}
     })()
-  }, [artisan?.id])
+  }, [ficheDesDocuments])
 
   const ecrireRapportsLocaux = (liste: RapportIntervention[]) => {
     try { localStorage.setItem(storageKey, JSON.stringify(liste)) } catch (e) { console.warn('[storage] saveRapports', e) }
