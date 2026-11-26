@@ -30,7 +30,7 @@ const CLES_EXPORT = [
 ]
 const SECTIONS_BTP = [
   'chantiers', 'charges_fixes', 'dc4', 'dce_analyses', 'depenses', 'dpgf', 'equipe_membres', 'equipes', 'marches_candidatures', 'membres',
-  'pointage_reglages', 'pointages', 'rapports', 'retenues', 'settings', 'situations', 'team',
+  'outillage', 'pointage_reglages', 'pointages', 'rapports', 'retenues', 'settings', 'situations', 'team', 'verifications_outillage',
 ]
 const trie = (v: string[]) => [...v].sort((a, b) => a.localeCompare(b))
 
@@ -85,6 +85,9 @@ beforeEach(() => {
   t.depenses_btp = [{ id: id('d5', 1), owner_id: SOCIETE.id, label: 'Ciment', amount: 120 }]
   t.dce_analyses_btp = [{ id: id('d6', 1), owner_id: SOCIETE.id, titre: 'Analyse Exemple' }]
   t.rapports_btp = [{ id: id('d7', 1), owner_id: SOCIETE.id, titre: 'Rapport Exemple' }]
+  // Outillage et vérifications du vendredi (migration 20261126).
+  t.outillage_btp = [{ id: id('d9', 1), owner_id: SOCIETE.id, type: 'outil', nom: 'Perforateur Exemple' }, { id: id('d9', 2), owner_id: AUTRE, type: 'outil', nom: 'Outil ailleurs' }]
+  t.verifications_outillage_btp = [{ id: id('da', 1), owner_id: SOCIETE.id, chantier_titre: 'Chantier Exemple', vendredi: '2026-11-27', lignes: [] }]
   t.charges_fixes = [{ id: id('d8', 1), owner_id: SOCIETE.id, label: 'Assurance', montant: 100 }, { id: id('d8', 2), owner_id: AUTRE, label: 'Loyer ailleurs', montant: 900 }]
   t.settings_btp = [{ owner_id: SOCIETE.id, depot_adresse: '1 rue Exemple' }, { owner_id: AUTRE, depot_adresse: '9 rue Ailleurs' }]
   t.pointage_reglages_btp = [
@@ -119,7 +122,7 @@ describe('export d’une société BTP (pro_societe)', () => {
     expect(btp.membres).toEqual([expect.objectContaining({ prenom: 'Jean', nom: 'Exemple', telephone: '0600000000', salaire_brut_mensuel: 2000 })])
     expect(btp.equipes.map((l) => l.nom)).toEqual(['Équipe Exemple'])
     expect(btp.equipe_membres).toEqual([{ equipe_id: id('e1', 1), membre_id: id('a1', 1) }])
-    for (const section of ['situations', 'retenues', 'dc4', 'dpgf', 'depenses', 'dce_analyses', 'rapports', 'marches_candidatures']) {
+    for (const section of ['situations', 'retenues', 'dc4', 'dpgf', 'depenses', 'dce_analyses', 'rapports', 'marches_candidatures', 'outillage', 'verifications_outillage']) {
       expect(btp[section], section).toHaveLength(1)
     }
     expect(btp.charges_fixes.map((l) => l.label)).toEqual(['Assurance'])
@@ -127,7 +130,7 @@ describe('export d’une société BTP (pro_societe)', () => {
     expect(btp.pointage_reglages).toEqual([REGLAGES_POINTAGE_SOCIETE])
     expect(btp.team.map((m) => m.email)).toEqual(['societe@exemple.test', 'ouvrier@exemple.test'])
     for (const membre of btp.team) expect(membre).not.toHaveProperty('invite_token')
-    for (const donnee of ['Chantier d’une autre société', 'Ailleurs', 'Équipe d’une autre société', 'doc-ailleurs', 'autre@exemple.test', 'Loyer ailleurs', 'jeton-invitation-secret']) {
+    for (const donnee of ['Chantier d’une autre société', 'Ailleurs', 'Équipe d’une autre société', 'doc-ailleurs', 'autre@exemple.test', 'Loyer ailleurs', 'Outil ailleurs', 'jeton-invitation-secret']) {
       expect(texte).not.toContain(donnee)
     }
   })

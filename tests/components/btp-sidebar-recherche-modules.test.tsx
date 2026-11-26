@@ -473,9 +473,13 @@ describe('Barre latérale — périmètre de la recherche (règle n° 1 artisan 
 // n'atteint jamais : il fournit toujours des rubriques dynamiques. Un ouvrier voyait donc tout le catalogue, Devis
 // et Factures comprises. La recherche s'appuyant sur la même liste, elle ne peut rien montrer de plus que le menu.
 describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
-  // Droits par défaut réels d'un chef de chantier (Encarregado), le rôle des salariés de VITFIX CONSTRUÇÕES.
-  const droitsTerrain = getDefaultPermissionsForRole('CHEF_CHANTIER')
+  // Droits par défaut réels d'un ouvrier (Operário), salarié de terrain de VITFIX CONSTRUÇÕES.
+  const droitsTerrain = getDefaultPermissionsForRole('OUVRIER')
   const salarieDeTerrain = (id: string) => canAccess(droitsTerrain, id)
+  // Chef de chantier (Encarregado) : les mêmes écrans, plus l'outillage de ses chantiers (vérification du vendredi,
+  // demande du 26/11/2026).
+  const droitsChef = getDefaultPermissionsForRole('CHEF_CHANTIER')
+  const chefDeChantier = (id: string) => canAccess(droitsChef, id)
   // Une secrétaire : sous-compte, mais poste de bureau (tous les pouvoirs sauf la gestion des comptes).
   const droitsSecretaire = getDefaultPermissionsForRole('SECRETAIRE')
   const secretaire = (id: string) => canAccess(droitsSecretaire, id)
@@ -491,6 +495,13 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
   it('en portugais aussi, sans le dictionnaire de matériaux', async () => {
     await monter({ isPt: true, isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
     expect(new Set(modulesAffiches())).toEqual(new Set(['Registo de horas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
+  })
+
+  it('un encarregado voit en plus « Ferramentas e viaturas », juste sous le registo de horas', async () => {
+    await monter({ isPt: true, isProGerant: false, proCanAccess: chefDeChantier, salarieDeTerrain: true })
+    const affiches = modulesAffiches()
+    expect(new Set(affiches)).toEqual(new Set(['Registo de horas', 'Ferramentas e viaturas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
+    expect(affiches.indexOf('Ferramentas e viaturas')).toBe(affiches.indexOf('Registo de horas') + 1)
   })
 
   // « Modules » permettait à un salarié d'éteindre son propre « Pointage équipes » et de le perdre de son menu.

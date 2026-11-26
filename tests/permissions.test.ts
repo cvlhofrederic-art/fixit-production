@@ -214,9 +214,28 @@ describe('lib/permissions', () => {
     // (Le 24/11 il avait demandé aussi le dictionnaire de matériaux ; le 25/11 il dit « uniquement ».)
     const TERRAIN: ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
-    it.each(TERRAIN)('%s n’ouvre que le pointage, ses chantiers, la météo et son profil', (role) => {
-      const accessible = getAccessibleModules(getDefaultPermissionsForRole(role))
+    // Le 26/11/2026, Frédéric ajoute la vérification de l'outillage chaque vendredi « par les encarregados », « le
+    // responsable de son chantier » : chef de chantier et conducteur de travaux, en lecture (ses chantiers, et valider
+    // leur vérification) ; pas l'ouvrier.
+    it('OUVRIER n’ouvre que le pointage, ses chantiers, la météo et son profil', () => {
+      const accessible = getAccessibleModules(getDefaultPermissionsForRole('OUVRIER'))
       expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'settings'])
+    })
+
+    it.each(['CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'] as const)('%s ouvre en plus l’outillage de ses chantiers, en lecture', (role) => {
+      const droits = getDefaultPermissionsForRole(role)
+      expect(getAccessibleModules(droits).sort()).toEqual(['chantiers', 'meteo', 'outillage', 'pointage', 'settings'])
+      expect(droits.outillage).toBe('READ')
+    })
+
+    it('l’outillage : le gérant et la secrétaire tiennent le répertoire, le comptable et l’ouvrier ne le voient pas', () => {
+      expect(getDefaultPermission('GERANT', 'outillage')).toBe('FULL')
+      expect(getDefaultPermission('SECRETAIRE', 'outillage')).toBe('FULL')
+      expect(getDefaultPermission('COMPTABLE', 'outillage')).toBe('NONE')
+      expect(getDefaultPermission('OUVRIER', 'outillage')).toBe('NONE')
+      // Une dérogation du gérant s'applique (le module est dans la matrice de chaque rôle, comptable compris).
+      expect(getEffectivePermissions('COMPTABLE', [{ module_id: 'outillage', access_level: 'READ' }]).outillage).toBe('READ')
+      expect(getEffectivePermissions('OUVRIER', [{ module_id: 'outillage', access_level: 'READ' }]).outillage).toBe('READ')
     })
 
     it('les rôles de terrain sont exactement ceux que l’appli ouvre sur le pointage', () => {

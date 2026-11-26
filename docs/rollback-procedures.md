@@ -316,3 +316,20 @@ CREATE POLICY "pro_perms_update" ON public.pro_role_permissions FOR UPDATE USING
 CREATE POLICY "pro_perms_delete" ON public.pro_role_permissions FOR DELETE USING (company_id = (select auth.uid()));
 GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_role_permissions TO anon, authenticated;
 ```
+
+---
+
+## Migration 20261126 — Outillage BTP : répertoire et vérification du vendredi (`20261126_btp_outillage.sql`)
+
+Retire les deux tables créées par la migration. ATTENTION : cela EFFACE le répertoire des outils et véhicules saisi
+depuis, et l'historique des vérifications du vendredi (qui a validé, ce qui manquait). Faire d'abord un export si ces
+données comptent (`select * from public.outillage_btp` et `public.verifications_outillage_btp`, ou l'export RGPD
+de la société, qui les contient). Le code continue de marcher sans elles : l'écran « Outillage et véhicules » indique
+que la base doit être mise à jour, `/api/btp/outillage` répond `disponible: false` et refuse toute écriture (409).
+Aucune autre table n'est touchée.
+
+```sql
+-- Rollback
+DROP TABLE IF EXISTS public.verifications_outillage_btp;
+DROP TABLE IF EXISTS public.outillage_btp;
+```
