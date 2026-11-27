@@ -295,6 +295,7 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       }))
       expect(misesAJour()[0].donnees).toMatchObject({ user_id: 'compte-neuf', invite_token: null })
       expect(misesAJour()[0].eq).toContainEqual(['id', INVITE_ID])
+      expect(await res.json()).not.toHaveProperty('compte_existant')
     })
 
     // AJ Signalement (PR 2, relecture 4 du lot 6) lit le code de l'erreur : la réponse des routes pro et syndic ne change pas.
@@ -335,6 +336,30 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       it('compte sans rôle : rattaché', async () => {
         expect((await accepter(await jetonSigne())).status).toBe(200)
         expect(h.admin.updateUserById).toHaveBeenCalledTimes(1)
+      })
+
+      // 26-27/11/2026 : la page disait « Compte créé, connectez-vous avec vos identifiants » ; l'invité essayait le mot de
+      // passe qu'il venait de taper, que personne n'avait enregistré, et sa connexion était refusée.
+      it("rattaché : la réponse dit que le compte existait et que le mot de passe saisi n'est pas enregistré", async () => {
+        const res = await accepter(await jetonSigne())
+        expect(res.status).toBe(200)
+        const corps = await res.json()
+        expect(corps).toMatchObject({ success: true, compte_existant: true })
+        expect(corps.message).toMatch(/mot de passe habituel/)
+        // Le mot de passe du compte n'est jamais changé par une invitation.
+        expect(h.admin.updateUserById).toHaveBeenCalledWith('compte-existant', { app_metadata: expect.any(Object) })
+        expect(h.admin.updateUserById.mock.calls[0][1]).not.toHaveProperty('password')
+      })
+
+      // Avant le 28/11/2026, l'échec de cette écriture était ignoré : 200 « rattaché » sans ligne d'équipe liée.
+      it("ligne d'équipe non marquée acceptée : 207, la réponse ne prétend pas que le compte est rattaché", async () => {
+        h.base.erreurs[`${table}.update`] = { message: 'timeout' }
+        const res = await accepter(await jetonSigne())
+        expect(res.status).toBe(207)
+        const corps = await res.json()
+        expect(corps.success).toBe(false)
+        expect(corps).not.toHaveProperty('compte_existant')
+        expect(corps.message).toMatch(/support/)
       })
 
       it("lecture du compte en échec : 500, rien n'est modifié", async () => {
