@@ -322,11 +322,18 @@ export interface FondsTravaux extends EntiteEnregistree {
   coproprieteId: string
 }
 
-/** Arrêté de rapprochement d'un compte bancaire du syndicat ; champs non indexés : voir domain/rapprochement-bancaire. */
+/**
+ * Arrêté de rapprochement d'un compte bancaire du syndicat ; champs non indexés : voir domain/rapprochement-bancaire.
+ * Statut « Abandonné » en plus de ceux du domaine (décision du 26/11/2026, PR 799, rb-01 A) : l'arrêté abandonné reste
+ * en base, lu à part (db/rapprochements.ts). Type seul : ni table, ni index, ni version de la base ne changent.
+ */
 export interface Rapprochement
   extends EntiteEnregistree,
-    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/rapprochement-bancaire').ArreteRapprochement, 'id' | 'banqueId'>> {
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/rapprochement-bancaire').ArreteRapprochement, 'id' | 'banqueId' | 'statut'>> {
   bancaireId: string
+  statut?:
+    | import('@/lib/administrateur-judiciaire/domain/rapprochement-bancaire').StatutArrete
+    | typeof import('@/lib/administrateur-judiciaire/domain/rapprochement-bancaire').STATUT_ARRETE_ABANDONNE
 }
 
 /**
