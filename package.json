@@ -96,7 +96,7 @@
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "pg": "^8.23.1",
-    "pixelmatch": "^7.2.0",
+    "pixelmatch": "^8.0.0",
     "pngjs": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
