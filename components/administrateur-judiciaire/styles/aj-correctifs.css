@@ -128,15 +128,30 @@
  * portent la classe vfx-fiches changent ; au-dessus de 768 px, rien ne change.
  */
 @media (max-width: 768px){
-#aj-root .tbl.vfx-fiches{min-width:0}
-#aj-root .tbl.vfx-fiches,#aj-root .tbl.vfx-fiches tbody,#aj-root .tbl.vfx-fiches tbody tr{display:block}
-#aj-root .tbl.vfx-fiches thead{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-#aj-root .tbl.vfx-fiches tbody tr{padding:10px 14px;border-bottom:1px solid var(--line)}
-#aj-root .tbl.vfx-fiches tbody tr:last-child{border-bottom:none}
-#aj-root .tbl.vfx-fiches tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;border-bottom:none;text-align:right}
-#aj-root .tbl.vfx-fiches tbody td:first-child{position:static;box-shadow:none;background:transparent}
-#aj-root .tbl.vfx-fiches tbody td::before{content:attr(data-label);flex:none;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-300);text-align:left}
+#aj-root .tbl.vfx-fiches,#aj-root table.vfx-comptes.vfx-fiches{min-width:0}
+#aj-root .tbl.vfx-fiches,#aj-root .tbl.vfx-fiches tbody,#aj-root .tbl.vfx-fiches tbody tr,#aj-root table.vfx-comptes.vfx-fiches,#aj-root table.vfx-comptes.vfx-fiches tbody,#aj-root table.vfx-comptes.vfx-fiches tbody tr{display:block}
+#aj-root .tbl.vfx-fiches thead,#aj-root table.vfx-comptes.vfx-fiches thead{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#aj-root .tbl.vfx-fiches tbody tr,#aj-root table.vfx-comptes.vfx-fiches tbody tr{padding:10px 14px;border-bottom:1px solid var(--line)}
+#aj-root .tbl.vfx-fiches tbody tr:last-child,#aj-root table.vfx-comptes.vfx-fiches tbody tr:last-child{border-bottom:none}
+#aj-root .tbl.vfx-fiches tbody td,#aj-root table.vfx-comptes.vfx-fiches tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;border-bottom:none;text-align:right}
+#aj-root .tbl.vfx-fiches tbody td:first-child,#aj-root table.vfx-comptes.vfx-fiches tbody td:first-child{position:static;box-shadow:none;background:transparent}
+#aj-root .tbl.vfx-fiches tbody td::before,#aj-root table.vfx-comptes.vfx-fiches tbody td::before{content:attr(data-label);flex:none;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-300);text-align:left}
+#aj-root .tbl.vfx-fiches tbody td>.vfx-fiche-valeur,#aj-root table.vfx-comptes.vfx-fiches tbody td>.vfx-fiche-valeur{min-width:0;max-width:100%}
+/* IBAN : l'écriture en ligne (nowrap) cède sur la fiche, il se coupe entre ses groupes de 4 chiffres plutôt que de défiler dans un cadre caché. */
+#aj-root table.vfx-comptes.vfx-fiches tbody td .vfx-fiche-iban .mono{white-space:normal!important}
+#aj-root .tbl.vfx-fiches tbody td>select{min-width:0;max-width:65%}
 }
+
+/*
+ * Suite de la PR 799 (décision du 26/11/2026, points c05 B et c06) : « Comptes bancaires du mandat », « Lignes de relevé »
+ * et le tableau des lignes retenues de l'analyse d'un relevé passent, sous 769 px, en une fiche par ligne, comme les deux
+ * tableaux ci-dessus (tests : correctifs-tableaux-telephone.test.tsx). Les deux derniers utilisent DataTable (prop fiches) ;
+ * les comptes ont leur propre tableau, qui n'a pas la classe .tbl : sa mise en page de bureau (jusqu'ici écrite en ligne dans
+ * ComptesBancairesPanel.tsx, largeur minimale de 640 px dans le cadre qui défile) passe ici, à l'identique, pour que
+ * le téléphone puisse la changer. Les boutons d'une ligne (Modifier, Clôturer, Imputer à…) restent dans leur cellule, qui
+ * garde son étiquette. Au-dessus de 768 px, rien ne change.
+ */
+#aj-root table.vfx-comptes{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
 
 /*
  * rb-c06 : « Importer N lignes » partageait sa ligne avec la phrase d'explication et se retrouvait écrasé à 70 px, texte

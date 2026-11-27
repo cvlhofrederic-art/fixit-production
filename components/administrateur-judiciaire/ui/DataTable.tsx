@@ -9,6 +9,8 @@ export interface ColonneTableau<T> {
   style?: CSSProperties
   /** Style des cellules (td). */
   tdStyle?: CSSProperties
+  /** Étiquette de la valeur sur la fiche du téléphone (data-label), quand h n'est pas un simple texte. */
+  etiquette?: string
 }
 
 export interface DataTableProps<T> {
@@ -18,22 +20,32 @@ export interface DataTableProps<T> {
   onRow?: ((ligne: T) => void) | null
   /** Propriété servant de clé React (index de ligne sinon). */
   rowKey?: keyof T
+  /**
+   * Nom du tableau. Sur téléphone (sous 769 px), le tableau devient une fiche par ligne (classe vfx-fiches,
+   * aj-correctifs.css), l'étiquette de chaque valeur dans data-label (l'en-tête, ou colonne.etiquette). Les rôles ARIA de
+   * tableau sont posés, car des lignes en bloc leur font perdre leur structure. Sans ce nom, le tableau reste comme avant.
+   */
+  fiches?: string
 }
 
 /** Tableau de données (tbl-wrap > table.tbl). */
-export function DataTable<T>({ columns, rows, onRow, rowKey }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, onRow, rowKey, fiches }: DataTableProps<T>) {
+  const role = (nom: string) => (fiches ? nom : undefined)
+  const etiquette = (colonne: ColonneTableau<T>) =>
+    fiches ? (colonne.etiquette ?? (typeof colonne.h === 'string' ? colonne.h : undefined)) : undefined
   return (
     <div className="tbl-wrap">
-      <table className="tbl">
-        <thead>
-          <tr>
+      <table className={fiches ? 'tbl vfx-fiches' : 'tbl'} aria-label={fiches} role={role('table')}>
+        <thead role={role('rowgroup')}>
+          <tr role={role('row')}>
             {columns.map((colonne, index) => (
-              <th style={colonne.style} key={index}>
+              <th style={colonne.style} key={index} role={role('columnheader')}>
                 {colonne.h}
               </th>
             ))}
             {onRow && (
               <th
+                role={role('columnheader')}
                 style={{
                   width: 48,
                 }}
@@ -41,9 +53,10 @@ export function DataTable<T>({ columns, rows, onRow, rowKey }: DataTableProps<T>
             )}
           </tr>
         </thead>
-        <tbody>
+        <tbody role={role('rowgroup')}>
           {rows.map((ligne, index) => (
             <tr
+              role={role('row')}
               onClick={onRow ? () => onRow(ligne) : undefined}
               style={
                 onRow
@@ -55,12 +68,14 @@ export function DataTable<T>({ columns, rows, onRow, rowKey }: DataTableProps<T>
               key={rowKey ? (ligne[rowKey] as Key) : index}
             >
               {columns.map((colonne, indexColonne) => (
-                <td style={colonne.tdStyle} key={indexColonne}>
+                <td style={colonne.tdStyle} key={indexColonne} role={role('cell')} data-label={etiquette(colonne)}>
                   {colonne.render ? colonne.render(ligne) : (ligne[colonne.k as keyof T] as ReactNode)}
                 </td>
               ))}
               {onRow && (
                 <td
+                  role={role('cell')}
+                  data-label={fiches ? 'Détails' : undefined}
                   style={{
                     textAlign: 'right',
                   }}

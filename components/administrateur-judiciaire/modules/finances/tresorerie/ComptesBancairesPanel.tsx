@@ -62,31 +62,42 @@ function indicationMandat(aUnMandat: boolean, pratique: ModeTenueComptes | null)
 }
 
 const STYLE_SECONDAIRE = { display: 'block', fontSize: 11.5 } as const
-/** IBAN jamais renvoyé à la ligne : il se relit chiffre à chiffre. Sur téléphone, le tableau défile alors dans son cadre .tbl-wrap. */
+/** IBAN jamais renvoyé à la ligne : il se relit chiffre à chiffre (sur téléphone, la fiche le coupe entre ses groupes de chiffres : règle de aj-correctifs.css). */
 const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
 
 /**
  * Tableau des comptes, repris de la maquette (Nature, IBAN, Solde ; mêmes styles en ligne), complété du libellé, du BIC
  * et de l'établissement, des pastilles (fonds de travaux, clôture) et des actions. Dans un cadre .tbl-wrap : sur
- * téléphone, il garde une largeur minimale de 640 px et défile dans ce cadre, l'IBAN jamais renvoyé à la ligne, sans
- * faire déborder la page.
+ * ordinateur, largeur minimale de 640 px (classe vfx-comptes, aj-correctifs.css) ; sous 769 px, une fiche par compte (classe
+ * vfx-fiches, étiquette de chaque valeur dans data-label, rôles ARIA de tableau conservés), sans défilement de côté ;
+ * Modifier et Clôturer restent dans la cellule « Actions ». Chaque valeur est dans un seul bloc (vfx-fiche-valeur) :
+ * la cellule de la fiche est une ligne flex, qui rangerait sinon le texte, le libellé et les pastilles côte à côte.
  */
 function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly CompteAffiche[]; ouvrir: (edition: Edition) => void }>) {
   return (
     <div className="tbl-wrap" style={{ marginBottom: 12 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 13 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left' }}>Nature</th>
-            <th style={{ textAlign: 'left' }}>IBAN</th>
-            <th style={{ textAlign: 'right' }}>Solde</th>
-            <th style={{ textAlign: 'right' }}>Actions</th>
+      <table className="vfx-comptes vfx-fiches" aria-label="Comptes bancaires du mandat" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" style={{ textAlign: 'left' }}>
+              Nature
+            </th>
+            <th role="columnheader" style={{ textAlign: 'left' }}>
+              IBAN
+            </th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Solde
+            </th>
+            <th role="columnheader" style={{ textAlign: 'right' }}>
+              Actions
+            </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {comptes.map((compte) => (
-            <tr key={compte.id}>
-              <td>
+            <tr key={compte.id} role="row">
+              <td role="cell" data-label="Nature">
+                <div className="vfx-fiche-valeur">
                 {NATURES_COMPTE_BANCAIRE[compte.nature].libelle}
                 {compte.libelle && (
                   <span className="muted" style={STYLE_SECONDAIRE}>
@@ -107,8 +118,10 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
                     )}
                   </span>
                 )}
+                </div>
               </td>
-              <td>
+              <td role="cell" data-label="IBAN">
+                <div className="vfx-fiche-valeur vfx-fiche-iban">
                 <span className="mono" style={STYLE_IBAN}>
                   {compte.iban ? ibanGroupe(compte.iban) : '—'}
                 </span>
@@ -117,11 +130,12 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
                     {[compte.bic, compte.etablissement].filter(Boolean).join(' · ')}
                   </span>
                 )}
+                </div>
               </td>
-              <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+              <td className="mono" role="cell" data-label="Solde" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 {compte.soldeCentimes === null ? '—' : formatEurosCentimes(compte.soldeCentimes / 100)}
               </td>
-              <td>
+              <td role="cell" data-label="Actions">
                 {compte.actif && (
                   <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <button
