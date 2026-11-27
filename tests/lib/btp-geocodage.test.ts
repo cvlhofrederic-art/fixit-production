@@ -480,6 +480,49 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect((await geocoderAdresse({ adresse: '1 place de l\'Église', codePostal: '49600' }, 'FR'))?.precise).toBe(false)
   })
 
+  it('cinquième relecture : nom qui finit par un nombre, voie que la saisie désigne, arrondissements, zone, page pleine', async () => {
+    // « rue du 19 Mars 1962 », 31620 sans ville : six communes ont cette rue. Cherchée par « 1962 », la vraie BAN ne rend
+    // aucune voie (elle lit un numéro) : Nominatim passait alors pour précis à Villaudric.
+    banSelonRecherche['1962'] = { corps: { features: [] } }
+    banSelonRecherche['19 mars 1962'] = { corps: { features: ['Fronton', 'Bouloc', 'Villaudric', 'Cépet'].map(city => voieBan('Rue du 19 Mars 1962', '31620', city)) } }
+    reponses.ban = ban('street', 0.9, { postcode: '31620', city: 'Fronton', street: 'Rue du 19 Mars 1962' })
+    reponses.osm = osm(26, { road: 'Rue du 19 Mars 1962', postcode: '31620', village: 'Villaudric' })
+    expect((await geocoderAdresse({ adresse: 'rue du 19 Mars 1962', codePostal: '31620' }, 'FR'))?.precise).toBe(false)
+    expect(appels.filter(a => a.includes('type=street')).map(rechercheBan)).toContain('19 mars 1962')
+    // Témoin : une seule commune du code postal a cette rue : précis.
+    banSelonRecherche['19 mars 1962'] = { corps: { features: [voieBan('Rue du 19 Mars 1962', '31620', 'Fronton')] } }
+    expect((await geocoderAdresse({ adresse: 'rue du 19 Mars 1962', codePostal: '31620' }, 'FR'))?.precise).toBe(true)
+    // « 12 rue Leclerc », 61500 sans ville : la BAN hésite (0,568) ; OSM rend le 12 rue du Général Leclerc (Sées), mais la
+    // saisie désigne aussi la rue de la Division Leclerc (Saint-Gervais-du-Perron, 7,2 km).
+    reponses.ban = ban('housenumber', 0.568, { postcode: '61500', city: 'Sées', housenumber: '12', street: 'Rue du Général Leclerc' })
+    reponses.osm = osm(30, { house_number: '12', road: 'Rue du Général Leclerc', postcode: '61500', town: 'Sées' })
+    banSelonRecherche.leclerc = { corps: { features: [voieBan('Rue du Général Leclerc', '61500', 'Sées'), voieBan('Rue de la Division Leclerc', '61500', 'Saint-Gervais-du-Perron')] } }
+    expect((await geocoderAdresse({ adresse: '12 rue Leclerc', codePostal: '61500' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche.leclerc = { corps: { features: [voieBan('Rue du Général Leclerc', '61500', 'Sées')] } }
+    expect((await geocoderAdresse({ adresse: '12 rue Leclerc', codePostal: '61500' }, 'FR'))?.precise).toBe(true)
+    // Sans ville, côté BAN : « 12 rue de Gaulle » rendu rue du Général de Gaulle, l'autre commune a une rue Charles de Gaulle.
+    reponses.osm = { corps: [] }
+    reponses.ban = ban('housenumber', 0.93, { postcode: '22400', city: 'Noyal', housenumber: '12', street: 'Rue du Général de Gaulle' })
+    banSelonRecherche.gaulle = { corps: { features: [voieBan('Rue du Général de Gaulle', '22400', 'Noyal'), voieBan('Rue Charles de Gaulle', '22400', 'Andel')] } }
+    expect((await geocoderAdresse({ adresse: '12 rue de Gaulle', codePostal: '22400' }, 'FR'))?.precise).toBe(false)
+    // Marseille sans code postal : deux boulevards de la Gare (13014, 13015) sont deux voies, pas un doublon.
+    reponses.ban = ban('housenumber', 0.8, { postcode: '13015', city: 'Marseille', citycode: '13215', housenumber: '12', street: 'Boulevard de la gare' })
+    banSelonRecherche.gare = { corps: { features: [voieBan('Boulevard de la gare', '13015', 'Marseille'), voieBan('Boulevard de la gare', '13014', 'Marseille')] } }
+    expect((await geocoderAdresse({ adresse: '12 Gare', ville: 'Marseille' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche.gare = { corps: { features: [voieBan('Boulevard de la gare', '13015', 'Marseille')] } }
+    expect((await geocoderAdresse({ adresse: '12 Gare', ville: 'Marseille' }, 'FR'))?.precise).toBe(true)
+    // Voie « Zone Artisanale du Bosc », numérotée dans la BAN (Mudaison, 0,952) : précise, comme avant le 26/11.
+    reponses.ban = ban('housenumber', 0.952, { postcode: '34130', city: 'Mudaison', housenumber: '2', street: 'Zone Artisanale du Bosc' })
+    expect((await geocoderAdresse(saisie('2 Zone Artisanale du Bosc', '34130', 'Mudaison'), 'FR'))?.precise).toBe(true)
+    // La zone écrite après la voie en est un complément : la voie s'arrête avant elle.
+    reponses.ban = ban('housenumber', 0.9, { postcode: '34130', city: 'Mudaison', housenumber: '12', street: 'Rue des Artisans' })
+    expect((await geocoderAdresse(saisie('12 rue des Artisans Zone Artisanale du Bosc', '34130', 'Mudaison'), 'FR'))?.precise).toBe(true)
+    // Page pleine sans ville (« ville » touche toutes les voies de Villeneuve-d'Ascq) : refus voulu.
+    reponses.ban = ban('housenumber', 0.972, { postcode: '59650', city: 'Villeneuve-d\'Ascq', housenumber: '1', street: 'Chaussée de l\'Hôtel de Ville' })
+    banSelonRecherche.ville = { corps: { features: Array.from({ length: 50 }, (_, i) => voieBan(i === 0 ? 'Chaussée de l\'Hôtel de Ville' : `Rue ${i} de Villeneuve`, '59650', 'Villeneuve-d\'Ascq')) } }
+    expect((await geocoderAdresse({ adresse: '1 chaussée de l\'Hôtel de Ville', codePostal: '59650' }, 'FR'))?.precise).toBe(false)
+  })
+
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
     // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
     // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
@@ -865,7 +908,27 @@ describe('numeroEtVoieSaisis', () => {
       'Mobil-home 12 rue Paradis', 'Mobil home 12 rue Paradis', 'Duplex 12 rue Paradis', 'Secteur 3 rue Paradis',
       'Lot de copropriété n° 12 rue Paradis', 'Salle 3 rue Paradis', 'Stand 3 rue Paradis', 'Magasins 3 rue Paradis',
       'Niveaux 2 rue Paradis',
-    ]) expect(numeroEtVoieSaisis(rue), rue).toBeNull()
+      // Cinquième relecture du 26/11/2026 : autres écritures d'une plage ou d'une énumération de lots ; partie numérotée d'une
+      // zone ; refus voulus, du côté sûr (« au 12 » et « 3 A » ont la forme d'une plage, « Bâtiments 1 et 2, 12 » celle
+      // d'une énumération).
+      'Lotissement Les Oliviers lots du 12 au 14 rue Paradis', 'Lot du 12 au 14 rue Paradis', 'lots numéros 12 à 14 rue Paradis',
+      'lots nos 12 à 14 rue Paradis', 'lots n°s 12 à 14 rue Paradis', 'Lots 12 jusqu\'à 14 rue Paradis', 'Lots 12 jusqu’à 14 rue Paradis',
+      'Lots 12 jusque 14 rue Paradis', 'Lots 12 jusqu au 14 rue Paradis', 'lots 12 bis à 14 rue Paradis', 'lots 12- 14 rue Paradis',
+      'lots 12/ 14 rue Paradis', 'Lotissement Les Oliviers, Lot 12, 13 et 14 rue Paradis', 'Lot 12, 13, 14 rue Paradis',
+      'Lot 12 - 13 - 14 rue Paradis', 'Lots 12, 13 et 14 rue Paradis', 'Lots 12, 14 à 16 rue Paradis',
+      'Lots 12 à 14, 16 et 18 rue Paradis', 'Lots 12, 13 et 14, 15 rue Paradis', 'Zone 3 rue Paradis', 'Bât 3 A 10 rue Paradis',
+      'Bât 3 et 4 au 12 rue Paradis', 'Bâtiments 1 et 2, 12 rue Paradis', 'Lot 12- 14 rue Paradis', '12 Zone B',
+      `Lots ${Array.from({ length: 100 }, (_, i) => i + 1).join(' à ')} rue Paradis`,
+      // Au-delà de 200 caractères (ce que la BAN lit), aucune lecture.
+      `Résidence ${'Les Pins '.repeat(25)}12 rue Paradis`,
+    ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
+    // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
+    for (const [rue, texte] of <Array<[string, string]>>[
+      ['Bâtiment du 12 rue Paradis', '12 rue Paradis'], ['Box 3, 12 rue Paradis', '12 rue Paradis'], ['Duplex 3, 12 rue Paradis', '12 rue Paradis'],
+      ['Rés 2000, 12 rue Paradis', '12 rue Paradis'], ['Bât 3, 12, rue Paradis', '12 rue Paradis'], ['2 Zone Artisanale du Bosc', '2 Zone Artisanale du Bosc'],
+      ['3 Zone Industrielle', '3 Zone Industrielle'], ['2 Terrain d\'Aviation', '2 Terrain d\'Aviation'], ['12, Zone Artisanale du Bosc', '12 Zone Artisanale du Bosc'],
+      ['12, Zone B, rue Paradis', '12 rue Paradis'], ['Bât 3 B 10 rue Paradis', '10 rue Paradis'],
+    ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
     expect(numeroEtVoieSaisis('Lot 5, 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
@@ -880,6 +943,10 @@ describe('numeroEtVoieSaisis', () => {
     expect(numeroEtVoieSaisis('12, Bât B route de Lyon, Lieu-dit La Plaine')?.texte).toBe('12 route de Lyon')
     // Un type de voie précédé d'un article est un nom de résidence, pas une voie collée.
     expect(numeroEtVoieSaisis('12, Résidence Les Allées du Parc')).toBeNull()
+    // Un complément qui commence par un type de voie n'est pas une voie nommée (cinquième relecture).
+    for (const fin of ['Allée B', 'Villa 3', 'Place 14']) {
+      expect(numeroEtVoieSaisis(`12, Résidence Le Parc rue Paradis, ${fin}`)?.texte, fin).toBe('12 rue Paradis')
+    }
   })
 })
 

@@ -98,8 +98,11 @@ const INDICE_NUMERO = /^(?:bis|ter|quater|quinquies|[a-d])$/iu
  * 26/11/2026).
  */
 const PLAGE_NUMEROS = /^(\d{1,4})[-–—/](\d{1,4})$/u
-/** « n° », « nº », « no », « nr », « n. », « num. », « numéro » écrits devant le numéro ; collé au numéro : « N°10 ». */
-const PREFIXE_NUMERO = /^(?:n[°º.]?|no\.?|nr\.?|num(?:[ée]ro|\.)?)$/iu
+/**
+ * « n° », « nº », « no », « nr », « n. », « num. », « numéro » écrits devant le numéro, et leurs pluriels (« lots nos 12 à
+ * 14 », « n°s », « numéros ») ; collé au numéro : « N°10 ».
+ */
+const PREFIXE_NUMERO = /^(?:n[°º.]?|no\.?|nr\.?|num(?:[ée]ro|\.)?|n[°º]s|nos|num[ée]ros)$/iu
 const PREFIXE_COLLE = /^n[°º](?=\d)/iu
 const SEPARATEURS_PLAGE = new Set(['-', '–', '—', '/', '&', 'à', 'au', 'et'])
 /** Ponctuation seule entre un complément et son numéro (« Lot : 12 », « Lot n ° 12 », « Lot / 12 », « Bât # 3 »). */
@@ -114,8 +117,16 @@ const LOCAUX = [
   'cellule', 'cellules', 'local', 'locaux', 'box', 'garage', 'garages', 'tranche', 'ilot', 'ilots', 'hall', 'cage',
   // Quatrième relecture du 26/11/2026 : commerces, hébergements, phases et parties d'un lotissement ou d'une copropriété.
   'magasin', 'boutique', 'stand', 'bungalow', 'mobil', 'mobil home', 'mobilhome', 'home', 'duplex', 'triplex', 'salle',
-  'unite', 'module', 'phase', 'secteur', 'zone', 'terrain', 'copropriete',
+  'unite', 'module', 'phase', 'copropriete',
 ]
+/**
+ * Parties numérotées d'une zone ou d'un lotissement (« Zone 3 », « Secteur B », « Terrain 12 ») : leur numéro n'est pas celui
+ * de la rue ; mais « Zone Artisanale du Bosc » (Mudaison), « Zone Industrielle » ou « Terrain d'Aviation » sont des voies
+ * numérotées de la BAN (cinquième relecture du 26/11/2026).
+ */
+const ZONES = new Set(['zone', 'secteur', 'terrain'])
+/** Zone suivie d'un numéro ou d'une lettre seule (« Zone 3 », « Zone B ») : un complément, pas une voie. */
+const zoneNumerotee = (mots: readonly string[]) => ZONES.has(normaliserLieu(mots[0] ?? '')) && /^(?:\d{1,4}|\p{L})$/u.test(mots[1] ?? '')
 /** Premier mot d'un complément qui suit parfois un numéro (« 2 étage », « 3 bât. B ») : ce numéro n'est pas celui de la rue. */
 const MOTS_COMPLEMENT = new Set([...LOCAUX, 'etage', 'bat', 'batiment', 'escalier', 'esc', 'bloc', 'lot', 'niveau', 'case', 'bp', 'cs', 'n', 'bis', 'ter', 'quater'])
 /**
@@ -123,7 +134,7 @@ const MOTS_COMPLEMENT = new Set([...LOCAUX, 'etage', 'bat', 'batiment', 'escalie
  * « km 5 »), pas celui de la rue, même séparé de lui par un « n° » ou une ponctuation (« Lot n° 12 », « Lot : 12 »).
  */
 const MOTS_AVANT_NUMERO = new Set([
-  ...LOCAUX, 'bat', 'bt', 'bats', 'batiment', 'batiments', 'lot', 'lots', 'lotissement', 'villa', 'villas', 'maison', 'maisons',
+  ...LOCAUX, ...ZONES, 'bat', 'bt', 'bats', 'batiment', 'batiments', 'lot', 'lots', 'lotissement', 'villa', 'villas', 'maison', 'maisons',
   'chalet', 'studio', 'escalier', 'esc', 'bloc', 'niveau', 'niv', 'etage', 'etg', 'et', 'residence', 'res', 'immeuble', 'imm',
   'bp', 'cs', 'case', 'commercial', 'commerce', 'cave', 'caves', 'parking', 'emplacement', 'atelier', 'bureau', 'bureaux',
   'hangar', 'entrepot', 'entree', 'tour', 'parcelle', 'cedex', 'km', 'pk',
@@ -216,7 +227,7 @@ const finitPar = (mots: readonly string[], fin: readonly string[]) =>
 function formesSaisie(voie: string, villes: readonly unknown[]): string[][] {
   const mots = motsVoie(voie)
   const formes = [mots]
-  const complement = mots.findIndex((mot, i) => COMPLEMENT_FINAL.has(mot) || (DEBUT_COMPLEMENT.has(mot) && i < mots.length - 1))
+  const complement = mots.findIndex((mot, i) => COMPLEMENT_FINAL.has(mot) || ((DEBUT_COMPLEMENT.has(mot) || ZONES.has(mot)) && i < mots.length - 1))
   if (complement > 0) formes.push(mots.slice(0, complement > 1 && ORDINAL.test(mots[complement - 1]) ? complement - 1 : complement))
   const finales = villes.filter((v): v is string => typeof v === 'string').map(motsVoie).filter(v => v.length > 0)
   for (const forme of [...formes]) {
@@ -360,9 +371,15 @@ function premierMot(texte: string, abreviations = true): string {
 
 const aDesLettres = (texte: string) => /\p{L}{3,}/u.test(texte)
 /** Voie écrite après un numéro : un nom, pas un complément (« 2 étage », « 3 bât. B », « 3 bis »). */
-const voieApresNumero = (voie: string) => aDesLettres(voie) && !MOTS_COMPLEMENT.has(premierMot(voie, false))
+const voieApresNumero = (voie: string) => aDesLettres(voie) && !MOTS_COMPLEMENT.has(premierMot(voie, false)) && !zoneNumerotee(voie.split(' '))
 /** Morceau qui commence par un type de voie (« rue X », « av. Y »). */
 const commenceParUnTypeDeVoie = (mots: readonly string[]) => mots.length > 1 && TYPES_VOIE.has(premierMot(mots[0]))
+/**
+ * Morceau qui est une voie nommée (« rue Paradis »), pas un complément qui commence par un type de voie (« Allée B »,
+ * « Villa 3 », « Place 14 » : cinquième relecture du 26/11/2026).
+ */
+const estUneVoieNommee = (mots: readonly string[]) =>
+  commenceParUnTypeDeVoie(mots) && !estUnComplement(mots) && aDesLettres(texte(mots.slice(1)))
 /** Morceau qui commence par un type de voie, un lieu-dit ou un hameau (« rue X », « Lieu-dit Les Granges »). */
 const commenceParUneVoie = (mots: readonly string[]) =>
   commenceParUnTypeDeVoie(mots) || (mots.length > 1 && (premierMot(mots[0]) === 'lieu' || premierMot(mots[0]) === 'hameau'))
@@ -375,30 +392,54 @@ const estUnMotDeComplement = (ecrit: string, mot: string) =>
   MOTS_AVANT_NUMERO.has(mot) || MOTS_AVANT_NUMERO.has(mot.replace(/(?<=\p{L}{3})[sx]$/u, '')) || /\p{L}{2,}\.$/u.test(ecrit)
 /** Numéro en un mot, « n° » collé compris (« 12 », « 4bis », « n°14 »). */
 const estUnNumero = (mot: string | undefined) => mot !== undefined && NUMERO.test(mot.replace(PREFIXE_COLLE, ''))
-/** Liaison entre deux numéros d'une suite (« lots 12 à 14 », « 12 et 14 », « 12 ou 14 », « 12 + 14 », « 12 jusqu'au 14 »). */
-const LIAISONS = new Set([...SEPARATEURS_PLAGE, 'a', 'ou', '+', "jusqu'au", 'jusqu’au'])
+/**
+ * Liaison entre deux numéros d'une suite (« lots 12 à 14 », « 12 et 14 », « 12 ou 14 », « 12 + 14 », « 12 jusqu'au 14 »,
+ * « 12 jusqu'à 14 », « jusque »).
+ */
+const LIAISONS = new Set([...SEPARATEURS_PLAGE, 'a', 'ou', '+', "jusqu'au", 'jusqu’au', "jusqu'à", 'jusqu’à', "jusqu'a", 'jusqu’a', 'jusque', 'jusqu'])
+const estUneLiaison = (mot: string) => LIAISONS.has(mot.toLowerCase())
+/** Compléments au singulier qui finissent par s ou x (« Box 3, 12 rue X », « Rés 2000, 12 rue X »). */
+const SINGULIERS_EN_SX = new Set(['box', 'duplex', 'triplex', 'res', 'cs'])
 
 /**
- * Numéro qui précède celui du mot `i` dans une suite (« lots 12 à 14 », « box 3 / 4 », « lots 12 13 14 »), au-delà des
- * « n° », ponctuations et liaisons ; `juxtapose` : sans liaison ni ponctuation entre eux. Null si ce n'est pas un numéro.
+ * Numéro qui précède celui du mot `i` dans une suite (« lots 12 à 14 », « box 3 / 4 », « lots 12 13 14 », « lots 12 bis à
+ * 14 », « lots 12- 14 »), au-delà des « n° », ponctuations, liaisons et indices ; `juxtapose` : sans liaison ni ponctuation
+ * entre eux. Null si ce n'est pas un numéro.
  */
 function numeroPrecedent(mots: readonly string[], i: number): { indice: number; juxtapose: boolean } | null {
   let j = i - 1
   let juxtapose = true
-  while (j >= 0 && (entreComplementEtNumero(mots[j]) || LIAISONS.has(mots[j].toLowerCase()))) {
-    if (!PREFIXE_NUMERO.test(mots[j].replace(/[:#]+$/u, ''))) juxtapose = false
+  while (j >= 0 && (entreComplementEtNumero(mots[j]) || estUneLiaison(mots[j]) || INDICE_NUMERO.test(mots[j]))) {
+    const neutre = PREFIXE_NUMERO.test(mots[j].replace(/[:#]+$/u, '')) || INDICE_NUMERO.test(mots[j])
+    if (estUneLiaison(mots[j]) || !neutre) juxtapose = false
     j -= 1
   }
-  return estUnNumero(mots[j]) ? { indice: j, juxtapose } : null
+  const borne = mots[j]?.replace(/[-–—/]$/u, '')
+  return estUnNumero(borne) ? { indice: j, juxtapose: juxtapose && borne === mots[j] } : null
 }
 
-/** Le mot qui précède la suite de numéros finissant au mot `i` est-il au pluriel (« lots », « bâtiments », « locaux ») ? */
-function suiteAuPluriel(mots: readonly string[], i: number): boolean {
+/**
+ * Indice du mot qui précède le numéro du mot `i`, au-delà des « n° » et ponctuations, et de la préposition d'une plage
+ * (« lots du 12 au 14 » : « lots » ; « Bâtiment du 12 rue X » : « du ») ; -1 au début du morceau.
+ */
+function motAvantLeNumero(mots: readonly string[], i: number): number {
+  let j = i - 1
+  while (j >= 0 && entreComplementEtNumero(mots[j])) j -= 1
+  const plage = (lireNumero(mots, i)?.numeros.length ?? 0) > 1
+  return plage && ['du', 'de', 'des'].includes(motComplement(mots[j])) ? motAvantLeNumero(mots, j) : j
+}
+
+/**
+ * Le mot qui précède la suite de numéros finissant au mot `i` est-il au pluriel (« lots », « bâtiments », « locaux ») ?
+ * `tete` : au début du morceau, la suite continue celle des morceaux d'avant (continueUneSuite).
+ */
+function suiteAuPluriel(mots: readonly string[], i: number, tete = false): boolean {
   let debut = i
   for (let precedent = numeroPrecedent(mots, debut); precedent; precedent = numeroPrecedent(mots, debut)) debut = precedent.indice
-  let j = debut - 1
-  while (j >= 0 && entreComplementEtNumero(mots[j])) j -= 1
-  return j >= 0 && /[sx]$/u.test(motComplement(mots[j]))
+  const j = motAvantLeNumero(mots, debut)
+  if (j < 0) return tete
+  const mot = motComplement(mots[j])
+  return /[sx]$/u.test(mot) && !SINGULIERS_EN_SX.has(mot)
 }
 
 /**
@@ -409,17 +450,18 @@ function suiteAuPluriel(mots: readonly string[], i: number): boolean {
  * rue X » est le lot 12 (relecture du 26/11/2026). Ou une référence cadastrale le précède dans le morceau (« section B
  * n° 10 », « cadastré AB 12 »). Un numéro qui suit un autre numéro est jugé comme lui (« lots 12 à 14 », « Bât 3 & 4 »,
  * « lots 12 13 14 » : quatrième relecture du 26/11/2026) ; juxtaposé, seulement après un complément au pluriel (« Lot 5
- * 12 rue X » : le 12 est celui de la rue).
+ * 12 rue X » : le 12 est celui de la rue). `tete` : le morceau continue une suite de numéros de complément (continueUneSuite),
+ * et ses premiers numéros en sont (« Lots 12, 13 et 14 rue X »).
  */
-function precedeParUnComplement(mots: readonly string[], i: number, apresLaVoie = false): boolean {
+function precedeParUnComplement(mots: readonly string[], i: number, apresLaVoie = false, tete = false): boolean {
   if (mots.slice(0, i).some(mot => MARQUEURS_CADASTRE.has(motComplement(mot)))) return true
   const precedent = numeroPrecedent(mots, i)
   if (precedent) {
-    return precedeParUnComplement(mots, precedent.indice, apresLaVoie) && (!precedent.juxtapose || suiteAuPluriel(mots, precedent.indice))
+    return precedeParUnComplement(mots, precedent.indice, apresLaVoie, tete)
+      && (!precedent.juxtapose || suiteAuPluriel(mots, precedent.indice, tete))
   }
-  let j = i - 1
-  while (j >= 0 && entreComplementEtNumero(mots[j])) j -= 1
-  if (j < 0) return false
+  const j = motAvantLeNumero(mots, i)
+  if (j < 0) return tete
   const mot = motComplement(mots[j])
   const avant = motComplement(mots[j - 1])
   const etageNumerote = ETAGES.has(mot) && ORDINAL.test(avant)
@@ -427,16 +469,25 @@ function precedeParUnComplement(mots: readonly string[], i: number, apresLaVoie 
 }
 
 /**
- * Le morceau `k`, qui commence par un numéro, continue-t-il une suite de numéros d'un complément au pluriel écrite avant
- * lui (« Lots 12, 13, 14 rue Paradis », « Lots 12 - 14 rue Paradis ») ? Au singulier, le numéro est celui de la rue
- * (« Lot 5, 12 rue des Lilas »).
+ * Le morceau `k`, qui commence par un numéro, continue-t-il une suite de numéros d'un complément écrite avant lui (« Lots
+ * 12, 13, 14 rue Paradis », « Lots 12 - 14 rue Paradis », « Lots 12 à 14, 16 et 18 rue Paradis ») ? Au singulier,
+ * seulement s'il ouvre lui-même une énumération (« Lot 12, 13 et 14 rue Paradis », « Lot 12, 13, 14 rue Paradis ») : sinon
+ * son numéro est celui de la rue (« Lot 5, 12 rue des Lilas »).
  */
 function continueUneSuite(morceaux: Morceaux, k: number): boolean {
   const avant = morceaux[k - 1]
   if (!avant || !estUnNumero(avant.at(-1))) return false
   const fin = avant.length - 1
-  if (fin === 0) return continueUneSuite(morceaux, k - 1)
-  return precedeParUnComplement(avant, fin) && suiteAuPluriel(avant, fin)
+  const tete = continueUneSuite(morceaux, k - 1)
+  if (fin === 0) return tete
+  return precedeParUnComplement(avant, fin, false, tete) && (suiteAuPluriel(avant, fin, tete) || ouvreUneEnumeration(morceaux, k))
+}
+
+/** Le morceau `k` commence-t-il par une énumération (« 13 et 14 rue X », « 13, 14 rue X ») plutôt que par un seul numéro ? */
+function ouvreUneEnumeration(morceaux: Morceaux, k: number): boolean {
+  const numero = lireNumero(morceaux[k], 0)
+  if (!numero) return false
+  return numero.numeros.length > 1 || (numero.fin === morceaux[k].length && lireNumero(morceaux[k + 1] ?? [], 0) !== null)
 }
 
 /**
@@ -480,7 +531,12 @@ export function numeroEtVoieSaisis(rue: string): RueSeule | null {
 type Morceaux = ReadonlyArray<readonly string[]>
 const texte = (mots: readonly string[] | undefined) => mots?.join(' ') ?? ''
 
+/**
+ * Lecture de l'adresse ; au-delà de LONGUEUR_MAX_RECHERCHE caractères (que la BAN ne lit pas), aucune : pas de numéro de
+ * rue, donc rien de précis (une suite de centaines de numéros coûtait des secondes, cinquième relecture du 26/11/2026).
+ */
 function lireAdresse(rue: string): Lecture | null {
+  if (rue.length > LONGUEUR_MAX_RECHERCHE) return null
   const morceaux: Morceaux = morceauxAdresse(rue).map(morceau => morceau.split(' '))
   const lue = numeroDevant(morceaux) ?? numeroAuMilieu(morceaux) ?? numeroApres(morceaux)
   if (!lue) return null
@@ -510,7 +566,7 @@ function voieDuMorceau(numero: NumeroLu, mots: readonly string[], k: number): Le
 function estUnComplement(mots: readonly string[]): boolean {
   const premier = premierMot(texte(mots), false)
   const second = motComplement(mots[1])
-  return DEBUT_COMPLEMENT.has(premier) || MOTS_COMPLEMENT.has(premier) || COMPLEMENT_FINAL.has(premier)
+  return DEBUT_COMPLEMENT.has(premier) || MOTS_COMPLEMENT.has(premier) || COMPLEMENT_FINAL.has(premier) || zoneNumerotee(mots)
     || (ORDINAL.test(premier) && (COMPLEMENT_FINAL.has(second) || ETAGES.has(second)))
 }
 
@@ -528,7 +584,7 @@ function voieDesMorceauxSuivants(numero: NumeroLu, morceaux: Morceaux, k: number
     return voieApresNumero(voie) ? lecture(plage, voie, `${texte(morceaux[k])} ${texte(suite)}`, [k, k + 1]) : null
   }
   for (let indice = k + 1; indice < morceaux.length; indice += 1) {
-    const voie = voieDuMorceauSuivant(morceaux[indice], morceaux.slice(indice + 1).some(commenceParUnTypeDeVoie))
+    const voie = voieDuMorceauSuivant(morceaux[indice], morceaux.slice(indice + 1).some(estUneVoieNommee))
     if (voie !== null) return voieApresNumero(voie) ? lecture(numero, voie, `${texte(morceaux[k])} ${voie}`, [k, indice]) : null
   }
   return null
@@ -536,9 +592,9 @@ function voieDesMorceauxSuivants(numero: NumeroLu, morceaux: Morceaux, k: number
 
 /**
  * Voie d'un morceau qui suit un numéro seul : le morceau entier ; d'un complément (« Bât B », « 2e étage »), seulement la
- * voie collée à lui (« Bât B rue Paradis »), et si aucun morceau suivant ne commence par un type de voie (« 12, Résidence
- * Villa Médicis, rue Paradis » : la rue Paradis) ; un type de voie précédé d'un article est un nom (« Résidence Les Allées du
- * Parc »). Null : morceau à sauter.
+ * voie collée à lui (« Bât B rue Paradis »), et si aucun morceau suivant n'est une voie nommée (« 12, Résidence Villa
+ * Médicis, rue Paradis » : la rue Paradis ; « 12, Résidence Le Parc rue Paradis, Allée B » : aussi) ; un type de voie précédé
+ * d'un article est un nom (« Résidence Les Allées du Parc »). Null : morceau à sauter.
  */
 function voieDuMorceauSuivant(mots: readonly string[], voieEnSuite: boolean): string | null {
   if (!estUnComplement(mots)) return texte(mots)
@@ -556,9 +612,10 @@ function voieDuMorceauSuivant(mots: readonly string[], voieEnSuite: boolean): st
 function numeroAuMilieu(morceaux: Morceaux): Lecture | null {
   for (const [k, mots] of morceaux.entries()) {
     let trouve: Lecture | null = null
+    const tete = continueUneSuite(morceaux, k)
     let i = 1
     while (i < mots.length) {
-      const numero = precedeParUnComplement(mots, i) ? null : lireNumero(mots, i)
+      const numero = precedeParUnComplement(mots, i, false, tete) ? null : lireNumero(mots, i)
       if (numero && suiviDUneVoie(mots, numero.fin)) trouve = lecture(numero, texte(mots.slice(numero.fin)), texte(mots.slice(i)), [k])
       i = numero ? numero.fin : i + 1
     }
@@ -739,10 +796,14 @@ function scoreBanSuffisant(type: unknown, score: unknown): boolean {
   return type === 'street' && score >= SCORE_MIN_RUE
 }
 
-/** Voie lue dans la BAN : son nom et sa commune (déléguée comprise), pour ne compter qu'une fois un doublon de la BAN. */
+/**
+ * Voie lue dans la BAN : son nom, sa commune (déléguée comprise) et son code postal, pour ne compter qu'une fois un doublon
+ * de la BAN (pas deux voies homonymes de deux arrondissements de Marseille, cinquième relecture du 26/11/2026).
+ */
 interface VoieLue {
   nom: string
   commune: string
+  codePostal: string
 }
 
 /** Commune d'une voie ou d'une réponse de la BAN, déléguée comprise (« beaupreau en mauges andreze »). */
@@ -765,7 +826,7 @@ async function voiesDeLaCommune(url: string, adresse: AdresseDecomposee): Promis
       .filter(voie => voie.type === 'street' && memeCommune(adresse, 'FR', voie.postcode, [voie.city, voie.oldcity]))
       .flatMap(voie => {
         const nom = voie.name ?? voie.street
-        return typeof nom === 'string' ? [{ nom, commune: cleCommune(voie.city, voie.oldcity) }] : []
+        return typeof nom === 'string' ? [{ nom, commune: cleCommune(voie.city, voie.oldcity), codePostal: voie.postcode ?? '' }] : []
       })
   } catch (erreur) {
     console.warn('[btp] vérification des voies de la commune impossible :', erreur instanceof Error ? erreur.message : erreur)
@@ -801,7 +862,7 @@ async function seuleVoieCompatible(adresse: AdresseDecomposee, lue: RueSeule, vi
  */
 async function voiesDistinctes(adresse: AdresseDecomposee, nom: readonly string[], demandees: VoiesDemandees): Promise<string[] | null> {
   const voies = await voiesNommees(adresse, nom, demandees)
-  return voies === null ? null : [...new Map(voies.map(voie => [`${cleVoie(voie.nom)}|${voie.commune}`, voie.nom])).values()]
+  return voies === null ? null : [...new Map(voies.map(voie => [`${cleVoie(voie.nom)}|${voie.commune}|${voie.codePostal}`, voie.nom])).values()]
 }
 
 /**
@@ -845,12 +906,14 @@ const communeEntiere = (code: string | undefined) => COMMUNES_A_ARRONDISSEMENTS.
  * Voies de la commune saisie dont la BAN rapproche le nom de `nom` (type=street) : filtrées par le code postal et par la
  * commune de la réponse (codeCommune), ou ville ajoutée à la recherche sans l'un ni l'autre. Cherchées par le dernier mot du
  * nom : une voie que memeVoie tient pour la même (« Rue Leclerc » pour « rue du Général Leclerc ») a ce mot, pas forcément
- * tous les autres. Demandées une fois par géocodage ; null si le nom est trop court, en panne ou sur une page pleine.
+ * tous les autres ; par le nom entier s'il finit par un nombre, que la BAN lirait comme un numéro (« 19 mars 1962 » : six
+ * communes du 31620, cinquième relecture du 26/11/2026). Un mot très courant (« ville ») remplit plus souvent la page : refus,
+ * voulu. Demandées une fois par géocodage ; null si le nom est trop court, en panne ou sur une page pleine.
  */
 function voiesNommees(adresse: AdresseDecomposee, nom: readonly string[], demandees: VoiesDemandees): Promise<VoieLue[] | null> {
   const filtre = `${filtreCodePostal(adresse)}${filtreCommune(adresse)}`
   const dernier = nom.at(-1) ?? ''
-  const motCle = dernier.length >= 3 ? dernier : nom.join(' ')
+  const motCle = dernier.length >= 3 && !/\d/u.test(dernier) ? dernier : nom.join(' ')
   const recherche = filtre ? motCle : `${motCle} ${adresse.ville}`.trim()
   if (motCle.length < 3) return Promise.resolve(null)
   const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(recherche)}&type=street&limit=${LIMITE_VOIES_HOMONYMES}${filtre}`
@@ -864,15 +927,27 @@ function voiesNommees(adresse: AdresseDecomposee, nom: readonly string[], demand
  * l'Église », 49600 Beaupréau-en-Mauges (trois places entre parenthèses : Andrezé, La Chapelle-du-Genêt, St
  * Philbert-en-Mauges, à 3 à 5 km l'une de l'autre) ; « place de l'Église », 49120 Chemillé-en-Anjou (trois places à suffixe :
  * « de la Jumellière », « de Cossé », « de Sainte-Christine », jusqu'à 13,7 km) ; relevés du 26/11/2026. Ambiguë : plusieurs
- * voies de ce nom, ou aucune de ce nom exact et plusieurs qui le prolongent. Une voie que la BAN ne connaît pas n'est pas
- * ambiguë ; une panne vaut oui.
+ * voies de ce nom, ou aucune de ce nom exact et plusieurs qui le prolongent, ou une autre voie que la saisie désigne aussi
+ * (« rue Leclerc », 61500 sans ville : rue du Général Leclerc à Sées, rue de la Division Leclerc à Saint-Gervais-du-Perron,
+ * 7,2 km ; cinquième relecture du 26/11/2026). Une voie que la BAN ne connaît pas n'est pas ambiguë ; une panne vaut oui.
  */
-async function voieAmbigue(adresse: AdresseDecomposee, rendue: string, demandees: VoiesDemandees): Promise<boolean> {
+async function voieAmbigue(adresse: AdresseDecomposee, rendue: string, saisie: string, demandees: VoiesDemandees): Promise<boolean> {
   const forme = formesSansParenthese(rendue)[0]
   if (!forme) return false
   const homonymes = await homonymesDe(adresse, forme, demandees)
   if (homonymes === null) return true
-  return homonymes.memes.length > 1 || (homonymes.memes.length === 0 && homonymes.prolongees.length > 1)
+  if (homonymes.memes.length > 1 || (homonymes.memes.length === 0 && homonymes.prolongees.length > 1)) return true
+  return autreVoieDesignee(adresse, saisie, rendue, demandees)
+}
+
+/** Une voie de la commune autre que `rendue`, que la voie saisie désigne aussi (memeVoie) ? Une panne vaut oui. */
+async function autreVoieDesignee(adresse: AdresseDecomposee, saisie: string, rendue: string, demandees: VoiesDemandees): Promise<boolean> {
+  const formes = formesSaisie(saisie, [adresse.ville])
+  if (formes.length === 0) return false
+  const voies = await voiesDistinctes(adresse, nomSansType(formes[0]), demandees)
+  if (voies === null) return true
+  const designee = (nomVoie: string) => formesSansParenthese(nomVoie).some(voie => formes.some(forme => memeVoie(forme, voie)))
+  return voies.some(nomVoie => cleVoie(nomVoie) !== cleVoie(rendue) && designee(nomVoie))
 }
 
 /**
@@ -882,15 +957,19 @@ async function voieAmbigue(adresse: AdresseDecomposee, rendue: string, demandees
  * « Chemin Campagne la Source », toutes deux à Auriol, oui). Parenthèse de la réponse recopiée (« place de l'Église
  * (Andrezé) ») : seule cette voie compte.
  */
-async function communeSure(adresse: AdresseDecomposee, reponse: ProprietesBan, demandees: VoiesDemandees): Promise<boolean> {
+async function communeSure(adresse: AdresseDecomposee, saisie: string, reponse: ProprietesBan, demandees: VoiesDemandees): Promise<boolean> {
   if (adresse.ville) return true
   const { street, city, oldcity } = reponse
   const forme = typeof street === 'string' ? formesSansParenthese(street)[0] : undefined
   if (typeof street !== 'string' || !forme) return false
   const parenthese = parentheseDe(street)
   const recopiee = parenthese !== undefined && normaliserLieu(parenthese) === normaliserLieu(parentheseDe(adresse.rue) ?? '')
-  const memeNom = (nomVoie: string) =>
-    recopiee ? cleVoie(nomVoie) === cleVoie(street) : formesSansParenthese(nomVoie).some(rendue => memeVoie(forme, rendue))
+  // Une voie que la saisie désigne compte aussi (« 12 rue de Gaulle » : rue du Général de Gaulle ici, rue Charles de Gaulle
+  // dans l'autre commune ; cinquième relecture du 26/11/2026).
+  const formes = formesSaisie(saisie, [city, oldcity])
+  const memeNom = (nomVoie: string) => recopiee
+    ? cleVoie(nomVoie) === cleVoie(street)
+    : formesSansParenthese(nomVoie).some(rendue => memeVoie(forme, rendue) || formes.some(f => memeVoie(f, rendue)))
   const homonymes = (await voiesNommees(adresse, nomSansType(forme), demandees))?.filter(voie => memeNom(voie.nom)) ?? []
   const commune = cleCommune(city, oldcity)
   return homonymes.some(voie => voie.commune === commune && cleVoie(voie.nom) === cleVoie(street))
@@ -929,7 +1008,7 @@ async function parBaseAdresseNationale(adresse: AdresseDecomposee, lue: Lecture 
   if (precise) {
     const accord = accordAvecLaSaisie(lue, adresse, villes, { type, housenumber, street })
     precise = accord === 'oui' || (lue !== null && typeof street === 'string' && await accordConfirme(accord, commune, lue, villes, street, demandees))
-    precise = precise && await communeSure(adresse, { street, city, oldcity }, demandees)
+    precise = precise && await communeSure(adresse, lue?.rue.voie ?? adresse.rue, { street, city, oldcity }, demandees)
   }
   return position(coordonnees[1], coordonnees[0], precise)
 }
@@ -969,7 +1048,7 @@ async function parNominatim(adresse: AdresseDecomposee, pays: Pays, comparaison?
       street,
     }) === 'oui')
   const ambigue = precise && comparaison !== undefined && typeof street === 'string'
-    && await voieAmbigue(adresse, street, comparaison.demandees)
+    && await voieAmbigue(adresse, street, comparaison.lue?.rue.voie ?? adresse.rue, comparaison.demandees)
   return position(premier.lat, premier.lon, precise && !ambigue)
 }
 
