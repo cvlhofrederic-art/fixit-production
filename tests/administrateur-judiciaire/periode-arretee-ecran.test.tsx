@@ -39,6 +39,12 @@ const CFONB_UN_COMPTE = CFONB.split('\n')
   .filter((ligne) => !ligne.includes('00087654321'))
   .join('\n')
 const CAMT_UN_RELEVE = CAMT.slice(0, CAMT.lastIndexOf('<Stmt>')) + CAMT.slice(CAMT.lastIndexOf('</Stmt>') + '</Stmt>'.length)
+// Jour de l'application après les mouvements d'octobre des fixtures : la règle commune de date d'arrêté (décision du
+// 26/11/2026, rb-16 A) refuse un arrêté daté après ce jour, et la démonstration est figée au 04/06/2026.
+vi.mock('@/lib/administrateur-judiciaire/mode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/administrateur-judiciaire/mode')>()),
+  AUJOURDHUI_ISO: '2026-10-10',
+}))
 // IBAN des fixtures : exemple déjà utilisé par lecture-releve.test.ts, aucun compte réel.
 const IBAN_FIXTURE = 'FR76 1234 5000 1000 0123 4567 849'
 

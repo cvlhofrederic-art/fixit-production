@@ -266,10 +266,12 @@ describe('base locale : import refusé dans une période arrêtée', () => {
 
   it('arrêté en cours après l’arrêté clôturé : seul le clôturé protège ; le refus dit d’abandonner l’arrêté en cours', async () => {
     await cloturerMai()
-    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-10', soldeBanqueCentimes: 45_000 })
-    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-06-05', libelle: 'VIR JUIN', montant: 99 }])
+    // Arrêté en cours daté au plus tard du jour de la démonstration (04/06/2026) : la règle commune de date d'arrêté
+    // (décision du 26/11/2026, rb-16 A) refuse un arrêté daté après le jour de l'application.
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-03', soldeBanqueCentimes: 45_000 })
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-06-02', libelle: 'VIR JUIN', montant: 99 }])
     await expect(importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-20', libelle: 'PRLV EAU', montant: -120.5 }])).rejects.toThrow(
-      'abandonner d’abord l’arrêté en cours du 10/06/2026, déclôturer celui du 31/05/2026, puis importer le relevé en entier.',
+      'abandonner d’abord l’arrêté en cours du 03/06/2026, déclôturer celui du 31/05/2026, puis importer le relevé en entier.',
     )
     expect((await ecrituresDuCompte()).map((ecriture) => ecriture.libelle).sort()).toEqual(['VIR CHARGES', 'VIR JUIN'])
   })
