@@ -5,7 +5,10 @@
 // de la requête (then). Les lignes vivent
 // dans `base.lignes` ; une erreur PostgREST se programme par table et par opération (`base.erreurs`), au besoin
 // seulement quand une colonne donnée est demandée (`siColonne`, pour éprouver un repli qui relit la même table avec
-// moins de colonnes). Chaque requête est notée dans `base.journal` (table, opération, valeur écrite, filtres, dont
+// moins de colonnes), ou pour les seules N prochaines requêtes (`fois`, pour une panne passagère que la lecture
+// suivante ne rencontre plus), ou pour les seules requêtes filtrées sur une colonne (`siFiltre`, pour qu'une lecture
+// échoue et pas une autre de la même table) ; `lever` la fait lever comme une exception au lieu de la rendre. Chaque
+// requête est notée dans `base.journal` (table, opération, valeur écrite, filtres, dont
 // les filtres `is` dans `estNul`, limite) pour vérifier ce qui part en base.
 //
 // Comportements de PostgREST reproduits parce que la route en dépend :
@@ -40,8 +43,16 @@ export interface EntreeJournal {
 
 export interface FauxBase {
   lignes: Record<string, Ligne[]>
-  /** `siColonne` : l'erreur ne porte que si le `select` demande cette colonne (PostgREST 42703). */
-  erreurs: Array<{ table: string; operation: OperationFaux; erreur: ErreurFaux; siColonne?: string }>
+  /**
+   * `siColonne` : l'erreur ne porte que si le `select` demande cette colonne (PostgREST 42703).
+   * `fois` : l'erreur ne porte que sur ce nombre de requêtes, puis disparaît (sans `fois`, elle porte sur toutes).
+   * `siFiltre` : l'erreur ne porte que sur les requêtes filtrées par `.eq` sur cette colonne.
+   * `lever` : la requête lève une exception (client qui rejette) au lieu de rendre `{ error }`.
+   */
+  erreurs: Array<{
+    table: string; operation: OperationFaux; erreur: ErreurFaux; siColonne?: string; fois?: number; siFiltre?: string
+    lever?: boolean
+  }>
   journal: EntreeJournal[]
 }
 
@@ -100,8 +111,16 @@ function constructeur(base: FauxBase, table: string) {
   const executer = (): Resultat => {
     const programmee = base.erreurs.find(e =>
       e.table === table && e.operation === entree.operation
-      && (e.siColonne === undefined || colonnes.includes(e.siColonne)))
-    if (programmee) return { data: null, error: programmee.erreur, count: null }
+      && (e.siColonne === undefined || colonnes.includes(e.siColonne))
+      && (e.siFiltre === undefined || e.siFiltre in entree.filtres))
+    if (programmee) {
+      if (programmee.fois !== undefined) {
+        programmee.fois -= 1
+        if (programmee.fois <= 0) base.erreurs.splice(base.erreurs.indexOf(programmee), 1)
+      }
+      if (programmee.lever) throw new Error(programmee.erreur.message)
+      return { data: null, error: programmee.erreur, count: null }
+    }
     const lignes = (base.lignes[table] ??= [])
     switch (entree.operation) {
       case 'select': {

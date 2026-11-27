@@ -2,7 +2,7 @@
 // communes aux tests des routes /api/btp/pointage et /api/btp/pointage/evenement.
 //
 // Filtres eq / is / gte, tri, limite, insertion, upsert, modification, index « un pointage ouvert par employé » de la
-// migration 20261116, table absente. Usage dans un test :
+// migration 20261116, table absente, panne passagère d'une table (`etat.pannes`). Usage dans un test :
 //   vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/base-memoire-pointage')).supabaseMemoire }))
 // Comptes et données fictifs.
 
@@ -16,6 +16,11 @@ export const etat = {
   liaisons: [] as Array<{ equipe_id: string; membre_id: string }>,
   indexUnique: true,
   tablesAbsentes: new Set<string>(),
+  /**
+   * Panne d'une table : table → nombre de requêtes, lectures comme écritures, qui échouent encore (délai dépassé,
+   * code 57014) ; la table répond ensuite de nouveau. Vidé par donnees().
+   */
+  pannes: new Map<string, number>(),
   /** Simule un second envoi qui ouvre le pointage entre la vérification de la route et son insertion. */
   courseAvantInsertion: null as null | Ligne,
   /** Simule une seconde activation du même compte enregistrée entre le retrait et l'insertion d'un téléphone. */
@@ -82,6 +87,11 @@ export function requete(table: string) {
   const executer = (): { data: unknown; error: unknown } => {
     if (etat.tablesAbsentes.has(table)) {
       return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` } }
+    }
+    const pannesRestantes = etat.pannes.get(table) ?? 0
+    if (pannesRestantes > 0) {
+      etat.pannes.set(table, pannesRestantes - 1)
+      return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }
     }
     if (op === 'insert') return inserer()
     if (op === 'upsert') {
@@ -171,6 +181,7 @@ export const HEURE = 3_600_000
 
 /** Remet la base dans son état de départ : société A complète, un homonyme dans la société B. */
 export function donnees() {
+  etat.pannes.clear()
   etat.tables = {
     pro_team_members: [
       { id: randomUUID(), company_id: SOC_A, user_id: U_PAUL, email: 'paul@a.example', role: 'OUVRIER', is_active: true },

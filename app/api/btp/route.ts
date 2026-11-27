@@ -197,6 +197,10 @@ export async function GET(request: NextRequest) {
     // Société du compte, rôle d'équipe et permissions : une seule résolution, serveur, pour la lecture comme pour
     // l'écriture. Pour un titulaire, societeId vaut user.id et rien ne change par rapport à avant ce lot.
     const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+    // Ligne d'équipe du compte illisible (panne, délai dépassé) : son périmètre vide n'est pas un refus. Répondre des
+    // listes vides montrait « aucun chantier » sans erreur, liste que le tableau de bord gardait 5 minutes en cache
+    // (signalement du 27/11/2026). Erreur, comme toute autre lecture en échec.
+    if (perimetre.illisible) return reponseLectureImpossible(new Error('périmètre du compte illisible (ligne d’équipe)'))
 
     if (table === 'all') {
       const visibiliteReglages = visibiliteListe(perimetre, 'settings')
@@ -240,14 +244,18 @@ export async function GET(request: NextRequest) {
       ...etatRestriction([visibilite], rattachement),
     })
   } catch (err) {
-    // Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6).
-    if (err instanceof ErreurLecture) {
-      logger.error('[btp] GET : la base a répondu en erreur', { source: err.source, code: err.erreurBase.code, error: err.erreurBase.message })
-    } else {
-      logger.error('[btp] GET error', { error: err instanceof Error ? err.message : err })
-    }
-    return NextResponse.json({ error: MESSAGE_LECTURE_IMPOSSIBLE }, { status: 500 })
+    return reponseLectureImpossible(err)
   }
+}
+
+/** Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6). */
+function reponseLectureImpossible(err: unknown): NextResponse {
+  if (err instanceof ErreurLecture) {
+    logger.error('[btp] GET : la base a répondu en erreur', { source: err.source, code: err.erreurBase.code, error: err.erreurBase.message })
+  } else {
+    logger.error('[btp] GET error', { error: err instanceof Error ? err.message : err })
+  }
+  return NextResponse.json({ error: MESSAGE_LECTURE_IMPOSSIBLE }, { status: 500 })
 }
 
 // ── POST /api/btp — créer, modifier, supprimer, reprendre les anciennes données du navigateur ───────────────
