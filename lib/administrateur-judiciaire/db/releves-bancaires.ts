@@ -15,7 +15,7 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * introuvable, d'une autre copropriété ou clôturé.
  * Décision du 26/11/2026 (PR 799, points 10 B et 11 B) : pour un relevé CFONB 120 ou camt.053, `releves` porte les
  * relevés dont viennent les lignes (chacun avec ses mouvements repris) ; ils sont gardés dans la même transaction, avec
- * les informations de chaque mouvement sur sa ligne, et un relevé déjà gardé sur ce compte fait refuser l'import
+ * les informations de chaque mouvement sur sa ligne, et un relevé déjà gardé pour la copropriété fait refuser l'import
  * (db/releves-importes.ts). Sans relevé (CSV), rien n'est gardé : comportement inchangé.
  */
 export async function importerReleveSurCompte(

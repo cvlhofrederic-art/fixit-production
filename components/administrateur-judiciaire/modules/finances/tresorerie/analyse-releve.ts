@@ -27,17 +27,28 @@ import { dejaImporteSurCompte, type ReleveImporte, type ReleveRepris } from '@/l
  * - Doublons d'un relevé structuré : dedoublonnerRelevesStructures, JAMAIS dedoublonnerReleve (qui confondrait deux
  *   mouvements identiques d'un relevé dont le solde vient d'être contrôlé). Décision du 26/11/2026 du référent métier
  *   (PR 799, points 10 B et 11 B) : les relevés importés sont gardés (table « relevesImportes ») avec, sur chaque ligne,
- *   les informations de son mouvement ; ceux du compte choisi sont relus ici (dejaImporteSurCompte). Un relevé déjà
- *   importé sur ce compte est reconnu : ses mouvements sont écartés, relevé par relevé, et les autres relevés du fichier
+ *   les informations de son mouvement ; ceux de la copropriété sont relus ici (dejaImporteSurCompte). Un relevé déjà
+ *   importé est reconnu : ses mouvements sont écartés, relevé par relevé, et les autres relevés du fichier
  *   restent importables (🔵 choix : chaque relevé retenu a son solde contrôlé, l'écarter ne fausse pas les autres, et
  *   une banque redonne souvent dans un fichier des relevés déjà transmis ; bloquer tout le fichier obligerait à le
  *   retoucher à la main). L'analyse le dit par un message par relevé (`relevesDejaImportes`), hors des avertissements.
  *   Un mouvement d'un relevé nouveau déjà importé d'un autre relevé (même référence de la banque) est écarté seul.
- *   Les relevés nouveaux, avec leurs mouvements repris, sont rendus pour être gardés à l'import (`relevesAImporter`).
+ *   Les relevés nouveaux, avec leurs mouvements repris, sont rendus pour être gardés à l'import (`relevesAImporter`) ;
+ *   un relevé nouveau sans mouvement repris en fait partie (il est gardé pour son solde de clôture).
+ * - Retours de la relecture du 27/11/2026. Le relevé est comparé aux relevés gardés de TOUTE la copropriété, et non à
+ *   ceux de la seule fiche de compte choisie : deux fiches peuvent porter le même IBAN (fiche clôturée puis recréée,
+ *   saisie en double ; domain/comptes-bancaires.ts : « deux fiches d'un même IBAN sont un seul compte »), et le même
+ *   relevé écrit sur les deux serait compté deux fois dans la trésorerie du syndicat. La comparaison du domaine porte
+ *   sur le compte en banque du relevé (IBAN ou RIB) : un relevé d'un autre compte en banque n'est jamais confondu. Le
+ *   message dit sur quelle fiche le relevé a été importé (`comptes`). Même identifiant qu'un relevé gardé mais contenu
+ *   différent : ce n'est pas le même relevé, il n'est pas dit « déjà importé » ; il a ses messages (`relevesAVerifier`)
+ *   et son état (« a_verifier »). 🔴 Il reste sans issue à l'écran (un relevé gardé ne se remplace pas) : point à
+ *   trancher, non codé.
  * - Lignes sans relevé gardé (CSV, import antérieur à la table : aucune empreinte, et aucune n'est inventée) : un relevé
- *   qui les contient n'est pas reconnu ; l'analyse d'un relevé structuré le dit quand le compte en porte
- *   (`limiteEmpreintes`). Un mouvement de même date, montant et libellé qu'une telle ligne est gardé, avec un
- *   avertissement, comme avant.
+ *   qui les contient n'est pas reconnu ; l'analyse d'un relevé structuré le dit (`limiteEmpreintes`), en distinguant les
+ *   lignes du compte choisi des lignes non rattachées à un compte (« 512 » seul). 🔴 Non traité : de telles lignes sur
+ *   une autre fiche du même IBAN ne sont pas signalées. Un mouvement de même date, montant et libellé qu'une telle ligne
+ *   est gardé, avec un avertissement, comme avant.
  * - Import bloqué (`blocage`) : fichier structuré ou non reconnu dont la lecture a rendu une erreur (relevé refusé,
  *   fichier illisible) ; les relevés lus restent montrés. Compte choisi sans IBAN : un relevé structuré ne peut pas lui
  *   être rapproché. Un CSV garde son comportement : lignes non lues signalées, les autres importables.
@@ -82,10 +93,25 @@ export interface ReleveLu {
   nouveauSolde: string
   mouvements: number
   /**
-   * « deja_importe » : même relevé plus haut dans le fichier ; « importe_avant » : relevé gardé d'un import précédent sur
-   * ce compte. Dans les deux cas, aucun de ses mouvements n'est repris.
+   * « deja_importe » : même relevé plus haut dans le fichier ; « importe_avant » : relevé gardé d'un import précédent
+   * (sur ce compte ou sur une autre fiche du même compte en banque) ; « a_verifier » : même identifiant qu'un relevé gardé,
+   * contenu différent. Dans les trois cas, aucun de ses mouvements n'est repris.
    */
-  etat: 'nouveau' | 'deja_importe' | 'importe_avant'
+  etat: 'nouveau' | 'deja_importe' | 'importe_avant' | 'a_verifier'
+}
+
+/**
+ * Lignes sans relevé gardé qui limitent la reconnaissance d'un relevé : celles du compte choisi, celles qui ne sont
+ * rattachées à aucun compte (« 512 » seul), ou les deux.
+ */
+export type LimiteEmpreintes = 'compte' | 'non_rattachees' | 'compte_et_non_rattachees'
+
+/** Fiche de compte bancaire de la copropriété, telle que l'écran la nomme (« Compte principal · …0189 »). */
+export interface CompteNomme {
+  id: string
+  libelle: string
+  /** Fiche clôturée. */
+  cloture: boolean
 }
 
 /** Relevé analysé : lignes retenues et doublons écartés, rapprochements proposés, erreurs de lecture. */
@@ -106,12 +132,17 @@ export interface AnalyseReleve {
   /** Motif qui bloque l'import du fichier ; null : import possible (si un compte est choisi). */
   blocage: string | null
   /**
-   * Relevé structuré : le compte porte des lignes sans relevé gardé (CSV, import antérieur à la table) ; un relevé qui
-   * les contient n'est pas reconnu (voir l'en-tête).
+   * Relevé structuré : des lignes sans relevé gardé (CSV, import antérieur à la table) existent sur le compte, ou sans
+   * compte ; un relevé qui les contient n'est pas reconnu (voir l'en-tête). Null : aucune.
    */
-  limiteEmpreintes: boolean
-  /** Un message par relevé du fichier déjà importé sur ce compte lors d'un import précédent (bandeau de l'écran). */
+  limiteEmpreintes: LimiteEmpreintes | null
+  /**
+   * Un message par relevé du fichier déjà importé lors d'un import précédent, sur ce compte ou sur une autre fiche de la
+   * copropriété (bandeau de l'écran).
+   */
   relevesDejaImportes: string[]
+  /** Un message par relevé du fichier non repris pour son identifiant, celui d'un relevé gardé d'un autre contenu. */
+  relevesAVerifier: string[]
   /** Relevés nouveaux du fichier, chacun avec ses mouvements repris : à garder à l'import (vide pour un CSV). */
   relevesAImporter: ReleveRepris[]
 }
@@ -123,8 +154,10 @@ export interface EntreeAnalyseReleve {
   /** Écritures de banque (« 512 » et sous-comptes) du journal de la copropriété, avec leur origine (`releve`) si elles en ont une. */
   lignesBanque: readonly Pick<Ecriture, 'compte' | 'date' | 'libelle' | 'montant' | 'sens' | 'releve'>[]
   personnes: readonly CoproprietaireImputable[]
-  /** Relevés importés gardés de la copropriété ; seuls ceux du compte choisi sont comparés. Absent : aucun. */
+  /** Relevés importés gardés de la copropriété, toutes ses fiches de compte : tous sont comparés. Absent : aucun. */
   relevesImportes?: readonly ReleveImporte[]
+  /** Fiches de compte de la copropriété, actives et clôturées, pour dire sur laquelle un relevé a été importé. Absent : aucune. */
+  comptes?: readonly CompteNomme[]
 }
 
 export const BLOCAGE_ERREUR_FICHIER =
@@ -229,7 +262,7 @@ function avertissementRessemblances(lignes: readonly LigneReleve[], existantes: 
 
 type ResultatLecture = Pick<
   AnalyseReleve,
-  'retenues' | 'doublons' | 'avertissements' | 'releves' | 'limiteEmpreintes' | 'relevesDejaImportes' | 'relevesAImporter'
+  'retenues' | 'doublons' | 'avertissements' | 'releves' | 'limiteEmpreintes' | 'relevesDejaImportes' | 'relevesAVerifier' | 'relevesAImporter'
 >
 
 /** CSV : dédoublonnage de l'import existant, inchangé ; ni relevé à garder, ni relevé reconnu. */
@@ -240,8 +273,9 @@ function lectureCsv(lecture: LectureReleve, existantes: LigneReleve[]): Resultat
     doublons,
     avertissements: lecture.avertissements,
     releves: [],
-    limiteEmpreintes: false,
+    limiteEmpreintes: null,
     relevesDejaImportes: [],
+    relevesAVerifier: [],
     relevesAImporter: [],
   }
 }
@@ -252,16 +286,38 @@ function mouvementsNonRepris(nombre: number): string {
   return nombre === 1 ? 'son mouvement n’est pas repris' : `ses ${nombre} mouvements ne sont pas repris`
 }
 
-/** Message d'un relevé du fichier déjà importé sur ce compte lors d'un import précédent, avec la date de cet import. */
-function messageDejaImporte({ releve, comparaison }: ReleveReconnu, garde: ReleveImporte): string {
+/**
+ * « sur ce compte le JJ/MM/AAAA » pour un relevé gardé sur la fiche choisie ; sinon « le JJ/MM/AAAA sur un autre compte de
+ * la copropriété », avec le nom de la fiche quand l'écran la connaît, et « clôturé » si elle l'est.
+ */
+function ouEtQuand(garde: ReleveImporte, entree: EntreeAnalyseReleve): string {
+  const le = dateIsoVersFr(garde.dateImport)
+  if (garde.banqueId === entree.compte?.id) return `sur ce compte le ${le}`
+  const fiche = entree.comptes?.find((compte) => compte.id === garde.banqueId),
+    nom = fiche ? ` (« ${fiche.libelle} »${fiche.cloture ? ', clôturé' : ''})` : ''
+  return `le ${le} sur un autre compte de la copropriété${nom}`
+}
+
+/** Message d'un relevé du fichier reconnu dans un relevé gardé d'un import précédent : où et quand il a été importé. */
+function messageDejaImporte({ releve, comparaison }: ReleveReconnu, garde: ReleveImporte, entree: EntreeAnalyseReleve): string {
   const designation = designationReleve(releve.rang, releve.compte, releve.dateOuverture, releve.dateCloture),
-    le = dateIsoVersFr(garde.dateImport)
+    ou = ouEtQuand(garde, entree)
   if (comparaison === 'identifiant')
     return (
-      `${designation} : même identifiant « ${releve.identifiant ?? ''} » qu’un relevé importé sur ce compte le ${le}, mais période, soldes ou ` +
+      `${designation} : même identifiant « ${releve.identifiant ?? ''} » qu’un relevé importé ${ou}, mais période, soldes ou ` +
       'totaux différents ; relevé non repris, à vérifier.'
     )
-  return `${designation} : déjà importé sur ce compte le ${le}, ${mouvementsNonRepris(releve.mouvements.length)}.`
+  return `${designation} : déjà importé ${ou}, ${mouvementsNonRepris(releve.mouvements.length)}.`
+}
+
+/** Limite des lignes sans relevé gardé : voir l'en-tête ; null sans compte choisi, ou sans aucune de ces lignes. */
+function limiteDesEmpreintes(entree: EntreeAnalyseReleve, sousCompte: string | null): LimiteEmpreintes | null {
+  if (sousCompte === null) return null
+  const sansReleve = entree.lignesBanque.filter((ecriture) => !ecriture.releve),
+    duCompte = sansReleve.some((ecriture) => ecriture.compte === sousCompte),
+    nonRattachees = sansReleve.some((ecriture) => ecriture.compte === COMPTE_BANQUE_NON_RATTACHE)
+  if (duCompte) return nonRattachees ? 'compte_et_non_rattachees' : 'compte'
+  return nonRattachees ? 'non_rattachees' : null
 }
 
 /** Relevés du fichier reconnus dans un relevé gardé d'un import précédent, avec ce relevé gardé (les autres : déjà dans le fichier). */
@@ -275,29 +331,30 @@ function reconnusAvant(reconnus: readonly ReleveReconnu[], gardes: readonly Rele
 }
 
 /**
- * Relevés structurés : dédoublonnage par relevé et par mouvement, contre les relevés gardés du compte choisi et les
- * lignes qui en viennent (voir l'en-tête). Sans compte choisi, rien n'est comparé : l'import est de toute façon impossible.
+ * Relevés structurés : dédoublonnage par relevé et par mouvement, contre les relevés gardés de la copropriété (toutes ses
+ * fiches de compte) et les lignes qui en viennent (voir l'en-tête). Sans compte choisi, rien n'est comparé : l'import est
+ * de toute façon impossible.
  */
 function lectureStructuree(lecture: LectureReleve, existantes: LigneReleve[], entree: EntreeAnalyseReleve): ResultatLecture {
   const sousCompte = entree.compte ? compteBanque(entree.compte.id) : null,
-    gardes = (entree.relevesImportes ?? []).filter((releve) => releve.banqueId === entree.compte?.id),
-    lignesDuCompte = entree.lignesBanque.filter((ecriture) => ecriture.compte === sousCompte),
+    gardes = entree.compte ? (entree.relevesImportes ?? []) : [],
     resultat = dedoublonnerRelevesStructures(
       lecture.releves,
+      // Seules les lignes venues d'un de ces relevés gardés donnent une empreinte, sur quelque fiche qu'elles soient.
       dejaImporteSurCompte(
         gardes,
-        lignesDuCompte.map((ecriture) => ({ date: dateVersIso(ecriture.date) || '', releve: ecriture.releve })),
+        entree.lignesBanque.map((ecriture) => ({ date: dateVersIso(ecriture.date) || '', releve: ecriture.releve })),
       ),
     ),
-    // Relevés d'un import précédent : dits à part, avec la date de cet import, et non dans les avertissements.
-    avant = reconnusAvant(resultat.reconnus, gardes),
-    ditsAPart = new Set([...avant.values()].map(({ reconnu }) => reconnu.avertissement)),
+    // Relevés d'un import précédent : dits à part, avec la date et le compte de cet import, et non dans les avertissements.
+    avant = [...reconnusAvant(resultat.reconnus, gardes)],
+    etats = new Map(avant.map(([releve, { reconnu }]) => [releve, reconnu.comparaison === 'identifiant' ? 'a_verifier' : 'importe_avant'] as const)),
+    ditsAPart = new Set(avant.map(([, { reconnu }]) => reconnu.avertissement)),
     dejaDansLeFichier = new Set(resultat.dejaImportes),
     ecartes = new Set(resultat.doublons),
-    etat = (releve: ReleveCompte): ReleveLu['etat'] => {
-      if (avant.has(releve)) return 'importe_avant'
-      return dejaDansLeFichier.has(releve) ? 'deja_importe' : 'nouveau'
-    }
+    etat = (releve: ReleveCompte): ReleveLu['etat'] => etats.get(releve) ?? (dejaDansLeFichier.has(releve) ? 'deja_importe' : 'nouveau'),
+    messages = (comparaison: ReleveReconnu['comparaison']): string[] =>
+      avant.filter(([, { reconnu }]) => reconnu.comparaison === comparaison).map(([, { reconnu, garde }]) => messageDejaImporte(reconnu, garde, entree))
   return {
     retenues: resultat.lignes,
     doublons: resultat.doublons,
@@ -309,11 +366,9 @@ function lectureStructuree(lecture: LectureReleve, existantes: LigneReleve[], en
     releves: lecture.releves.map((releve) => releveLu(releve, etat(releve))),
     // Lignes du compte, ou non rattachées (compte inconnu), sans relevé gardé : un relevé qui les contient n'est pas reconnu.
     // Format non reconnu : aucun relevé lu, la limite n'a rien à dire.
-    limiteEmpreintes:
-      lecture.format !== 'inconnu' &&
-      sousCompte !== null &&
-      entree.lignesBanque.some((ecriture) => !ecriture.releve && (ecriture.compte === sousCompte || ecriture.compte === COMPTE_BANQUE_NON_RATTACHE)),
-    relevesDejaImportes: [...avant.values()].map(({ reconnu, garde }) => messageDejaImporte(reconnu, garde)),
+    limiteEmpreintes: lecture.format === 'inconnu' ? null : limiteDesEmpreintes(entree, sousCompte),
+    relevesDejaImportes: messages('identique'),
+    relevesAVerifier: messages('identifiant'),
     relevesAImporter: resultat.nouveaux.map((releve) => ({ releve, repris: releve.mouvements.filter((mouvement) => !ecartes.has(mouvement)) })),
   }
 }

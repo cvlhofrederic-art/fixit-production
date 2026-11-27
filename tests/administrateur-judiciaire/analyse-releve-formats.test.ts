@@ -111,7 +111,7 @@ describe('analyse d’un relevé structuré', () => {
     const analyse = analyserReleve(entree(releve.join('\n')))
     expect(analyse.erreurs).toEqual([])
     expect(analyse.retenues.filter((ligne) => ligne.montant === -12.5)).toHaveLength(2)
-    expect(analyse.limiteEmpreintes).toBe(false)
+    expect(analyse.limiteEmpreintes).toBeNull()
   })
 
   it('mouvement de même date, montant et libellé qu’une ligne déjà enregistrée sur le compte : gardé, avec un avertissement', () => {
@@ -133,7 +133,7 @@ describe('analyse d’un relevé structuré', () => {
     expect(analyse.format).toBe('csv')
     expect(analyse.releves).toEqual([])
     expect(analyse.blocage).toBeNull()
-    expect(analyse.limiteEmpreintes).toBe(false)
+    expect(analyse.limiteEmpreintes).toBeNull()
     expect(analyse.retenues).toHaveLength(1)
   })
 })

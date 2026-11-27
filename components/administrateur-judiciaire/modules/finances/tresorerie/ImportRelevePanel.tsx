@@ -15,6 +15,7 @@ import {
   AUCUN_COMPTE_ACTIF,
   ChoixCompteBancaire,
   comptesActifs,
+  libelleCompte,
   type EtatComptes,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ChoixCompteBancaire'
 import { nomDuCompte } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
@@ -42,6 +43,12 @@ import type { ReleveImporte } from '@/lib/administrateur-judiciaire/domain/impor
  * Décision du 26/11/2026 du référent métier (PR 799, points 10 B et 11 B) : les relevés CFONB 120 et camt.053 importés
  * sont gardés (db/releves-importes.ts). L'analyse reçoit ceux de la copropriété et reconnaît un relevé déjà importé sur
  * le compte choisi ; l'import garde les relevés nouveaux avec leurs lignes, puis fait relire les relevés gardés.
+ * Retours de la relecture du 27/11/2026 : l'analyse reçoit aussi les fiches de compte de la copropriété, actives et
+ * clôturées, pour dire sur laquelle un relevé a déjà été importé (deux fiches peuvent porter le même IBAN) ; un fichier
+ * sans ligne à écrire dont un relevé nouveau est à garder (relevé sans mouvement, ou dont tous les mouvements sont déjà
+ * venus d'un autre relevé) s'enregistre : le bouton devient « Enregistrer le relevé ». Sans cela, ce relevé ne serait
+ * jamais gardé : il repasserait « Contrôlé » à chaque analyse, et « Nouvel arrêté » proposerait le solde du relevé
+ * précédent.
  * Décision du 26/11/2026 (PR 799) : sur téléphone, « Importer N lignes » passe sous la phrase, en entier (rb-c06 A, classe
  * vfx-import-actions, règles de aj-correctifs.css) ; le motif « Aucun compte bancaire actif » n'est dit qu'une fois (rb-c08 A).
  */
@@ -101,6 +108,21 @@ function descriptionImport(compte: CompteAffiche, lignes: number, imputes: numbe
   )
 }
 
+/** Vrai pour un fichier importable sans ligne à écrire dont un relevé nouveau au moins est à garder (voir l'en-tête). */
+const relevesSeulsAGarder = (analyse: AnalyseReleve): boolean =>
+  analyse.blocage === null && analyse.retenues.length === 0 && analyse.relevesAImporter.length > 0
+
+/** Toast d'un import réussi : lignes enregistrées, ou relevés gardés sans ligne à écrire. */
+function toastImport(compte: CompteAffiche, analyse: AnalyseReleve, lignes: number, imputes: number): { kind: 'success'; title: string; desc: string } {
+  if (relevesSeulsAGarder(analyse))
+    return {
+      kind: 'success',
+      title: 'Relevé enregistré',
+      desc: `${accord(analyse.relevesAImporter.length, 'relevé enregistré', 'relevés enregistrés')} sur « ${nomDuCompte(compte)} », aucune ligne à écrire.`,
+    }
+  return { kind: 'success', title: 'Relevé importé', desc: descriptionImport(compte, lignes, imputes, analyse.doublons.length) }
+}
+
 /**
  * Lit un fichier de relevé : refusé avant lecture au-delà du seuil de taille (tout est lu en mémoire), puis décodé
  * (UTF-8, à défaut Windows-1252). Le texte lu ou le motif du refus est rendu par `lu` ou `refuse`.
@@ -117,15 +139,33 @@ function lireFichierReleve(fichier: File, lu: (texte: string) => void, refuse: (
   lecteur.readAsArrayBuffer(fichier)
 }
 
-/** « Importer 1 ligne », « Importer 2 lignes ». */
-const libelleImporter = (nombre: number): string => `Importer ${nombre} ligne${nombre > 1 ? 's' : ''}`
+/**
+ * « Importer 1 ligne », « Importer 2 lignes » ; sans ligne à écrire mais avec un relevé nouveau à garder : « Enregistrer
+ * le relevé », « Enregistrer les 2 relevés ».
+ */
+function libelleImporter(analyse: AnalyseReleve): string {
+  const lignes = analyse.retenues.length,
+    releves = analyse.relevesAImporter.length
+  if (!relevesSeulsAGarder(analyse)) return `Importer ${lignes} ligne${lignes > 1 ? 's' : ''}`
+  return releves > 1 ? `Enregistrer les ${releves} relevés` : 'Enregistrer le relevé'
+}
 
-/** Relevés déjà importés sur le compte, annoncés avec le résultat de l'analyse ; null : aucun. */
+/** Phrase à côté du bouton : ce que fait l'import. */
+const PHRASE_IMPORT = 'Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.'
+const PHRASE_RELEVE_SANS_LIGNE =
+  'Aucune ligne à écrire. Le relevé est gardé : il sera reconnu au prochain import, et son solde de clôture pourra être repris dans un arrêté.'
+
+/** Relevés déjà importés (sur ce compte ou sur une autre fiche de la copropriété), annoncés avec le résultat de l'analyse ; null : aucun. */
 function annonceDejaImportes(nombre: number): string | null {
   if (nombre === 0) return null
-  return nombre > 1
-    ? `${nombre} relevés déjà importés sur ce compte : leurs mouvements ne sont pas repris.`
-    : 'Relevé déjà importé sur ce compte : ses mouvements ne sont pas repris.'
+  return nombre > 1 ? `${nombre} relevés déjà importés : leurs mouvements ne sont pas repris.` : 'Relevé déjà importé : ses mouvements ne sont pas repris.'
+}
+
+/** Relevés non repris pour leur identifiant (celui d'un relevé gardé d'un autre contenu), annoncés de même ; null : aucun. */
+function annonceAVerifier(nombre: number): string | null {
+  if (nombre === 0) return null
+  const sujet = nombre > 1 ? `${nombre} relevés non repris` : 'Relevé non repris'
+  return `${sujet}, à vérifier : même identifiant qu’un relevé déjà importé, contenu différent.`
 }
 
 /**
@@ -136,7 +176,7 @@ function annonceAnalyse(analyse: AnalyseReleve | null, motifCompte: string | nul
   if (!analyse) return ''
   const lignes = `Relevé analysé (${LIBELLES_FORMAT_RELEVE[analyse.format]}) : ${accord(analyse.retenues.length, 'ligne retenue', 'lignes retenues')}.`
   const motif = motifCompte ? `Import impossible : ${motifCompte}` : null
-  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), analyse.blocage, motif]
+  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), annonceAVerifier(analyse.relevesAVerifier.length), analyse.blocage, motif]
     .filter((texte): texte is string => texte !== null)
     .join(' ')
 }
@@ -149,7 +189,7 @@ export interface ImportRelevePanelProps {
   personnes: readonly PersonneCopropriete[]
   /** Écritures de banque (« 512 » et sous-comptes) du journal de la copropriété. */
   lignesBanque: readonly Ecriture[]
-  /** Relevés importés gardés de la copropriété : un relevé déjà importé sur le compte choisi est reconnu à l'analyse. */
+  /** Relevés importés gardés de la copropriété (toutes ses fiches de compte) : un relevé déjà importé est reconnu à l'analyse. */
   relevesImportes: readonly ReleveImporte[]
   /** Relit les relevés gardés, après un import. */
   relireReleves: () => void
@@ -193,6 +233,7 @@ export function ImportRelevePanel({
       lignesBanque,
       personnes: personnes.map((personne) => ({ id: personne.id, nom: personne.nom, solde: personne.solde })),
       relevesImportes,
+      comptes: comptes.map((compte) => ({ id: compte.id, libelle: libelleCompte(compte), cloture: !compte.actif })),
     })
     setAnalyse(resultat)
     setSelections(selectionsProposees(resultat))
@@ -216,7 +257,7 @@ export function ImportRelevePanel({
     setImportEnCours(true)
     try {
       const { lignes, imputes } = await importerEtImputer(copro.id, compteChoisi, analyse, selections)
-      push({ kind: 'success', title: 'Relevé importé', desc: descriptionImport(compteChoisi, lignes, imputes, analyse.doublons.length) })
+      push(toastImport(compteChoisi, analyse, lignes, imputes))
       setTexteReleve('')
       setAnalyse(null)
       setSelections({})
@@ -309,10 +350,15 @@ export function ImportRelevePanel({
             <button
               className="btn gold"
               onClick={importer}
-              disabled={importEnCours || analyse.retenues.length === 0 || motifCompte !== null || analyse.blocage !== null}
+              disabled={
+                importEnCours ||
+                (analyse.retenues.length === 0 && analyse.relevesAImporter.length === 0) ||
+                motifCompte !== null ||
+                analyse.blocage !== null
+              }
             >
               <Icon name="check" />
-              {libelleImporter(analyse.retenues.length)}
+              {libelleImporter(analyse)}
             </button>
             <span
               style={{
@@ -320,7 +366,7 @@ export function ImportRelevePanel({
                 color: 'var(--navy-500)',
               }}
             >
-              Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.
+              {relevesSeulsAGarder(analyse) ? PHRASE_RELEVE_SANS_LIGNE : PHRASE_IMPORT}
             </span>
           </div>
         </div>

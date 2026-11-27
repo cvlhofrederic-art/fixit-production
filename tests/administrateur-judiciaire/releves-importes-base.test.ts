@@ -25,6 +25,9 @@ import { AUJOURDHUI_ISO, CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciai
  * son solde de clôture, dans la transaction de ses lignes ; chaque ligne garde les informations de son mouvement ; un
  * relevé déjà gardé sur le compte est refusé à l'écriture, sans rien écrire. Le CSV ne change pas. Base de
  * démonstration (Le Clos des Vignes, C2), fichiers fictifs.
+ * Retour de la relecture du 27/11/2026 : le relevé est comparé à tous les relevés gardés de la copropriété, et non à ceux
+ * de la seule fiche de compte ; deux fiches peuvent porter le même IBAN (fiche clôturée puis recréée, saisie en double),
+ * et le même relevé écrit sur les deux serait compté deux fois dans la trésorerie du syndicat.
  */
 
 const dossier = join(__dirname, 'fixtures', 'releves')
@@ -161,13 +164,45 @@ describe('relevé déjà importé sur le compte : refusé à l’écriture, rien
     expect((await ajDb.ecritures.toArray()).filter((ecriture) => ecriture.compte === compteBanque(banqueId))).toEqual([])
   })
 
-  it('le même relevé sur un autre compte de la copropriété n’est pas un relevé déjà importé sur ce compte', async () => {
+  it('le même relevé sur une autre fiche de compte de la copropriété (même IBAN) : refusé aussi, rien n’est compté deux fois', async () => {
+    // Deux fiches du même IBAN sont un seul compte en banque (fiche clôturée puis recréée, ou saisie en double).
     const autre = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Second compte', iban: IBAN_FIXTURE, bic: null, etablissement: null })
     const releves = lireReleve(CAMT_UN_RELEVE).releves
     await importerReleveSurCompte('C2', banqueId, lignesDe(entiers(releves)), entiers(releves))
+    const lignesAvant = await ajDb.ecritures.count()
     const copie = lireReleve(CAMT_UN_RELEVE).releves
-    await expect(importerReleveSurCompte('C2', autre.id, lignesDe(entiers(copie)), entiers(copie))).resolves.toHaveLength(4)
+    await expect(importerReleveSurCompte('C2', autre.id, lignesDe(entiers(copie)), entiers(copie))).rejects.toThrow(
+      'Relevé 1 (IBAN FR7612345000100001234567849, du 30/09/2026 au 05/10/2026) : déjà importé sur un autre compte de la copropriété. Analyser le fichier à nouveau.',
+    )
+    expect((await listerRelevesImportes('C2')).map((garde) => garde.banqueId)).toEqual([banqueId])
+    expect(await ajDb.ecritures.count()).toBe(lignesAvant)
+    expect((await ajDb.ecritures.toArray()).filter((ecriture) => ecriture.compte === compteBanque(autre.id))).toEqual([])
+    // Le même relevé relu en CFONB 120 (RIB au lieu de l'IBAN) sur l'autre fiche : refusé aussi.
+    const [cfonb] = lireReleve(CFONB_UN_COMPTE).releves
+    await expect(importerReleveSurCompte('C2', autre.id, lignesDe(entiers([cfonb])), entiers([cfonb]))).rejects.toThrow(
+      /déjà importé sur un autre compte de la copropriété/,
+    )
+  })
+
+  it('relevé d’un autre compte en banque (autre RIB) sur une autre fiche de la copropriété : importé, il n’est pas un relevé déjà gardé', async () => {
+    const autre = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Second compte', iban: null, bic: null, etablissement: null })
+    // Fichier entier : relevés 1 et 3 du compte 00012345678, relevé 2 du compte 00087654321.
+    const [premier, autreCompte] = lireReleve(CFONB).releves
+    expect(autreCompte.compte.rib?.numero).toBe('00087654321')
+    await importerReleveSurCompte('C2', banqueId, lignesDe(entiers([premier])), entiers([premier]))
+    await expect(importerReleveSurCompte('C2', autre.id, lignesDe(entiers([autreCompte])), entiers([autreCompte]))).resolves.toHaveLength(
+      autreCompte.mouvements.length,
+    )
     expect((await listerRelevesImportes('C2')).map((garde) => garde.banqueId)).toEqual([banqueId, autre.id])
+  })
+
+  // Comportement actuel, décrit sans être tranché : un même IBAN sous deux mandats (compte partagé) n'est pas traité ici.
+  it('le même relevé gardé pour une autre copropriété : sans effet (la comparaison reste dans la copropriété)', async () => {
+    const releves = lireReleve(CAMT_UN_RELEVE).releves
+    await importerReleveSurCompte('C2', banqueId, lignesDe(entiers(releves)), entiers(releves))
+    const ailleurs = await enregistrerCompteBancaire('C1', { nature: 'courant', libelle: 'Compte principal', iban: IBAN_FIXTURE, bic: null, etablissement: null })
+    const copie = lireReleve(CAMT_UN_RELEVE).releves
+    await expect(importerReleveSurCompte('C1', ailleurs.id, lignesDe(entiers(copie)), entiers(copie))).resolves.toHaveLength(4)
   })
 })
 

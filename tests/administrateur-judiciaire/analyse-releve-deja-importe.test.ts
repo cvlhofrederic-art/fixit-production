@@ -12,6 +12,11 @@ import { origineDuMouvement, releveImporte, type ReleveImporte } from '@/lib/adm
  * ne sont pas repris, les autres relevés du fichier restent importables, et l'analyse le dit par un message par relevé.
  * Les relevés à garder à l'import (relevesAImporter) accompagnent les lignes retenues. Le CSV, sans identifiant de
  * relevé, garde son dédoublonnage et l'avertissement des mouvements semblables. Fichiers fictifs.
+ * Retours de la relecture du 27/11/2026 : un relevé gardé sur une autre fiche de compte de la copropriété est reconnu
+ * aussi (deux fiches peuvent porter le même IBAN : le compte en banque est le même, et la trésorerie du syndicat
+ * compterait deux fois ses mouvements) ; un relevé de même identifiant mais de contenu différent n'est pas dit « déjà
+ * importé » (relevesAVerifier, état « a_verifier ») ; la limite des lignes sans relevé gardé dit si elles sont du compte
+ * choisi, non rattachées à un compte, ou les deux.
  */
 
 const dossier = join(__dirname, 'fixtures', 'releves')
@@ -67,7 +72,7 @@ describe('relevé déjà importé sur le compte lors d’un import précédent',
     ])
     // Dit une seule fois : ni dans les avertissements, ni comme ressemblance de lignes, ni comme limite.
     expect(analyse.avertissements).toEqual([])
-    expect(analyse.limiteEmpreintes).toBe(false)
+    expect(analyse.limiteEmpreintes).toBeNull()
     // Rien ne bloque le fichier : il n'y a simplement plus rien à importer.
     expect(analyse.blocage).toBeNull()
   })
@@ -95,19 +100,32 @@ describe('relevé déjà importé sur le compte lors d’un import précédent',
     ])
   })
 
-  it('même identifiant qu’un relevé gardé, mais contenu différent : non repris, à vérifier, dit avec la date du premier import', () => {
+  it('même identifiant qu’un relevé gardé, mais contenu différent : non repris, à vérifier, jamais dit « déjà importé »', () => {
     const [premier] = lireReleve(CAMT_UN_RELEVE).releves
     const analyse = analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [{ ...garde(premier, 'R1'), soldeClotureMineur: 1 }] }))
     expect(analyse.retenues).toEqual([])
-    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['importe_avant'])
-    expect(analyse.relevesDejaImportes).toEqual([
+    expect(analyse.relevesAImporter).toEqual([])
+    // Ce n'est pas le même relevé : ni l'état « importé avant », ni un message parmi les relevés déjà importés.
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['a_verifier'])
+    expect(analyse.relevesDejaImportes).toEqual([])
+    expect(analyse.relevesAVerifier).toEqual([
       'Relevé 1 (IBAN FR7612345000100001234567849, du 30/09/2026 au 05/10/2026) : même identifiant « RELEVE-2026-10-05-A » qu’un relevé importé sur ce compte le 20/11/2026, mais période, soldes ou totaux différents ; relevé non repris, à vérifier.',
     ])
+    // Dit une seule fois : pas répété dans les avertissements.
+    expect(analyse.avertissements).toEqual([])
   })
 
-  it('relevé gardé sur un autre compte bancaire : il n’est pas un relevé déjà importé sur ce compte', () => {
+  it('fichier sans relevé à vérifier : la liste des relevés à vérifier est vide', () => {
     const [premier] = lireReleve(CAMT_UN_RELEVE).releves
-    const analyse = analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(premier, 'R1', 'B2')], lignesBanque: lignesDe(premier, 'R1', '512-B2') }))
+    expect(analyserReleve(entree(CAMT_UN_RELEVE)).relevesAVerifier).toEqual([])
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(premier, 'R1')] })).relevesAVerifier).toEqual([])
+    expect(analyserReleve(entree('Date;Libellé;Montant\n05/10/2026;VIR SEPA;350,00')).relevesAVerifier).toEqual([])
+  })
+
+  it('relevé gardé d’un autre compte en banque (autre IBAN) : il n’est pas un relevé déjà importé', () => {
+    const [premier] = lireReleve(CAMT_UN_RELEVE).releves,
+      ailleurs: ReleveCompte = { ...premier, compte: { ...premier.compte, iban: 'FR7630006000011234567890189' } }
+    const analyse = analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(ailleurs, 'R1', 'B2')], lignesBanque: lignesDe(ailleurs, 'R1', '512-B2') }))
     expect(analyse.retenues).toHaveLength(4)
     expect(analyse.relevesDejaImportes).toEqual([])
     expect(analyse.releves.map((releve) => releve.etat)).toEqual(['nouveau'])
@@ -121,6 +139,69 @@ describe('relevé déjà importé sur le compte lors d’un import précédent',
     expect(analyse.relevesDejaImportes).toEqual([])
     expect(analyse.avertissements.some((texte) => texte.includes('déjà importé : 4 mouvements non repris'))).toBe(true)
     expect(analyse.relevesAImporter.map((aGarder) => [aGarder.releve.rang, aGarder.repris.length])).toEqual([[1, 4]])
+  })
+})
+
+describe('relevé déjà importé sur une autre fiche de compte de la copropriété (même compte en banque)', () => {
+  // Fiches B2 et B3 : même IBAN que B1 (fiche clôturée puis recréée, ou saisie en double).
+  const comptes: EntreeAnalyseReleve['comptes'] = [
+    { id: 'B1', libelle: 'Compte principal · …7849', cloture: false },
+    { id: 'B2', libelle: 'Ancien compte · …7849', cloture: true },
+    { id: 'B3', libelle: 'Compte en double · …7849', cloture: false },
+  ]
+
+  it('même relevé gardé sur une autre fiche : reconnu, aucun mouvement repris, et la fiche est dite', () => {
+    const [premier] = lireReleve(CAMT_UN_RELEVE).releves
+    const analyse = analyserReleve(
+      entree(CAMT_UN_RELEVE, { comptes, relevesImportes: [garde(premier, 'R1', 'B3')], lignesBanque: lignesDe(premier, 'R1', '512-B3') }),
+    )
+    expect(analyse.retenues).toEqual([])
+    expect(analyse.relevesAImporter).toEqual([])
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['importe_avant'])
+    expect(analyse.relevesDejaImportes).toEqual([
+      'Relevé 1 (IBAN FR7612345000100001234567849, du 30/09/2026 au 05/10/2026) : déjà importé le 20/11/2026 sur un autre compte de la copropriété (« Compte en double · …7849 »), ses 4 mouvements ne sont pas repris.',
+    ])
+    expect(analyse.avertissements).toEqual([])
+  })
+
+  it('fiche clôturée : dite clôturée ; fiche que l’écran ne connaît pas : « un autre compte de la copropriété », sans nom', () => {
+    const [premier] = lireReleve(CAMT_UN_RELEVE).releves
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { comptes, relevesImportes: [garde(premier, 'R1', 'B2')] })).relevesDejaImportes).toEqual([
+      'Relevé 1 (IBAN FR7612345000100001234567849, du 30/09/2026 au 05/10/2026) : déjà importé le 20/11/2026 sur un autre compte de la copropriété (« Ancien compte · …7849 », clôturé), ses 4 mouvements ne sont pas repris.',
+    ])
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(premier, 'R1', 'B9')] })).relevesDejaImportes).toEqual([
+      'Relevé 1 (IBAN FR7612345000100001234567849, du 30/09/2026 au 05/10/2026) : déjà importé le 20/11/2026 sur un autre compte de la copropriété, ses 4 mouvements ne sont pas repris.',
+    ])
+  })
+
+  it('même identifiant, contenu différent, sur une autre fiche : à vérifier, la fiche est dite', () => {
+    const [premier] = lireReleve(CAMT_UN_RELEVE).releves
+    const analyse = analyserReleve(entree(CAMT_UN_RELEVE, { comptes, relevesImportes: [{ ...garde(premier, 'R1', 'B2'), soldeClotureMineur: 1 }] }))
+    expect(analyse.retenues).toEqual([])
+    expect(analyse.relevesDejaImportes).toEqual([])
+    expect(analyse.relevesAVerifier).toEqual([
+      'Relevé 1 (IBAN FR7612345000100001234567849, du 30/09/2026 au 05/10/2026) : même identifiant « RELEVE-2026-10-05-A » qu’un relevé importé le 20/11/2026 sur un autre compte de la copropriété (« Ancien compte · …7849 », clôturé), mais période, soldes ou totaux différents ; relevé non repris, à vérifier.',
+    ])
+  })
+
+  it('mouvement d’un relevé nouveau déjà écrit sur une autre fiche (même référence de la banque) : écarté, pas compté deux fois', () => {
+    const [premier] = lireReleve(CAMT_UN_RELEVE).releves,
+      ancien: ReleveCompte = {
+        ...premier,
+        identifiant: 'RELEVE-2026-10-01-A',
+        dateCloture: '2026-10-01',
+        soldeClotureMineur: premier.soldeOuvertureMineur + premier.mouvements[0].montantMineur,
+        totalCreditsMineur: premier.mouvements[0].montantMineur,
+        totalDebitsMineur: 0,
+        mouvements: [premier.mouvements[0]],
+      }
+    const analyse = analyserReleve(
+      entree(CAMT_UN_RELEVE, { comptes, relevesImportes: [garde(ancien, 'R0', 'B2')], lignesBanque: lignesDe(ancien, 'R0', '512-B2') }),
+    )
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['nouveau'])
+    expect(analyse.doublons.map((ligne) => ligne.montant)).toEqual([350])
+    expect(analyse.retenues.map((ligne) => ligne.montant)).toEqual([-1234.56, 120, -12.5])
+    expect(analyse.relevesAImporter[0].repris).toEqual(analyse.retenues)
   })
 })
 
@@ -151,11 +232,16 @@ describe('lignes sans relevé gardé : importées d’un CSV ou avant que les re
   const ancienne = { compte: '512-B1', date: new Date(2026, 8, 15), libelle: 'VIR ANCIEN', montant: 10, sens: 'debit' } as const
 
   it('compte qui porte de telles lignes : la limite est dite (un relevé qui les contient n’est pas reconnu)', () => {
-    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [ancienne] })).limiteEmpreintes).toBe(true)
-    // Ligne non rattachée (« 512 » seul, importée avant le choix du compte) : son compte n'est pas connu, la limite est dite.
-    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [{ ...ancienne, compte: '512' }] })).limiteEmpreintes).toBe(true)
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [ancienne] })).limiteEmpreintes).toBe('compte')
     // Ligne d'un autre compte bancaire : sans effet sur ce compte.
-    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [{ ...ancienne, compte: '512-B2' }] })).limiteEmpreintes).toBe(false)
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [{ ...ancienne, compte: '512-B2' }] })).limiteEmpreintes).toBeNull()
+  })
+
+  it('lignes non rattachées à un compte (« 512 » seul) : la limite le dit, sans les attribuer au compte choisi', () => {
+    const nonRattachee = { ...ancienne, compte: '512' }
+    // Compte neuf, sans aucune ligne : seules d'anciennes lignes non rattachées de la copropriété existent.
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [nonRattachee] })).limiteEmpreintes).toBe('non_rattachees')
+    expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [ancienne, nonRattachee] })).limiteEmpreintes).toBe('compte_et_non_rattachees')
   })
 
   it('l’avertissement des mouvements semblables reste, pour un relevé structuré comme avant', () => {
@@ -167,7 +253,7 @@ describe('lignes sans relevé gardé : importées d’un CSV ou avant que les re
     expect(analyse.avertissements).toContain(
       '1 mouvement de même date, même montant et même libellé qu’une ligne déjà enregistrée sur ce compte : relevé peut-être déjà importé, à vérifier.',
     )
-    expect(analyse.limiteEmpreintes).toBe(true)
+    expect(analyse.limiteEmpreintes).toBe('compte')
   })
 
   it('CSV : aucun relevé à garder, dédoublonnage par date, montant et libellé inchangé, aucune limite dite', () => {
@@ -178,7 +264,7 @@ describe('lignes sans relevé gardé : importées d’un CSV ou avant que les re
     expect(analyse.retenues.map((ligne) => ligne.libelle)).toEqual(['VIR SEPA'])
     expect(analyse.relevesAImporter).toEqual([])
     expect(analyse.relevesDejaImportes).toEqual([])
-    expect(analyse.limiteEmpreintes).toBe(false)
+    expect(analyse.limiteEmpreintes).toBeNull()
   })
 
   it('sans compte choisi : analyse possible, rien n’est comparé aux relevés gardés', () => {
@@ -186,6 +272,6 @@ describe('lignes sans relevé gardé : importées d’un CSV ou avant que les re
     const analyse = analyserReleve(entree(CAMT_UN_RELEVE, { compte: null, relevesImportes: [garde(premier, 'R1')] }))
     expect(analyse.retenues).toHaveLength(4)
     expect(analyse.relevesDejaImportes).toEqual([])
-    expect(analyse.limiteEmpreintes).toBe(false)
+    expect(analyse.limiteEmpreintes).toBeNull()
   })
 })

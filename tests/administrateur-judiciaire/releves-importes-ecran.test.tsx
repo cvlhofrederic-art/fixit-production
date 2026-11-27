@@ -11,7 +11,7 @@ import {
   soldeSaisiVersCentimes,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import { ToastContext, type ToastApi } from '@/components/administrateur-judiciaire/ui/toast'
-import { enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
+import { cloturerCompteBancaire, enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { listerArretes } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
@@ -31,6 +31,10 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  *   fichier restent importables ;
  * - point 3 C : « Nouvel arrêté » propose comme solde banque le solde de clôture du dernier relevé importé du compte à
  *   la date de l'arrêté, avec sa source ; la saisie à la main reste possible.
+ * Retours de la relecture du 27/11/2026 : un relevé gardé sur une autre fiche de compte de la copropriété est reconnu, et
+ * la fiche est dite ; un relevé nouveau sans ligne à écrire s'enregistre (« Enregistrer le relevé ») ; un relevé de même
+ * identifiant mais de contenu différent a son propre bandeau et sa propre pastille ; le bandeau des lignes sans relevé
+ * gardé dit si elles sont de ce compte ou non rattachées à un compte.
  * Base de démonstration (Le Clos des Vignes, C2 ; date figée au 04/06/2026), fichiers fictifs.
  */
 
@@ -96,6 +100,10 @@ async function importerHorsEcran(texte: string, compteId = banqueId) {
 const panneauImport = () => screen.getByRole('heading', { level: 3, name: 'Importer un relevé' }).closest('.panel') as HTMLElement
 const dansImport = () => within(panneauImport())
 const boutonImporter = () => dansImport().getByRole('button', { name: /^Importer \d+ ligne/ }) as HTMLButtonElement
+/** Bouton d'un fichier sans ligne à écrire dont un relevé nouveau est à garder. */
+const boutonEnregistrer = () => dansImport().getByRole('button', { name: /^Enregistrer / }) as HTMLButtonElement
+const etatsRelevesLus = () => relevesLus().map((ligne) => within(ligne).getAllByRole('cell').at(-1)?.textContent)
+const annonce = () => panneauImport().querySelector('.sr-only[aria-live="polite"]')?.textContent
 const alertes = () => Array.from(panneauImport().querySelectorAll('.alert')) as HTMLElement[]
 const titresAlertes = () => alertes().map((alerte) => alerte.querySelector('b')?.textContent ?? '')
 const alerte = (titre: string) => alertes().find((candidate) => candidate.querySelector('b')?.textContent === titre)
@@ -138,13 +146,11 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     expect(bandeau.textContent).toContain(
       'Relevé 2 (RIB 12345 00010 00012345678 clé 49, du 05/10/2026 au 06/10/2026) : déjà importé sur ce compte le 04/06/2026, son mouvement n’est pas repris.',
     )
-    expect(bandeau.textContent).toContain('Rien à importer : tous les relevés de ce fichier sont déjà enregistrés sur ce compte.')
+    expect(bandeau.textContent).toContain('Rien à importer : tous les relevés de ce fichier sont déjà enregistrés.')
     expect(relevesLus().map((ligne) => within(ligne).getAllByRole('cell').at(-1)?.textContent)).toEqual(['Déjà importé', 'Déjà importé'])
     expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
     expect(boutonImporter()).toBeDisabled()
-    expect(panneauImport().querySelector('.sr-only[aria-live="polite"]')?.textContent).toBe(
-      'Relevé analysé (CFONB 120) : 0 ligne retenue. 2 relevés déjà importés sur ce compte : leurs mouvements ne sont pas repris.',
-    )
+    expect(annonce()).toBe('Relevé analysé (CFONB 120) : 0 ligne retenue. 2 relevés déjà importés : leurs mouvements ne sont pas repris.')
     expect(await lignesDuCompte()).toHaveLength(5)
   })
 
@@ -171,20 +177,91 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     expect(within(panneauComptes).getAllByRole('row')[1].textContent).toContain(formatEurosCentimes(-1377.06))
   })
 
-  it('relevé déjà importé suivi d’un relevé nouveau sans mouvement : le bandeau ne dit pas que tout est déjà enregistré', async () => {
+  describe('relevé nouveau sans ligne à écrire (relevé du mois sans mouvement) : il s’enregistre quand même', () => {
     const lignes = CFONB_UN_COMPTE.split('\n'),
       releve1 = lignes.slice(0, lignes.findIndex((ligne) => ligne.startsWith('07')) + 1),
       // Relevé suivant du même compte, du 05/10 au 06/10/2026, sans aucun mouvement : même solde (472,94) aux deux bouts.
-      sansMouvement = [lignes[releve1.length], lignes[releve1.length].replace(/^01/, '07').replace('051026', '061026')]
-    await importerHorsEcran(releve1.join('\n'))
-    await rendre()
-    analyser([...releve1, ...sansMouvement].join('\n'))
-    expect(titresAlertes()).toEqual(['Relevé déjà importé'])
-    expect(relevesLus().map((ligne) => within(ligne).getAllByRole('cell').at(-1)?.textContent)).toEqual(['Déjà importé', 'Contrôlé'])
-    expect(alerte('Relevé déjà importé')?.textContent).not.toContain('Rien à importer')
-    // Aucune ligne à écrire : le bouton reste inactif, comme avant (le relevé sans mouvement n'est donc pas gardé).
-    expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
-    expect(boutonImporter()).toBeDisabled()
+      sansMouvement = [lignes[releve1.length], lignes[releve1.length].replace(/^01/, '07').replace('051026', '061026')],
+      // Puis celui du 06/10 au 07/10/2026, sans mouvement non plus.
+      suivant = sansMouvement.map((ligne) => ligne.replace('061026', '071026').replace('051026', '061026')),
+      PHRASE_SANS_LIGNE =
+        'Aucune ligne à écrire. Le relevé est gardé : il sera reconnu au prochain import, et son solde de clôture pourra être repris dans un arrêté.',
+      PHRASE_LIGNES = 'Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.'
+
+    it('relevé déjà importé suivi d’un relevé nouveau sans mouvement : « Enregistrer le relevé » le garde, sans écrire de ligne', async () => {
+      const fichier = [...releve1, ...sansMouvement].join('\n')
+      await importerHorsEcran(releve1.join('\n'))
+      await rendre()
+      analyser(fichier)
+      expect(titresAlertes()).toEqual(['Relevé déjà importé'])
+      expect(etatsRelevesLus()).toEqual(['Déjà importé', 'Contrôlé'])
+      expect(alerte('Relevé déjà importé')?.textContent).not.toContain('Rien à importer')
+      // Aucune ligne à écrire, mais un relevé nouveau à garder : le bouton l'enregistre, et la phrase dit ce qu'il fait.
+      expect(dansImport().queryByRole('button', { name: /^Importer \d+ ligne/ })).toBeNull()
+      expect(boutonEnregistrer()).toHaveTextContent('Enregistrer le relevé')
+      expect(boutonEnregistrer()).toBeEnabled()
+      expect(panneauImport().textContent).toContain(PHRASE_SANS_LIGNE)
+      expect(panneauImport().textContent).not.toContain(PHRASE_LIGNES)
+      const avant = pushCourant.mock.calls.length
+      await act(async () => {
+        fireEvent.click(boutonEnregistrer())
+      })
+      await waitFor(() => expect(pushCourant.mock.calls.length).toBeGreaterThan(avant))
+      await patienter()
+      expect(pushCourant.mock.calls.at(-1)?.[0]).toEqual({
+        kind: 'success',
+        title: 'Relevé enregistré',
+        desc: '1 relevé enregistré sur « Compte principal », aucune ligne à écrire.',
+      })
+      // Aucune ligne de plus ; le relevé sans mouvement est gardé avec son solde de clôture.
+      expect(await lignesDuCompte()).toHaveLength(4)
+      expect((await listerRelevesImportes('C2')).map((garde) => [garde.dateCloture, garde.soldeClotureMineur, garde.nombreMouvements])).toEqual([
+        ['2026-10-05', 47_294, 4],
+        ['2026-10-06', 47_294, 0],
+      ])
+      // Analysé de nouveau : reconnu à son tour, il ne repasse plus « Contrôlé ».
+      analyser(fichier)
+      expect(titresAlertes()).toEqual(['2 relevés déjà importés'])
+      expect(etatsRelevesLus()).toEqual(['Déjà importé', 'Déjà importé'])
+      expect(alerte('2 relevés déjà importés')?.textContent).toContain('déjà importé sur ce compte le 04/06/2026, aucun mouvement.')
+      expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
+      expect(boutonImporter()).toBeDisabled()
+      expect(panneauImport().textContent).toContain(PHRASE_LIGNES)
+    })
+
+    it('fichier de deux relevés sans mouvement, jamais importés : « Enregistrer les 2 relevés »', async () => {
+      await rendre()
+      analyser([...sansMouvement, ...suivant].join('\n'))
+      expect(titresAlertes()).toEqual([])
+      expect(etatsRelevesLus()).toEqual(['Contrôlé', 'Contrôlé'])
+      expect(boutonEnregistrer()).toHaveTextContent('Enregistrer les 2 relevés')
+      const avant = pushCourant.mock.calls.length
+      await act(async () => {
+        fireEvent.click(boutonEnregistrer())
+      })
+      await waitFor(() => expect(pushCourant.mock.calls.length).toBeGreaterThan(avant))
+      expect(pushCourant.mock.calls.at(-1)?.[0]).toMatchObject({
+        title: 'Relevé enregistré',
+        desc: '2 relevés enregistrés sur « Compte principal », aucune ligne à écrire.',
+      })
+      expect(await lignesDuCompte()).toEqual([])
+      expect(await listerRelevesImportes('C2')).toHaveLength(2)
+    })
+
+    it('rien à garder (CSV sans ligne retenue, fichier bloqué, aucun compte) : le bouton reste « Importer 0 ligne », inactif', async () => {
+      await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+      await rendre()
+      analyser('Date;Libellé;Montant\n10/05/2026;VIR CHARGES;450,00')
+      expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
+      expect(boutonImporter()).toBeDisabled()
+      // Fichier bloqué par une erreur (relevé coupé : aucun enregistrement 07) : le relevé sans mouvement lu avant ne s'enregistre pas.
+      analyser([...sansMouvement, suivant[0]].join('\n'))
+      expect(titresAlertes()).toContain('Import bloqué')
+      expect(etatsRelevesLus()).toEqual(['Contrôlé'])
+      expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
+      expect(boutonImporter()).toBeDisabled()
+      expect(panneauImport().textContent).not.toContain(PHRASE_SANS_LIGNE)
+    })
   })
 
   it('analyse faite avant qu’un autre import ne garde le relevé : refus à l’écriture, toast « Import impossible », rien n’est écrit', async () => {
@@ -200,6 +277,111 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     })
     expect(await lignesDuCompte()).toHaveLength(4)
     expect(await listerRelevesImportes('C2')).toHaveLength(1)
+  })
+
+  it('relevé gardé sur une autre fiche du même IBAN (fiche clôturée, puis recréée) : reconnu, la fiche est dite, rien à importer', async () => {
+    await importerHorsEcran(CAMT_UN_RELEVE)
+    await cloturerCompteBancaire(banqueId)
+    const recree = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Compte recréé', iban: IBAN_FIXTURE, bic: null, etablissement: null })
+    await rendre()
+    // Seul compte actif : choisi d'office.
+    analyser(CAMT_UN_RELEVE)
+    expect(titresAlertes()).toEqual(['Relevé déjà importé'])
+    const bandeau = alerte('Relevé déjà importé') as HTMLElement
+    expect(bandeau.textContent).toContain(
+      'Relevé 1 (IBAN FR76 1234 5000 1000 0123 4567 849, du 30/09/2026 au 05/10/2026) : déjà importé le 04/06/2026 sur un autre compte de la copropriété (« Compte principal · …7849 », clôturé), ses 4 mouvements ne sont pas repris.',
+    )
+    expect(bandeau.textContent).toContain('Rien à importer : tous les relevés de ce fichier sont déjà enregistrés.')
+    expect(etatsRelevesLus()).toEqual(['Déjà importé'])
+    expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
+    expect(boutonImporter()).toBeDisabled()
+    expect(annonce()).toBe('Relevé analysé (camt.053 (ISO 20022)) : 0 ligne retenue. Relevé déjà importé : ses mouvements ne sont pas repris.')
+    expect((await ajDb.ecritures.toArray()).filter((ecriture) => ecriture.compte === `512-${recree.id}`)).toEqual([])
+  })
+
+  it('analyse périmée, relevé gardé entre-temps sur une autre fiche du même IBAN : refus à l’écriture, rien n’est écrit', async () => {
+    const double = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Compte en double', iban: IBAN_FIXTURE, bic: null, etablissement: null })
+    await rendre()
+    fireEvent.change(dansImport().getByLabelText('Compte bancaire du relevé'), { target: { value: banqueId } })
+    analyser(CAMT_UN_RELEVE)
+    expect(boutonImporter()).toBeEnabled()
+    await importerHorsEcran(CAMT_UN_RELEVE, double.id)
+    await importerALEcran()
+    expect(pushCourant.mock.calls.at(-1)?.[0]).toMatchObject({
+      kind: 'warn',
+      title: 'Import impossible',
+      desc: expect.stringContaining('déjà importé sur un autre compte de la copropriété. Analyser le fichier à nouveau.'),
+    })
+    expect(await lignesDuCompte()).toEqual([])
+    expect(await listerRelevesImportes('C2')).toHaveLength(1)
+  })
+
+  it('même identifiant qu’un relevé gardé, contenu différent : bandeau et pastille « à vérifier », jamais « déjà importé »', async () => {
+    await importerHorsEcran(CAMT_UN_RELEVE)
+    // Relevé gardé d'un contenu différent (comme un relevé corrigé depuis par la banque sous le même identifiant).
+    await ajDb.relevesImportes.toCollection().modify({ soldeClotureMineur: 1 })
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    expect(titresAlertes()).toEqual(['Relevé non repris, à vérifier'])
+    const bandeau = alerte('Relevé non repris, à vérifier') as HTMLElement
+    expect(bandeau).toHaveClass('rust')
+    expect(bandeau.textContent).toContain(
+      'même identifiant « RELEVE-2026-10-05-A » qu’un relevé importé sur ce compte le 04/06/2026, mais période, soldes ou totaux différents ; relevé non repris, à vérifier.',
+    )
+    // Ce relevé n'est pas enregistré : le bandeau ne dit pas que tout l'est.
+    expect(bandeau.textContent).not.toContain('Rien à importer')
+    expect(etatsRelevesLus()).toEqual(['Non repris, à vérifier'])
+    expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
+    expect(boutonImporter()).toBeDisabled()
+    expect(annonce()).toBe(
+      'Relevé analysé (camt.053 (ISO 20022)) : 0 ligne retenue. Relevé non repris, à vérifier : même identifiant qu’un relevé déjà importé, contenu différent.',
+    )
+  })
+
+  it('fichier d’un relevé déjà importé et d’un relevé à vérifier : deux bandeaux, et aucun ne dit que tout est déjà enregistré', async () => {
+    // Second relevé du fichier camt.053 ramené sur le même compte : identifiant « RELEVE-2026-10-05-B », sans mouvement.
+    const deuxReleves = CAMT.replace('FR7612345000100008765432121', 'FR7612345000100001234567849')
+    await importerHorsEcran(deuxReleves)
+    // Le relevé gardé sous cet identifiant a un autre contenu (comme un relevé corrigé depuis par la banque).
+    await ajDb.relevesImportes.filter((garde) => garde.identifiant === 'RELEVE-2026-10-05-B').modify({ soldeClotureMineur: 1 })
+    await rendre()
+    analyser(deuxReleves)
+    // « 1 avertissement » : celui de la lecture (les soldes fictifs des deux relevés ne s'enchaînent pas), sans rapport.
+    expect(titresAlertes()).toEqual(['Relevé déjà importé', 'Relevé non repris, à vérifier', '1 avertissement'])
+    expect(alerte('1 avertissement')?.textContent).toContain('ancien solde 5 000,00 EUR différent du nouveau solde')
+    expect(alerte('1 avertissement')?.textContent).not.toContain('même identifiant')
+    expect(etatsRelevesLus()).toEqual(['Déjà importé', 'Non repris, à vérifier'])
+    expect(alerte('Relevé déjà importé')?.textContent).not.toContain('Rien à importer')
+    expect(alerte('Relevé non repris, à vérifier')?.textContent).toContain('même identifiant « RELEVE-2026-10-05-B »')
+    expect(boutonImporter()).toBeDisabled()
+    expect(annonce()).toBe(
+      'Relevé analysé (camt.053 (ISO 20022)) : 0 ligne retenue. Relevé déjà importé : ses mouvements ne sont pas repris. ' +
+        'Relevé non repris, à vérifier : même identifiant qu’un relevé déjà importé, contenu différent.',
+    )
+  })
+
+  it('lignes non rattachées à un compte seulement (compte neuf) : le bandeau ne les attribue pas à ce compte', async () => {
+    // Ligne « 512 » seule, importée avant le choix du compte.
+    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    expect(titresAlertes()).toEqual(['Lignes enregistrées sans relevé gardé'])
+    const texte = alerte('Lignes enregistrées sans relevé gardé')?.textContent ?? ''
+    expect(texte).toContain(
+      'Des lignes non rattachées à un compte viennent d’un CSV ou d’un import fait avant que les relevés soient gardés : un relevé qui les contient n’est pas reconnu. ' +
+        'Vérifier la période avant d’importer : un relevé importé deux fois compterait deux fois dans le solde du compte.',
+    )
+    expect(texte).not.toContain('Des lignes de ce compte')
+  })
+
+  it('lignes de ce compte et lignes non rattachées sans relevé gardé : le bandeau dit les deux', async () => {
+    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-11', libelle: 'VIR TRAVAUX', montant: 120 }])
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    expect(alerte('Lignes enregistrées sans relevé gardé')?.textContent).toContain(
+      'Des lignes de ce compte et des lignes non rattachées à un compte viennent d’un CSV ou d’un import fait avant que les relevés soient gardés : ',
+    )
   })
 
   it('compte qui porte des lignes sans relevé gardé (CSV, import antérieur) : limite dite ; compte sans ligne : aucun bandeau', async () => {

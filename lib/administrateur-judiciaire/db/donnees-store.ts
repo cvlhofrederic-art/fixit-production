@@ -334,7 +334,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     // une seule transaction. Une erreur en cours de boucle n'en laisse aucune en base, alors qu'auparavant les
     // premières y restaient, absentes de l'état et donc du dédoublonnage : un nouvel import les dupliquait.
     // Relevés CFONB 120 ou camt.053 (décision du 26/11/2026, PR 799, points 10 B et 11 B) : gardés dans la même
-    // transaction que leurs lignes, tout ou rien ; un relevé déjà gardé sur le compte annule l'import.
+    // transaction que leurs lignes, tout ou rien ; un relevé déjà gardé pour la copropriété annule l'import.
     await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.relevesImportes], async () => {
       const origines = releves ? await enregistrerRelevesImportes(coproprieteId, compte, releves, lignes) : null
       for (const ligne of lignes) {
