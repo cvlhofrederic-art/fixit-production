@@ -576,6 +576,46 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect((await geocoderAdresse({ adresse: '12 Jules Cantini', ville: 'Marseille' }, 'FR'))?.precise).toBe(false)
   })
 
+  it('septième relecture : ville seule homonyme par Nominatim, arrondissement d’OSM, codes de voie, villes refusées', async () => {
+    // « 1 place de la Liberté », Valence sans code postal : trois communes Valence ; la BAN (le bon point, 26000) est refusée.
+    // OSM rend la place de Bourg-lès-Valence (26500), avec l'arrondissement « Valence » en municipality : pas la ville.
+    banSelonRecherche.Valence = { corps: { features: ['26000', '82400', '16460'].map(postcode => ({ properties: { type: 'municipality', name: 'Valence', postcode } })) } }
+    reponses.ban = ban('housenumber', 0.958, { postcode: '26000', city: 'Valence', housenumber: '1', street: 'Place de la Liberte' })
+    reponses.osm = osm(30, { house_number: '1', road: 'Place de la Liberté', postcode: '26500', town: 'Bourg-lès-Valence', municipality: 'Valence' })
+    expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(false)
+    // OSM dans l'une des trois Valence : refusé aussi, comme la BAN.
+    reponses.osm = osm(30, { house_number: '1', road: 'Place de la Liberté', postcode: '26000', city: 'Valence' })
+    banSelonRecherche['liberte Valence'] = { corps: { features: [voieBan('Place de la Liberte', '26000', 'Valence', undefined, '26362_5280')] } }
+    expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(false)
+    // Avec un code postal, municipality reste la commune nouvelle d'une commune déléguée (Andrezé, plus haut) ; et une seule
+    // Valence vaut ville (témoin).
+    banSelonRecherche.Valence = { corps: { features: [{ properties: { type: 'municipality', name: 'Valence', postcode: '26000' } }] } }
+    expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(true)
+    // Même chose par Nominatim, la BAN muette : une seule Valence, OSM dans cette Valence (city) : précis.
+    reponses.ban = { corps: { features: [] } }
+    expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(true)
+    // L'arrondissement d'OSM n'est pas la ville, même quand la BAN ne connaît aucune commune de ce nom exact.
+    banSelonRecherche.Valence = { corps: { features: [{ properties: { type: 'municipality', name: 'Valence-d\'Albigeois', postcode: '81340' } }] } }
+    reponses.osm = osm(30, { house_number: '1', road: 'Place de la Liberté', postcode: '26500', town: 'Bourg-lès-Valence', municipality: 'Valence' })
+    expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(false)
+    // Deux places de l'Église dans deux communes homonymes, au même code de voie (0060) : deux voies, pas un doublon (la ville
+    // est tenue pour unique ici, pour éprouver le seul code de voie).
+    banSelonRecherche.Valence = { corps: { features: [{ properties: { type: 'municipality', name: 'Valence', postcode: '82400' } }] } }
+    reponses.ban = ban('municipality', 0.9, { postcode: '82400', city: 'Valence' })
+    reponses.osm = osm(30, { house_number: '1', road: 'Place de l\'Église', postcode: '82400', town: 'Valence' })
+    banSelonRecherche['eglise Valence'] = { corps: { features: [voieBan('Place de l\'Église', '82400', 'Valence', undefined, '82186_0060'), voieBan('Place de l\'Église', '16460', 'Valence', undefined, '16393_0060')] } }
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', ville: 'Valence' }, 'FR'))?.precise).toBe(false)
+    // Page pleine de communes (« Saint-Étienne-… ») et nom de moins de trois lettres (la BAN répond 400) : refus voulu.
+    reponses.osm = { corps: [] }
+    banSelonRecherche['Saint-Étienne'] = { corps: { features: Array.from({ length: 50 }, (_, i) => ({ properties: { type: 'municipality', name: i === 0 ? 'Saint-Étienne' : `Saint-Étienne-de-${i}` } })) } }
+    reponses.ban = ban('housenumber', 0.971, { postcode: '42000', city: 'Saint-Étienne', housenumber: '1', street: 'Place de l\'Hôtel de Ville' })
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Hôtel de Ville', ville: 'Saint-Étienne' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche.Eu = { statut: 400, corps: { code: 400 } }
+    reponses.ban = ban('housenumber', 0.964, { postcode: '76260', city: 'Eu', housenumber: '1', street: 'Rue de la République' })
+    expect((await geocoderAdresse({ adresse: '1 rue de la République', ville: 'Eu' }, 'FR'))?.precise).toBe(false)
+    expect((await geocoderAdresse({ adresse: '1 rue de la République', codePostal: '76260', ville: 'Eu' }, 'FR'))?.precise).toBe(true)
+  })
+
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
     // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
     // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
@@ -995,6 +1035,9 @@ describe('numeroEtVoieSaisis', () => {
       // Sixième relecture : la plage d'un immeuble entier est celle de la rue ; nombre du nom de la voie, puis numéro.
       ['Immeuble du 10-12 rue Paradis', '10-12 rue Paradis'], ['Copropriété du 2 au 4 rue Paradis', '2 au 4 rue Paradis'],
       ['avenue du 8 Mai 1945, 8', '8 avenue du 8 Mai 1945'], ['Route Départementale 96, 12', '12 Route Départementale 96'],
+      // Septième relecture : une année n'ouvre pas une plage de lots ; une suite décroissante n'en continue pas une.
+      ['Logements de 1975, 12 rue Paradis', '12 rue Paradis'], ['Maison de 1930, 10-12 rue Paradis', '10-12 rue Paradis'],
+      ['Lots du 14, 12 rue Paradis', '12 rue Paradis'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
