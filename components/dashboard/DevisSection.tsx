@@ -25,6 +25,7 @@ import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
 import { fichePortugaise } from '@/lib/numerotation-prefixes'
+import { langueDocumentsBtp } from '@/lib/btp/langue-documents'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
@@ -507,6 +508,9 @@ function DevisSectionV5({
 }) {
   const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
+  // Documents BTP émis en un clic (facture totale, acompte) : dans la langue de la société, pas dans celle de l'écran
+  // (lib/btp/langue-documents.ts). Les messages affichés restent dans celle de l'écran (isPt).
+  const langueDocuments = langueDocumentsBtp(artisan, locale)
   const [search, setSearch] = useState('')
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatutDevis>('tous')
   // « Facturer » (méthode pro 2026, BTP) : choix Facture totale (conversion
@@ -530,7 +534,8 @@ function DevisSectionV5({
     if (refuserSiEmissionEnCours()) return
     const resultat = buildFactureDepuisDevis(devis as unknown as Record<string, unknown>, {
       factures: factures as unknown as Record<string, unknown>[],
-      locale: isPt ? 'pt' : 'fr',
+      locale: langueDocuments,
+      langueMessages: isPt ? 'pt' : 'fr',
     })
     if (!resultat.ok) {
       toast.error(resultat.message)
@@ -960,7 +965,7 @@ function DevisSectionV5({
                 ? appliquerFormeProfil(
                     appliquerRibCourant(
                       buildAcompteParTauxPrefill(parentDoc, params, {
-                        locale: isPt ? 'pt' : 'fr',
+                        locale: langueDocuments,
                         dejaFacture: acomptesDejaFacturesPourDevis(parentDoc, factures as unknown as Record<string, unknown>[]),
                       }),
                       // RIB du profil au jour de l'émission, pas celui figé dans le devis.

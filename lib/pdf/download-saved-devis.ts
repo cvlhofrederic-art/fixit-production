@@ -28,6 +28,8 @@ import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
 import { renduComplet } from '@/lib/version-rendu'
 import { lignesDocumentArtisan, ventilationTvaDocumentArtisan } from '@/lib/totaux-artisan'
+import { langueDocumentsBtp } from '@/lib/btp/langue-documents'
+import { traducteurPour } from '@/lib/i18n/context'
 
 export interface SavedDevis {
   id?: string
@@ -419,7 +421,54 @@ async function genererAvecV3(
   ctx: DownloadContext,
   action: 'download' | 'fichier',
 ): Promise<Awaited<ReturnType<typeof generateDevisPdfV3>>> {
-  const { locale, t, artisan } = ctx
+  const { artisan } = ctx
+  // Fallback IBAN/BIC pour les devis legacy enregistrés avant la persistance
+  // (cf. DevisFactureFormBTP.buildPayload, fix 06/05/2026). Les devis créés
+  // après le fix ont iban/bic dans `doc` ; les anciens doivent re-fetcher le
+  // profil paiement pour que le RIB apparaisse au téléchargement.
+  let resolvedIban = doc.iban || ''
+  let resolvedBic = doc.bic || ''
+  let artisanCategories: string[] | null = null
+  let artisanTypeActivite: string | null = null
+  // Identité légale de la société (Mon profil) : reprise quand le document
+  // enregistré a le champ vide, comme le fait le formulaire BTP à l'ouverture.
+  // Assurance et médiateur de la fiche : société portugaise seulement (assuranceDocumentBtp, mediateurDocumentBtp).
+  let fiche: { siret?: string | null; company_address?: string | null; rcs_number?: string | null
+    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null; legal_form?: string | null
+    insurance_name?: string | null; insurance_number?: string | null; insurance_type?: string | null
+    insurance_coverage?: string | null; mediator_name?: string | null; mediator_url?: string | null
+    language?: string | null } = {}
+  let ficheLue = false
+  if (artisan?.id) {
+    try {
+      const { data } = await supabase
+        .from('profiles_artisan')
+        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code, legal_form, insurance_name, insurance_number, insurance_type, insurance_coverage, mediator_name, mediator_url, language')
+        .eq('id', artisan.id)
+        .single()
+      if (data) {
+        fiche = data as typeof fiche
+        ficheLue = true
+      }
+      const modes = (data?.paiement_modes as Array<{ type?: string; iban?: string; bic?: string; actif?: boolean }>) || []
+      const virement = modes.find(
+        (m) => m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
+      )
+      if (virement && !resolvedIban) {
+        resolvedIban = (virement.iban || '').trim()
+        resolvedBic = (virement.bic || '').trim()
+      }
+      if (Array.isArray(data?.categories)) artisanCategories = data.categories as string[]
+      if (typeof data?.type_activite === 'string') artisanTypeActivite = data.type_activite as string
+    } catch (e) {
+      console.warn('[download-saved-devis] Loading profile data failed:', e)
+    }
+  }
+  // Langue du document : celle de la fiche relue ci-dessus, pas celle de l'écran (lib/btp/langue-documents.ts). Une
+  // société française ouverte sur /pt garde des documents français, droit français compris ; une société portugaise
+  // ouverte sur /fr, des documents portugais. Sans fiche lue : la langue de l'écran, comme avant.
+  const locale = langueDocumentsBtp(ficheLue ? fiche : undefined, ctx.locale)
+  const t = locale === ctx.locale ? ctx.t : traducteurPour(locale)
   // Pas de re-construction locale des collections sommées : la source
   // unique de vérité est `buildDocumentLines` (lib/devis-totals.ts). Elle
   // applique les règles communes (laborLines > lines, masquage
@@ -474,44 +523,6 @@ async function genererAvecV3(
     executionDelay: doc.executionDelay, executionDelayDays: doc.executionDelayDays, executionDelayType: doc.executionDelayType,
     clientType: doc.clientType, clientSiret: doc.clientSiret, isHorsEtablissement: doc.isHorsEtablissement,
   })
-
-  // Fallback IBAN/BIC pour les devis legacy enregistrés avant la persistance
-  // (cf. DevisFactureFormBTP.buildPayload, fix 06/05/2026). Les devis créés
-  // après le fix ont iban/bic dans `doc` ; les anciens doivent re-fetcher le
-  // profil paiement pour que le RIB apparaisse au téléchargement.
-  let resolvedIban = doc.iban || ''
-  let resolvedBic = doc.bic || ''
-  let artisanCategories: string[] | null = null
-  let artisanTypeActivite: string | null = null
-  // Identité légale de la société (Mon profil) : reprise quand le document
-  // enregistré a le champ vide, comme le fait le formulaire BTP à l'ouverture.
-  // Assurance et médiateur de la fiche : société portugaise seulement (assuranceDocumentBtp, mediateurDocumentBtp).
-  let fiche: { siret?: string | null; company_address?: string | null; rcs_number?: string | null
-    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null; legal_form?: string | null
-    insurance_name?: string | null; insurance_number?: string | null; insurance_type?: string | null
-    insurance_coverage?: string | null; mediator_name?: string | null; mediator_url?: string | null } = {}
-  if (artisan?.id) {
-    try {
-      const { data } = await supabase
-        .from('profiles_artisan')
-        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code, legal_form, insurance_name, insurance_number, insurance_type, insurance_coverage, mediator_name, mediator_url')
-        .eq('id', artisan.id)
-        .single()
-      if (data) fiche = data as typeof fiche
-      const modes = (data?.paiement_modes as Array<{ type?: string; iban?: string; bic?: string; actif?: boolean }>) || []
-      const virement = modes.find(
-        (m) => m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
-      )
-      if (virement && !resolvedIban) {
-        resolvedIban = (virement.iban || '').trim()
-        resolvedBic = (virement.bic || '').trim()
-      }
-      if (Array.isArray(data?.categories)) artisanCategories = data.categories as string[]
-      if (typeof data?.type_activite === 'string') artisanTypeActivite = data.type_activite as string
-    } catch (e) {
-      console.warn('[download-saved-devis] Loading profile data failed:', e)
-    }
-  }
 
   // Forme portugaise (« Sociedade por Quotas (Lda.) »…) reconnue ; les libellés français donnent le même code qu'avant.
   // Société portugaise : l'EI de ses premiers documents devient sa forme du profil, comme dans le formulaire.

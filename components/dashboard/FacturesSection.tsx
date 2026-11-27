@@ -21,6 +21,7 @@ import { fetchNextDocNumber } from '@/lib/doc-number'
 import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
 import { changerEtatDocumentSociete } from '@/lib/documents/societe-client'
 import { fichePortugaise } from '@/lib/numerotation-prefixes'
+import { langueDocumentsBtp } from '@/lib/btp/langue-documents'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
@@ -1017,9 +1018,10 @@ function FacturesSectionV5({
             // les lignes (TVA conservées), puis l'acompte est émis en un clic —
             // numéro AC- définitif, statut émis, persistance + sync DB, modèle V3.
             const parent = acompteParent
-            // BTP : une ligne par taux de TVA. Artisan : lignes de la facture au pourcentage, inchangé.
+            // BTP : une ligne par taux de TVA, dans la langue de la société et non dans celle de l'écran
+            // (lib/btp/langue-documents.ts). Artisan : lignes de la facture au pourcentage, inchangé.
             const prefilled = orgRole === 'pro_societe'
-              ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: locale === 'pt' ? 'pt' : 'fr' })
+              ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: langueDocumentsBtp(artisan, locale) })
               : buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
             setAcompteParent(null)
             const estBtp = orgRole === 'pro_societe'

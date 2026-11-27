@@ -84,6 +84,14 @@ export function LanguageProvider({
   )
 }
 
+/**
+ * Traducteur d'une langue donnée, hors de celle de l'écran : texte d'un document dont la langue n'est pas celle de
+ * l'interface (documents d'une société BTP, lib/btp/langue-documents.ts).
+ */
+export function traducteurPour(locale: Locale): (key: string, fallback?: string) => string {
+  return (key: string, fallback?: string) => resolveKey(dictionaries[locale], key, fallback)
+}
+
 // ─── Hooks ───
 export function useLocale(): Locale {
   return useContext(I18nContext).locale
