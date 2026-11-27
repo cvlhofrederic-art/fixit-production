@@ -745,6 +745,72 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect((await geocoderAdresse(saisie('3 rue Nationale', '49570', 'Mauges-sur-Loire'), 'FR'))?.precise).toBe(true)
   })
 
+  it('dixième relecture : réponses de la seconde recherche, commune d’OSM, panne, Lille, ponctuation de tête', async () => {
+    // « 1 place de l'Église, face à la mairie », Sainte-Christine sans code postal : la première recherche ne rend aucune des
+    // deux places, la seconde (« 1 place de l'Église Sainte-Christine ») les rend toutes deux ; ses réponses comptent aussi
+    // (relevé du 27/11/2026 ; avant : précis dans le 63, à 312 km).
+    const n1en63 = { geometry: { coordinates: [2.836, 46.0667] }, properties: { type: 'housenumber', score: 0.931, housenumber: '1', name: '1 Place de l\'Eglise', street: 'Place de l\'Eglise', postcode: '63390', city: 'Sainte-Christine' } }
+    const n1en49 = { geometry: { coordinates: [-0.8478, 47.2864] }, properties: { type: 'housenumber', score: 0.8003, housenumber: '1', name: '1 Place de l\'Eglise de Sainte-Christine', street: 'Place de l\'Eglise de Sainte-Christine', postcode: '49120', city: 'Chemillé-en-Anjou', oldcity: 'Ste Christine' } }
+    const repere = { adresse: '1 place de l\'Église, face à la mairie', ville: 'Sainte-Christine' }
+    banSelonRecherche['1 place de l\'Église Sainte-Christine'] = { corps: { features: [n1en63, n1en49] } }
+    expect((await geocoderAdresse(repere, 'FR'))?.precise).toBe(false)
+    // Témoin : la seconde recherche ne rend que le n° 1 du 63 : précis.
+    banSelonRecherche['1 place de l\'Église Sainte-Christine'] = { corps: { features: [n1en63] } }
+    expect((await geocoderAdresse(repere, 'FR'))?.precise).toBe(true)
+    // L'homonyme vu à la première recherche (sous son seuil) compte encore à la seconde : les réponses s'ajoutent.
+    banSelonRecherche['1 place de l\'Église, face à la mairie Sainte-Christine'] = { corps: { features: [{ ...n1en49, properties: { ...n1en49.properties, score: 0.5 } }] } }
+    expect((await geocoderAdresse(repere, 'FR'))?.precise).toBe(false)
+
+    // Par Nominatim : la BAN ne connaît que la place de la commune déléguée (0,797, sous le seuil) ; OSM rend celle du 63, la
+    // seule commune de ce nom : ambiguë (scénario simulé de la dixième relecture).
+    const place49 = { geometry: { coordinates: [-0.84785, 47.28638] }, properties: { type: 'street', score: 0.797, name: 'Place de l\'Eglise de Sainte-Christine', street: 'Place de l\'Eglise de Sainte-Christine', postcode: '49120', city: 'Chemillé-en-Anjou', oldcity: 'Ste Christine' } }
+    const christine = { adresse: 'place de l\'Église', ville: 'Sainte-Christine' }
+    reponses.ban = { corps: { features: [place49] } }
+    reponses.osm = osm(26, { road: 'Place de l\'Église', postcode: '63390', village: 'Sainte-Christine', municipality: 'Riom' })
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(false)
+    // Témoin : la BAN ne connaît aucune des deux places : la réponse d'OSM, dans la seule commune de ce nom, est admise.
+    reponses.ban = { corps: { features: [] } }
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(true)
+    // Recherche de la BAN en échec : rien ne dit que la ville soit sans homonyme, la réponse d'OSM est refusée (une panne vaut
+    // oui) ; les voies se cherchent encore.
+    banSelonRecherche['place de l\'Église Sainte-Christine'] = { statut: 503, corps: {} }
+    banSelonRecherche['eglise Sainte-Christine'] = { corps: { features: [] } }
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(false)
+    // Réponse de la BAN admise par types confondus (« Avenue de l'Église » pour « rue de l'Église », seule voie de ce nom dans
+    // le 63) : sa commune compte aussi, face à la « Rue de l'Église » de la commune déléguée (scénario simulé).
+    const avenue63 = { geometry: { coordinates: [2.836, 46.0667] }, properties: { type: 'housenumber', score: 0.9, housenumber: '1', name: '1 Avenue de l\'Église', street: 'Avenue de l\'Église', postcode: '63390', city: 'Sainte-Christine' } }
+    const rue49 = { geometry: { coordinates: [-0.8478, 47.2864] }, properties: { type: 'housenumber', score: 0.8, housenumber: '1', name: '1 Rue de l\'Église', street: 'Rue de l\'Église', postcode: '49120', city: 'Chemillé-en-Anjou', oldcity: 'Ste Christine' } }
+    banSelonRecherche['eglise Sainte-Christine'] = { corps: { features: [voieBan('Avenue de l\'Église', '63390', 'Sainte-Christine')] } }
+    banSelonRecherche['1 rue de l\'Église Sainte-Christine'] = { corps: { features: [avenue63, rue49] } }
+    reponses.osm = { corps: [] }
+    expect((await geocoderAdresse({ adresse: '1 rue de l\'Église', ville: 'Sainte-Christine' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche['1 rue de l\'Église Sainte-Christine'] = { corps: { features: [avenue63] } }
+    expect((await geocoderAdresse({ adresse: '1 rue de l\'Église', ville: 'Sainte-Christine' }, 'FR'))?.precise).toBe(true)
+    // Par Nominatim, à Lille : la BAN écrit « Lille/Lille » (commune à communes associées) ; c'est bien la commune d'OSM.
+    banSelonRecherche['40 rue Pierre Legrand Lille'] = { corps: { features: [{ geometry: { coordinates: [3.08, 50.63] }, properties: { type: 'housenumber', score: 0.59, housenumber: '40', name: '40 Rue Pierre Legrand', street: 'Rue Pierre Legrand', postcode: '59000', city: 'Lille', oldcity: 'Lille' } }] } }
+    banSelonRecherche['legrand Lille'] = { corps: { features: [voieBan('Rue Pierre Legrand', '59000', 'Lille', 'Lille')] } }
+    reponses.osm = osm(30, { house_number: '40', road: 'Rue Pierre Legrand', postcode: '59000', suburb: 'Fives', city: 'Lille' })
+    expect((await geocoderAdresse({ adresse: '40 rue Pierre Legrand', ville: 'Lille' }, 'FR'))?.precise).toBe(true)
+
+    // Lille sans code postal : une rue présente aussi à Lomme ou à Hellemmes (communes associées) compte deux fois. Refus
+    // voulu, qui demande le code postal (« 20 rue Faidherbe » : un n° 20 à Lille et un à Hellemmes, à 3,3 km ; « 15 rue Jules
+    // Guesde » aussi, bien que le n° 15 n'existe qu'à Lille ; relevés du 27/11/2026).
+    const codes: Record<string, string> = { Lille: '59000', Lomme: '59160', Hellemmes: '59260' }
+    const guesde = (partie: string, score: number, numero?: string) => ({ geometry: { coordinates: [3.06, 50.63] }, properties: { type: numero ? 'housenumber' : 'street', score, housenumber: numero, name: `Rue Jules Guesde (${partie})`, street: `Rue Jules Guesde (${partie})`, postcode: codes[partie], city: 'Lille', oldcity: partie } })
+    reponses.osm = { corps: [] }
+    reponses.ban = { corps: { features: [guesde('Lille', 0.9819, '15'), guesde('Lomme', 0.6449), guesde('Hellemmes', 0.5784)] } }
+    expect((await geocoderAdresse({ adresse: '15 rue Jules Guesde', ville: 'Lille' }, 'FR'))?.precise).toBe(false)
+    // Témoin : la seule rue de Lille parmi les réponses : précis.
+    reponses.ban = { corps: { features: [guesde('Lille', 0.9819, '15')] } }
+    expect((await geocoderAdresse({ adresse: '15 rue Jules Guesde', ville: 'Lille' }, 'FR'))?.precise).toBe(true)
+
+    // Ponctuation de tête retirée de la recherche (la BAN répond 400 sinon) et de la lecture.
+    appels = []
+    reponses.ban = ban('housenumber', 0.95)
+    expect((await geocoderAdresse({ adresse: '- 1 rue des Lilas', codePostal: '13008', ville: 'Marseille' }, 'FR'))?.precise).toBe(true)
+    expect(rechercheBan(appels[0])).toBe('1 rue des Lilas 13008 Marseille')
+  })
+
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
     // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
     // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
@@ -1165,6 +1231,9 @@ describe('numeroEtVoieSaisis', () => {
       'Lots du 12 14, 16 rue Paradis', 'Lots du 12 : 12 bis rue Paradis', 'Lotissement Les Oliviers, lots du 12 14 rue Paradis',
       'Logements de 1975 2050 route de Grasse', 'Appartements du 12 14 rue Paradis', 'Lots 12. 14 rue Paradis', 'Lots 12. 13. 14 rue Paradis',
       'Lots du 12. 12 bis rue Paradis', 'Lots n° 12. 14 rue Paradis',
+      // Dixième relecture du 27/11/2026 : complément collé à son numéro devant une ponctuation, deux-points collé.
+      'Lots12, 14 rue Paradis', 'Lots12. 14 rue Paradis', 'Lots12, 13 et 14 rue Paradis', 'Lots12,14 rue Paradis', 'Lots 12: 14 rue Paradis',
+      'Lots12: 14 rue Paradis', 'Bâts3, 12 rue Paradis',
     ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
     // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
     for (const [rue, texte] of <Array<[string, string]>>[
@@ -1183,6 +1252,12 @@ describe('numeroEtVoieSaisis', () => {
       ['Lot du 12 14 rue Paradis', '14 rue Paradis'], ['Immeuble du 12 14 rue Paradis', '14 rue Paradis'],
       ['12. rue Paradis', '12 rue Paradis'], ['Bât. 3. 12 rue Paradis', '12 rue Paradis'], ['Lot 12. 14 rue Paradis', '14 rue Paradis'],
       ['12 av. du Prado', '12 av. du Prado'], ['5 av. du Gal. Leclerc', '5 av. du Gal. Leclerc'], ['Rés. Les Pins 12 rue Paradis', '12 rue Paradis'],
+      // Dixième relecture : deux numéros devant la voie, c'est le second qui la porte (la BAN le rend) ; numéro de liste ;
+      // complément collé au singulier ; deux-points collé ; ponctuation de tête.
+      ['12 14 rue Paradis', '14 rue Paradis'], ['1 3 place du Capitole', '3 place du Capitole'], ['150 152 avenue du Prado', '152 avenue du Prado'],
+      ['1, Résidence Le Parc, 12 rue Paradis', '12 rue Paradis'], ['1. Résidence Le Parc, 12 rue Paradis', '12 rue Paradis'],
+      ['Lot12, 14 rue Paradis', '14 rue Paradis'], ['Bât3, 12 rue Paradis', '12 rue Paradis'], ['Rés2000, 12 rue Paradis', '12 rue Paradis'],
+      ['12: rue Paradis', '12 rue Paradis'], ['- 1 rue des Lilas', '1 rue des Lilas'], ['• 12 rue Paradis', '12 rue Paradis'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
