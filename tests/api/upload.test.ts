@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   colonnesAbsentes: [] as string[],
 }))
 
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => mocks.user) }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => mocks.user))
 
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue(true),

@@ -112,6 +112,9 @@ export function remettreDroitsSimules(): void {
   })
 }
 
+/** Derniers rappels passés à useNotifications par la page : ce qu'elle transmet au hook (société BTP ou non…). */
+export const rappelsNotifications: { derniers: Record<string, unknown> | null } = { derniers: null }
+
 /** Hooks de configuration et d'équipe simulés : mêmes objets à chaque rendu. */
 export function hooksConfigurationSimules() {
   const modules = { ALL_MODULES: [], modulesConfig: [], isModuleEnabled: () => true }
@@ -124,7 +127,10 @@ export function hooksConfigurationSimules() {
   return {
     useModulesConfig: () => modules,
     usePermissions: () => permissions,
-    useNotifications: () => notifications,
+    useNotifications: (_userId?: unknown, _artisanId?: unknown, rappels?: Record<string, unknown>) => {
+      rappelsNotifications.derniers = rappels ?? null
+      return notifications
+    },
     useDashboardMessaging: () => messagerie,
   }
 }
