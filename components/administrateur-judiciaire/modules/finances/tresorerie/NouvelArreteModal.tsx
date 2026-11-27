@@ -7,7 +7,7 @@ import type { CompteAffiche, EcritureSolde } from '@/components/administrateur-j
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
-import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
+import { soldeCompteBancaireCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
@@ -19,6 +19,8 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * Ce montant n'est plus figé à l'ouverture (décision du 26/11/2026, PR 799, rb-03 A) : il est recalculé jusqu'à la
  * clôture, et le formulaire le dit. Même décision : un espace avant la ligne du solde compta, qui ne se lit plus comme la
  * suite de l'aide du solde banque (rb-c03 A), et un séparateur des milliers visible (rb-c02 A).
+ * Décision du 26/11/2026 (PR 799, point 2, choix A) : ce solde reprend le solde d'ouverture du compte quand l'arrêté est
+ * daté de son jour ou d'après, et la phrase d'explication le dit alors.
  * Aucune règle ici : l'écran contrôle la saisie et l'écriture applique le domaine ; un refus est signalé par un toast,
  * la modale restant ouverte.
  */
@@ -35,7 +37,11 @@ export interface NouvelArreteModalProps {
 export function NouvelArreteModal({ compte, ecrituresBanque, onClose, onEnregistrer }: Readonly<NouvelArreteModalProps>) {
   const [valeurs, setValeurs] = useState<ValeursArrete>({ date: AUJOURDHUI_ISO, soldeBanque: '' })
   const [enCours, setEnCours] = useState(false)
-  const soldeCompta = estDateIsoValide(valeurs.date) ? (soldeCompteCentimes(ecrituresBanque, compteBanque(compte.id), valeurs.date) ?? 0) : null
+  const soldeCompta = estDateIsoValide(valeurs.date)
+    ? (soldeCompteBancaireCentimes(ecrituresBanque, compte.id, compte.soldeOuverture, valeurs.date) ?? 0)
+    : null
+  // Solde d'ouverture du compte, quand il entre dans le solde compta montré (arrêté daté de son jour ou d'après).
+  const ouvertureComptee = compte.soldeOuverture && soldeCompta !== null && valeurs.date >= compte.soldeOuverture.au ? compte.soldeOuverture : null
 
   const enregistrer = async () => {
     if (enCours) return
@@ -71,8 +77,10 @@ export function NouvelArreteModal({ compte, ecrituresBanque, onClose, onEnregist
           )}
         </p>
         <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>
-          Lignes de relevé importées sur ce compte jusqu’à cette date ; montant recalculé jusqu’à la clôture de l’arrêté,
-          puis figé.
+          {ouvertureComptee
+            ? `Solde d’ouverture du ${dateIsoVersFr(ouvertureComptee.au)} et lignes de relevé importées sur ce compte depuis cette date, jusqu’à celle de l’arrêté`
+            : 'Lignes de relevé importées sur ce compte jusqu’à cette date'}
+          {' ; montant recalculé jusqu’à la clôture de l’arrêté, puis figé.'}
         </p>
       </ModalBody>
       <ModalFooter>

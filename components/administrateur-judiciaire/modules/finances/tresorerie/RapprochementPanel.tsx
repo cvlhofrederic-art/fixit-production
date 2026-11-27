@@ -309,7 +309,8 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
   const fermer = () => setModale(null)
   const ecritures = useEcrituresArretes(lus.relire, fermer)
   // Arrêté en cours : solde compta de l'instant, recalculé sur les écritures affichées ; arrêté clôturé : solde figé.
-  const arretes = lus.arretes.map((arrete) => avecSoldeComptaCourant(arrete, ecrituresBanque))
+  // Les arrêtés lus sont ceux du compte choisi : son solde d'ouverture entre dans leur solde compta (PR 799, point 2).
+  const arretes = lus.arretes.map((arrete) => avecSoldeComptaCourant(arrete, ecrituresBanque, compte?.soldeOuverture ?? null))
   const courant = arreteCourant(arretes)
   // Arrêté illisible sur le compte : ouverture, clôture et déclôture refusées par l'écriture (db/rapprochements.ts).
   const pret = compte !== null && !lus.chargement && !lus.erreur && lus.illisibles === 0

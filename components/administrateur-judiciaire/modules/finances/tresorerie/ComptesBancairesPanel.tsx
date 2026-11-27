@@ -34,6 +34,7 @@ import {
   NATURES_COMPTE_BANCAIRE,
   type ModeTenueComptes,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
@@ -44,7 +45,8 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * dans la base locale (db/comptes-bancaires.ts), comme le reste de l'écran, en démonstration aussi. Chaque écriture est
  * confirmée ou refusée par un toast. Les comptes sont lus par l'écran (useComptesBancaires), qui les partage avec l'import
  * du relevé et le rapprochement ; le solde de chaque compte est celui de son sous-compte 512 (lignes de relevé importées
- * sur ce compte).
+ * sur ce compte), avec son solde d'ouverture quand il est saisi (décision du 26/11/2026, PR 799, point 2, choix A :
+ * champs « Solde d'ouverture » et « au » des formulaires ; lignes datées avant ce solde signalées, hors du solde).
  */
 
 const MODES = Object.entries(MODES_TENUE_COMPTES) as [ModeTenueComptes, (typeof MODES_TENUE_COMPTES)[ModeTenueComptes]][]
@@ -161,8 +163,25 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
 const SAISIE_IMMEUBLE_ABSENTE = "La saisie de la destination de l'immeuble n'existe pas encore."
 
 /**
+ * Avertissement d'un compte dont des lignes de relevé sont datées avant son solde d'ouverture (décision du 26/11/2026,
+ * PR 799, point 2) : elles restent dans « Lignes de relevé », mais n'entrent pas dans le solde du compte.
+ */
+function AlerteLignesAvantOuverture({ compte, au }: Readonly<{ compte: CompteAffiche; au: string }>) {
+  const plusieurs = compte.lignesAvantOuverture > 1
+  const lignes = plusieurs ? `${compte.lignesAvantOuverture} lignes de relevé datées` : '1 ligne de relevé datée'
+  return (
+    <Alert kind="warn" icon="alert" title={`${nomDuCompte(compte)} : ${lignes} avant le solde d’ouverture du ${dateIsoVersFr(au)}.`}>
+      {plusieurs
+        ? 'Tenues pour déjà comprises dans ce solde, elles n’entrent pas dans le solde du compte.'
+        : 'Tenue pour déjà comprise dans ce solde, elle n’entre pas dans le solde du compte.'}
+      {' Si ce n’est pas le cas, corriger la date ou le montant du solde d’ouverture.'}
+    </Alert>
+  )
+}
+
+/**
  * Alertes du domaine : anomalies (ou comptes conformes), seulement quand le mode se résout ; information Caisse des
- * dépôts et entrées non connues, qui ne dépendent pas du mode.
+ * dépôts et entrées non connues, qui ne dépendent pas du mode ; lignes de relevé datées avant un solde d'ouverture.
  */
 function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
   return (
@@ -193,10 +212,17 @@ function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
           {`${vue.obligationFonds.motif} ${SAISIE_IMMEUBLE_ABSENTE} Le contrôle « fonds de travaux à ouvrir » n'est donc pas lancé.`}
         </Alert>
       )}
-      {vue.reprisActifs > 0 && (
+      {vue.comptes.map(
+        (compte) =>
+          compte.soldeOuverture !== null &&
+          compte.lignesAvantOuverture > 0 && (
+            <AlerteLignesAvantOuverture key={compte.id} compte={compte} au={compte.soldeOuverture.au} />
+          ),
+      )}
+      {vue.reprisSansSoldeConnu > 0 && (
         <Alert kind="" icon="info" title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : solde inconnu ici.`}>
-          Le rappel « solder puis clôturer » n’est pas lancé : le solde affiché ne reprend pas le solde du compte avant le
-          premier relevé importé.
+          Le rappel « solder puis clôturer » n’est pas lancé : sans solde d’ouverture saisi, le solde affiché ne reprend pas
+          le solde du compte avant le premier relevé importé.
         </Alert>
       )}
       {vue.illisibles > 0 && (
@@ -391,8 +417,10 @@ export function ComptesBancairesPanel({ copro, lus, ecrituresBanque }: Readonly<
                   <>
                     <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />
                     <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
-                      Solde par compte : solde de son sous-compte 512, somme des lignes de relevé importées sur ce compte
-                      (sans le solde d’avant le premier relevé importé) ; « — » : aucune ligne importée.
+                      Solde par compte : solde d’ouverture saisi sur le compte, plus les lignes de relevé importées sur
+                      son sous-compte 512 à partir de la date de ce solde ; sans solde d’ouverture, somme des lignes
+                      importées (sans le solde d’avant le premier relevé importé) ; « — » : ni solde d’ouverture ni ligne
+                      importée.
                     </p>
                   </>
                 )}

@@ -1,5 +1,5 @@
 import type { Banque, Ecriture } from '@/lib/administrateur-judiciaire/db/schema'
-import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
+import { lignesAvantOuverture, soldeCompteBancaireCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import {
   MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE,
   NATURES_COMPTE_BANCAIRE,
@@ -22,6 +22,7 @@ import {
   type ObligationFondsTravaux,
   type SaisieObligationFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
+import { soldeOuvertureEnregistre, type SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 
 /**
  * Vue du panneau « Comptes bancaires du mandat » : ce que rend le domaine (domain/comptes-bancaires.ts,
@@ -34,11 +35,15 @@ import {
  * - « la copropriété est dotée d'un fonds de travaux » (controlerComptesMandat) : le domaine n'a pas de valeur inconnue.
  *   La vue lui passe une valeur neutre, « non dotée » tant que l'obligation n'est pas établie : le contrôle « fonds de
  *   travaux manquant » est donc neutralisé ;
- * - solde de chaque compte : le solde affiché est celui de son sous-compte 512 (db/sous-comptes-banque.ts), somme des
- *   lignes de relevé importées sur ce compte, sans solde d'ouverture (aucune écriture d'ouverture n'existe) ; null sans
- *   aucune ligne. Ce n'est donc pas le solde réel d'un compte ouvert avant le premier relevé importé : la vue passe au
- *   contrôle un solde neutre de 0 (lu comme « soldé »), le contrôle « compte repris à solder » reste neutralisé, et un
- *   seul bandeau le signale dès qu'un compte repris est actif.
+ * - solde de chaque compte : le solde affiché est celui de son sous-compte 512 (db/sous-comptes-banque.ts,
+ *   soldeCompteBancaireCentimes). Décision du 26/11/2026 (PR 799, point 2, choix A) : avec le solde d'ouverture saisi
+ *   sur le compte, c'est ce solde plus les lignes de relevé importées à partir de sa date (les lignes datées avant,
+ *   tenues pour déjà comprises, sont comptées à part et signalées) ; sans lui, la somme des lignes importées, qui n'est
+ *   pas le solde réel d'un compte ouvert avant le premier relevé importé ; null sans solde d'ouverture ni ligne ;
+ * - contrôle « compte repris à solder » : toujours neutralisé (la vue passe au contrôle un solde neutre de 0, lu comme
+ *   « soldé »). Il pourrait désormais être lancé pour un compte repris dont le solde d'ouverture est saisi ; ce n'est pas
+ *   fait ici, la décision ne le prévoit pas (point à soumettre). Un seul bandeau signale les comptes repris actifs dont
+ *   le solde reste inconnu, c'est-à-dire sans solde d'ouverture.
  */
 
 /** Compte lisible (nature connue), prêt à afficher. */
@@ -54,8 +59,12 @@ export interface CompteAffiche {
   reserveAuFondsTravaux: boolean
   /** Compte actif qui tient le fonds de travaux (estCompteDuFondsTravaux, J71) ; un compte clôturé ne le tient plus. */
   tientLeFonds: boolean
-  /** Solde du sous-compte 512 du compte, en centimes (voir l'en-tête) ; null : aucune ligne de relevé importée. */
+  /** Solde du compte, en centimes (voir l'en-tête) ; null : ni solde d'ouverture ni ligne de relevé importée. */
   soldeCentimes: number | null
+  /** Solde d'ouverture saisi sur le compte (solde au début de son jour) ; null : aucun. */
+  soldeOuverture: SoldeOuverture | null
+  /** Lignes de relevé du compte datées avant son solde d'ouverture : hors de son solde, à signaler. */
+  lignesAvantOuverture: number
 }
 
 /** Mode appliqué au mandat et contrôles qui en dépendent (controlerComptesMandat). */
@@ -77,8 +86,8 @@ export interface VueComptesBancaires {
   erreurMode: string | null
   informations: InformationComptes[]
   obligationFonds: ObligationFondsTravaux
-  /** Comptes repris actifs : leur solde n'est pas connu ici. */
-  reprisActifs: number
+  /** Comptes repris actifs sans solde d'ouverture : leur solde n'est pas connu ici. */
+  reprisSansSoldeConnu: number
   /** Pratique du cabinet pour un administrateur provisoire (J37), proposée, jamais imposée ; null sinon. */
   pratiqueAdministrateurProvisoire: ModeTenueComptes | null
 }
@@ -107,7 +116,7 @@ const IMMEUBLE_NON_RENSEIGNE: SaisieObligationFondsTravaux = {
   nbLotsPrincipaux: null,
 }
 
-/** Solde neutre passé au contrôle (lu comme « soldé ») : le solde réel d'un compte n'est pas connu (voir l'en-tête). */
+/** Solde neutre passé au contrôle (lu comme « soldé ») : le contrôle « compte repris à solder » reste neutralisé (voir l'en-tête). */
 const SOLDE_NEUTRE_CONTROLE = 0
 
 const estNatureConnue = (nature: unknown): nature is NatureCompteBancaire =>
@@ -117,6 +126,7 @@ function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }, ecritur
   const tenaitFondsTravaux = ligne.tenaitFondsTravaux === true
   const reserveAuFondsTravaux = ligne.reserveAuFondsTravaux === true
   const actif = ligne.actif !== false
+  const soldeOuverture = soldeOuvertureEnregistre(ligne)
   return {
     id: ligne.id,
     nature: ligne.nature,
@@ -129,7 +139,9 @@ function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }, ecritur
     reserveAuFondsTravaux,
     // Comme le domaine (controlerComptesMandat ne lit que les comptes actifs).
     tientLeFonds: actif && estCompteDuFondsTravaux({ nature: ligne.nature, tenaitFondsTravaux, reserveAuFondsTravaux }),
-    soldeCentimes: soldeCompteCentimes(ecritures, compteBanque(ligne.id)),
+    soldeCentimes: soldeCompteBancaireCentimes(ecritures, ligne.id, soldeOuverture),
+    soldeOuverture,
+    lignesAvantOuverture: lignesAvantOuverture(ecritures, ligne.id, soldeOuverture),
   }
 }
 
@@ -189,7 +201,9 @@ export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancair
     erreurMode,
     informations: informationsComptesMandat(controles),
     obligationFonds,
-    reprisActifs: comptes.filter((compte) => compte.actif && compte.nature === 'repris_ancien_gestionnaire').length,
+    reprisSansSoldeConnu: comptes.filter(
+      (compte) => compte.actif && compte.nature === 'repris_ancien_gestionnaire' && compte.soldeOuverture === null,
+    ).length,
     pratiqueAdministrateurProvisoire: estAdministrateurProvisoire(entree.fondement) ? MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE : null,
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
+import { arretesSurs } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { repoBanques, repoCabinets, repoCoproprietes, repoMandats } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
 import { ajDb, type Banque, type Cabinet, type Mandat } from '@/lib/administrateur-judiciaire/db/schema'
@@ -17,6 +18,14 @@ import {
   type NatureCompteBancaire,
   type ReglagesComptesCabinet,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import {
+  lireSaisieSoldeOuverture,
+  memeSoldeOuverture,
+  soldeOuvertureEnregistre,
+  verifierChangementSoldeOuverture,
+  type SaisieSoldeOuverture,
+} from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
+import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Comptes bancaires d'une copropriété et modes de tenue (D-BANQUE), écrits par l'écran « Banque et recouvrement » :
@@ -24,6 +33,10 @@ import {
  * - réglage du cabinet : table « cabinets », une seule ligne (la base locale est celle d'un cabinet) ;
  * - choix du mandat : Mandat.modeComptesBancaires (null = comme le cabinet), puis l'état chargé du store est mis à jour.
  * Aucun changement de schéma ni de version : les marques du fonds de travaux (J71) sont des champs non indexés.
+ * Solde d'ouverture d'un compte (décision du 26/11/2026, PR 799, point 2, choix A) : deux champs non indexés de plus
+ * (soldeOuvertureCentimes, soldeOuvertureAu), sans version nouvelle non plus, et sans écriture au journal de banque
+ * (domain/solde-ouverture-compte.ts, qui dit pourquoi). Son changement est contrôlé dans la transaction de l'écriture,
+ * contre les arrêtés du compte relus dans cette transaction.
  * Volontairement hors du store (aucune action ajoutée à EtatDonneesStore : sa forme est figée par l'oracle de la base
  * locale), comme db/sinistres.ts. Les règles (natures, IBAN, marques, modes) sont celles du domaine
  * (domain/comptes-bancaires.ts), qui lève l'erreur affichée : rien n'est écrit quand il refuse.
@@ -41,11 +54,18 @@ export interface SaisieCompteBancaire {
   tenaitFondsTravaux?: boolean
   /** Placement réservé au fonds de travaux (J71, réservé à la nature « placement »). */
   reserveAuFondsTravaux?: boolean
+  /**
+   * Solde d'ouverture saisi (montant en euros et date). Montant et date vides, ou null : aucun (retiré d'un compte qui
+   * en avait un). Champ absent : le solde d'ouverture du compte n'est pas touché.
+   */
+  soldeOuverture?: SaisieSoldeOuverture | null
 }
 
 export interface OptionsEnregistrementCompte extends OptionsEcriture {
   /** Compte existant à modifier ; absent ou null : création. */
   id?: string | null
+  /** Jour courant (AAAA-MM-JJ), au-delà duquel un solde d'ouverture est refusé ; par défaut celui de l'application. */
+  aujourdhui?: string
 }
 
 const texteOuNull = (texte: string | null | undefined): string | null => {
@@ -89,6 +109,10 @@ function champsCompte(saisie: SaisieCompteBancaire): ChampsCompte {
  * Crée ou modifie un compte de la copropriété. Une modification garde l'état du compte (actif ou clôturé) ; une marque
  * devenue sans objet (changement de nature) est remise à false. Refusé, sans écriture, pour une copropriété
  * introuvable, une nature inconnue, un IBAN invalide ou une marque du fonds portée par une autre nature.
+ * Solde d'ouverture (saisie.soldeOuverture, s'il est fourni) : contrôlé par le domaine (montant et date ensemble, date
+ * ni invalide ni après aujourd'hui). À la création, il n'est écrit que s'il est saisi. À la modification, son changement
+ * est refusé, sans aucune écriture du compte, sur un compte clôturé, sous un arrêté clôturé qui couvre sa date
+ * (déclôturer d'abord) ou tant qu'un arrêté illisible pourrait en cacher un ; inchangé, il n'est pas réécrit.
  */
 export async function enregistrerCompteBancaire(
   coproprieteId: string,
@@ -98,9 +122,22 @@ export async function enregistrerCompteBancaire(
   if (!(await repoCoproprietes.get(coproprieteId))) throw new Error(`Copropriété introuvable (id=${coproprieteId}).`)
   const champs = champsCompte(saisie)
   const ecriture = { actor: options.actor ?? null }
-  return options.id
-    ? repoBanques.update(options.id, champs, ecriture)
-    : repoBanques.create({ ...champs, coproprieteId, actif: true }, ecriture)
+  const id = options.id
+  if (saisie.soldeOuverture === undefined)
+    return id ? repoBanques.update(id, champs, ecriture) : repoBanques.create({ ...champs, coproprieteId, actif: true }, ecriture)
+  const ouverture = lireSaisieSoldeOuverture(saisie.soldeOuverture, options.aujourdhui ?? AUJOURDHUI_ISO)
+  const champsOuverture = { soldeOuvertureCentimes: ouverture?.centimes ?? null, soldeOuvertureAu: ouverture?.au ?? null }
+  if (!id) return repoBanques.create({ ...champs, ...(ouverture ? champsOuverture : {}), coproprieteId, actif: true }, ecriture)
+  return ajDb.transaction('rw', [ajDb.banques, ajDb.rapprochements, ajDb.activityLog], async () => {
+    // Compte disparu : l'erreur « introuvable » est celle du repository, à l'écriture.
+    const existant = await repoBanques.get(id)
+    const avant = existant ? soldeOuvertureEnregistre(existant) : null
+    if (!existant || memeSoldeOuverture(avant, ouverture)) return repoBanques.update(id, champs, ecriture)
+    const compteActif = existant.actif !== false
+    // Compte clôturé : refusé par le domaine avant toute lecture des arrêtés.
+    verifierChangementSoldeOuverture({ avant, apres: ouverture, compteActif, arretes: compteActif ? await arretesSurs(id) : [] })
+    return repoBanques.update(id, { ...champs, ...champsOuverture }, ecriture)
+  })
 }
 
 /** Clôture un compte : il reste en base, inactif, et ne compte plus dans les contrôles du mandat. */
