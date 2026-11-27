@@ -29,6 +29,7 @@ import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/rele
 import type { Ecriture } from '@/lib/administrateur-judiciaire/db/schema'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-360'
+import type { ReleveImporte } from '@/lib/administrateur-judiciaire/domain/import/releves-importes'
 
 /**
  * Panneau « Importer un relevé » de l'écran « Banque et recouvrement », déplacé de TresorerieModule.tsx. Le relevé
@@ -38,6 +39,9 @@ import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain
  * (lecture du fichier), l'import non. Changer de copropriété ou de compte abandonne l'analyse, faite pour l'ancien.
  * Formats : CSV, CFONB 120 et camt.053 (analyse-releve.ts) ; fichier lu en UTF-8, à défaut en Windows-1252, refusé
  * avant lecture au-delà de 10 Mo ; un fichier structuré qui contient une erreur n'est pas importé.
+ * Décision du 26/11/2026 du référent métier (PR 799, points 10 B et 11 B) : les relevés CFONB 120 et camt.053 importés
+ * sont gardés (db/releves-importes.ts). L'analyse reçoit ceux de la copropriété et reconnaît un relevé déjà importé sur
+ * le compte choisi ; l'import garde les relevés nouveaux avec leurs lignes, puis fait relire les relevés gardés.
  * Décision du 26/11/2026 (PR 799) : sur téléphone, « Importer N lignes » passe sous la phrase, en entier (rb-c06 A, classe
  * vfx-import-actions, règles de aj-correctifs.css) ; le motif « Aucun compte bancaire actif » n'est dit qu'une fois (rb-c08 A).
  */
@@ -78,7 +82,7 @@ async function importerEtImputer(
   analyse: AnalyseReleve,
   selections: SelectionsImputation,
 ): Promise<{ lignes: number; imputes: number }> {
-  const ecrituresCreees = await importerReleveSurCompte(coproprieteId, compte.id, analyse.retenues)
+  const ecrituresCreees = await importerReleveSurCompte(coproprieteId, compte.id, analyse.retenues, analyse.relevesAImporter)
   let imputes = 0
   for (const [index, ecriture] of ecrituresCreees.entries()) {
     const coproprietaireId = selections[index]
@@ -116,6 +120,14 @@ function lireFichierReleve(fichier: File, lu: (texte: string) => void, refuse: (
 /** « Importer 1 ligne », « Importer 2 lignes ». */
 const libelleImporter = (nombre: number): string => `Importer ${nombre} ligne${nombre > 1 ? 's' : ''}`
 
+/** Relevés déjà importés sur le compte, annoncés avec le résultat de l'analyse ; null : aucun. */
+function annonceDejaImportes(nombre: number): string | null {
+  if (nombre === 0) return null
+  return nombre > 1
+    ? `${nombre} relevés déjà importés sur ce compte : leurs mouvements ne sont pas repris.`
+    : 'Relevé déjà importé sur ce compte : ses mouvements ne sont pas repris.'
+}
+
 /**
  * Résultat de l'analyse annoncé aux lecteurs d'écran (zone aria-live du panneau, présente avant l'analyse, comme
  * l'annonce de la fiche sinistre) : lignes retenues et ce qui empêche l'import ; vide sans analyse.
@@ -124,7 +136,9 @@ function annonceAnalyse(analyse: AnalyseReleve | null, motifCompte: string | nul
   if (!analyse) return ''
   const lignes = `Relevé analysé (${LIBELLES_FORMAT_RELEVE[analyse.format]}) : ${accord(analyse.retenues.length, 'ligne retenue', 'lignes retenues')}.`
   const motif = motifCompte ? `Import impossible : ${motifCompte}` : null
-  return [lignes, analyse.blocage, motif].filter((texte): texte is string => texte !== null).join(' ')
+  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), analyse.blocage, motif]
+    .filter((texte): texte is string => texte !== null)
+    .join(' ')
 }
 
 export interface ImportRelevePanelProps {
@@ -135,9 +149,21 @@ export interface ImportRelevePanelProps {
   personnes: readonly PersonneCopropriete[]
   /** Écritures de banque (« 512 » et sous-comptes) du journal de la copropriété. */
   lignesBanque: readonly Ecriture[]
+  /** Relevés importés gardés de la copropriété : un relevé déjà importé sur le compte choisi est reconnu à l'analyse. */
+  relevesImportes: readonly ReleveImporte[]
+  /** Relit les relevés gardés, après un import. */
+  relireReleves: () => void
 }
 
-export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lignesBanque }: Readonly<ImportRelevePanelProps>) {
+export function ImportRelevePanel({
+  copro,
+  comptes,
+  etatComptes,
+  personnes,
+  lignesBanque,
+  relevesImportes,
+  relireReleves,
+}: Readonly<ImportRelevePanelProps>) {
   const { push } = useToast()
   const [texteReleve, setTexteReleve] = useState('')
   const [analyse, setAnalyse] = useState<AnalyseReleve | null>(null)
@@ -166,6 +192,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
       compte: compteChoisi,
       lignesBanque,
       personnes: personnes.map((personne) => ({ id: personne.id, nom: personne.nom, solde: personne.solde })),
+      relevesImportes,
     })
     setAnalyse(resultat)
     setSelections(selectionsProposees(resultat))
@@ -196,6 +223,8 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
     } catch (erreur) {
       push({ kind: 'warn', title: 'Import impossible', desc: messageErreur(erreur) })
     } finally {
+      // Relevés gardés relus après une réussite comme après un refus (relevé gardé entre-temps par un autre import).
+      relireReleves()
       setImportEnCours(false)
     }
   }

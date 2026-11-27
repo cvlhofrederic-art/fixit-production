@@ -21,8 +21,11 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
  * Résultat de l'analyse d'un relevé (panneau « Importer un relevé ») : lignes non lues, doublons écartés, lignes
  * retenues avec le copropriétaire proposé (rendu déplacé tel quel de TresorerieModule.tsx) ; pour un relevé CFONB 120
  * ou camt.053 (mémo de branchement du 20/11/2026), en plus : format lu, relevés lus avec leurs soldes, blocage de
- * l'import et toutes les erreurs du fichier (un relevé refusé reste lisible en entier), avertissements, limite des
- * empreintes (un relevé importé lors d'un import précédent n'est pas reconnu).
+ * l'import et toutes les erreurs du fichier (un relevé refusé reste lisible en entier), avertissements.
+ * Décision du 26/11/2026 du référent métier (PR 799, point 10 B) : un relevé déjà importé sur le compte lors d'un import
+ * précédent est reconnu ; un bandeau sur le modèle de « Import bloqué » le dit, un message par relevé, avec la date de
+ * cet import, et sa ligne de « Relevés lus » porte « Déjà importé ». L'ancien bandeau « non reconnu » ne reste que pour
+ * un compte qui porte des lignes sans relevé gardé (CSV, import antérieur), avec un texte qui dit cette limite.
  */
 
 const STYLE_DISCRET = { fontSize: 11, color: 'var(--navy-300)' } as const
@@ -37,7 +40,10 @@ const enLignes = (textes: readonly string[]) =>
     </span>
   ))
 
-/** Bandeaux de la lecture du fichier : blocage et erreurs, lignes non lues d'un CSV, avertissements, limite. */
+/** « Relevé déjà importé », « 2 relevés déjà importés ». */
+const titreDejaImportes = (nombre: number): string => (nombre > 1 ? `${nombre} relevés déjà importés` : 'Relevé déjà importé')
+
+/** Bandeaux de la lecture du fichier : blocage et erreurs, relevés déjà importés, lignes non lues d'un CSV, avertissements, limite. */
 function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
   const structure = analyse.format !== 'csv'
   const pluriel = (nombre: number) => (nombre > 1 ? 's' : '')
@@ -47,6 +53,14 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
         <Alert kind="rust" icon="alert" title="Import bloqué">
           <span style={STYLE_LIGNE}>{texteBlocage(analyse.blocage)}</span>
           {structure && enLignes(analyse.erreurs)}
+        </Alert>
+      )}
+      {analyse.relevesDejaImportes.length > 0 && (
+        <Alert kind="rust" icon="alert" title={titreDejaImportes(analyse.relevesDejaImportes.length)}>
+          {enLignes(analyse.relevesDejaImportes)}
+          {analyse.relevesAImporter.length === 0 && (
+            <span style={STYLE_LIGNE}>Rien à importer : tous les relevés de ce fichier sont déjà enregistrés sur ce compte.</span>
+          )}
         </Alert>
       )}
       {!structure && analyse.erreurs.length > 0 && (
@@ -64,13 +78,21 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
         </Alert>
       )}
       {analyse.limiteEmpreintes && (
-        <Alert kind="" icon="info" title="Relevé déjà importé lors d’un import précédent : non reconnu">
-          Les relevés importés ne sont pas encore mémorisés : seul un relevé présent deux fois dans ce fichier est reconnu.
-          Vérifier la période avant d’importer : un relevé importé deux fois compterait deux fois dans le solde du compte.
+        <Alert kind="" icon="info" title="Lignes enregistrées sans relevé gardé">
+          Des lignes de ce compte viennent d’un CSV ou d’un import fait avant que les relevés soient gardés : un relevé qui
+          les contient n’est pas reconnu. Vérifier la période avant d’importer : un relevé importé deux fois compterait deux
+          fois dans le solde du compte.
         </Alert>
       )}
     </>
   )
+}
+
+/** Pastille de l'état d'un relevé lu. */
+const PILL_ETAT_RELEVE: Record<ReleveLu['etat'], { kind: string; label: string }> = {
+  nouveau: { kind: 'sage', label: 'Contrôlé' },
+  deja_importe: { kind: 'amber', label: 'Déjà dans le fichier' },
+  importe_avant: { kind: 'amber', label: 'Déjà importé' },
 }
 
 /**
@@ -110,15 +132,9 @@ function TableauRelevesLus({ releves }: Readonly<{ releves: readonly ReleveLu[] 
                 {releve.mouvements}
               </td>
               <td role="cell" data-label="État">
-                {releve.etat === 'nouveau' ? (
-                  <Pill kind="sage" noDot>
-                    Contrôlé
-                  </Pill>
-                ) : (
-                  <Pill kind="amber" noDot>
-                    Déjà dans le fichier
-                  </Pill>
-                )}
+                <Pill kind={PILL_ETAT_RELEVE[releve.etat].kind} noDot>
+                  {PILL_ETAT_RELEVE[releve.etat].label}
+                </Pill>
               </td>
             </tr>
           ))}

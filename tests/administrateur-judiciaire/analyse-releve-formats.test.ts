@@ -14,8 +14,9 @@ import { lireReleve } from '@/lib/administrateur-judiciaire/domain/import/lectur
  * Analyse d'un relevé avant import (écran « Banque et recouvrement ») pour les relevés CFONB 120 et camt.053, d'après le
  * mémo de branchement : lireReleve avec l'IBAN du compte choisi pour seul compte attendu ; dedoublonnerRelevesStructures
  * pour un relevé structuré (jamais dedoublonnerReleve) ; fichier avec une erreur : import bloqué, relevés lus montrés ;
- * empreintes des relevés non gardées (aucune table) : un relevé importé lors d'un import précédent n'est pas reconnu, et
- * l'analyse le dit.
+ * depuis la décision du 26/11/2026 (PR 799, point 10 B), les relevés importés sont gardés (table « relevesImportes ») :
+ * un relevé importé lors d'un import précédent est reconnu (analyse-releve-deja-importe.test.ts) ; la limite n'est plus
+ * dite que pour un compte qui porte des lignes sans relevé gardé.
  */
 
 const dossier = join(__dirname, 'fixtures', 'releves')
@@ -100,7 +101,7 @@ describe('analyse d’un relevé structuré', () => {
     expect(analyse.avertissements.some((texte) => texte.includes('déjà importé : 4 mouvements non repris'))).toBe(true)
   })
 
-  it('mouvements identiques d’un même relevé : tous gardés (jamais dedoublonnerReleve) ; limite des empreintes dite', () => {
+  it('mouvements identiques d’un même relevé : tous gardés (jamais dedoublonnerReleve) ; compte sans ligne : aucune limite à dire', () => {
     const lignes = CFONB_UN_COMPTE.split('\n'),
       fin = lignes.findIndex((ligne) => ligne.startsWith('07')),
       // Frais de tenue de compte (04 de 12,50) répétés : nouveau solde du relevé abaissé d'autant (472,94 → 460,44 ;
@@ -110,7 +111,7 @@ describe('analyse d’un relevé structuré', () => {
     const analyse = analyserReleve(entree(releve.join('\n')))
     expect(analyse.erreurs).toEqual([])
     expect(analyse.retenues.filter((ligne) => ligne.montant === -12.5)).toHaveLength(2)
-    expect(analyse.limiteEmpreintes).toBe(true)
+    expect(analyse.limiteEmpreintes).toBe(false)
   })
 
   it('mouvement de même date, montant et libellé qu’une ligne déjà enregistrée sur le compte : gardé, avec un avertissement', () => {

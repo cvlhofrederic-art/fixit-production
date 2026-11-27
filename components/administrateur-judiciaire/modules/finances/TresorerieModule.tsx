@@ -21,6 +21,7 @@ import { useDonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
 import type { Ecriture, Impaye } from '@/lib/administrateur-judiciaire/db/schema'
 import { banqueDuCompte, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { useComptesBancaires } from '@/lib/administrateur-judiciaire/db/use-comptes-bancaires'
+import { useRelevesImportes } from '@/lib/administrateur-judiciaire/db/use-releves-importes'
 import { dateIsoVersFr, dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
 import { listerCoproprietairesCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-360'
@@ -71,7 +72,8 @@ const etatLectureComptes = (lus: { chargement: boolean; erreur: string | null })
  * Banque et recouvrement (données réelles de la base locale) : comptes bancaires du mandat, arrêtés de rapprochement,
  * import d'un relevé sur le compte bancaire choisi (CSV, CFONB 120, camt.053 ; dédoublonnage, imputation des
  * encaissements aux copropriétaires), lettrage des lignes de banque et dossiers de recouvrement de l'art. 19-2. Les
- * comptes bancaires sont lus ici et partagés par les panneaux.
+ * comptes bancaires sont lus ici et partagés par les panneaux, comme les relevés importés gardés (décision du
+ * 26/11/2026, PR 799) : l'import y reconnaît un relevé déjà importé, « Nouvel arrêté » y reprend le solde de clôture.
  */
 export function TresorerieModule() {
   const { push } = useToast()
@@ -82,6 +84,9 @@ export function TresorerieModule() {
   const copro = donnees.copros.find((candidate) => candidate.code === codeCopro)
   const lus = useComptesBancaires(copro?.id ?? null, (message) =>
     push({ kind: 'warn', title: 'Comptes bancaires illisibles', desc: message }),
+  )
+  const relevesLus = useRelevesImportes(copro?.id ?? null, (message) =>
+    push({ kind: 'warn', title: 'Relevés importés illisibles', desc: message }),
   )
   const personnes = copro ? listerCoproprietairesCopropriete(copro, donnees.lots, donnees.coproprietaires) : []
   const journal = copro ? donnees.journaux.find((candidat) => candidat.coproprieteId === copro.id) : null
@@ -205,13 +210,15 @@ export function TresorerieModule() {
         ]}
       />
       <ComptesBancairesPanel copro={copro} lus={lus} ecrituresBanque={lignesBanque} />
-      <RapprochementPanel comptes={comptes} etatComptes={etatComptes} ecrituresBanque={lignesBanque} />
+      <RapprochementPanel comptes={comptes} etatComptes={etatComptes} ecrituresBanque={lignesBanque} relevesImportes={relevesLus.releves} />
       <ImportRelevePanel
         copro={copro}
         comptes={comptes}
         etatComptes={etatComptes}
         personnes={personnes}
         lignesBanque={lignesBanque}
+        relevesImportes={relevesLus.releves}
+        relireReleves={relevesLus.relire}
       />
       <Panel
         title={`Lignes de relevé (${lignesBanque.length})`}

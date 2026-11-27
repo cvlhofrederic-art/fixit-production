@@ -18,8 +18,9 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 /**
  * Écran « Banque et recouvrement », import des relevés CFONB 120 et camt.053 (mémo de branchement du 20/11/2026) :
  * format détecté, relevés lus avec leurs soldes, import au sous-compte 512 du compte choisi, fichier avec une erreur
- * bloqué (relevés lus et erreurs montrés en entier), limite des empreintes dite, fichier lu en UTF-8 ou Windows-1252,
- * fichier trop gros refusé avant lecture. Base de démonstration (Le Clos des Vignes, C2).
+ * bloqué (relevés lus et erreurs montrés en entier), fichier lu en UTF-8 ou Windows-1252, fichier trop gros refusé avant
+ * lecture. Base de démonstration (Le Clos des Vignes, C2). Les relevés importés sont gardés depuis la décision du
+ * 26/11/2026 (PR 799, point 10 B) : l'ancien bandeau « non reconnu » n'existe plus (releves-importes-ecran.test.tsx).
  */
 
 const dossier = join(__dirname, 'fixtures', 'releves')
@@ -78,7 +79,7 @@ function analyser(texte: string) {
 }
 
 describe('Import des relevés CFONB 120 et camt.053', () => {
-  it('CFONB 120 : format et relevés lus, limite dite ; mouvements importés au sous-compte du compte choisi', async () => {
+  it('CFONB 120 : format et relevés lus ; mouvements importés au sous-compte du compte choisi', async () => {
     const compte = await ajouterCompte(IBAN_FIXTURE)
     const { push } = await rendre()
     analyser(CFONB_UN_COMPTE)
@@ -90,7 +91,8 @@ describe('Import des relevés CFONB 120 et camt.053', () => {
     expect(releves[0].textContent).toContain('472,94 €')
     // rb-c08 A (décision du 26/11/2026) : le symbole de l'euro, comme partout dans le module.
     expect(releves[0].textContent).not.toContain('EUR')
-    expect(titresAlertes()).toContain('Relevé déjà importé lors d’un import précédent : non reconnu')
+    // Compte sans aucune ligne : rien n'a pu être importé sans relevé gardé, aucun bandeau.
+    expect(titresAlertes()).toEqual([])
     expect(boutonImporter()).toHaveTextContent('Importer 5 lignes')
     expect(boutonImporter()).toBeEnabled()
     await act(async () => {
@@ -209,7 +211,7 @@ describe('Import des relevés CFONB 120 et camt.053', () => {
     analyser('Date;Libellé;Montant\n05/10/2026;VIR SEPA;350,00')
     expect(panneauImport().textContent).toContain('Format lu : CSV')
     expect(dansImport().queryByRole('table', { name: 'Relevés lus' })).toBeNull()
-    expect(titresAlertes()).not.toContain('Relevé déjà importé lors d’un import précédent : non reconnu')
+    expect(titresAlertes()).toEqual([])
     expect(boutonImporter()).toBeEnabled()
   })
 })

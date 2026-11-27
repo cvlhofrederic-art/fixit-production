@@ -1,7 +1,8 @@
 import type { SaisieArrete } from '@/lib/administrateur-judiciaire/db/rapprochements'
-import { estDateIsoValide, messagePlausibilite, plausibiliteDate } from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateIsoVersFr, estDateIsoValide, messagePlausibilite, plausibiliteDate } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { parserMontant } from '@/lib/administrateur-judiciaire/domain/import/csv'
+import type { SoldeBanquePropose } from '@/lib/administrateur-judiciaire/domain/import/releves-importes'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 
 /**
@@ -33,6 +34,31 @@ export function soldeSaisiVersCentimes(texte: string): number | null {
   if (euros === null) return null
   const centimes = Math.round(euros * 100)
   return Math.abs(euros * 100 - centimes) < 1e-6 ? centimes : null
+}
+
+/**
+ * Solde en centimes → texte du champ « Solde banque », relu au centime près par soldeSaisiVersCentimes (« 472,94 »,
+ * « -127,06 ») : sans séparateur des milliers, comme une saisie à la main. Sert au solde proposé d'un relevé importé
+ * (décision du 26/11/2026, PR 799, rb-03 C).
+ */
+export function saisieDuSolde(centimes: number): string {
+  const absolu = Math.abs(centimes)
+  return `${centimes < 0 ? '-' : ''}${Math.trunc(absolu / 100)},${String(absolu % 100).padStart(2, '0')}`
+}
+
+const AIDE_SOLDE_BANQUE = 'Solde du relevé de la banque à cette date ; négatif : découvert.'
+
+/**
+ * Aide du champ « Solde banque ». Solde proposé d'un relevé importé : sa source, « relevé du JJ/MM/AAAA » (date de
+ * clôture du relevé), et la réserve quand ce relevé est clos avant la date de l'arrêté (des mouvements ont pu passer
+ * depuis). Sans solde proposé, ou dès que le solde est saisi à la main : l'aide d'avant.
+ */
+export function aideSoldeBanque(propose: SoldeBanquePropose | null): string {
+  if (!propose) return AIDE_SOLDE_BANQUE
+  const source = `Solde de clôture du relevé du ${dateIsoVersFr(propose.dateReleve)}`
+  return propose.anterieur
+    ? `${source}, antérieur à la date de l’arrêté : à vérifier. Modifiable ; négatif : découvert.`
+    : `${source}, modifiable ; négatif : découvert.`
 }
 
 /** Saisie du formulaire « Nouvel arrêté » : date (AAAA-MM-JJ du champ date) et solde banque en euros. */
