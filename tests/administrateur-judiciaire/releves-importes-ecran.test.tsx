@@ -148,6 +148,8 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     )
     expect(bandeau.textContent).toContain('Rien à importer : tous les relevés de ce fichier sont déjà enregistrés.')
     expect(relevesLus().map((ligne) => within(ligne).getAllByRole('cell').at(-1)?.textContent)).toEqual(['Déjà importé', 'Déjà importé'])
+    // La cellule « État » porte la classe qui empêche la pastille de se couper (aj-correctifs.css).
+    for (const ligne of relevesLus()) expect(within(ligne).getAllByRole('cell').at(-1)).toHaveClass('vfx-etat-releve')
     expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
     expect(boutonImporter()).toBeDisabled()
     expect(annonce()).toBe('Relevé analysé (CFONB 120) : 0 ligne retenue. 2 relevés déjà importés : leurs mouvements ne sont pas repris.')
