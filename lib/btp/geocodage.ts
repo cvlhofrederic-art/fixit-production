@@ -59,12 +59,18 @@ interface AdresseDecomposee {
 /** Code postal écrit dans l'adresse ; au Portugal, seulement la forme complète (« 1974 » peut être une année : 25 de Abril). */
 const CODE_POSTAL: Record<Pays, RegExp> = { FR: /\b\d{5}\b/, PT: /\b\d{4}-\d{3}\b/ }
 
-/** Nom de lieu comparable : sans accents ni casse, tirets et apostrophes en espaces, « St » et « Ste » en toutes lettres. */
+/**
+ * Nom de lieu comparable : sans accents ni casse, ligatures en deux lettres (« Marcq-en-Barœul » et « Baroeul », « Œillets »
+ * et « Oeillets » : la forme NFD garde le « œ » ; huitième relecture du 27/11/2026), tirets et apostrophes en espaces, « St »
+ * et « Ste » en toutes lettres.
+ */
 export function normaliserLieu(texte: string): string {
   return texte
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
+    .replaceAll('œ', 'oe')
+    .replaceAll('æ', 'ae')
     .replace(/[-'’,.]/g, ' ')
     .replace(/\bste\b/g, 'sainte')
     .replace(/\bst\b/g, 'saint')
@@ -116,6 +122,8 @@ const PLAGE_NUMEROS = /^(\d{1,4})[-–—/](\d{1,4})$/u
  */
 const PREFIXE_NUMERO = /^(?:n[°º.]?|no\.?|nr\.?|num(?:[ée]ro|\.)?|n[°º]s|nos|num[ée]ros)$/iu
 const PREFIXE_COLLE = /^n[°º](?=\d)/iu
+/** Nombre qui a la forme d'une année (« Logements de 1975 », « Maison de 1930 ») : une date, pas un numéro de lot. */
+const ANNEE = /^(?:18|19|20)\d{2}$/u
 const SEPARATEURS_PLAGE = new Set(['-', '–', '—', '/', '&', 'à', 'au', 'et'])
 /** Ponctuation seule entre un complément et son numéro (« Lot : 12 », « Lot n ° 12 », « Lot / 12 », « Bât # 3 »). */
 const PONCTUATION = /^[:#./°º\-–—]+$/u
@@ -524,10 +532,12 @@ function continueUneSuite(morceaux: Morceaux, k: number): boolean {
   if (!estUneBorne(avant[fin])) return false
   const tete = continueUneSuite(morceaux, k - 1)
   if (fin === 0) return tete
-  // La plage continue dans ce morceau si son numéro prolonge la suite (« Lots du 12 - 14 rue X ») ; pas après une année
-  // (« Logements de 1975, 12 rue X » : septième relecture du 27/11/2026).
+  // La plage continue dans ce morceau (« Lots du 12 - 14 rue X », « Lots du 12 - 12 bis rue X », « Lots du 14, 12 rue X ») ;
+  // après une année, seulement si son numéro la prolonge (« Logements de 1975, 12 rue X » : septième relecture du 27/11/2026 ;
+  // la règle « numéro plus grand » valait pour toute borne et rouvrait les autres suites : huitième relecture).
   const suivant = lireNumero(morceaux[k], 0)
-  const enSuite = suivant !== null && Number.parseInt(suivant.numeros[0], 10) > Number.parseInt(avant[fin].replace(PREFIXE_COLLE, ''), 10)
+  const borne = avant[fin].replace(PREFIXE_COLLE, '')
+  const enSuite = suivant !== null && (!ANNEE.test(borne) || Number.parseInt(suivant.numeros[0], 10) > Number.parseInt(borne, 10))
   return precedeParUnComplement(avant, fin, false, tete, enSuite) && (suiteAuPluriel(avant, fin, tete, enSuite) || ouvreUneEnumeration(morceaux, k))
 }
 
@@ -1096,8 +1106,9 @@ async function parBaseAdresseNationale(adresse: AdresseDecomposee, lue: Lecture 
   if (precise) {
     const accord = accordAvecLaSaisie(lue, adresse, villes, { type, housenumber, street })
     precise = accord === 'oui' || (lue !== null && typeof street === 'string' && await accordConfirme(accord, commune, lue, villes, street, demandees))
+    // Ville saisie reconnue par la seule commune déléguée (oldcity) : aucune commune ne doit porter ce nom.
     precise = precise && await communeSure(adresse, voieSaisie(lue, adresse.rue, street), { street, city, oldcity }, demandees)
-      && await villeSure(adresse, city, demandees)
+      && await villeSure(adresse, city, !memeNomDeVille(city, adresse.ville), demandees)
   }
   return position(coordonnees[1], coordonnees[0], precise)
 }
@@ -1110,13 +1121,13 @@ const voieSaisie = (lue: Lecture | null, rue: string, street: unknown) =>
   lue && !(lue.apres && numeroDuNom(lue.rue, street)) ? lue.rue.voie : rue
 
 /**
- * Ville saisie sans code postal : elle doit désigner une seule commune (douze communes « Sainte-Colombe » : « 1 place de
- * l'Église » était précis en Seine-et-Marne, le même n° 1 existe en Ille-et-Vilaine et dans le Lot ; sixième relecture du
- * 27/11/2026). Reconnue comme commune déléguée (oldcity), aucune commune ne doit porter ce nom. Une panne ou une page pleine
- * vaut non, voulu : « Saint-Étienne » (cinquante communes « Saint-Étienne-… ») et les noms de moins de trois lettres que la
- * BAN refuse de chercher (« Eu ») demandent alors le code postal.
+ * Ville saisie sans code postal : elle doit désigner une seule commune, celle de la réponse (`commune` ; douze communes
+ * « Sainte-Colombe » : « 1 place de l'Église » était précis en Seine-et-Marne, le même n° 1 existe en Ille-et-Vilaine et dans
+ * le Lot ; sixième relecture du 27/11/2026) ; si aucune commune ne porte ce nom, une commune déléguée reconnue (`deleguee`).
+ * Une panne ou une page pleine vaut non, voulu : « Saint-Étienne » (cinquante communes « Saint-Étienne-… ») et les noms de
+ * moins de trois lettres que la BAN refuse de chercher (« Eu ») demandent alors le code postal.
  */
-async function villeSure(adresse: AdresseDecomposee, city: unknown, demandees: VoiesDemandees): Promise<boolean> {
+async function villeSure(adresse: AdresseDecomposee, commune: unknown, deleguee: boolean, demandees: VoiesDemandees): Promise<boolean> {
   if (adresse.codePostal || !adresse.ville) return true
   const ville = normaliserLieu(adresse.ville)
   const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse.ville)}&type=municipality&limit=${LIMITE_VOIES_HOMONYMES}`
@@ -1124,8 +1135,8 @@ async function villeSure(adresse: AdresseDecomposee, city: unknown, demandees: V
   demandees.set(url, demande)
   const communes = await demande
   if (communes === null) return false
-  const homonymes = communes.filter(commune => commune.nom === ville).length
-  return homonymes === (normaliserLieu(typeof city === 'string' ? city : '') === ville ? 1 : 0)
+  const homonymes = communes.filter(homonyme => homonyme.nom === ville).length
+  return homonymes === 0 ? deleguee : homonymes === 1 && memeNomDeVille(commune, adresse.ville)
 }
 
 /** Communes que la BAN rend pour `url` (type=municipality), nom normalisé ; null en cas de panne ou sur une page pleine. */
@@ -1160,7 +1171,7 @@ async function parNominatim(adresse: AdresseDecomposee, pays: Pays, comparaison?
   const premier = (await res.json() as ReponseNominatim[])[0]
   if (!premier) return null
   const lieu = premier.address ?? {}
-  const villes = [lieu.city, lieu.town, lieu.village, municipaliteAdmise(adresse, pays) ? lieu.municipality : undefined, lieu.hamlet, lieu.suburb]
+  const villes = [lieu.city, lieu.town, lieu.village, municipaliteAdmise(adresse, pays, lieu) ? lieu.municipality : undefined, lieu.hamlet, lieu.suburb]
   const street = lieu.road ?? lieu.pedestrian ?? lieu.square
   const precise = aUneRue(adresse)
     && typeof premier.place_rank === 'number' && premier.place_rank >= RANG_MIN_NOMINATIM
@@ -1172,19 +1183,40 @@ async function parNominatim(adresse: AdresseDecomposee, pays: Pays, comparaison?
     }) === 'oui')
   const ambigue = precise && comparaison !== undefined && typeof street === 'string'
     && await voieAmbigue(adresse, street, { voie: voieSaisie(comparaison.lue, adresse.rue, street), villes }, comparaison.demandees)
-  // Ville seule : comme pour la BAN, une seule commune de ce nom (septième relecture du 27/11/2026, Valence).
   const homonyme = precise && comparaison !== undefined && !ambigue
-    && !(await villeSure(adresse, [lieu.city, lieu.town, lieu.village].find(v => memeNomDeVille(v, adresse.ville)), comparaison.demandees))
+    && !(await villeSureParNominatim(adresse, lieu, street, comparaison.demandees))
   return position(premier.lat, premier.lon, precise && !ambigue && !homonyme)
 }
 
 /**
- * OSM écrit dans `municipality` la commune nouvelle d'une commune déléguée (« Beaupréau-en-Mauges » pour Andrezé), mais
- * aussi l'arrondissement (« Valence » pour Bourg-lès-Valence, « Dieppe » pour Eu) : en France, il ne vaut ville qu'avec
- * un code postal, qui fixe la commune (« 1 place de la Liberté », Valence sans code postal, était précis à Bourg-lès-Valence,
- * à 790 m ; septième relecture du 27/11/2026).
+ * Ville seule, par Nominatim, comme pour la BAN : la seule commune de ce nom, qu'OSM rend en city, town ou village (trois
+ * communes Valence ; septième relecture du 27/11/2026). Sans commune de ce nom, une commune déléguée où la BAN connaît la voie
+ * rendue (« place de l'Église », La Jumellière, qu'OSM rend en village de Chemillé-en-Anjou ; huitième relecture) ; un
+ * lieu-dit ou un quartier d'OSM où la BAN ne la connaît pas ne prouve rien (des homonymes sont possibles) : non.
  */
-const municipaliteAdmise = (adresse: AdresseDecomposee, pays: Pays) => pays === 'PT' || adresse.codePostal !== ''
+async function villeSureParNominatim(adresse: AdresseDecomposee, lieu: Record<string, string | undefined>, street: unknown, demandees: VoiesDemandees): Promise<boolean> {
+  if (adresse.codePostal || !adresse.ville) return true
+  const commune = [lieu.city, lieu.town, lieu.village].find(nom => memeNomDeVille(nom, adresse.ville))
+  return villeSure(adresse, commune, typeof street === 'string' && await voieConnue(adresse, street, demandees), demandees)
+}
+
+/** La BAN connaît-elle, dans la ville saisie (commune ou commune déléguée), la voie `rendue` ou une voie qui la prolonge ? */
+async function voieConnue(adresse: AdresseDecomposee, rendue: string, demandees: VoiesDemandees): Promise<boolean> {
+  const forme = formesSansParenthese(rendue)[0]
+  const homonymes = forme ? await homonymesDe(adresse, forme, demandees) : null
+  return homonymes !== null && homonymes.memes.length + homonymes.prolongees.length > 0
+}
+
+/**
+ * OSM écrit dans `municipality` l'arrondissement : « Cholet » pour Andrezé et La Jumellière (communes déléguées, qu'il rend en
+ * city_district ou en village, la commune nouvelle en city), « Bar-sur-Aube » pour Éclance, « Valence » pour Bourg-lès-Valence
+ * (relevés réels du 27/11/2026). Ce n'est la commune que si la réponse n'en nomme aucune en city, town ou village
+ * (« Mauges-sur-Loire »), et en France seulement avec un code postal : « 1 place de la Liberté », Valence sans code postal,
+ * était précis à Bourg-lès-Valence, à 790 m ; « 1 rue de l'Église », 10200 Bar-sur-Aube, à Éclance, l'un des neuf villages
+ * du 10200 qui en ont une, à 11 km (septième et huitième relectures).
+ */
+const municipaliteAdmise = (adresse: AdresseDecomposee, pays: Pays, lieu: Record<string, string | undefined>) =>
+  pays === 'PT' || (adresse.codePostal !== '' && !lieu.city && !lieu.town && !lieu.village)
 const memeNomDeVille = (nom: unknown, ville: string) => typeof nom === 'string' && normaliserLieu(nom) === normaliserLieu(ville)
 
 /**

@@ -587,8 +587,7 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     reponses.osm = osm(30, { house_number: '1', road: 'Place de la Liberté', postcode: '26000', city: 'Valence' })
     banSelonRecherche['liberte Valence'] = { corps: { features: [voieBan('Place de la Liberte', '26000', 'Valence', undefined, '26362_5280')] } }
     expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(false)
-    // Avec un code postal, municipality reste la commune nouvelle d'une commune déléguée (Andrezé, plus haut) ; et une seule
-    // Valence vaut ville (témoin).
+    // Une seule Valence vaut ville (témoin).
     banSelonRecherche.Valence = { corps: { features: [{ properties: { type: 'municipality', name: 'Valence', postcode: '26000' } }] } }
     expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(true)
     // Même chose par Nominatim, la BAN muette : une seule Valence, OSM dans cette Valence (city) : précis.
@@ -614,6 +613,74 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     reponses.ban = ban('housenumber', 0.964, { postcode: '76260', city: 'Eu', housenumber: '1', street: 'Rue de la République' })
     expect((await geocoderAdresse({ adresse: '1 rue de la République', ville: 'Eu' }, 'FR'))?.precise).toBe(false)
     expect((await geocoderAdresse({ adresse: '1 rue de la République', codePostal: '76260', ville: 'Eu' }, 'FR'))?.precise).toBe(true)
+  })
+
+  it('huitième relecture : code postal partagé, arrondissement d’OSM, commune déléguée par Nominatim, ligatures', async () => {
+    // « 1 rue de l'Église », 10200 Bar-sur-Aube : la BAN rend le 1 rue de l'Europe de Bar-sur-Aube (refusé) ; OSM le n° 1 rue
+    // de l'Église d'Éclance (village), avec l'arrondissement « Bar-sur-Aube » en municipality. Neuf villages du 10200 ont une
+    // rue de l'Église, Bar-sur-Aube aucune (relevés du 27/11/2026). Avant : précis à Éclance, à 11 km.
+    reponses.ban = ban('housenumber', 0.662, { postcode: '10200', city: 'Bar-sur-Aube', housenumber: '1', street: 'Rue de l\'Europe' })
+    reponses.osm = osm(30, { house_number: '1', road: 'Rue de l\'Église', postcode: '10200', village: 'Éclance', municipality: 'Bar-sur-Aube' })
+    banSelonRecherche.eglise = { corps: { features: ['Éclance', 'Thors', 'Urville', 'Bergères', 'Thil'].map(city => voieBan('Rue de l\'Église', '10200', city)) } }
+    expect((await geocoderAdresse(saisie('1 rue de l\'Église', '10200', 'Bar-sur-Aube'), 'FR'))?.precise).toBe(false)
+    // La commune rendue en city ou en town (bourg plus grand) : de même.
+    for (const champ of ['city', 'town']) {
+      reponses.osm = osm(30, { house_number: '1', road: 'Rue de l\'Église', postcode: '10200', [champ]: 'Éclance', municipality: 'Bar-sur-Aube' })
+      expect((await geocoderAdresse(saisie('1 rue de l\'Église', '10200', 'Bar-sur-Aube'), 'FR'))?.precise, champ).toBe(false)
+    }
+    reponses.osm = osm(30, { house_number: '1', road: 'Rue de l\'Église', postcode: '10200', village: 'Éclance', municipality: 'Bar-sur-Aube' })
+    // Code postal et ville écrits dans le champ adresse (adresse importée d'un devis) : de même.
+    expect((await geocoderAdresse({ adresse: '1 rue de l\'Église 10200 Bar-sur-Aube' }, 'FR'))?.precise).toBe(false)
+    // Témoin : le village saisi, qui n'a qu'une rue de l'Église.
+    expect((await geocoderAdresse(saisie('1 rue de l\'Église', '10200', 'Éclance'), 'FR'))?.precise).toBe(true)
+    // municipality est la commune quand la réponse n'en nomme aucune en city, town ou village (forme réelle de
+    // Mauges-sur-Loire) ; avec un code postal seulement.
+    reponses.ban = ban('municipality', 0.9, { postcode: '49410', city: 'Mauges-sur-Loire' })
+    reponses.osm = osm(30, { house_number: '1', road: 'Place de l\'Église', postcode: '49410', city_district: 'Saint-Florent-le-Vieil', municipality: 'Mauges-sur-Loire' })
+    banSelonRecherche.eglise = voies(['Place de l\'Église'], { postcode: '49410', city: 'Mauges-sur-Loire' })
+    expect((await geocoderAdresse(saisie('1 place de l\'Église', '49410', 'Mauges-sur-Loire'), 'FR'))?.precise).toBe(true)
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', ville: 'Mauges-sur-Loire' }, 'FR'))?.precise).toBe(false)
+
+    // « place de l'Église », La Jumellière sans code postal : la BAN rend sa place à 0,795 (sous 0,8) ; OSM la rend au même
+    // point, en village de Chemillé-en-Anjou. Aucune commune ne s'appelle La Jumellière (commune déléguée), mais la BAN y connaît
+    // la place : précis, comme avant la septième relecture.
+    reponses.ban = ban('street', 0.795, { postcode: '49120', city: 'Chemillé-en-Anjou', oldcity: 'La Jumellière', street: 'Place de l\'Église de la Jumellière' })
+    reponses.osm = osm(27, { road: 'Place de l\'Église', postcode: '49120', hamlet: 'Les Ratelières', village: 'La Jumellière', city: 'Chemillé-en-Anjou', municipality: 'Cholet' })
+    banSelonRecherche['La Jumellière'] = { corps: { features: [] } }
+    banSelonRecherche['eglise La Jumellière'] = { corps: { features: [voieBan('Place de l\'Église de la Jumellière', '49120', 'Chemillé-en-Anjou', 'La Jumellière', '49092_1990')] } }
+    const jumelliere = { adresse: 'place de l\'Église', ville: 'La Jumellière' }
+    expect((await geocoderAdresse(jumelliere, 'FR'))?.precise).toBe(true)
+    // Sans commune de ce nom ni commune déléguée où la BAN connaît la voie (lieu-dit, quartier d'OSM : homonymes possibles) : non.
+    banSelonRecherche['eglise La Jumellière'] = { corps: { features: [] } }
+    expect((await geocoderAdresse(jumelliere, 'FR'))?.precise).toBe(false)
+    reponses.ban = { corps: { features: [] } }
+    reponses.osm = osm(26, { road: 'Rue des Lilas', postcode: '86300', hamlet: 'Les Granges', village: 'Chauvigny' })
+    banSelonRecherche['Les Granges'] = { corps: { features: [] } }
+    expect((await geocoderAdresse({ adresse: 'rue des Lilas', ville: 'Les Granges' }, 'FR'))?.precise).toBe(false)
+    // Quartier d'OSM homonyme d'une commune (Saint-Barnabé, Marseille ; une commune Saint-Barnabé dans les Côtes-d'Armor) :
+    // la ville saisie est cette commune, pas le quartier.
+    reponses.osm = osm(30, { house_number: '1', road: 'Rue des Lilas', postcode: '13012', suburb: 'Saint-Barnabé', city: 'Marseille' })
+    expect((await geocoderAdresse({ adresse: '1 rue des Lilas', ville: 'Saint-Barnabé' }, 'FR'))?.precise).toBe(false)
+    // Par la BAN, commune déléguée saisie comme ville seule : aucune commune ne s'appelle Andrezé (la BAN propose Andrezel,
+    // en Seine-et-Marne), la BAN la reconnaît (oldcity) : précis (relevé du 27/11/2026, 0,960).
+    reponses.osm = { corps: [] }
+    banSelonRecherche['Andrezé'] = { corps: { features: [{ properties: { type: 'municipality', name: 'Andrezel', postcode: '77390' } }] } }
+    reponses.ban = ban('housenumber', 0.96, { postcode: '49600', city: 'Beaupréau-en-Mauges', oldcity: 'Andrezé', housenumber: '1', street: 'Place de l\'Église (Andrezé)' })
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', ville: 'Andrezé' }, 'FR'))?.precise).toBe(true)
+    // Par la BAN : la ville de la réponse, sans commune de ce nom (ni commune déléguée reconnue) : non.
+    reponses.osm = { corps: [] }
+    banSelonRecherche.Valence = { corps: { features: [{ properties: { type: 'municipality', name: 'Valence-d\'Albigeois', postcode: '81340' } }] } }
+    reponses.ban = ban('housenumber', 0.958, { postcode: '26000', city: 'Valence', housenumber: '1', street: 'Place de la Liberte' })
+    expect((await geocoderAdresse({ adresse: '1 place de la Liberté', ville: 'Valence' }, 'FR'))?.precise).toBe(false)
+
+    // « Marcq-en-Baroeul » : la BAN rend la bonne rue, dans « Marcq-en-Barœul » (relevé du 27/11/2026). Avant : jamais précis.
+    reponses.ban = ban('street', 0.972, { postcode: '59700', city: 'Marcq-en-Barœul', street: 'Rue Nationale' })
+    expect((await geocoderAdresse(saisie('rue Nationale', '59700', 'Marcq-en-Baroeul'), 'FR'))?.precise).toBe(true)
+    // De même dans le nom de la voie, dans les deux sens.
+    reponses.ban = ban('housenumber', 0.9, { postcode: '13001', housenumber: '1', street: 'Rue des Œillets' })
+    expect((await geocoderAdresse(saisie('1 rue des Oeillets'), 'FR'))?.precise).toBe(true)
+    reponses.ban = ban('housenumber', 0.9, { postcode: '13001', housenumber: '1', street: 'Rue des Oeillets' })
+    expect((await geocoderAdresse(saisie('1 rue des Œillets'), 'FR'))?.precise).toBe(true)
   })
 
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
@@ -649,11 +716,12 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
       ['autre parenthèse', andreze, 'eglise', places, saisie('1 place de l\'Église (Jallais)', '49600', 'Beaupréau-en-Mauges'), false],
     ])
     // Secours OSM : sa « Place de l'Église » ne dit pas de quelle commune déléguée elle est ; refusée tant que la commune en
-    // a trois, avec ou sans numéro (avant : précise, à 3 à 5 km peut-être du chantier).
-    reponses.osm = osm(30, { house_number: '1', road: 'Place de l\'Église', postcode: '49600', village: 'Andrezé', municipality: 'Beaupréau-en-Mauges' })
+    // a trois, avec ou sans numéro (avant : précise, à 3 à 5 km peut-être du chantier). Forme réelle de la réponse d'OSM
+    // (27/11/2026) : la commune nouvelle en city, la commune déléguée en city_district, l'arrondissement en municipality.
+    reponses.osm = osm(30, { house_number: '1', road: 'Place de l\'Église', postcode: '49600', city_district: 'Andrezé', city: 'Beaupréau-en-Mauges', municipality: 'Cholet' })
     expect((await geocoderAdresse(saisie('1 place de l\'Église', '49600', 'Beaupréau-en-Mauges'), 'FR'))?.precise).toBe(false)
     reponses.ban = ban('municipality', 0.9, { postcode: '49600', city: 'Beaupréau-en-Mauges' })
-    reponses.osm = osm(26, { road: 'Place de l\'Église', postcode: '49600', village: 'Andrezé', municipality: 'Beaupréau-en-Mauges' })
+    reponses.osm = osm(26, { road: 'Place de l\'Église', postcode: '49600', city_district: 'Andrezé', city: 'Beaupréau-en-Mauges', municipality: 'Cholet' })
     expect((await geocoderAdresse(saisie('place de l\'Église', '49600', 'Beaupréau-en-Mauges'), 'FR'))?.precise).toBe(false)
     // Témoin : une seule place de l'Église dans la commune, la réponse d'OSM est admise ; panne de la vérification : refusée.
     banSelonRecherche.eglise = voies(['Place de l\'Église'], { postcode: '49600', city: 'Beaupréau-en-Mauges' })
@@ -670,11 +738,11 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     // places « de la Jumellière », « de Cossé », « de Sainte-Christine », jusqu'à 13,7 km. Avant : précis.
     const chemille = { postcode: '49120', city: 'Chemillé-en-Anjou' }
     reponses.ban = ban('street', 0.753, { ...chemille, street: 'Rue de l\'Église' })
-    reponses.osm = osm(27, { road: 'Place de l\'Église', postcode: '49120', village: 'La Jumellière', municipality: 'Chemillé-en-Anjou' })
+    reponses.osm = osm(27, { road: 'Place de l\'Église', postcode: '49120', hamlet: 'Les Ratelières', village: 'La Jumellière', city: 'Chemillé-en-Anjou', municipality: 'Cholet' })
     banSelonRecherche.eglise = voies(['Place de l\'Église de la Jumellière', 'Place de l\'Église de Cossé', 'Place de l\'Eglise de Sainte-Christine'], chemille)
     expect((await geocoderAdresse(saisie('place de l\'Église', '49120', 'Chemillé-en-Anjou'), 'FR'))?.precise).toBe(false)
     // Témoin : une seule voie qui prolonge le nom (« Rue de la Mairie de Saint-Lézin », à 40 m du point OSM).
-    reponses.osm = osm(27, { road: 'Rue de la Mairie', postcode: '49120', village: 'Saint-Lézin', municipality: 'Chemillé-en-Anjou' })
+    reponses.osm = osm(27, { road: 'Rue de la Mairie', postcode: '49120', city_district: 'Saint-Lézin', city: 'Chemillé-en-Anjou', municipality: 'Cholet' })
     banSelonRecherche.mairie = voies(['Rue de la Mairie de Saint-Lézin'], chemille)
     expect((await geocoderAdresse(saisie('rue de la Mairie', '49120', 'Chemillé-en-Anjou'), 'FR'))?.precise).toBe(true)
     // Doublon de la BAN (même nom, même commune déléguée, à 25 m) : une seule voie, l'adresse juste reste précise.
@@ -1025,6 +1093,11 @@ describe('numeroEtVoieSaisis', () => {
       'Lots 12 B, 14 rue Paradis', 'rue Paradis lot 12, 13, 14', 'rue Paradis lot 12, 13 et 14', 'chemin des Vignes lot 3, 4 et 5',
       'rue Paradis Garages 3, 4', 'rue Paradis lot 12, 13', 'rue Paradis Bât 3, 12', 'Boxes 3 et 4 rue Paradis', 'Les boxes 3, 4 rue Paradis',
       'Lots12 à 14 rue Paradis', 'Lots 12 à 14 rue Paradis'.normalize('NFD'), '2, Zone Industrielle, rue Gay Lussac',
+      // Huitième relecture du 27/11/2026 : après une préposition, une suite qui ne grandit pas reste une suite de lots (« 12 »
+      // puis « 12 bis », suite décroissante) ; après une année, un numéro plus grand la continue (refus voulu, rare).
+      'Lots du 12 - 12 bis rue Paradis', 'Lots du 12, 12 bis rue Paradis', 'Lots du 12 - 12B rue Paradis', 'Lots du 12A - 12B rue Paradis',
+      'Lots du 12 bis - 12 ter rue Paradis', 'Maisons du 12 - 12 bis rue Paradis', 'Lots du 14, 12 rue Paradis',
+      'Lots des 14, 12 et 10 rue Paradis', 'Lot du 14, 12, 13 rue Paradis', 'Logements de 1975, 2050 route de Grasse',
     ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
     // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
     for (const [rue, texte] of <Array<[string, string]>>[
@@ -1035,9 +1108,9 @@ describe('numeroEtVoieSaisis', () => {
       // Sixième relecture : la plage d'un immeuble entier est celle de la rue ; nombre du nom de la voie, puis numéro.
       ['Immeuble du 10-12 rue Paradis', '10-12 rue Paradis'], ['Copropriété du 2 au 4 rue Paradis', '2 au 4 rue Paradis'],
       ['avenue du 8 Mai 1945, 8', '8 avenue du 8 Mai 1945'], ['Route Départementale 96, 12', '12 Route Départementale 96'],
-      // Septième relecture : une année n'ouvre pas une plage de lots ; une suite décroissante n'en continue pas une.
+      // Septième et huitième relectures : une année n'ouvre pas une plage de lots que le numéro suivant ne prolonge pas.
       ['Logements de 1975, 12 rue Paradis', '12 rue Paradis'], ['Maison de 1930, 10-12 rue Paradis', '10-12 rue Paradis'],
-      ['Lots du 14, 12 rue Paradis', '12 rue Paradis'],
+      ['Maisons de 1890, 4 bis rue Paradis', '4 bis rue Paradis'], ['Logements de 2005, 12 rue Paradis', '12 rue Paradis'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
@@ -1168,6 +1241,10 @@ describe('adresse et carte', () => {
     expect(normaliserLieu('Saint-Étienne')).toBe(normaliserLieu('st etienne'))
     expect(normaliserLieu('Sainte-Maxime')).toBe(normaliserLieu('Ste Maxime'))
     expect(normaliserLieu('Águeda')).toBe('agueda')
+    // Ligatures (huitième relecture du 27/11/2026) : la forme NFD garde « œ » et « æ ».
+    expect(normaliserLieu('Marcq-en-Barœul')).toBe(normaliserLieu('Marcq-en-Baroeul'))
+    expect(normaliserLieu('Rue des Œillets')).toBe('rue des oeillets')
+    expect(normaliserLieu('Lætitia')).toBe('laetitia')
   })
 
   it('adresse complète : rue, code postal, ville, sans morceaux vides', () => {
