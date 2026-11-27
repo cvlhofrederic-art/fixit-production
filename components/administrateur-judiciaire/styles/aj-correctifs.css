@@ -2,7 +2,8 @@
  * Correctifs de la feuille de la maquette, écrits à la main. Chargée en dernier (app/(commun)/administrateur-judiciaire/
  * layout.tsx) : aj.css est générée par scripts/administrateur-judiciaire/extraire-maquette.mjs et réécrite à chaque
  * extraction, elle ne se corrige donc pas à la main. Tous les sélecteurs sont scopés sous #aj-root.
- * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts et correctifs-cadre-telephone.test.tsx.
+ * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts, correctifs-cadre-telephone.test.tsx et
+ * correctifs-rapprochement-telephone.test.tsx.
  */
 
 /*
@@ -105,3 +106,40 @@
  * en attente) le demanderont après la PR 799.
  */
 @media (max-width: 768px){#aj-root .panel-head.vfx-entete-a-la-ligne{flex-wrap:wrap}#aj-root .vfx-entete-a-la-ligne>div:not(.h-ico):not(.right){flex:1 1 120px;min-width:0}}
+
+/*
+ * Écran « Banque et recouvrement » sur téléphone (décision du 26/11/2026, points rb-c04 et rb-c06 de la page de validation
+ * de la PR 799 ; tests : correctifs-rapprochement-telephone.test.tsx).
+ *
+ * rb-c04 : « Relevés lus » et « Arrêtés du compte » (tableaux de 720 px au minimum, sticky sur la première colonne) ne
+ * montraient que leur première colonne à 375 px, le reste défilait hors du cadre sans que rien ne l'indique. Sous 769 px,
+ * chaque ligne devient une fiche : les valeurs les unes sous les autres, l'étiquette de la colonne (data-label de chaque
+ * cellule) à gauche, la valeur à droite. Les en-têtes sont masqués à l'œil mais restent dans la page. Passer table, tbody et
+ * tr en display:block fait perdre leur structure de tableau à certains lecteurs d'écran : les deux tableaux portent donc
+ * les rôles ARIA table, rowgroup, row, columnheader et cell (RapprochementPanel.tsx, ResultatAnalyseReleve.tsx), qui la
+ * rétablissent sans rien changer à l'affichage. Seuls les tableaux qui
+ * portent la classe vfx-fiches changent ; au-dessus de 768 px, rien ne change.
+ */
+@media (max-width: 768px){
+#aj-root .tbl.vfx-fiches{min-width:0}
+#aj-root .tbl.vfx-fiches,#aj-root .tbl.vfx-fiches tbody,#aj-root .tbl.vfx-fiches tbody tr{display:block}
+#aj-root .tbl.vfx-fiches thead{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#aj-root .tbl.vfx-fiches tbody tr{padding:10px 14px;border-bottom:1px solid var(--line)}
+#aj-root .tbl.vfx-fiches tbody tr:last-child{border-bottom:none}
+#aj-root .tbl.vfx-fiches tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;border-bottom:none;text-align:right}
+#aj-root .tbl.vfx-fiches tbody td:first-child{position:static;box-shadow:none;background:transparent}
+#aj-root .tbl.vfx-fiches tbody td::before{content:attr(data-label);flex:none;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-300);text-align:left}
+}
+
+/*
+ * rb-c06 : « Importer N lignes » partageait sa ligne avec la phrase d'explication et se retrouvait écrasé à 70 px, texte
+ * coupé (« Impor / 6 lign »). Sous 769 px, le bloc passe en colonne : la phrase au-dessus, le bouton dessous, à sa largeur
+ * naturelle. Sur ordinateur, le bouton puis la phrase, centrés sur la ligne, comme avant (l'alignement vertical, écrit
+ * en ligne dans le composant, est passé dans cette règle pour que le téléphone puisse le changer).
+ */
+#aj-root .vfx-import-actions{align-items:center}
+@media (max-width: 768px){
+#aj-root .vfx-import-actions{flex-direction:column;align-items:flex-start}
+#aj-root .vfx-import-actions>span{order:-1}
+#aj-root .vfx-import-actions>.btn{flex-shrink:0}
+}
