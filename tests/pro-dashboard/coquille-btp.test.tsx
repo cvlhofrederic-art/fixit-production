@@ -265,6 +265,32 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
+  it('compte invité : « Mon profil » part de la fiche de la société, sans l’adresse de connexion du salarié', async () => {
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    const { useSettings } = await import('@/hooks/dashboard')
+    const { initSettingsForm } = (useSettings as unknown as () => { initSettingsForm: ReturnType<typeof vi.fn> })()
+    const { container } = await ouvrir(utilisateur('pro_societe', CO_GERANT_INVITE))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    // Sans cet appel, le formulaire restait vide et sans référence : son premier enregistrement aurait effacé nom,
+    // coordonnées et mentions légales de la fiche de la société.
+    expect(initSettingsForm).toHaveBeenCalledWith(TITULAIRE_SOCIETE.valeur.fiche, '', 'pro_societe')
+  })
+
+  it('compte invité : « Validation automatique » part de la fiche de la société', async () => {
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    mocks.lireTitulaireSociete.mockResolvedValue({
+      ...TITULAIRE_SOCIETE,
+      valeur: { ...TITULAIRE_SOCIETE.valeur, fiche: { ...TITULAIRE_SOCIETE.valeur.fiche, auto_accept: true } },
+    })
+    const { useAvailability } = await import('@/hooks/dashboard')
+    const { setAutoAccept } = (useAvailability as unknown as () => { setAutoAccept: ReturnType<typeof vi.fn> })()
+    const { container } = await ouvrir(utilisateur('pro_societe', CO_GERANT_INVITE))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    expect(setAutoAccept).toHaveBeenCalledWith(true)
+  })
+
   it('compte invité, société non résolue : l’écran le dit au lieu d’ouvrir des listes vides', async () => {
     mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
     mocks.lireTitulaireSociete.mockResolvedValue({
@@ -330,6 +356,19 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
     expect(screen.queryByText(ECRAN_ECHEC)).toBeNull()
     expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-1')
+  })
+
+  // Relecture du 26/11/2026 : la page dit au hook si le compte est une société BTP. Seule une société écarte du
+  // compteur et des notifications les messages du côté prestataire envoyés par ses autres comptes (co-gérant, secrétaire).
+  it('notifications : une société BTP est signalée au hook ; un artisan non (règle n° 1)', async () => {
+    const { rappelsNotifications } = await import('../helpers/tableau-de-bord-pro-simule')
+    const { container } = await ouvrir(utilisateur('pro_societe'))
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    await waitFor(() => expect(rappelsNotifications.derniers).toMatchObject({ estSociete: true }))
+    cleanup()
+
+    await ouvrir(utilisateur('artisan'), { adresse: 'p=facture' })
+    await waitFor(() => expect(rappelsNotifications.derniers).toMatchObject({ estSociete: false }))
   })
 
   it('artisan : fiche illisible → renvoi vers la connexion, comme avant (aucun écran BTP)', async () => {

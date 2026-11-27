@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import type { User } from '@supabase/supabase-js'
+import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { ficheSocieteDuSousCompte } from '@/lib/btp/fiche-societe'
+import { niveauSur } from '@/lib/btp/perimetre-compte'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -9,6 +12,20 @@ import { logger } from '@/lib/logger'
 //
 // GET /api/artisan-clients?artisan_id=xxx
 //   → Returns all clients for an artisan (unique client_ids from bookings)
+/**
+ * Compte invité dans une société BTP (sans fiche à lui) : la fiche de SA société, s'il a le module clients en lecture
+ * (lib/permissions.ts : co-gérant et secrétaire). `demandee` : fiche désignée par l'écran, qui envoie `artisan.id`,
+ * c'est-à-dire son propre compte — ou la fiche de la société ; rien d'autre ne la désigne. null pour tout autre compte,
+ * qui garde le contrôle d'origine (règle n° 1).
+ */
+async function ficheDeLaSocieteVisible(user: User, demandee: string | null): Promise<string | null> {
+  if (getUserRole(user) !== 'pro_societe') return null
+  const fiche = await ficheSocieteDuSousCompte(user, supabaseAdmin, (perimetre) => niveauSur(perimetre, 'clients') !== 'NONE')
+  if (!fiche?.ok) return null
+  if (demandee !== null && demandee !== fiche.ficheId && demandee !== user.id) return null
+  return fiche.ficheId
+}
+
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -21,11 +38,13 @@ export async function GET(request: NextRequest) {
   if (clientId) {
     try {
       // Récupérer l'artisan_id de l'utilisateur connecté
-      const { data: artisanProfile } = await supabaseAdmin
+      const { data: ficheDuCompte } = await supabaseAdmin
         .from('profiles_artisan')
         .select('id')
         .eq('user_id', user.id)
         .single()
+      const idFicheSociete = ficheDuCompte ? null : await ficheDeLaSocieteVisible(user, null)
+      const artisanProfile = ficheDuCompte ?? (idFicheSociete ? { id: idFicheSociete } : null)
       if (!artisanProfile) {
         return NextResponse.json({ error: 'Profil artisan introuvable' }, { status: 403 })
       }
@@ -70,7 +89,10 @@ export async function GET(request: NextRequest) {
     .select('user_id')
     .eq('id', artisanId)
     .single()
-  if (!artisanRow || artisanRow.user_id !== user.id) {
+  const ficheVerifiee = artisanRow && artisanRow.user_id === user.id
+    ? artisanId
+    : await ficheDeLaSocieteVisible(user, artisanId)
+  if (!ficheVerifiee) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
@@ -79,7 +101,7 @@ export async function GET(request: NextRequest) {
     const { data: bookings, error: bookingsError } = await supabaseAdmin
       .from('bookings')
       .select('id, client_id, booking_date, booking_time, status, address, notes, services(name), price_ttc')
-      .eq('artisan_id', artisanId)
+      .eq('artisan_id', ficheVerifiee)
       .not('client_id', 'is', null)
       .order('booking_date', { ascending: false })
       .limit(500)

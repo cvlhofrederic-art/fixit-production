@@ -201,6 +201,22 @@ describe('GET /api/btp — la secrétaire a tous les pouvoirs', () => {
   })
 })
 
+describe('Compte désactivé par le gérant (relecture du 26/11/2026)', () => {
+  // resolveCompanyId garde la société d'un compte 60 s en mémoire : pendant ce temps, un compte désactivé gardait les
+  // droits par défaut de son rôle, sans les restrictions que le gérant lui avait posées.
+  it('désactivé après une première requête : plus rien à lire ni à écrire, société encore en mémoire', async () => {
+    salarie('SECRETAIRE')
+    expect(titres((await lire('?table=chantiers')).json.chantiers)).toEqual(['Affecté', 'Par équipe', 'Terminé'])
+
+    h.base.lignes.pro_team_members = (h.base.lignes.pro_team_members ?? []).map(m => ({ ...m, is_active: false }))
+
+    expect((await lire('?table=chantiers')).json.chantiers).toEqual([])
+    const ecriture = await ecrire({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Après la désactivation', statut: 'En cours' } })
+    expect(ecriture.status).toBe(403)
+    expect(h.base.lignes.chantiers_btp.some(c => c.titre === 'Après la désactivation')).toBe(false)
+  })
+})
+
 describe('GET /api/btp — les dérogations du gérant priment', () => {
   it('un ouvrier à qui le gérant a donné FULL sur les chantiers les voit tous', async () => {
     salarie('OUVRIER', { derogations: [{ module_id: 'chantiers', access_level: 'FULL' }] })

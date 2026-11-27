@@ -1,4 +1,5 @@
-import type { Banque } from '@/lib/administrateur-judiciaire/db/schema'
+import type { Banque, Ecriture } from '@/lib/administrateur-judiciaire/db/schema'
+import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import {
   MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE,
   NATURES_COMPTE_BANCAIRE,
@@ -33,9 +34,11 @@ import {
  * - « la copropriété est dotée d'un fonds de travaux » (controlerComptesMandat) : le domaine n'a pas de valeur inconnue.
  *   La vue lui passe une valeur neutre, « non dotée » tant que l'obligation n'est pas établie : le contrôle « fonds de
  *   travaux manquant » est donc neutralisé ;
- * - solde de chaque compte : les écritures 512 ne sont rattachées à aucun compte. La vue passe un solde neutre de 0 (lu
- *   comme « soldé ») : le contrôle « compte repris à solder » est donc neutralisé, et un seul bandeau le signale dès
- *   qu'un compte repris est actif.
+ * - solde de chaque compte : le solde affiché est celui de son sous-compte 512 (db/sous-comptes-banque.ts), somme des
+ *   lignes de relevé importées sur ce compte, sans solde d'ouverture (aucune écriture d'ouverture n'existe) ; null sans
+ *   aucune ligne. Ce n'est donc pas le solde réel d'un compte ouvert avant le premier relevé importé : la vue passe au
+ *   contrôle un solde neutre de 0 (lu comme « soldé »), le contrôle « compte repris à solder » reste neutralisé, et un
+ *   seul bandeau le signale dès qu'un compte repris est actif.
  */
 
 /** Compte lisible (nature connue), prêt à afficher. */
@@ -51,6 +54,8 @@ export interface CompteAffiche {
   reserveAuFondsTravaux: boolean
   /** Compte actif qui tient le fonds de travaux (estCompteDuFondsTravaux, J71) ; un compte clôturé ne le tient plus. */
   tientLeFonds: boolean
+  /** Solde du sous-compte 512 du compte, en centimes (voir l'en-tête) ; null : aucune ligne de relevé importée. */
+  soldeCentimes: number | null
 }
 
 /** Mode appliqué au mandat et contrôles qui en dépendent (controlerComptesMandat). */
@@ -78,8 +83,13 @@ export interface VueComptesBancaires {
   pratiqueAdministrateurProvisoire: ModeTenueComptes | null
 }
 
+/** Écriture lue pour le solde d'un compte (celles du journal de banque de la copropriété suffisent). */
+export type EcritureSolde = Pick<Ecriture, 'compte' | 'montant' | 'sens' | 'date'>
+
 export interface EntreeVueComptes {
   comptes: readonly Banque[]
+  /** Écritures du journal de banque de la copropriété : soldes des sous-comptes 512. */
+  ecritures: readonly EcritureSolde[]
   /** Réglage du cabinet lu dans la base ; null tant qu'il n'est pas lu (lecture en cours ou impossible). */
   reglagesCabinet: ReglagesComptesCabinet | null
   /** Choix du mandat (Mandat.modeComptesBancaires) ; null ou absent : comme le cabinet. */
@@ -97,13 +107,13 @@ const IMMEUBLE_NON_RENSEIGNE: SaisieObligationFondsTravaux = {
   nbLotsPrincipaux: null,
 }
 
-/** Solde neutre passé au contrôle (lu comme « soldé ») : aucun solde par compte n'est connu (voir l'en-tête). */
-const SOLDE_NON_RATTACHE = 0
+/** Solde neutre passé au contrôle (lu comme « soldé ») : le solde réel d'un compte n'est pas connu (voir l'en-tête). */
+const SOLDE_NEUTRE_CONTROLE = 0
 
 const estNatureConnue = (nature: unknown): nature is NatureCompteBancaire =>
   typeof nature === 'string' && Object.hasOwn(NATURES_COMPTE_BANCAIRE, nature)
 
-function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }): CompteAffiche {
+function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }, ecritures: readonly EcritureSolde[]): CompteAffiche {
   const tenaitFondsTravaux = ligne.tenaitFondsTravaux === true
   const reserveAuFondsTravaux = ligne.reserveAuFondsTravaux === true
   const actif = ligne.actif !== false
@@ -119,8 +129,15 @@ function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }): Compte
     reserveAuFondsTravaux,
     // Comme le domaine (controlerComptesMandat ne lit que les comptes actifs).
     tientLeFonds: actif && estCompteDuFondsTravaux({ nature: ligne.nature, tenaitFondsTravaux, reserveAuFondsTravaux }),
+    soldeCentimes: soldeCompteCentimes(ecritures, compteBanque(ligne.id)),
   }
 }
+
+/** Comptes lisibles (nature connue), actifs et clôturés, dans l'ordre reçu, avec le solde de leur sous-compte 512. */
+export const comptesLisibles = (comptes: readonly Banque[], ecritures: readonly EcritureSolde[]): CompteAffiche[] =>
+  comptes
+    .filter((ligne): ligne is Banque & { nature: NatureCompteBancaire } => estNatureConnue(ligne.nature))
+    .map((ligne) => compteAffiche(ligne, ecritures))
 
 const estAdministrateurProvisoire = (fondement: string): boolean => {
   const regime = regimeDepuisFondement(fondement)
@@ -150,19 +167,18 @@ function resoudreMode(
  * résout (sinon controle est null, et erreurMode porte le refus du domaine s'il y en a un).
  */
 export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancaires {
-  const lisibles = entree.comptes.filter((ligne): ligne is Banque & { nature: NatureCompteBancaire } => estNatureConnue(ligne.nature))
-  const comptes = lisibles.map(compteAffiche)
+  const comptes = comptesLisibles(entree.comptes, entree.ecritures)
   const { resolu, erreurMode } = resoudreMode(entree.reglagesCabinet, entree.choixMandat)
   const obligationFonds = obligationFondsTravaux(IMMEUBLE_NON_RENSEIGNE, entree.aujourdhui)
   const controles: CompteBancaireMandat[] = comptes.map((compte) => ({
     nature: compte.nature,
     iban: compte.iban,
     actif: compte.actif,
-    soldeCentimes: SOLDE_NON_RATTACHE,
+    soldeCentimes: SOLDE_NEUTRE_CONTROLE,
   }))
   return {
     comptes,
-    illisibles: entree.comptes.length - lisibles.length,
+    illisibles: entree.comptes.length - comptes.length,
     controle: resolu
       ? {
           resolu,
