@@ -66,7 +66,7 @@ const STYLE_SECONDAIRE = { display: 'block', fontSize: 11.5 } as const
 const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
 
 /**
- * Tableau des comptes, repris de la maquette (Nature, IBAN, Solde ; mêmes styles en ligne), complété du libellé, du BIC
+ * Tableau des comptes, repris de la maquette (Nature, IBAN, Solde ; styles de la table dans aj-correctifs.css), complété du libellé, du BIC
  * et de l'établissement, des pastilles (fonds de travaux, clôture) et des actions. Dans un cadre .tbl-wrap : sur
  * ordinateur, largeur minimale de 640 px (classe vfx-comptes, aj-correctifs.css) ; sous 769 px, une fiche par compte (classe
  * vfx-fiches, étiquette de chaque valeur dans data-label, rôles ARIA de tableau conservés), sans défilement de côté ;
@@ -98,38 +98,38 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
             <tr key={compte.id} role="row">
               <td role="cell" data-label="Nature">
                 <div className="vfx-fiche-valeur">
-                {NATURES_COMPTE_BANCAIRE[compte.nature].libelle}
-                {compte.libelle && (
-                  <span className="muted" style={STYLE_SECONDAIRE}>
-                    {compte.libelle}
-                  </span>
-                )}
-                {(compte.tientLeFonds || !compte.actif) && (
-                  <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                    {compte.tientLeFonds && (
-                      <Pill kind="sage" noDot>
-                        Tient le fonds de travaux
-                      </Pill>
-                    )}
-                    {!compte.actif && (
-                      <Pill kind="navy" noDot>
-                        Clôturé
-                      </Pill>
-                    )}
-                  </span>
-                )}
+                  {NATURES_COMPTE_BANCAIRE[compte.nature].libelle}
+                  {compte.libelle && (
+                    <span className="muted" style={STYLE_SECONDAIRE}>
+                      {compte.libelle}
+                    </span>
+                  )}
+                  {(compte.tientLeFonds || !compte.actif) && (
+                    <span className="vfx-fiche-pastilles" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                      {compte.tientLeFonds && (
+                        <Pill kind="sage" noDot>
+                          Tient le fonds de travaux
+                        </Pill>
+                      )}
+                      {!compte.actif && (
+                        <Pill kind="navy" noDot>
+                          Clôturé
+                        </Pill>
+                      )}
+                    </span>
+                  )}
                 </div>
               </td>
               <td role="cell" data-label="IBAN">
                 <div className="vfx-fiche-valeur vfx-fiche-iban">
-                <span className="mono" style={STYLE_IBAN}>
-                  {compte.iban ? ibanGroupe(compte.iban) : '—'}
-                </span>
-                {(compte.bic || compte.etablissement) && (
-                  <span className="muted" style={STYLE_SECONDAIRE}>
-                    {[compte.bic, compte.etablissement].filter(Boolean).join(' · ')}
+                  <span className="mono" style={STYLE_IBAN}>
+                    {compte.iban ? ibanGroupe(compte.iban) : '—'}
                   </span>
-                )}
+                  {(compte.bic || compte.etablissement) && (
+                    <span className="muted" style={STYLE_SECONDAIRE}>
+                      {[compte.bic, compte.etablissement].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
                 </div>
               </td>
               <td className="mono" role="cell" data-label="Solde" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>

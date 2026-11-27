@@ -179,7 +179,7 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(ligne.textContent).toContain('Compte courant au nom du syndicat')
     expect(ligne.textContent).toContain('Compte principal')
     expect(ligne.textContent).toContain('FR76 3000 6000 0112 3456 7890 189')
-    // IBAN jamais renvoyé à la ligne (relu chiffre à chiffre) : sur téléphone, le tableau défile dans son cadre .tbl-wrap.
+    // IBAN jamais renvoyé à la ligne (relu chiffre à chiffre) : sur téléphone, la fiche le coupe entre ses groupes de chiffres (testé dans correctifs-tableaux-telephone.test.tsx).
     expect(within(ligne).getByText('FR76 3000 6000 0112 3456 7890 189')).toHaveStyle({ whiteSpace: 'nowrap' })
     // Largeur minimale de 640 px sur ordinateur (classe vfx-comptes, aj-correctifs.css ; testée dans correctifs-tableaux-telephone.test.tsx).
     expect(ligne.closest('table')).toHaveClass('vfx-comptes')

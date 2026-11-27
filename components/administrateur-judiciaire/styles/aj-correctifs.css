@@ -152,6 +152,17 @@
  * garde son étiquette. Au-dessus de 768 px, rien ne change.
  */
 #aj-root table.vfx-comptes{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+/*
+ * Détails de la fiche d'un compte (relecture du 27/11/2026) : l'étiquette « Solde » reprenait la police à chasse fixe de sa
+ * cellule (elle garde sa police sur ordinateur, seule l'étiquette de la fiche revient à celle du module) ; une cellule vide
+ * (« Actions » d'un compte clôturé) n'affiche pas son étiquette seule ; les pastilles de « Nature » se calent à droite,
+ * comme le texte de leur cellule.
+ */
+@media (max-width: 768px){
+#aj-root table.vfx-comptes.vfx-fiches tbody td::before{font-family:Manrope,system-ui,sans-serif}
+#aj-root table.vfx-comptes.vfx-fiches tbody td:empty::before{display:none}
+#aj-root table.vfx-comptes.vfx-fiches tbody td .vfx-fiche-pastilles{justify-content:flex-end}
+}
 
 /*
  * rb-c06 : « Importer N lignes » partageait sa ligne avec la phrase d'explication et se retrouvait écrasé à 70 px, texte
