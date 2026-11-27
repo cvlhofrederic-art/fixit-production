@@ -5,6 +5,8 @@ import { generateSlug } from '@/lib/utils'
 import { artisanSettingsPostSchema, validateBody } from '@/lib/validation'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { ficheSocieteOuRefus, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 
 // ── Cache des colonnes existantes (évite de re-tester à chaque requête) ────────
 let knownColumns: Set<string> | null = null
@@ -68,6 +70,70 @@ async function adressePubliqueLibre(nom: string, ville: string, idFiche: string)
   return undefined
 }
 
+/** Début et fin du marqueur des services par jour, rangé à la fin de la bio (app/api/availability-services l'écrit). */
+const DEBUT_MARQUEUR = '<!--DS:'
+const FIN_MARQUEUR = '-->'
+
+/** Le marqueur de la bio en base, lu sans expression régulière (temps linéaire) ; undefined s'il n'y en a pas. */
+function marqueurDesServices(bioEnBase: unknown): string | undefined {
+  if (typeof bioEnBase !== 'string') return undefined
+  const debut = bioEnBase.indexOf(DEBUT_MARQUEUR)
+  if (debut < 0) return undefined
+  const fin = bioEnBase.indexOf(FIN_MARQUEUR, debut + DEBUT_MARQUEUR.length)
+  return fin < 0 ? undefined : bioEnBase.slice(debut, fin + FIN_MARQUEUR.length)
+}
+
+/**
+ * Compte invité : la bio reçue n'a jamais le marqueur des services par jour (le formulaire le retire de l'écran, et le
+ * tableau de bord d'un invité ne le réécrit pas après l'enregistrement, comme il le fait pour le gérant). Il est repris
+ * de la fiche : sinon le réglage de la société disparaîtrait à la première bio modifiée.
+ */
+function bioAvecMarqueur(bio: string | undefined, bioEnBase: unknown): string | undefined {
+  if (typeof bio !== 'string' || bio.includes(DEBUT_MARQUEUR)) return bio
+  const marqueur = marqueurDesServices(bioEnBase)
+  return marqueur ? `${bio.trim()} ${marqueur}`.trim() : bio
+}
+
+/** Les 18 champs du formulaire « Mon profil » (SettingsForm, hooks/dashboard/useSettings.ts). */
+const CHAMPS_DU_FORMULAIRE = [
+  'company_name', 'bio', 'phone', 'email', 'auto_reply_message', 'auto_block_duration_minutes', 'zone_radius_km',
+  'rcs_number', 'ape_code', 'share_capital', 'tva_intra',
+  'insurance_name', 'insurance_number', 'insurance_coverage', 'insurance_type', 'insurance_expiry',
+  'mediator_name', 'mediator_url',
+] as const
+
+/**
+ * Compte invité : un onglet ouvert avant cette correction n'a jamais chargé le formulaire depuis la fiche, et il envoie
+ * ses 18 champs d'un coup, vides. Le formulaire corrigé n'envoie que les champs changés. Seul est refusé le corps
+ * complet qui viderait un champ rempli de la fiche de la société. Retirer un médiateur (nom et site) ou toute une
+ * assurance reste possible : la règle d'avant, « au plus un champ vidé », le refusait, et recharger n'y changeait rien.
+ */
+function formulaireJamaisCharge(
+  corps: Record<string, unknown>,
+  aEcrire: Record<string, unknown>,
+  fiche: Record<string, unknown>,
+): boolean {
+  if (!CHAMPS_DU_FORMULAIRE.every((cle) => cle in corps)) return false
+  const remplie = (valeur: unknown) => valeur !== null && valeur !== undefined && valeur !== ''
+  return Object.entries(aEcrire).some(([cle, valeur]) => valeur === null && remplie(fiche[cle]))
+}
+
+/**
+ * Compte invité, juste avant l'écriture sur la fiche de la société. L'interrupteur « Validation automatique » de Mon
+ * profil y passe : la fiche de la société ne s'écrit pas depuis le navigateur (la RLS filtrait sans erreur,
+ * l'interrupteur basculait quand même). Rend le refus d'un formulaire jamais chargé, ou null.
+ */
+function refusOuValidationAutomatique(
+  corps: Record<string, unknown>,
+  aEcrire: Record<string, unknown>,
+  fiche: Record<string, unknown>,
+): NextResponse | null {
+  if (typeof corps.auto_accept === 'boolean') aEcrire.auto_accept = corps.auto_accept
+  if (!formulaireJamaisCharge(corps, aEcrire, fiche)) return null
+  logger.warn('[artisan-settings] formulaire vide refusé sur la fiche d’une société', { ficheId: fiche.id })
+  return NextResponse.json({ error: messageRefusFr('formulaire_perime'), code: 'formulaire_perime' }, { status: 409 })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
@@ -81,11 +147,18 @@ export async function POST(request: NextRequest) {
 
     // Verify artisan ownership. Société BTP : la fiche entière (adresse publique, nom, ville) ; artisan : inchangé.
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
-    const { data: artisan, error: fetchError } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select(estSocieteBtp ? '*' : 'id')
-      .eq('user_id', user.id)
-      .single()
+    // Compte invité dans une société BTP (co-gérant, secrétaire…) : il n'a pas de fiche à lui, « Mon profil » est
+    // celle de sa société, et seul le module settings en FULL l'écrit. Tout autre compte : null, chemin d'origine.
+    const ficheSociete = await ficheSocieteOuRefus(user, supabaseAdmin, peutModifierFicheSociete, '*')
+    if (ficheSociete instanceof NextResponse) return ficheSociete
+    const colonnesFiche = estSocieteBtp ? '*' : 'id'
+    const { data: artisan, error: fetchError } = ficheSociete
+      ? { data: ficheSociete.fiche as { id: string }, error: null }
+      : await supabaseAdmin
+        .from('profiles_artisan')
+        .select(colonnesFiche)
+        .eq('user_id', user.id)
+        .single()
 
     if (fetchError || !artisan) {
       return NextResponse.json({ error: 'Profil artisan introuvable' }, { status: 404 })
@@ -129,7 +202,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fields: Record<string, any> = {
-      company_name, bio, phone, email, slug,
+      company_name, bio: ficheSociete ? bioAvecMarqueur(bio, ficheSociete.fiche.bio) : bio, phone, email, slug,
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
       intervention_zones, language,
       rcs_number, ape_code, share_capital, tva_intra,
@@ -150,6 +223,9 @@ export async function POST(request: NextRequest) {
         skippedFields.push(key)
       }
     }
+
+    const refusInvite = ficheSociete ? refusOuValidationAutomatique(body, updatePayload, ficheSociete.fiche) : null
+    if (refusInvite) return refusInvite
 
     if (Object.keys(updatePayload).length === 0) {
       if (skippedFields.length > 0) {
