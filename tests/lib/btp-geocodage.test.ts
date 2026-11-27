@@ -25,9 +25,9 @@ const ban = (
 const osm = (placeRank: number, address: Record<string, string>, lat = '43.26', lon = '5.39'): Reponse => ({
   corps: [{ lat, lon, place_rank: placeRank, address }],
 })
-/** Une voie rendue par la BAN à une recherche de voies (type=street). */
-const voieBan = (name: string, postcode: string, city: string, oldcity?: string) =>
-  ({ geometry: { coordinates: [5.38, 43.25] }, properties: { type: 'street', score: 0.69, name, street: name, postcode, city, oldcity } })
+/** Une voie rendue par la BAN à une recherche de voies (type=street) ; `id` : « code INSEE_code de la voie ». */
+const voieBan = (name: string, postcode: string, city: string, oldcity?: string, id?: string) =>
+  ({ geometry: { coordinates: [5.38, 43.25] }, properties: { type: 'street', score: 0.69, name, street: name, postcode, city, oldcity, id } })
 /** Voies d'une commune rendues par la BAN à une recherche de voies (type=street), clé = nom cherché (seuleVoieCompatible). */
 const voies = (noms: string[], { postcode = '13001', city = 'Marseille' }: Lieu = {}): Reponse => ({
   corps: { features: noms.map(name => voieBan(name, postcode, city)) },
@@ -42,8 +42,11 @@ beforeEach(() => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
     const adresse = String(url)
     appels.push(adresse)
+    // Communes d'un nom (ville saisie sans code postal) : par défaut une seule commune de ce nom.
+    const communeSeule = { corps: { features: [{ properties: { type: 'municipality', name: rechercheBan(adresse) } }] } }
+    const parDefaut = adresse.includes('type=municipality') ? communeSeule : reponses.ban
     const reponse = adresse.includes('api-adresse.data.gouv.fr')
-      ? (banSelonRecherche[rechercheBan(adresse)] ?? reponses.ban)
+      ? (banSelonRecherche[rechercheBan(adresse)] ?? parDefaut)
       : reponses.osm
     if (reponse instanceof Error) throw reponse
     return new Response(JSON.stringify(reponse.corps), { status: reponse.statut ?? 200 })
@@ -523,6 +526,56 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect((await geocoderAdresse({ adresse: '1 chaussée de l\'Hôtel de Ville', codePostal: '59650' }, 'FR'))?.precise).toBe(false)
   })
 
+  it('sixième relecture : lots écrits autrement, complément collé, commune homonyme, voie coupée par arrondissement', async () => {
+    // « Lots du 12 jusqu'au 14 rue Paradis » : la BAN réelle rend le 14 (0,545), la seconde recherche « 14 rue Paradis » le
+    // rendait précis (0,969). « rue Paradis lot 12, 13, 14 » : la rue (0,606), puis « 13 rue Paradis lot 12 » (0,719).
+    reponses.ban = ban('housenumber', 0.545, { postcode: '13001', housenumber: '14', street: 'Rue paradis' })
+    banSelonRecherche['14 rue Paradis 13001 Marseille'] = ban('housenumber', 0.969, { postcode: '13001', housenumber: '14', street: 'Rue paradis' })
+    for (const adresse of ['Lots du 12 jusqu\'au 14 rue Paradis', 'Lots du n° 12 au n° 14 rue Paradis', 'rue Paradis lot 12, 13, 14']) {
+      appels = []
+      expect((await geocoderAdresse(saisie(adresse), 'FR'))?.precise, adresse).toBe(false)
+      expect(appels.filter(a => a.includes('api-adresse.data.gouv.fr')), adresse).toHaveLength(1)
+    }
+    // « Lot12 avenue de la Capelette » (espace oubliée) : OSM rend l'avenue entière (rang 26) ; le 12 collé n'est pas expliqué.
+    reponses.ban = ban('street', 0.773, { postcode: '13010', street: 'Avenue de la Capelette' })
+    reponses.osm = osm(26, { road: 'Avenue de la Capelette', postcode: '13010', city: 'Marseille' })
+    expect((await geocoderAdresse(saisie('Lot12 avenue de la Capelette', '13010'), 'FR'))?.precise).toBe(false)
+    expect((await geocoderAdresse(saisie('Bât B2, avenue de la Capelette', '13010'), 'FR'))?.precise).toBe(false)
+    // « 2, Zone Industrielle, rue Gay Lussac » (60870) : la BAN rend le 2 Zone Industrielle, à 425 m du 2 rue Gay Lussac.
+    reponses.ban = ban('housenumber', 0.646, { postcode: '60870', city: 'Villers-Saint-Paul', housenumber: '2', street: 'Zone Industrielle' })
+    reponses.osm = { corps: [] }
+    expect((await geocoderAdresse(saisie('2, Zone Industrielle, rue Gay Lussac', '60870', 'Villers-Saint-Paul'), 'FR'))?.precise).toBe(false)
+    // « 12 rue Leclerc France », 61500 sans ville : la voie est cherchée par « leclerc », pas par « france » (0 voie).
+    reponses.ban = ban('housenumber', 0.504, { postcode: '61500', city: 'Sées', housenumber: '12', street: 'Rue du Général Leclerc' })
+    reponses.osm = osm(30, { house_number: '12', road: 'Rue du Général Leclerc', postcode: '61500', town: 'Sées' })
+    banSelonRecherche.france = { corps: { features: [] } }
+    banSelonRecherche.leclerc = { corps: { features: [voieBan('Rue du Général Leclerc', '61500', 'Sées'), voieBan('Rue de la Division Leclerc', '61500', 'Saint-Gervais-du-Perron')] } }
+    expect((await geocoderAdresse({ adresse: '12 rue Leclerc France', codePostal: '61500' }, 'FR'))?.precise).toBe(false)
+    // La ville rendue par OSM, recopiée à la fin de la voie (« … Sées »), est retirée avant de chercher les voies.
+    expect((await geocoderAdresse({ adresse: '12 rue Leclerc Sées', codePostal: '61500' }, 'FR'))?.precise).toBe(false)
+    // Ville seule, sans code postal : douze communes « Sainte-Colombe » ; la BAN rend celle de Seine-et-Marne. Reconnue comme
+    // commune déléguée (Val-de-Bonnieure), refusée aussi tant qu'une commune porte ce nom. Témoin : une seule commune.
+    reponses.osm = { corps: [] }
+    banSelonRecherche['Sainte-Colombe'] = { corps: { features: ['77650', '35134', '46120'].map(postcode => ({ properties: { type: 'municipality', name: 'Sainte-Colombe', postcode } })) } }
+    reponses.ban = ban('housenumber', 0.949, { postcode: '77650', city: 'Sainte-Colombe', housenumber: '1', street: 'Place de l\'Église' })
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', ville: 'Sainte-Colombe' }, 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.942, { postcode: '16230', city: 'Val-de-Bonnieure', oldcity: 'Sainte-Colombe', housenumber: '1', street: 'Rue de l\'Église' })
+    expect((await geocoderAdresse({ adresse: '1 rue de l\'Église', ville: 'Sainte-Colombe' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche['Sainte-Colombe'] = { corps: { features: [{ properties: { type: 'municipality', name: 'Sainte-Colombe', postcode: '77650' } }] } }
+    expect((await geocoderAdresse({ adresse: '1 rue de l\'Église', ville: 'Sainte-Colombe' }, 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.949, { postcode: '77650', city: 'Sainte-Colombe', housenumber: '1', street: 'Place de l\'Église' })
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', ville: 'Sainte-Colombe' }, 'FR'))?.precise).toBe(true)
+    banSelonRecherche['Sainte-Colombe'] = new Error('délai dépassé')
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', ville: 'Sainte-Colombe' }, 'FR'))?.precise).toBe(false)
+    // « 12 Jules Cantini », Marseille sans code postal : la BAN coupe l'avenue entre le 6e et le 8e sous un même code de voie
+    // (13206_4930, 13208_4930) : une seule avenue.
+    reponses.ban = ban('housenumber', 0.698, { postcode: '13006', city: 'Marseille', citycode: '13206', housenumber: '12', street: 'Avenue Jules Cantini' })
+    banSelonRecherche.cantini = { corps: { features: [voieBan('Avenue Jules Cantini', '13006', 'Marseille', undefined, '13206_4930'), voieBan('Avenue Jules Cantini', '13008', 'Marseille', undefined, '13208_4930'), voieBan('Square Cantini', '13006', 'Marseille', undefined, '13206_1525')] } }
+    expect((await geocoderAdresse({ adresse: '12 Jules Cantini', ville: 'Marseille' }, 'FR'))?.precise).toBe(true)
+    banSelonRecherche.cantini = { corps: { features: [voieBan('Avenue Jules Cantini', '13006', 'Marseille', undefined, '13206_4930'), voieBan('Avenue Jules Cantini', '13008', 'Marseille', undefined, '13208_5021')] } }
+    expect((await geocoderAdresse({ adresse: '12 Jules Cantini', ville: 'Marseille' }, 'FR'))?.precise).toBe(false)
+  })
+
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
     // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
     // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
@@ -921,6 +974,17 @@ describe('numeroEtVoieSaisis', () => {
       `Lots ${Array.from({ length: 100 }, (_, i) => i + 1).join(' à ')} rue Paradis`,
       // Au-delà de 200 caractères (ce que la BAN lit), aucune lecture.
       `Résidence ${'Les Pins '.repeat(25)}12 rue Paradis`,
+      // Sixième relecture du 27/11/2026 : préposition devant d'autres écritures d'une plage ; « jusqu' au » ; suite finie
+      // par une plage d'un bloc ou un indice ; énumération écrite après la voie ; « Boxes » ; complément collé ; texte en NFD ;
+      // zone lue comme voie à côté d'une rue ; refus voulus du côté sûr (« rue Paradis lot 12, 13 », « Bât 3, 12 »).
+      'Lots du 12 a 14 rue Paradis', 'Lots de 12 a 14 rue Paradis', 'Lot du 12 a 14 rue Paradis', 'Lots du 12 jusqu\'au 14 rue Paradis',
+      'Lots du 12 ou 14 rue Paradis', 'Lots du 12 + 14 rue Paradis', 'Lots du n° 12 au n° 14 rue Paradis', 'Lots du n°12 au n°14 rue Paradis',
+      'Lots des n°12 et n°14 rue Paradis', 'Lots du 12 - 14 rue Paradis', 'Lots 12 jusqu\' au 14 rue Paradis', 'Lots 12 jusqu\'aux 14 rue Paradis',
+      'Lots 12-14, 16 rue Paradis', 'Lots 12/14, 16 rue Paradis', 'Lots 12, 13-14, 16 rue Paradis', 'Lots 12-14 16 rue Paradis',
+      'Lots 12-14 & 16 rue Paradis', 'Lots 12-14 ou 16 rue Paradis', 'Lots 12 à 14 bis, 16 rue Paradis', 'Lots 12 bis, 14 rue Paradis',
+      'Lots 12 B, 14 rue Paradis', 'rue Paradis lot 12, 13, 14', 'rue Paradis lot 12, 13 et 14', 'chemin des Vignes lot 3, 4 et 5',
+      'rue Paradis Garages 3, 4', 'rue Paradis lot 12, 13', 'rue Paradis Bât 3, 12', 'Boxes 3 et 4 rue Paradis', 'Les boxes 3, 4 rue Paradis',
+      'Lots12 à 14 rue Paradis', 'Lots 12 à 14 rue Paradis'.normalize('NFD'), '2, Zone Industrielle, rue Gay Lussac',
     ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
     // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
     for (const [rue, texte] of <Array<[string, string]>>[
@@ -928,6 +992,9 @@ describe('numeroEtVoieSaisis', () => {
       ['Rés 2000, 12 rue Paradis', '12 rue Paradis'], ['Bât 3, 12, rue Paradis', '12 rue Paradis'], ['2 Zone Artisanale du Bosc', '2 Zone Artisanale du Bosc'],
       ['3 Zone Industrielle', '3 Zone Industrielle'], ['2 Terrain d\'Aviation', '2 Terrain d\'Aviation'], ['12, Zone Artisanale du Bosc', '12 Zone Artisanale du Bosc'],
       ['12, Zone B, rue Paradis', '12 rue Paradis'], ['Bât 3 B 10 rue Paradis', '10 rue Paradis'],
+      // Sixième relecture : la plage d'un immeuble entier est celle de la rue ; nombre du nom de la voie, puis numéro.
+      ['Immeuble du 10-12 rue Paradis', '10-12 rue Paradis'], ['Copropriété du 2 au 4 rue Paradis', '2 au 4 rue Paradis'],
+      ['avenue du 8 Mai 1945, 8', '8 avenue du 8 Mai 1945'], ['Route Départementale 96, 12', '12 Route Départementale 96'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
