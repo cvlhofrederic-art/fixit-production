@@ -428,7 +428,7 @@ describe('« Nouvel arrêté » : solde banque repris du dernier relevé import�
     expect(champDate().value).toBe(AUJOURDHUI_ISO)
     expect(champSolde().value).toBe('472,94')
     expect(aide()).toBe(
-      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté : à vérifier. Modifiable\u00A0; négatif\u00A0: découvert.',
+      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté\u00A0: à vérifier, modifiable\u00A0; négatif\u00A0: découvert.',
     )
     fireEvent.change(champDate(), { target: { value: '2026-05-05' } })
     expect(champSolde().value).toBe('472,94')
@@ -516,7 +516,7 @@ describe('solde proposé : texte du champ et aide (fonctions pures)', () => {
       'Solde de clôture du relevé du 05/05/2026, modifiable\u00A0; négatif\u00A0: découvert.',
     )
     expect(aideSoldeBanque({ centimes: 1, dateReleve: '2026-05-05', anterieur: true })).toBe(
-      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté : à vérifier. Modifiable\u00A0; négatif\u00A0: découvert.',
+      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté\u00A0: à vérifier, modifiable\u00A0; négatif\u00A0: découvert.',
     )
   })
 })

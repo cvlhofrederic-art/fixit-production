@@ -57,7 +57,7 @@ export function aideSoldeBanque(propose: SoldeBanquePropose | null): string {
   if (!propose) return AIDE_SOLDE_BANQUE
   const source = `Solde de clôture du relevé du ${dateIsoVersFr(propose.dateReleve)}`
   return propose.anterieur
-    ? `${source}, antérieur à la date de l’arrêté : à vérifier. Modifiable\u00A0; négatif\u00A0: découvert.`
+    ? `${source}, antérieur à la date de l’arrêté\u00A0: à vérifier, modifiable\u00A0; négatif\u00A0: découvert.`
     : `${source}, modifiable\u00A0; négatif\u00A0: découvert.`
 }
 
