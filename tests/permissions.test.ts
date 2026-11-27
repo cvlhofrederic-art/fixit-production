@@ -15,6 +15,7 @@ import {
 } from '@/lib/permissions'
 import type { AccessLevel, ProTeamRole } from '@/lib/permissions'
 import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
+import { peutEcrireTable, visibiliteListe } from '@/lib/btp/perimetre-compte'
 
 describe('lib/permissions', () => {
   describe('getDefaultPermission', () => {
@@ -212,6 +213,7 @@ describe('lib/permissions', () => {
     // chantier qui les concerne, et surtout le pointage très important ». Plus « Mon profil » (settings, en lecture),
     // où il change son mot de passe. Rien d'autre par défaut — le gérant rouvre le reste employé par employé.
     // (Le 24/11 il avait demandé aussi le dictionnaire de matériaux ; le 25/11 il dit « uniquement ».)
+    // Le 26/11/2026 : les rapports, c'est Frédéric qui les accorde « uniquement aux employés qui le font ».
     const TERRAIN: ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
     // Le 26/11/2026, Frédéric ajoute la vérification de l'outillage chaque vendredi « par les encarregados », « le
@@ -219,12 +221,27 @@ describe('lib/permissions', () => {
     // leur vérification) ; pas l'ouvrier.
     it('OUVRIER n’ouvre que le pointage, ses chantiers, la météo et son profil', () => {
       const accessible = getAccessibleModules(getDefaultPermissionsForRole('OUVRIER'))
-      expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'settings'])
+      expect(accessible.sort((a, b) => a.localeCompare(b))).toEqual(['chantiers', 'meteo', 'pointage', 'settings'])
+    })
+
+    // Rapports : fermés par défaut ; le gérant les accorde employé par employé, avec un degré.
+    const perimetreAvec = (role: ProTeamRole, niveau?: AccessLevel) => ({
+      societeId: 'societe', titulaire: false, roleEquipe: role, email: '',
+      permissions: getEffectivePermissions(role, niveau ? [{ module_id: 'rapports', access_level: niveau }] : []),
+    })
+    it.each(TERRAIN)('%s : rapports fermés par défaut, ouverts au degré que le gérant choisit', (role) => {
+      expect(visibiliteListe(perimetreAvec(role), 'rapports')).toBe('aucune')
+      expect(peutEcrireTable(perimetreAvec(role), 'rapports_btp')).toBe(false)
+      // Lecture : il voit les rapports de la société, il n'en écrit aucun.
+      expect(visibiliteListe(perimetreAvec(role, 'READ'), 'rapports')).toBe('tout')
+      expect(peutEcrireTable(perimetreAvec(role, 'READ'), 'rapports_btp')).toBe(false)
+      // Écriture : il les rédige et les modifie.
+      expect(peutEcrireTable(perimetreAvec(role, 'FULL'), 'rapports_btp')).toBe(true)
     })
 
     it.each(['CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'] as const)('%s ouvre en plus l’outillage de ses chantiers, en lecture', (role) => {
       const droits = getDefaultPermissionsForRole(role)
-      expect(getAccessibleModules(droits).sort()).toEqual(['chantiers', 'meteo', 'outillage', 'pointage', 'settings'])
+      expect(getAccessibleModules(droits).sort((a, b) => a.localeCompare(b))).toEqual(['chantiers', 'meteo', 'outillage', 'pointage', 'settings'])
       expect(droits.outillage).toBe('READ')
     })
 
