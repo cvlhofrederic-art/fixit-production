@@ -51,6 +51,64 @@ function mapStatus(rawStatus: string, table: 'factures' | 'devis'): string {
 
 // Refus d'un document dont le numéro est déjà porté par un autre document du compte (sociétés BTP). Le client garde
 // le document tel quel (jamais renuméroté) et affiche un message (lib/document-sync.ts, kind numero-collision).
+/**
+ * Colonne `chantier_id` à écrire pour ce document — ou RIEN du tout.
+ *
+ * Deux règles, et la première est la correction d'un défaut qui vivait en production.
+ *
+ * 1. ON N'ÉCRIT QUE SI LE DOCUMENT PORTE LA CLÉ. L'upsert de cette route écrit la ligne ENTIÈRE : poser
+ *    `chantier_id: doc.chantierId || null` sans condition, comme avant le 26/11/2026, effaçait donc toute
+ *    liaison dès qu'un formulaire qui ignore ce champ réenregistrait le document. C'était le cas de
+ *    `DevisFactureFormBTP`, dont le `buildPayload` est une liste explicite de champs : un devis rattaché
+ *    depuis l'écran Chantiers (`linkDevis`) était délié SILENCIEUSEMENT à la première retouche. Un document
+ *    qui ne parle pas du chantier laisse désormais la colonne telle qu'elle est.
+ *
+ * 2. LE CHANTIER DOIT APPARTENIR À LA SOCIÉTÉ. La clé étrangère de la migration 060 accepte n'importe quel
+ *    `chantiers_btp.id`, et Zod n'exige qu'un UUID : rien ne vérifiait l'appartenance. Le contrôle suit le
+ *    modèle de `chantierDeLaSociete` (app/api/btp/outillage/route.ts).
+ *
+ * UN SEUL CAS DÉLIE : la chaîne vide, que le formulaire envoie quand l'utilisateur choisit « Sélectionner un
+ * chantier… ». Tout le reste laisse la colonne INTACTE, parce qu'une liaison détruite par accident n'a aucun moyen
+ * d'être rattrapée : aucun écran ne sait délier, et la clé étrangère de la migration 060 étant sans ON DELETE, le
+ * chantier devient même impossible à supprimer.
+ *
+ * En particulier, `null` NE DÉLIE PAS. `fetchDocumentsFromSupabase` normalise ce champ à `null` pour TOUT
+ * document relu du cloud (lib/document-sync.ts) : sa présence ne dit donc rien de l'intention de l'utilisateur, et
+ * la rafale de resynchronisation du démarrage (components/common/Providers.tsx) aurait effacé des liaisons posées
+ * depuis un autre poste.
+ *
+ * Et un échec de LECTURE n'écrit rien : « je n'ai pas pu vérifier » n'est pas « ce chantier est refusé ». La
+ * sauvegarde automatique du brouillon partant 1,5 s après la dernière frappe, un seul incident réseau aurait sinon
+ * suffi à délier un document correctement rattaché, sans aucun signe à l'écran.
+ *
+ * Un chantier refusé ne donne pas 400 : cela ferait perdre l'enregistrement du document ENTIER pour un simple
+ * lien, alors que la saisie du devis, elle, est valide.
+ */
+async function rattachementChantier(
+  docRec: Record<string, unknown>,
+  societeId: string,
+): Promise<Record<string, string | null>> {
+  if (!('chantierId' in docRec)) return {}
+  const brut = docRec.chantierId
+  if (typeof brut !== 'string') return {}
+  const chantierId = brut.trim()
+  if (chantierId === '') return { chantier_id: null }
+
+  const { data, error } = await supabaseAdmin
+    .from('chantiers_btp').select('id').eq('id', chantierId).eq('owner_id', societeId).maybeSingle()
+  if (error) {
+    logger.warn('[devis/sync] appartenance du chantier non vérifiable : la colonne reste inchangée', {
+      chantierId, societeId, erreur: error.message,
+    })
+    return {}
+  }
+  if (data === null) {
+    logger.warn('[devis/sync] chantier refusé : il n\'appartient pas à cette société', { chantierId, societeId })
+    return {}
+  }
+  return { chantier_id: chantierId }
+}
+
 function reponseNumeroEnDouble(): NextResponse {
   return NextResponse.json({
     error: 'numero_collision',
@@ -372,6 +430,10 @@ export async function POST(request: NextRequest) {
     }, { status: 409 })
   }
 
+  // Rattachement au chantier : présent seulement si le document entrant porte la clé, et seulement si le
+  // chantier appartient à la société. Voir `rattachementChantier`.
+  const rattachement = await rattachementChantier(docRec, proprietaire)
+
   const payload: Record<string, unknown> = {
     // id : identité stable → permet onConflict='id' (update in-place sur tout le
     // cycle brouillon→émis). Absent pour les docs legacy → onConflict tombe sur
@@ -382,7 +444,7 @@ export async function POST(request: NextRequest) {
     numero: numeroIn,
     client_name: (docRec.clientName as string) || '',
     client_email: (docRec.clientEmail as string) || null,
-    chantier_id: (docRec.chantierId as string) || null,
+    ...rattachement,
     total_ht_cents: totalHtCents,
     // Calculé par computeTva() selon le régime — source unique de vérité
     // (cf. lib/tva-calculator.ts). En franchise/autoliquidation : tax=0, ttc=ht.
