@@ -1245,7 +1245,7 @@ const REGLE_STRICTE: Cas[] = [
   ],
   [
     'défaut 1, G3 fiche synthétique',
-    `FICHE SYNTHÉTIQUE DE LA COPROPRIÉTÉ\n(article 8-2 de la loi du 10 juillet 1965)\nIdentification : Résidence Les Tilleuls, 12 rue des Exemples 37000 Tours\nNuméro d'immatriculation : AB1-234-567\nRèglement de copropriété et état descriptif de division publiés le 12 mars 1965\nNombre de lots : 45, dont 30 lots principaux ; tantièmes de parties communes : 10 000`,
+    `FICHE SYNTHÉTIQUE DE LA COPROPRIÉTÉ\n(article 8-2 de la loi du 10 juillet 1965)\nIdentification : Résidence Les Tilleuls, 12 rue Nationale 37000 Tours\nNuméro d'immatriculation : AB1-234-567\nRèglement de copropriété et état descriptif de division publiés le 12 mars 1965\nNombre de lots : 45, dont 30 lots principaux ; tantièmes de parties communes : 10 000`,
     null,
   ],
   [
