@@ -6,6 +6,7 @@ import { DEMO_PRESTATAIRES } from '@/components/administrateur-judiciaire/data/p
 import { DEMO_TACHES } from '@/components/administrateur-judiciaire/data/taches'
 import { genererId } from '@/lib/administrateur-judiciaire/db/ids'
 import {
+  repoBanques,
   repoCoproprietaires,
   repoCoproprietes,
   repoEcheances,
@@ -24,6 +25,24 @@ import { DATE_DEMO_ISO, lireModeStocke } from '@/lib/administrateur-judiciaire/m
 
 /** Auteur des écritures du seed. */
 const ACTEUR_SEED_DEMO: string | null = null
+
+/**
+ * Compte bancaire fictif de la copropriété de démonstration par défaut (Le Clos des Vignes), décision du 26/11/2026
+ * (PR 799, rb-07 A) : sans lui, l'import d'un relevé et « Nouvel arrêté » restent bloqués faute de compte. IBAN fictif
+ * de clé valide, déjà publié comme exemple de test ; les autres copropriétés n'ont pas de compte. Ajouté par
+ * ajouterCompteBancaireDemo, hors du jeu de démonstration de la maquette (initialiserBaseDemo), dont les tests
+ * d'oracle figent les tables et le journal.
+ */
+export const COMPTE_BANCAIRE_DEMO = {
+  id: 'B-DEMO-C2',
+  coproprieteId: 'C2',
+  nature: 'courant',
+  libelle: 'Compte principal',
+  iban: 'FR7630006000011234567890189',
+  bic: null,
+  etablissement: null,
+  actif: true,
+} as const
 
 /**
  * Instant de référence de la démonstration : 9 h, heure LOCALE, le jour de démonstration (chaîne sans fuseau).
@@ -210,6 +229,21 @@ async function insererJeuDemo(): Promise<void> {
         actor: ACTEUR_SEED_DEMO,
       },
     )
+}
+
+/**
+ * Ajoute le compte bancaire fictif à la copropriété de démonstration par défaut (rb-07 A, décision du 26/11/2026) : en
+ * mode démonstration seulement, si la copropriété existe et n'a encore aucun compte (actif ou clôturé). Idempotent :
+ * une base de démonstration déjà remplie reçoit le compte une seule fois, un compte clôturé ou créé à la main n'est
+ * jamais doublé. Une écriture au journal d'activité, comme toute création de compte.
+ */
+export async function ajouterCompteBancaireDemo(): Promise<void> {
+  if (lireModeStocke() === 'reel') return
+  await ajDb.transaction('rw', ajDb.tables, async () => {
+    if (!(await ajDb.coproprietes.get(COMPTE_BANCAIRE_DEMO.coproprieteId))) return
+    if ((await ajDb.banques.where('coproprieteId').equals(COMPTE_BANCAIRE_DEMO.coproprieteId).count()) > 0) return
+    await repoBanques.create({ ...COMPTE_BANCAIRE_DEMO }, { id: COMPTE_BANCAIRE_DEMO.id, actor: ACTEUR_SEED_DEMO })
+  })
 }
 
 /** Initialisation en cours (partagée par les appels concurrents). */

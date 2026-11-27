@@ -31,7 +31,8 @@ const mocks = vi.hoisted(() => ({
   createSignedUrls: vi.fn(),
 }))
 
-vi.mock('@/lib/auth-helpers', () => ({
+vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
   getAuthUser: vi.fn(async () => mocks.user),
   verifyArtisanOwnership: vi.fn(async () => (mocks.ficheDuCompte ? 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' : null)),
 }))

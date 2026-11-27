@@ -283,6 +283,31 @@ describe('un compte sans droit sur les documents garde son application', () => {
     ])
   })
 
+  // Relecture du 26/11/2026 : « Mon profil » ouvert en FULL par le gérant à un salarié sans droit sur les documents.
+  // Avec l'en-tête seul, son formulaire et ses zones d'intervention s'ouvraient vides, et un enregistrement remplaçait
+  // des valeurs de la société qu'il ne voyait pas.
+  it('un salarié à qui le gérant a ouvert Mon profil (settings FULL) reçoit la fiche entière, secrets retirés', async () => {
+    const salarie = compte('77777777-7777-4777-8777-777777777771', {
+      role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: SOCIETE,
+    })
+    const resultat = await resoudreTitulaireDocuments(salarie, adminSimule({
+      pro_team_members: { data: { company_id: SOCIETE, id: 'membre-7' }, error: null },
+      pro_role_permissions: { data: [{ module_id: 'settings', access_level: 'FULL' }], error: null },
+      profiles_artisan: {
+        data: [{
+          id: FICHE, user_id: SOCIETE, company_name: 'VITFIX CONSTRUÇÕES, LDA', language: 'pt', phone: '+351 220 000 000',
+          intervention_zones: { regions: [], departments: [], cities: ['Porto'] }, kyc_status: 'approved',
+        }],
+        error: null,
+      },
+    }))
+    expect(resultat.ok).toBe(true)
+    if (!resultat.ok) return
+    expect(resultat.lisibles).toEqual([])
+    expect(resultat.fiche).toMatchObject({ phone: '+351 220 000 000', intervention_zones: { cities: ['Porto'] } })
+    expect(resultat.fiche).not.toHaveProperty('kyc_status')
+  })
+
   it('ficheEnTeteSeulement ne laisse passer que de quoi afficher l’entreprise', () => {
     const reduite = ficheEnTeteSeulement({
       id: FICHE, user_id: SOCIETE, company_name: 'X', logo_url: null, language: 'pt', legal_form: 'Lda.',
