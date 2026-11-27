@@ -811,6 +811,39 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect(rechercheBan(appels[0])).toBe('1 rue des Lilas 13008 Marseille')
   })
 
+  it('onzième relecture : voie ordinale, séparateur final, tiret collé, étage collé, position de repli dans la ville', async () => {
+    // « 3 1ère Avenue », 94250 Gentilly : la BAN rend le n° 3 (0,957 ; relevé du 27/11/2026). La dixième correction le
+    // refusait (voie qui commence par un chiffre).
+    reponses.ban = ban('housenumber', 0.957, { postcode: '94250', city: 'Gentilly', housenumber: '3', street: '1ère Avenue' })
+    expect((await geocoderAdresse(saisie('3 1ère Avenue', '94250', 'Gentilly'), 'FR'))?.precise).toBe(true)
+    // « 12 rue Paradis – 13001 Marseille » (en-tête de devis Word), collé ou importé : la BAN rend le bon n° 12 (0,969).
+    reponses.ban = ban('housenumber', 0.969, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    expect((await geocoderAdresse({ adresse: '12 rue Paradis – 13001 Marseille' }, 'FR'))?.precise).toBe(true)
+    expect((await geocoderAdresse({ adresse: '12 rue Paradis –', codePostal: '13001', ville: 'Marseille' }, 'FR'))?.precise).toBe(true)
+    // « 12 -14 rue Paradis » : la BAN rend le n° 14 (0,802), une des deux bornes.
+    reponses.ban = ban('housenumber', 0.802, { postcode: '13001', housenumber: '14', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('12 -14 rue Paradis'), 'FR'))?.precise).toBe(true)
+    // « 12 3e étage rue Paradis » : la BAN rend le n° 12 (0,685).
+    reponses.ban = ban('housenumber', 0.685, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('12 3e étage rue Paradis'), 'FR'))?.precise).toBe(true)
+
+    // Position de repli : « Maison de Mme X, 1 place de l'Église, près de la mairie », Sainte-Christine sans code postal. La
+    // première recherche rend la place de la Mairie de Sainte-Christie-d'Armagnac (Gers, 0,42) ; la seconde, refusée à juste
+    // titre (deux Sainte-Christine), rend celle du 63. Le repli, que la météo garde, est celui de la ville saisie (relevé du
+    // 27/11/2026 ; avant : le Gers, à 338 km).
+    const gers = { geometry: { coordinates: [-0.00851, 43.78468] }, properties: { type: 'housenumber', score: 0.4165, housenumber: '1', name: '1 Place de la Mairie', street: 'Place de la Mairie', postcode: '32370', city: 'Sainte-Christie-d\'Armagnac' } }
+    const n1en63 = { geometry: { coordinates: [2.836, 46.0667] }, properties: { type: 'housenumber', score: 0.931, housenumber: '1', name: '1 Place de l\'Eglise', street: 'Place de l\'Eglise', postcode: '63390', city: 'Sainte-Christine' } }
+    const n1en49 = { geometry: { coordinates: [-0.8478, 47.2864] }, properties: { type: 'housenumber', score: 0.8003, housenumber: '1', name: '1 Place de l\'Eglise de Sainte-Christine', street: 'Place de l\'Eglise de Sainte-Christine', postcode: '49120', city: 'Chemillé-en-Anjou', oldcity: 'Ste Christine' } }
+    const repere = { adresse: 'Maison de Mme X, 1 place de l\'Église, près de la mairie', ville: 'Sainte-Christine' }
+    banSelonRecherche['Maison de Mme X, 1 place de l\'Église, près de la mairie Sainte-Christine'] = { corps: { features: [gers] } }
+    banSelonRecherche['1 place de l\'Église Sainte-Christine'] = { corps: { features: [n1en63, n1en49] } }
+    reponses.osm = { corps: [] }
+    expect(await geocoderAdresse(repere, 'FR')).toEqual({ latitude: 46.0667, longitude: 2.836, precise: false })
+    // Témoin : aucune réponse dans la ville saisie, la première est gardée, comme avant.
+    banSelonRecherche['1 place de l\'Église Sainte-Christine'] = { corps: { features: [] } }
+    expect(await geocoderAdresse(repere, 'FR')).toEqual({ latitude: 43.78468, longitude: -0.00851, precise: false })
+  })
+
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
     // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
     // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
@@ -1234,6 +1267,10 @@ describe('numeroEtVoieSaisis', () => {
       // Dixième relecture du 27/11/2026 : complément collé à son numéro devant une ponctuation, deux-points collé.
       'Lots12, 14 rue Paradis', 'Lots12. 14 rue Paradis', 'Lots12, 13 et 14 rue Paradis', 'Lots12,14 rue Paradis', 'Lots 12: 14 rue Paradis',
       'Lots12: 14 rue Paradis', 'Bâts3, 12 rue Paradis',
+      // Onzième relecture : seconde borne collée à son tiret dans une suite de compléments ; complément autre qu'un étage
+      // numéroté entre le numéro et la voie (son numéro n'est pas celui de la rue).
+      'Lots 12 -14, 16 rue Paradis', 'Lots 12 -14 rue Paradis', 'Bât 3 -4 rue Paradis', 'Appt 12 -14 rue Paradis',
+      '2 étage rue Paradis', '3 bât. B rue Paradis', '12 3e étage',
     ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
     // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
     for (const [rue, texte] of <Array<[string, string]>>[
@@ -1258,6 +1295,14 @@ describe('numeroEtVoieSaisis', () => {
       ['1, Résidence Le Parc, 12 rue Paradis', '12 rue Paradis'], ['1. Résidence Le Parc, 12 rue Paradis', '12 rue Paradis'],
       ['Lot12, 14 rue Paradis', '14 rue Paradis'], ['Bât3, 12 rue Paradis', '12 rue Paradis'], ['Rés2000, 12 rue Paradis', '12 rue Paradis'],
       ['12: rue Paradis', '12 rue Paradis'], ['- 1 rue des Lilas', '1 rue des Lilas'], ['• 12 rue Paradis', '12 rue Paradis'],
+      // Onzième relecture : voie qui commence par un ordinal ; seconde borne collée à son tiret ; étage numéroté entre le
+      // numéro et la voie, sans virgule.
+      ['3 1ère Avenue', '3 1ère Avenue'], ['3, 1ère Avenue', '3 1ère Avenue'], ['3 2ème Avenue', '3 2ème Avenue'], ['5 1ere Avenue', '5 1ere Avenue'],
+      ['12 -14 rue Paradis', '12 -14 rue Paradis'], ['12 –14 rue Paradis', '12 –14 rue Paradis'],
+      ['12 3e étage rue Paradis', '12 rue Paradis'], ['12 1er étage, rue Paradis', '12 rue Paradis'], ['12 1er étage rue Paradis', '12 rue Paradis'],
+      ['12 3e étage gauche, rue Paradis', '12 rue Paradis'], ['1 12-14 rue Paradis', '12-14 rue Paradis'],
+      // Un type de voie précédé d'un article est un nom de résidence, pas la voie (« Les Allées du Parc »).
+      ['12 3e étage Les Allées du Parc, rue Paradis', '12 rue Paradis'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
@@ -1382,6 +1427,15 @@ describe('adresse et carte', () => {
     expect(decomposerAdresse({ adresse: 'Rua 25 de Abril 1974', ville: 'Porto' }, 'PT')).toEqual({ rue: 'Rua 25 de Abril 1974', codePostal: '', ville: 'Porto' })
     // La ville recopiée dans le champ de la rue n'est pas une rue.
     expect(decomposerAdresse({ adresse: 'Marseille', ville: 'marseille' }, 'FR')).toEqual({ rue: '', codePostal: '', ville: 'marseille' })
+    // Séparateur final d'un en-tête de devis (tiret long de Word, puce, deux-points, barre), collé ou importé (onzième
+    // relecture du 27/11/2026) ; la parenthèse fermante reste ; au Portugal, rien ne change.
+    for (const separateur of ['–', '—', '•', ':', '/']) {
+      expect(decomposerAdresse({ adresse: `12 rue Paradis ${separateur} 13001 Marseille` }, 'FR'), separateur).toEqual({ rue: '12 rue Paradis', codePostal: '13001', ville: 'Marseille' })
+    }
+    expect(decomposerAdresse({ adresse: '12 rue Paradis –', codePostal: '13001', ville: 'Marseille' }, 'FR').rue).toBe('12 rue Paradis')
+    expect(decomposerAdresse({ adresse: '« 12 rue Paradis »' }, 'FR').rue).toBe('12 rue Paradis')
+    expect(decomposerAdresse({ adresse: '12 rue Paradis (Bât B)' }, 'FR').rue).toBe('12 rue Paradis (Bât B)')
+    expect(decomposerAdresse({ adresse: 'Rua de Santa Catarina 100 –', ville: 'Porto' }, 'PT').rue).toBe('Rua de Santa Catarina 100 –')
   })
 
   it('noms de lieux comparables : accents, casse, tirets, « St » / « Ste »', () => {
