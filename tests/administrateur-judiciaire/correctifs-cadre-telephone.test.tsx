@@ -259,7 +259,8 @@ describe('indicateurs empilés à 375 px', () => {
 describe('ombre de la barre latérale fermée au bord gauche', () => {
   const OMBRE = '4px 0 24px #0b18282e'
   /** Fermeture : le menu glisse (transform) avec son ombre, retirée une fois sorti de l'écran. */
-  const FERMETURE = 'transformvar(--dur-slow)var(--ease-out),box-shadow0slinearvar(--dur-slow)'
+  const FERMETURE =
+    'transformvar(--dur-slow)var(--ease-out),box-shadow0slinearvar(--dur-slow),visibility0slinearvar(--dur-slow)'
 
   for (const largeur of [375, 1024])
     it(`sans le correctif, à ${largeur} px, la barre fermée garde son ombre (constats du 22/11 et du 26/11/2026)`, () => {
@@ -299,6 +300,57 @@ describe('ombre de la barre latérale fermée au bord gauche', () => {
       retirerFeuilles()
       feuillesALargeur(largeur)
       expect([style('aside.sidebar').boxShadow, style('aside.sidebar').transition]).toEqual(avant)
+    })
+})
+
+describe('menu latéral fermé hors de portée du clavier et des lecteurs d’écran (décision du 26/11/2026)', () => {
+  /** Fermeture : visibility part après le glissement (même délai que l'ombre), pour que le menu reste visible en sortant. */
+  const FERMETURE =
+    'transformvar(--dur-slow)var(--ease-out),box-shadow0slinearvar(--dur-slow),visibility0slinearvar(--dur-slow)'
+
+  for (const largeur of [375, 1024])
+    it(`sans le correctif, à ${largeur} px, la déclaration visibility:hidden du menu fermé est absente (l'atteignabilité au clavier se mesure dans Chrome, pas ici)`, () => {
+      feuillesALargeur(largeur, SANS_CORRECTIF)
+      monterCadre()
+      expect(style('aside.sidebar').visibility).not.toBe('hidden')
+    })
+
+  for (const largeur of [375, 1023, 1024])
+    it(`à ${largeur} px : menu fermé masqué une fois sorti de l'écran, menu ouvert visible tout de suite`, () => {
+      feuillesALargeur(largeur)
+      monterCadre()
+      expect(style('aside.sidebar').visibility).toBe('hidden')
+      expect(style('aside.sidebar').display).not.toBe('none')
+      expect(sansEspaces(style('aside.sidebar').transition)).toBe(FERMETURE)
+      monterCadre(true)
+      expect(style('aside.sidebar').visibility).not.toBe('hidden')
+      // Ouverture : la transition de l'état ouvert ne porte pas sur visibility, donc aucun délai avant d'apparaître.
+      expect(sansEspaces(style('aside.sidebar').transition)).not.toContain('visibility')
+      expect(Number.parseFloat(style('aside.sidebar').transitionDelay)).toBe(0)
+    })
+
+  it('mouvements réduits : masqué tout de suite, le délai de la liste de transitions est ramené à 0', () => {
+    const brute = document.createElement('style')
+    brute.textContent = readFileSync(join(STYLES, 'aj-correctifs.css'), 'utf8')
+    document.head.appendChild(brute)
+    const blocs = Array.from((brute.sheet as CSSStyleSheet).cssRules).filter(
+      (regle): regle is CSSMediaRule => regle instanceof CSSMediaRule && regle.media.mediaText.includes('prefers-reduced-motion'),
+    )
+    brute.remove()
+    const regle = blocs[0].cssRules[0] as CSSStyleRule
+    expect(regle.selectorText).toBe('#aj-root aside.sidebar:not(.is-open)')
+    expect(regle.style.getPropertyValue('transition-delay')).toBe('0s')
+  })
+
+  for (const largeur of [1025, 1440])
+    it(`à ${largeur} px (mise en page ordinateur) : le menu reste visible, rien ne change`, () => {
+      feuillesALargeur(largeur, SANS_CORRECTIF)
+      monterCadre()
+      const avant = [style('aside.sidebar').visibility, style('aside.sidebar').transition]
+      retirerFeuilles()
+      feuillesALargeur(largeur)
+      expect([style('aside.sidebar').visibility, style('aside.sidebar').transition]).toEqual(avant)
+      expect(style('aside.sidebar').visibility).not.toBe('hidden')
     })
 })
 
