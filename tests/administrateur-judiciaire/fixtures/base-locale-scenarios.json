@@ -5,7 +5,7 @@
    "id": "schema",
    "code": "\n    return {\n      verno: X.db.verno,\n      tables: X.db.tables.map((t) => [t.name, [t.schema.primKey.src, ...t.schema.indexes.map((i) => i.src)].join(', ')]),\n    }",
    "attendu": {
-    "verno": 4,
+    "verno": 5,
     "tables": [
      [
       "cabinets",
@@ -210,6 +210,10 @@
      [
       "encaissements",
       "id, coproprieteId"
+     ],
+     [
+      "relevesImportes",
+      "id, coproprieteId, banqueId"
      ]
     ]
    }
@@ -2791,7 +2795,8 @@
     "clesRepartition": [],
     "echeancesAppel": [],
     "traitements": [],
-    "encaissements": []
+    "encaissements": [],
+    "relevesImportes": []
    }
   },
   {
@@ -2849,7 +2854,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "apres": {
      "cabinets": 0,
@@ -2902,7 +2908,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     }
    }
   },
@@ -2961,7 +2968,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "majuscules": {
      "cabinets": 0,
@@ -3014,7 +3022,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     }
    }
   },
@@ -3073,7 +3082,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "lots": [
      {
@@ -3238,7 +3248,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "mandatSansCopro": {
      "cabinets": 0,
@@ -3291,7 +3302,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     }
    }
   },
@@ -3855,7 +3867,7 @@
   },
   {
    "id": "repository-toutes-les-tables",
-   "code": "\n    await reinitialiser(8)\n    await X.vider()\n    // Portage (intégration Gestéam, T12) : changementsStatut ne s'écrit que par changerStatutAg, tables ajoutées par l'intégration (planComptable, modelesCourrier, courriers) hors du périmètre de la maquette, et une AG se crée au statut « Projet ». Base D2 (version 3) : tables D1 et D2 (identites, positions, comptesCoproprietaires, clesRepartition, echeancesAppel, traitements) écrites par le domaine, hors du périmètre de la maquette. Version 4 : encaissements, écrite par db/encaissements.ts.\n    const noms = X.db.tables.map((t) => t.name).filter((n) => !['activityLog', 'changementsStatut', 'planComptable', 'modelesCourrier', 'courriers', 'identites', 'positions', 'comptesCoproprietaires', 'clesRepartition', 'echeancesAppel', 'traitements', 'encaissements'].includes(n))\n    for (const n of noms) await X.repo(n).create(n === 'ags' ? { essai: n, statut: 'Projet' } : { essai: n }, { id: n + '-1', actor: 'test' })\n    const journal = await X.db.table('activityLog').toArray()\n    return {\n      comptes: await compter(),\n      entites: journal.map((l) => [l.entite, l.entiteId, l.action, l.qui]).sort((x, y) => (x[1] < y[1] ? -1 : 1)),\n    }",
+   "code": "\n    await reinitialiser(8)\n    await X.vider()\n    // Portage (intégration Gestéam, T12) : changementsStatut ne s'écrit que par changerStatutAg, tables ajoutées par l'intégration (planComptable, modelesCourrier, courriers) hors du périmètre de la maquette, et une AG se crée au statut « Projet ». Base D2 (version 3) : tables D1 et D2 (identites, positions, comptesCoproprietaires, clesRepartition, echeancesAppel, traitements) écrites par le domaine, hors du périmètre de la maquette. Version 4 : encaissements, écrite par db/encaissements.ts. Version 5 : relevesImportes, écrite avec les lignes du relevé par db/releves-importes.ts.\n    const noms = X.db.tables.map((t) => t.name).filter((n) => !['activityLog', 'changementsStatut', 'planComptable', 'modelesCourrier', 'courriers', 'identites', 'positions', 'comptesCoproprietaires', 'clesRepartition', 'echeancesAppel', 'traitements', 'encaissements', 'relevesImportes'].includes(n))\n    for (const n of noms) await X.repo(n).create(n === 'ags' ? { essai: n, statut: 'Projet' } : { essai: n }, { id: n + '-1', actor: 'test' })\n    const journal = await X.db.table('activityLog').toArray()\n    return {\n      comptes: await compter(),\n      entites: journal.map((l) => [l.entite, l.entiteId, l.action, l.qui]).sort((x, y) => (x[1] < y[1] ? -1 : 1)),\n    }",
    "attendu": {
     "comptes": {
      "cabinets": 1,
@@ -3908,7 +3920,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "entites": [
      [
@@ -5588,7 +5601,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "nbCoprosStore": 4
    }
@@ -7595,7 +7609,8 @@
      "clesRepartition": 0,
      "echeancesAppel": 0,
      "traitements": 0,
-     "encaissements": 0
+     "encaissements": 0,
+     "relevesImportes": 0
     },
     "base": {
      "lots": [

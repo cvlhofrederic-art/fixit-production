@@ -171,6 +171,13 @@ export interface Ecriture extends EntiteEnregistree {
   libelle: string
   montant: number
   sens: SensEcriture
+  /**
+   * Ligne de banque importée d'un relevé CFONB 120 ou camt.053 (décision du 26/11/2026, PR 799, point 11 B) : le relevé
+   * gardé dont elle vient et les informations de son mouvement (référence de la banque, date de valeur, payeur… :
+   * domain/import/releves-importes.ts). Non indexé : aucun index ne change. Absent d'une ligne importée d'un CSV, d'une
+   * ligne importée avant la version 5 de la base, et de toute autre écriture (471, 450).
+   */
+  releve?: import('@/lib/administrateur-judiciaire/domain/import/releves-importes').OrigineReleve
 }
 
 /** Dossier d'impayé ; statut « étape:AAAA-MM-JJ » (voir domain/recouvrement). */
@@ -515,6 +522,16 @@ export type PieceTraitementEnregistree = EntiteEnregistree & import('@/lib/admin
  */
 export type EncaissementCoproprietaireEnregistre = ChampsSuivi & import('@/lib/administrateur-judiciaire/domain/postes-comptes').EncaissementImpute
 
+// ─── Relevés importés (version 5) ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Relevé CFONB 120 ou camt.053 importé sur un compte bancaire (domain/import/releves-importes.ts : empreinte, solde de
+ * clôture, compte bancaire, syndicat, date d'import), gardé pour être reconnu à l'import suivant et pour proposer le
+ * solde banque d'un arrêté. Écrit par db/releves-importes.ts seulement, dans la transaction des lignes du relevé ; jamais
+ * modifié ni supprimé par l'écran. Sans repository générique.
+ */
+export type ReleveImporteEnregistre = ChampsSuivi & import('@/lib/administrateur-judiciaire/domain/import/releves-importes').ReleveImporte
+
 // ─── Journal d'activité ────────────────────────────────────────────────────────────────────
 
 export type ActionJournal = 'create' | 'update' | 'remove'
@@ -586,6 +603,7 @@ export class AdministrateurJudiciaireDb extends Dexie {
   declare echeancesAppel: Table<EcheanceAppelEnregistree, [string, string]>
   declare traitements: Table<PieceTraitementEnregistree, string>
   declare encaissements: Table<EncaissementCoproprietaireEnregistre, string>
+  declare relevesImportes: Table<ReleveImporteEnregistre, string>
 
   constructor() {
     super(NOM_BASE_LOCALE)
@@ -664,6 +682,17 @@ export class AdministrateurJudiciaireDb extends Dexie {
     // échéances appelées et de ces encaissements. Index : la lecture des encaissements d'un syndicat (D1).
     this.version(4).stores({
       encaissements: 'id, coproprieteId',
+    })
+    // Version 5 (décision du 26/11/2026 du référent métier, PR 799, point 10 B) : AJOUTE une table, les relevés importés
+    // (empreinte et solde de clôture de chaque relevé CFONB 120 ou camt.053 importé : db/releves-importes.ts). Les blocs
+    // version(1) à version(4) ci-dessus ne sont jamais modifiés ; aucune fonction upgrade : la montée de version crée une
+    // table vide et ne touche à aucune donnée. Les relevés importés avant cette version n'ont pas d'empreinte, et aucune
+    // n'est reconstituée : leurs lignes restent telles quelles, sans origine (l'écran le dit à l'analyse d'un relevé).
+    // Les informations du mouvement gardées sur chaque ligne (Ecriture.releve) ne sont pas indexées : la table
+    // « ecritures » ne change pas. Index : la lecture des relevés d'un syndicat (D1, écran « Banque et recouvrement ») et
+    // celle des relevés d'un compte bancaire (contrôle à l'écriture : un relevé déjà gardé sur le compte est refusé).
+    this.version(5).stores({
+      relevesImportes: 'id, coproprieteId, banqueId',
     })
   }
 }

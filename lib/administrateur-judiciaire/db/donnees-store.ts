@@ -16,6 +16,7 @@ import {
   repoSinistres,
   repoTaches,
 } from '@/lib/administrateur-judiciaire/db/repositories'
+import { enregistrerRelevesImportes, type RelevesDeLImport } from '@/lib/administrateur-judiciaire/db/releves-importes'
 import type { DonneesCreation, DonneesModification } from '@/lib/administrateur-judiciaire/db/repository'
 import { COMPTE_BANQUE_NON_RATTACHE, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import {
@@ -107,8 +108,10 @@ export interface EtatDonneesStore {
   /**
    * Écritures 512 (renvoyées) et, pour chaque sortie, une écriture 471 « À ventiler ». Dates reçues en ISO. `compte` :
    * sous-compte 512 du compte bancaire choisi (db/releves-bancaires.ts) ; absent, « 512 » non rattaché, comme avant.
+   * `releves` : relevés CFONB 120 ou camt.053 dont viennent ces lignes, gardés dans la même transaction avec les
+   * informations de chaque mouvement sur sa ligne (db/releves-importes.ts) ; absent (CSV), rien n'est gardé, comme avant.
    */
-  importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string) => Promise<Ecriture[]>
+  importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string, releves?: RelevesDeLImport) => Promise<Ecriture[]>
   imputerEncaissement: (ecritureId: string, coproprietaireId: string, dateIso: string) => Promise<void>
   avancerRecouvrement: (coproprietaireId: string, etape: string, dateIso: string) => Promise<Impaye>
   importerCoproprietaires: (
@@ -312,7 +315,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     }))
     return prestataire
   },
-  importerReleve: async (coproprieteId, lignes, compte = COMPTE_BANQUE_NON_RATTACHE) => {
+  importerReleve: async (coproprieteId, lignes, compte = COMPTE_BANQUE_NON_RATTACHE, releves) => {
     if (!estCompteBanque(compte)) throw new Error(`Compte « ${compte} » : sous-compte 512 attendu pour un relevé bancaire.`)
     let journal = get().journaux.find((existant) => existant.coproprieteId === coproprieteId)
     if (!journal) {
@@ -330,9 +333,13 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     // Correctif d'un défaut hérité de la maquette : les écritures (et leur journal d'activité) sont enregistrées dans
     // une seule transaction. Une erreur en cours de boucle n'en laisse aucune en base, alors qu'auparavant les
     // premières y restaient, absentes de l'état et donc du dédoublonnage : un nouvel import les dupliquait.
-    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog], async () => {
+    // Relevés CFONB 120 ou camt.053 (décision du 26/11/2026, PR 799, points 10 B et 11 B) : gardés dans la même
+    // transaction que leurs lignes, tout ou rien ; un relevé déjà gardé sur le compte annule l'import.
+    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.relevesImportes], async () => {
+      const origines = releves ? await enregistrerRelevesImportes(coproprieteId, compte, releves, lignes) : null
       for (const ligne of lignes) {
         const [annee, mois, jour] = ligne.date.split('-').map(Number),
+          origine = origines?.get(ligne),
           ecriture = await repoEcritures.create({
             journalId,
             date: new Date(annee, mois - 1, jour),
@@ -340,6 +347,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
             libelle: ligne.libelle,
             montant: Math.abs(ligne.montant),
             sens: ligne.montant >= 0 ? 'debit' : 'credit',
+            ...(origine ? { releve: origine } : {}),
           })
         ecrituresBanque.push(ecriture)
         if (ligne.montant < 0)
