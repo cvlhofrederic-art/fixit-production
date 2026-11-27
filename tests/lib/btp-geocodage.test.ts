@@ -683,6 +683,68 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect((await geocoderAdresse(saisie('1 rue des Œillets'), 'FR'))?.precise).toBe(true)
   })
 
+  it('neuvième relecture : commune déléguée homonyme, commune déléguée en village, parenthèse de la BAN', async () => {
+    // « place de l'Église », Sainte-Christine sans code postal : une commune du Puy-de-Dôme (63390) et une commune déléguée de
+    // Chemillé-en-Anjou (49120) ; la recherche des communes ne voit que la première. Les premières réponses de la BAN montrent
+    // les deux places (relevé du 27/11/2026). Avant : précis dans le 63, à 312 km.
+    const place63 = { geometry: { coordinates: [2.83614, 46.06663] }, properties: { type: 'street', score: 0.931, name: 'Place de l\'Eglise', street: 'Place de l\'Eglise', postcode: '63390', city: 'Sainte-Christine' } }
+    const place49 = { geometry: { coordinates: [-0.84785, 47.28638] }, properties: { type: 'street', score: 0.797, name: 'Place de l\'Eglise de Sainte-Christine', street: 'Place de l\'Eglise de Sainte-Christine', postcode: '49120', city: 'Chemillé-en-Anjou', oldcity: 'Ste Christine' } }
+    const sousLeSeuil = { ...place63, properties: { ...place63.properties, score: 0.75 } }
+    const christine = { adresse: 'place de l\'Église', ville: 'Sainte-Christine' }
+    reponses.ban = { corps: { features: [place63, place49] } }
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(false)
+    expect(appels[0]).toContain('&limit=5')
+    // Par Nominatim (la BAN sous son seuil) : de même.
+    reponses.ban = { corps: { features: [sousLeSeuil, place49] } }
+    reponses.osm = osm(26, { road: 'Place de l\'Église', postcode: '63390', village: 'Sainte-Christine', municipality: 'Riom' })
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(false)
+    // Témoins : la seule place du 63 parmi les réponses, par la BAN puis par Nominatim : précis.
+    reponses.ban = { corps: { features: [place63] } }
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(true)
+    reponses.ban = { corps: { features: [sousLeSeuil] } }
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(true)
+    // Ne comptent que les réponses dans une commune ou commune déléguée du nom saisi, et sur la voie saisie.
+    const riom = { ...place49, properties: { ...place49.properties, postcode: '63200', city: 'Riom', oldcity: undefined } }
+    const gare = { ...place49, properties: { ...place49.properties, name: 'Rue de la Gare', street: 'Rue de la Gare' } }
+    reponses.ban = { corps: { features: [place63, riom, gare] } }
+    expect((await geocoderAdresse(christine, 'FR'))?.precise).toBe(true)
+    // Avec un code postal, une seule réponse demandée.
+    appels = []
+    await geocoderAdresse({ ...christine, codePostal: '63390' }, 'FR')
+    expect(appels[0]).toContain('&limit=1&postcode=63390')
+
+    // « rue de la Vieille Église », 49620 Mauges-sur-Loire : la BAN sous son seuil (0,7575) ; OSM rend la rue dans le village
+    // de La Pommeraye, « Mauges-sur-Loire » en municipality (relevés du 27/11/2026). La BAN y connaît la rue, à La Pommeraye,
+    // commune déléguée de Mauges-sur-Loire : précis, comme main (la huitième correction le refusait).
+    reponses.ban = ban('street', 0.7575, { postcode: '49620', city: 'Mauges-sur-Loire', oldcity: 'La Pommeraye', street: 'Rue de la Vieille Église' })
+    reponses.osm = osm(27, { road: 'Rue de la Vieille Église', postcode: '49620', village: 'La Pommeraye', municipality: 'Mauges-sur-Loire' })
+    banSelonRecherche.eglise = { corps: { features: [voieBan('Rue de la Vieille Église', '49620', 'Mauges-sur-Loire', 'La Pommeraye')] } }
+    expect((await geocoderAdresse(saisie('rue de la Vieille Église', '49620', 'Mauges-sur-Loire'), 'FR'))?.precise).toBe(true)
+    // La rue connue dans une autre commune déléguée que le village d'OSM, ou une autre voie seulement dans ce village : non.
+    banSelonRecherche.eglise = { corps: { features: [voieBan('Rue de la Vieille Église', '49620', 'Mauges-sur-Loire', 'Saint-Laurent-de-la-Plaine')] } }
+    expect((await geocoderAdresse(saisie('rue de la Vieille Église', '49620', 'Mauges-sur-Loire'), 'FR'))?.precise).toBe(false)
+    banSelonRecherche.eglise = { corps: { features: [voieBan('Place de l\'Église', '49620', 'Mauges-sur-Loire', 'La Pommeraye')] } }
+    expect((await geocoderAdresse(saisie('rue de la Vieille Église', '49620', 'Mauges-sur-Loire'), 'FR'))?.precise).toBe(false)
+
+    // « rue de la Mairie », 49660 Sèvremoine : la BAN écrit « Rue de la Mairie (Torfou) » (0,7245) ; OSM rend « Rue de la
+    // Mairie » à Torfou (city_district), commune déléguée de Sèvremoine (relevés du 27/11/2026) : la même voie. Précis, comme
+    // main ; la branche la comptait pour une autre voie.
+    reponses.ban = ban('street', 0.7245, { postcode: '49660', city: 'Sèvremoine', oldcity: 'Torfou', street: 'Rue de la Mairie (Torfou)' })
+    reponses.osm = osm(26, { road: 'Rue de la Mairie', postcode: '49660', city_district: 'Torfou', city: 'Sèvremoine' })
+    banSelonRecherche.mairie = { corps: { features: [voieBan('Rue de la Mairie (Torfou)', '49660', 'Sèvremoine', 'Torfou')] } }
+    expect((await geocoderAdresse(saisie('rue de la Mairie', '49660', 'Sèvremoine'), 'FR'))?.precise).toBe(true)
+    // La parenthèse d'une autre commune déléguée que celle d'OSM : une autre voie, refusée.
+    banSelonRecherche.mairie = { corps: { features: [voieBan('Rue de la Mairie (Tillières)', '49660', 'Sèvremoine', 'Tillières')] } }
+    expect((await geocoderAdresse(saisie('rue de la Mairie', '49660', 'Sèvremoine'), 'FR'))?.precise).toBe(false)
+
+    // « 3 rue Nationale », 49570 Mauges-sur-Loire : la BAN sous son seuil (0,5997, « Rue Nationale (Montjean-sur-Loire) ») ;
+    // OSM rend le n° 3 au même point, dans le village de Montjean-sur-Loire : les deux règles ensemble.
+    reponses.ban = ban('housenumber', 0.5997, { postcode: '49570', city: 'Mauges-sur-Loire', oldcity: 'Montjean-sur-Loire', housenumber: '3', street: 'Rue Nationale (Montjean-sur-Loire)' })
+    reponses.osm = osm(30, { house_number: '3', road: 'Rue Nationale', postcode: '49570', village: 'Montjean-sur-Loire', municipality: 'Mauges-sur-Loire' })
+    banSelonRecherche.nationale = { corps: { features: [voieBan('Rue Nationale (Montjean-sur-Loire)', '49570', 'Mauges-sur-Loire', 'Montjean-sur-Loire')] } }
+    expect((await geocoderAdresse(saisie('3 rue Nationale', '49570', 'Mauges-sur-Loire'), 'FR'))?.precise).toBe(true)
+  })
+
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
     // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
     // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
@@ -1098,6 +1160,11 @@ describe('numeroEtVoieSaisis', () => {
       'Lots du 12 - 12 bis rue Paradis', 'Lots du 12, 12 bis rue Paradis', 'Lots du 12 - 12B rue Paradis', 'Lots du 12A - 12B rue Paradis',
       'Lots du 12 bis - 12 ter rue Paradis', 'Maisons du 12 - 12 bis rue Paradis', 'Lots du 14, 12 rue Paradis',
       'Lots des 14, 12 et 10 rue Paradis', 'Lot du 14, 12, 13 rue Paradis', 'Logements de 1975, 2050 route de Grasse',
+      // Neuvième relecture du 27/11/2026 : les mêmes suites tapées avec de simples espaces, ou avec un point collé au numéro.
+      'Lots du 12 12 bis rue de la Gare', 'Lots du 12A 12B rue de la Gare', 'Lots des 14 12 et 10 rue Paradis', 'Lots du 12 14 rue Paradis',
+      'Lots du 12 14, 16 rue Paradis', 'Lots du 12 : 12 bis rue Paradis', 'Lotissement Les Oliviers, lots du 12 14 rue Paradis',
+      'Logements de 1975 2050 route de Grasse', 'Appartements du 12 14 rue Paradis', 'Lots 12. 14 rue Paradis', 'Lots 12. 13. 14 rue Paradis',
+      'Lots du 12. 12 bis rue Paradis', 'Lots n° 12. 14 rue Paradis',
     ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
     // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
     for (const [rue, texte] of <Array<[string, string]>>[
@@ -1111,6 +1178,11 @@ describe('numeroEtVoieSaisis', () => {
       // Septième et huitième relectures : une année n'ouvre pas une plage de lots que le numéro suivant ne prolonge pas.
       ['Logements de 1975, 12 rue Paradis', '12 rue Paradis'], ['Maison de 1930, 10-12 rue Paradis', '10-12 rue Paradis'],
       ['Maisons de 1890, 4 bis rue Paradis', '4 bis rue Paradis'], ['Logements de 2005, 12 rue Paradis', '12 rue Paradis'],
+      // Neuvième relecture : sans virgule ; au singulier, le second numéro est celui de la rue ; point collé à un numéro.
+      ['Logements de 1975 12 rue Paradis', '12 rue Paradis'], ['Maison de 1930 10-12 rue Paradis', '10-12 rue Paradis'],
+      ['Lot du 12 14 rue Paradis', '14 rue Paradis'], ['Immeuble du 12 14 rue Paradis', '14 rue Paradis'],
+      ['12. rue Paradis', '12 rue Paradis'], ['Bât. 3. 12 rue Paradis', '12 rue Paradis'], ['Lot 12. 14 rue Paradis', '14 rue Paradis'],
+      ['12 av. du Prado', '12 av. du Prado'], ['5 av. du Gal. Leclerc', '5 av. du Gal. Leclerc'], ['Rés. Les Pins 12 rue Paradis', '12 rue Paradis'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')

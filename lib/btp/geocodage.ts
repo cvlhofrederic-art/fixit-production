@@ -98,10 +98,12 @@ export function decomposerAdresse(entree: AdresseChantier, pays: Pays): AdresseD
 
 /**
  * Saisie française rendue lisible : accents composés (texte copié d'un PDF, en NFD, où « à » tient en deux caractères) et
- * complément collé à son numéro séparé (« Lot12 » → « Lot 12 », « Lots12 à 14 ») ; sixième relecture du 27/11/2026.
+ * complément collé à son numéro séparé (« Lot12 » → « Lot 12 », « Lots12 à 14 ») ; sixième relecture du 27/11/2026. Un
+ * point collé à un nombre, devant une espace, sépare comme une virgule (« Lots 12. 14 rue X » était lu 14 ; « 12. rue X » ;
+ * neuvième relecture) ; le point d'une abréviation (« Av. », « Bât. 3 ») reste.
  */
 function rueLisible(rue: string): string {
-  return rue.normalize('NFC').split(' ').map(mot => {
+  return rue.normalize('NFC').replaceAll(/(\d)\.(?=\s)/gu, '$1,').split(' ').map(mot => {
     const colle = /^(\p{L}{2,})(\d{1,4})$/u.exec(mot)
     return colle && estUnMotDeComplement(colle[1], motComplement(colle[1])) ? `${colle[1]} ${colle[2]}` : mot
   }).join(' ')
@@ -450,8 +452,16 @@ function numeroPrecedent(mots: readonly string[], i: number): { indice: number; 
 }
 
 /**
+ * Le numéro `suivant` peut-il continuer la suite que `borne` ouvre ? Toujours, sauf après une année qu'il ne prolonge pas
+ * (« Logements de 1975, 12 rue X », « Maison de 1930 10-12 rue X » : une date, puis le numéro de la rue).
+ */
+const continueLaSuite = (borne: string, suivant: string) => !ANNEE.test(borne) || Number.parseInt(suivant, 10) > Number.parseInt(borne, 10)
+
+/**
  * Le numéro du mot `i` ouvre-t-il une plage ou une suite, écrite comme numeroPrecedent la lit (« 12 au 14 », « 12 a 14 »,
- * « n° 12 au n° 14 », « 12 jusqu'au 14 », « 12-14 », « 12- 14 ») ?
+ * « n° 12 au n° 14 », « 12 jusqu'au 14 », « 12-14 », « 12- 14 », « 12 14 », « 12 12 bis ») ? Sans liaison, pas après une
+ * année que le numéro suivant ne prolonge pas (« Logements de 1975 12 rue X » ; neuvième relecture du 27/11/2026 : « Lots du
+ * 12 12 bis rue de la Gare » était précis au 12 bis).
  */
 function ouvreUnePlage(mots: readonly string[], i: number): boolean {
   let k = PREFIXE_NUMERO.test(mots[i] ?? '') ? i + 1 : i
@@ -462,7 +472,8 @@ function ouvreUnePlage(mots: readonly string[], i: number): boolean {
   for (k += 1; k < mots.length && (entreComplementEtNumero(mots[k]) || estUneLiaison(mots[k]) || INDICE_NUMERO.test(mots[k])); k += 1) {
     lie ||= estUneLiaison(mots[k])
   }
-  return lie && estUneBorne(mots[k]?.replace(/[-–—/]$/u, ''))
+  const suivant = (mots[k] ?? '').replace(/[-–—/]$/u, '').replace(PREFIXE_COLLE, '')
+  return estUneBorne(suivant) && (lie || continueLaSuite(premier, suivant))
 }
 
 /**
@@ -536,8 +547,7 @@ function continueUneSuite(morceaux: Morceaux, k: number): boolean {
   // après une année, seulement si son numéro la prolonge (« Logements de 1975, 12 rue X » : septième relecture du 27/11/2026 ;
   // la règle « numéro plus grand » valait pour toute borne et rouvrait les autres suites : huitième relecture).
   const suivant = lireNumero(morceaux[k], 0)
-  const borne = avant[fin].replace(PREFIXE_COLLE, '')
-  const enSuite = suivant !== null && (!ANNEE.test(borne) || Number.parseInt(suivant.numeros[0], 10) > Number.parseInt(borne, 10))
+  const enSuite = suivant !== null && continueLaSuite(avant[fin].replace(PREFIXE_COLLE, ''), suivant.numeros[0])
   return precedeParUnComplement(avant, fin, false, tete, enSuite) && (suiteAuPluriel(avant, fin, tete, enSuite) || ouvreUneEnumeration(morceaux, k))
 }
 
@@ -1026,16 +1036,22 @@ async function voieAmbigue(adresse: AdresseDecomposee, rendue: string, saisie: S
   return autreVoieDesignee(adresse, saisie, rendue, demandees)
 }
 
-/** Voie saisie et villes de la réponse, retirées de sa fin (« 12 rue Leclerc France », « … Sées »). */
+/**
+ * Voie saisie et villes de la réponse, retirées de sa fin (« 12 rue Leclerc France », « … Sées ») ; `lieux` : les lieux
+ * de la réponse d'OSM, commune déléguée comprise (city_district, village…).
+ */
 interface SaisieComparee {
   voie: string
   villes: readonly unknown[]
+  lieux?: readonly unknown[]
 }
 
 /**
  * Une voie de la commune autre que `rendue`, que la voie saisie désigne aussi (memeVoie) ? Cherchée par la forme de la
  * saisie qui désigne la voie rendue (« 12 rue Leclerc France » : par « leclerc », pas « france » ; sixième relecture du
- * 27/11/2026). Une panne vaut oui.
+ * 27/11/2026). La voie de la BAN qui ne diffère de `rendue` que par la parenthèse d'un lieu de la réponse d'OSM est la voie
+ * rendue (« Rue de la Mairie (Torfou) » pour « Rue de la Mairie », OSM à Torfou, commune déléguée de Sèvremoine : main
+ * l'admettait, la branche la refusait ; neuvième relecture). Une panne vaut oui.
  */
 async function autreVoieDesignee(adresse: AdresseDecomposee, saisie: SaisieComparee, rendue: string, demandees: VoiesDemandees): Promise<boolean> {
   const formes = formesSaisie(saisie.voie, [adresse.ville, ...saisie.villes])
@@ -1045,7 +1061,10 @@ async function autreVoieDesignee(adresse: AdresseDecomposee, saisie: SaisieCompa
   const voies = await voiesDistinctes(adresse, nomSansType(forme), demandees)
   if (voies === null) return true
   const designee = (nomVoie: string) => formesSansParenthese(nomVoie).some(voie => formes.some(forme => memeVoie(forme, voie)))
-  return voies.some(nomVoie => cleVoie(nomVoie) !== cleVoie(rendue) && designee(nomVoie))
+  const lieuRendu = (parenthese: string | undefined) => Boolean(parenthese) && (saisie.lieux ?? []).some(lieu => memeNomDeVille(lieu, parenthese ?? ''))
+  const memeQueRendue = (nomVoie: string) => lieuRendu(parentheseDe(nomVoie))
+    && formesSansParenthese(nomVoie).some(voie => rendues.some(r => voie.join(' ') === r.join(' ')))
+  return voies.some(nomVoie => cleVoie(nomVoie) !== cleVoie(rendue) && !memeQueRendue(nomVoie) && designee(nomVoie))
 }
 
 /**
@@ -1090,11 +1109,15 @@ function accordConfirme(accord: Accord, adresse: AdresseDecomposee, lue: Lecture
 async function parBaseAdresseNationale(adresse: AdresseDecomposee, lue: Lecture | null, demandees: VoiesDemandees, numeroExige = false): Promise<PositionAdresse | null> {
   const recherche = texteRecherche(adresse)
   if (recherche.length < 3) return null
-  const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(recherche)}&limit=1${filtreCodePostal(adresse)}`, {
+  // Ville seule : les premières réponses montrent aussi la voie dans une commune déléguée homonyme (villeAmbigue).
+  const villeSeule = adresse.ville !== '' && !adresse.codePostal
+  const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(recherche)}&limit=${villeSeule ? REPONSES_VILLE_SEULE : 1}${filtreCodePostal(adresse)}`, {
     signal: AbortSignal.timeout(DELAI_MS),
   })
   if (!res.ok) return null
-  const premier = (await res.json() as ReponseBan).features?.[0]
+  const trouvees = (await res.json() as ReponseBan).features ?? []
+  if (villeSeule && !numeroExige) demandees.set(PREMIERES_REPONSES, Promise.resolve(reponsesDansLaVille(adresse, trouvees)))
+  const premier = trouvees[0]
   const coordonnees = premier?.geometry?.coordinates
   if (!coordonnees) return null
   const { type, score, postcode, city, oldcity, citycode, housenumber, street } = premier.properties ?? {}
@@ -1109,8 +1132,37 @@ async function parBaseAdresseNationale(adresse: AdresseDecomposee, lue: Lecture 
     // Ville saisie reconnue par la seule commune déléguée (oldcity) : aucune commune ne doit porter ce nom.
     precise = precise && await communeSure(adresse, voieSaisie(lue, adresse.rue, street), { street, city, oldcity }, demandees)
       && await villeSure(adresse, city, !memeNomDeVille(city, adresse.ville), demandees)
+      && !(await villeAmbigue(adresse, voieSaisie(lue, adresse.rue, street), demandees))
   }
   return position(coordonnees[1], coordonnees[0], precise)
+}
+
+/** Réponses de la première recherche de la BAN, ville seule saisie (clé de VoiesDemandees, qui n'est pas une URL). */
+const PREMIERES_REPONSES = 'premières réponses de la BAN'
+const REPONSES_VILLE_SEULE = 5
+
+/** Réponses de la BAN dans la ville saisie (commune ou commune déléguée), par leur voie et leur commune. */
+const reponsesDansLaVille = (adresse: AdresseDecomposee, trouvees: NonNullable<ReponseBan['features']>): VoieLue[] => trouvees
+  .map(trouvee => trouvee.properties ?? {})
+  .filter(reponse => memeCommune(adresse, 'FR', reponse.postcode, [reponse.city, reponse.oldcity]))
+  .flatMap(reponse => {
+    const nom = reponse.street ?? reponse.name
+    return typeof nom === 'string' ? [{ nom, commune: cleCommune(reponse.city, reponse.oldcity), codePostal: reponse.postcode ?? '', code: '' }] : []
+  })
+
+/**
+ * Ville seule qui nomme une commune et une commune déléguée : « Sainte-Christine », commune du Puy-de-Dôme et commune
+ * déléguée de Chemillé-en-Anjou ; « place de l'Église » était précis dans le 63, à 312 km (neuvième relecture du 27/11/2026).
+ * La recherche des communes (villeSure) ne voit pas les communes déléguées ; les premières réponses de la BAN à l'adresse, si :
+ * ambiguë quand la voie saisie y répond dans deux communes ou communes déléguées de ce nom.
+ */
+async function villeAmbigue(adresse: AdresseDecomposee, voie: string, demandees: VoiesDemandees): Promise<boolean> {
+  if (adresse.codePostal || !adresse.ville) return false
+  const reponses = (await demandees.get(PREMIERES_REPONSES)) ?? []
+  const formes = formesSaisie(voie, [adresse.ville])
+  const repond = (nom: string) => [...formesSansParenthese(nom), ...formesRendues(nom)]
+    .some(rendue => formes.some(forme => memeVoie(forme, rendue) || (rendue[0] === forme[0] && voieVoisine(forme, rendue))))
+  return new Set(reponses.filter(reponse => repond(reponse.nom)).map(reponse => reponse.commune)).size > 1
 }
 
 /**
@@ -1171,33 +1223,66 @@ async function parNominatim(adresse: AdresseDecomposee, pays: Pays, comparaison?
   const premier = (await res.json() as ReponseNominatim[])[0]
   if (!premier) return null
   const lieu = premier.address ?? {}
-  const villes = [lieu.city, lieu.town, lieu.village, municipaliteAdmise(adresse, pays, lieu) ? lieu.municipality : undefined, lieu.hamlet, lieu.suburb]
   const street = lieu.road ?? lieu.pedestrian ?? lieu.square
-  const precise = aUneRue(adresse)
-    && typeof premier.place_rank === 'number' && premier.place_rank >= RANG_MIN_NOMINATIM
-    && memeCommune(adresse, pays, lieu.postcode, villes)
+  const villes = aUneRue(adresse) && typeof premier.place_rank === 'number' && premier.place_rank >= RANG_MIN_NOMINATIM
+    ? await villesDansLaCommune(adresse, pays, lieu, street, comparaison?.demandees)
+    : null
+  const precise = villes !== null
     && (!comparaison || accordAvecLaSaisie(comparaison.lue, adresse, villes, {
       type: lieu.house_number ? 'housenumber' : 'street',
       housenumber: lieu.house_number,
       street,
     }) === 'oui')
+  const lieux = [lieu.city_district, lieu.village, lieu.town, lieu.city, lieu.hamlet, lieu.suburb]
   const ambigue = precise && comparaison !== undefined && typeof street === 'string'
-    && await voieAmbigue(adresse, street, { voie: voieSaisie(comparaison.lue, adresse.rue, street), villes }, comparaison.demandees)
+    && await voieAmbigue(adresse, street, { voie: voieSaisie(comparaison.lue, adresse.rue, street), villes, lieux }, comparaison.demandees)
   const homonyme = precise && comparaison !== undefined && !ambigue
-    && !(await villeSureParNominatim(adresse, lieu, street, comparaison.demandees))
+    && !(await villeSureParNominatim(adresse, lieu, street, comparaison))
   return position(premier.lat, premier.lon, precise && !ambigue && !homonyme)
+}
+
+/**
+ * Villes de la réponse d'OSM, si elles la placent dans la commune saisie (memeCommune) ; sinon null. municipality y entre
+ * selon municipaliteAdmise, ou quand la BAN connaît la voie rendue dans la commune déléguée (village, town ou city) de cette
+ * municipality : « rue de la Vieille Église », 49620 Mauges-sur-Loire, qu'OSM rend dans le village de La Pommeraye avec
+ * « Mauges-sur-Loire » en municipality (neuvième relecture du 27/11/2026). Un arrondissement ne passe pas : la BAN n'a pas
+ * la rue de l'Église d'Éclance sous « Bar-sur-Aube ».
+ */
+async function villesDansLaCommune(adresse: AdresseDecomposee, pays: Pays, lieu: Record<string, string | undefined>, street: unknown, demandees?: VoiesDemandees): Promise<unknown[] | null> {
+  const villes = [lieu.city, lieu.town, lieu.village, municipaliteAdmise(adresse, pays, lieu) ? lieu.municipality : undefined, lieu.hamlet, lieu.suburb]
+  if (memeCommune(adresse, pays, lieu.postcode, villes)) return villes
+  const avecMunicipalite = [lieu.city, lieu.town, lieu.village, lieu.municipality, lieu.hamlet, lieu.suburb]
+  const confirmee = demandees !== undefined && adresse.codePostal !== '' && typeof street === 'string'
+    && memeCommune(adresse, pays, lieu.postcode, avecMunicipalite) && await delegueeDeLaMunicipalite(adresse, street, lieu, demandees)
+  return confirmee ? avecMunicipalite : null
+}
+
+/**
+ * La BAN connaît-elle la voie rendue par OSM dans la commune déléguée qu'il nomme (village, town ou city), sous sa
+ * municipality (« Rue de la Vieille Église », Mauges-sur-Loire, La Pommeraye) ?
+ */
+async function delegueeDeLaMunicipalite(adresse: AdresseDecomposee, street: string, lieu: Record<string, string | undefined>, demandees: VoiesDemandees): Promise<boolean> {
+  const forme = formesSansParenthese(street)[0]
+  const deleguee = [lieu.village, lieu.town, lieu.city].find(nom => typeof nom === 'string')
+  if (!forme || !deleguee) return false
+  const voies = await voiesNommees(adresse, nomSansType(forme), demandees)
+  const commune = cleCommune(lieu.municipality, deleguee)
+  return voies !== null && voies.some(voie => voie.commune === commune && formesSansParenthese(voie.nom).some(nom => memeVoie(forme, nom)))
 }
 
 /**
  * Ville seule, par Nominatim, comme pour la BAN : la seule commune de ce nom, qu'OSM rend en city, town ou village (trois
  * communes Valence ; septième relecture du 27/11/2026). Sans commune de ce nom, une commune déléguée où la BAN connaît la voie
  * rendue (« place de l'Église », La Jumellière, qu'OSM rend en village de Chemillé-en-Anjou ; huitième relecture) ; un
- * lieu-dit ou un quartier d'OSM où la BAN ne la connaît pas ne prouve rien (des homonymes sont possibles) : non.
+ * lieu-dit ou un quartier d'OSM où la BAN ne la connaît pas ne prouve rien (des homonymes sont possibles) : non. Pas de
+ * commune déléguée homonyme non plus (villeAmbigue : Sainte-Christine, neuvième relecture).
  */
-async function villeSureParNominatim(adresse: AdresseDecomposee, lieu: Record<string, string | undefined>, street: unknown, demandees: VoiesDemandees): Promise<boolean> {
+async function villeSureParNominatim(adresse: AdresseDecomposee, lieu: Record<string, string | undefined>, street: unknown, comparaison: { lue: Lecture | null; demandees: VoiesDemandees }): Promise<boolean> {
   if (adresse.codePostal || !adresse.ville) return true
+  const { lue, demandees } = comparaison
   const commune = [lieu.city, lieu.town, lieu.village].find(nom => memeNomDeVille(nom, adresse.ville))
-  return villeSure(adresse, commune, typeof street === 'string' && await voieConnue(adresse, street, demandees), demandees)
+  return await villeSure(adresse, commune, typeof street === 'string' && await voieConnue(adresse, street, demandees), demandees)
+    && !(await villeAmbigue(adresse, voieSaisie(lue, adresse.rue, street), demandees))
 }
 
 /** La BAN connaît-elle, dans la ville saisie (commune ou commune déléguée), la voie `rendue` ou une voie qui la prolonge ? */
@@ -1213,7 +1298,8 @@ async function voieConnue(adresse: AdresseDecomposee, rendue: string, demandees:
  * (relevés réels du 27/11/2026). Ce n'est la commune que si la réponse n'en nomme aucune en city, town ou village
  * (« Mauges-sur-Loire »), et en France seulement avec un code postal : « 1 place de la Liberté », Valence sans code postal,
  * était précis à Bourg-lès-Valence, à 790 m ; « 1 rue de l'Église », 10200 Bar-sur-Aube, à Éclance, l'un des neuf villages
- * du 10200 qui en ont une, à 11 km (septième et huitième relectures).
+ * du 10200 qui en ont une, à 11 km (septième et huitième relectures). Avec un village, la BAN doit confirmer la commune
+ * déléguée (villesDansLaCommune).
  */
 const municipaliteAdmise = (adresse: AdresseDecomposee, pays: Pays, lieu: Record<string, string | undefined>) =>
   pays === 'PT' || (adresse.codePostal !== '' && !lieu.city && !lieu.town && !lieu.village)
