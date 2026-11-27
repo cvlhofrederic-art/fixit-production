@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dateDecalee } from '@/lib/btp/alerte-meteo'
 import {
-  annulerAlertesProgrammees, cleNotificationAlerte, programmerAlertesMeteo, type ChantierPourAlerte,
+  annulerAlertesProgrammees, cleNotificationAlerte, generationAlertes, programmerAlertesMeteo, type ChantierPourAlerte,
 } from '@/lib/btp/alerte-meteo-telephone'
 
 const DALLE: ChantierPourAlerte = { id: 'c-dalle', titre: 'Dalle Villa', statut: 'En cours', latitude: 43.3, longitude: 5.38, alerteMeteo: true }
@@ -367,5 +367,54 @@ describe('seconde relecture : enchaînements, heure réelle, autorisation, annul
     reprendre()
     await passage
     expect(o.programmer).not.toHaveBeenCalled()
+  })
+})
+
+describe('troisième relecture : passage qui ne vaut plus', () => {
+  it('chantier sans GPS en tête de liste : les suivants sont quand même traités', async () => {
+    const TOIT: ChantierPourAlerte = { ...DALLE, id: 'c-toit', titre: 'Toiture' }
+    const o = outils()
+    const bilan = await programmerAlertesMeteo([{ ...DALLE, id: 'c-sans', latitude: null, longitude: null }, DALLE, TOIT], false, o,
+      jeudi(9), meteo({ '2026-11-27': 12 }))
+    expect(cles(o)).toEqual([CLE_VENDREDI, cleNotificationAlerte('c-toit', '2026-11-27')])
+    expect(bilan.ignorees).toBe(1)
+  })
+
+  it('passage suspendu puis repris le lendemain : il ne programme ni n’affiche rien (le suivant recalcule ses dates)', async () => {
+    const o = outils()
+    let heure = new Date(2026, 10, 26, 17, 5)
+    const lendemain = vi.fn(async () => {
+      heure = new Date(2026, 10, 27, 7, 30)
+      return meteo({ '2026-11-27': 12, '2026-11-28': 9 }, '2026-11-27')()
+    })
+    await programmerAlertesMeteo([DALLE], false, o, () => heure, lendemain)
+    expect(o.programmer).not.toHaveBeenCalled()
+  })
+
+  it('dialogue d’autorisation répondu le lendemain : rien n’est programmé', async () => {
+    let heure = new Date(2026, 10, 26, 17, 5)
+    const o = { ...outils(), autorisation: vi.fn(async () => { heure = new Date(2026, 10, 27, 7, 30); return true }) }
+    await programmerAlertesMeteo([DALLE], false, o, () => heure, meteo({ '2026-11-27': 12 }))
+    expect(o.programmer).not.toHaveBeenCalled()
+  })
+
+  it('passage déclenché avant une déconnexion et lancé après : il garde la génération de son déclenchement et ne programme rien', async () => {
+    const o = outils()
+    const declenchement = generationAlertes()
+    await annulerAlertesProgrammees(o.annuler)
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }), declenchement)
+    expect(o.programmer).not.toHaveBeenCalled()
+  })
+
+  it('déconnexion pendant la programmation : la notification tout juste programmée est annulée, sans trace', async () => {
+    const o = outils()
+    o.programmer.mockImplementationOnce(async () => {
+      await annulerAlertesProgrammees(o.annuler)
+      return true
+    })
+    const bilan = await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    expect(o.annuler).toHaveBeenCalledWith(CLE_VENDREDI)
+    expect(memoire(CLE_VENDREDI)).toBeNull()
+    expect(bilan.programmees).toBe(0)
   })
 })

@@ -79,10 +79,13 @@ const PREFIXE_MEMOIRE = 'vitfix_btp_alerte_meteo_'
 const PREFIXE_CLE = 'alerte-meteo:'
 
 /**
- * Augmente à chaque déconnexion : un passage commencé avant ne programme plus rien après (il pourrait finir après
- * l'annulation des notifications).
+ * Augmente à chaque déconnexion : un passage déclenché avant ne programme plus rien après (il pourrait finir après
+ * l'annulation des notifications). Le composant la relève au moment où il déclenche un passage (generationAlertes).
  */
 let generation = 0
+
+/** Génération en cours, à relever au moment où un passage est déclenché (avant une relecture ou une mise en file). */
+export const generationAlertes = (): number => generation
 
 /** Clé de la notification d'un chantier pour une journée (identifiant natif stable). */
 export const cleNotificationAlerte = (chantierId: string, date: string) => `${PREFIXE_CLE}${chantierId}:${date}`
@@ -138,11 +141,27 @@ interface Passage {
   autorisation?: Promise<boolean>
 }
 
-/** Ce passage peut-il encore programmer ? (pas de déconnexion depuis son départ, autorisation accordée) */
+/**
+ * Le passage vaut-il encore ? Pas de déconnexion depuis son déclenchement, et toujours le même jour (un passage
+ * suspendu puis repris le lendemain annoncerait « demain » pour le jour même : le suivant recalcule ses dates).
+ */
+const passageValable = (p: Passage) => p.generation === generation && dateLocale(p.horloge()) === p.aujourdhui
+
+/** Ce passage peut-il programmer ? Valable avant ET après la demande d'autorisation (dialogue resté ouvert). */
 async function peutProgrammer(p: Passage): Promise<boolean> {
-  if (p.generation !== generation) return false
+  if (!passageValable(p)) return false
   p.autorisation ??= p.outils.autorisation()
-  return await p.autorisation
+  return (await p.autorisation) && passageValable(p)
+}
+
+/** Programme ; si le passage a cessé de valoir pendant la programmation (déconnexion…), l'annule aussitôt. */
+async function programmerTenu(
+  p: Passage, params: { cle: string; titre: string; corps: string; a?: Date; extra?: Record<string, unknown> },
+): Promise<boolean> {
+  if (!(await p.outils.programmer(params))) return false
+  if (passageValable(p)) return true
+  await p.outils.annuler(params.cle)
+  return false
 }
 
 /** Annule la notification encore programmée sous cette clé ; la trace n'est oubliée que si l'annulation est faite. */
@@ -201,7 +220,7 @@ async function afficherSiPasEncore(
   } else if (!(await peutProgrammer(p))) {
     return
   }
-  if (await p.outils.programmer({ cle, ...notification })) {
+  if (await programmerTenu(p, { cle, ...notification })) {
     retenir(cle, 'affichee')
     p.bilan.affichees++
   }
@@ -228,7 +247,7 @@ async function traiterJournee(p: Passage, chantier: ChantierPourAlerte, jours: r
   }
   // Avant l'heure : programmée, ou reprogrammée avec la prévision du moment (même identifiant, elle remplace).
   if (!(await peutProgrammer(p))) return
-  if (await p.outils.programmer({ cle, ...notification, a: veille })) {
+  if (await programmerTenu(p, { cle, ...notification, a: veille })) {
     retenir(cle, 'programmee')
     p.bilan.programmees++
   }
@@ -261,7 +280,8 @@ export async function annulerAlertesProgrammees(annuler: (cle: string) => Promis
  * Programme les alertes de la veille des chantiers suivis. Ne lève jamais : une prévision illisible ou un réseau
  * absent laisse le chantier de côté (revu au prochain passage). La liste doit avoir été lue : une liste en échec ne
  * doit pas être passée ici (elle annulerait toutes les alertes). `maintenant` : l'heure (fixe dans les tests) ou une
- * horloge ; par défaut l'heure réelle, relue à chaque décision.
+ * horloge ; par défaut l'heure réelle, relue à chaque décision. `generationDeDepart` : celle relevée quand le passage a
+ * été déclenché (generationAlertes) ; par défaut celle du moment.
  */
 export async function programmerAlertesMeteo(
   chantiers: readonly ChantierPourAlerte[],
@@ -269,12 +289,13 @@ export async function programmerAlertesMeteo(
   outils: OutilsNotification,
   maintenant: Date | (() => Date) = () => new Date(),
   lire: typeof fetch = fetch,
+  generationDeDepart: number = generation,
 ): Promise<BilanAlertes> {
   const horloge = typeof maintenant === 'function' ? maintenant : () => maintenant
   const bilan: BilanAlertes = { programmees: 0, affichees: 0, annulees: 0, ignorees: 0 }
   const aujourdhui = dateLocale(horloge())
   const dates = Array.from({ length: JOURNEES_COUVERTES }, (_, i) => dateDecalee(aujourdhui, i + 1))
-  const passage: Passage = { isPt, outils, horloge, aujourdhui, bilan, generation }
+  const passage: Passage = { isPt, outils, horloge, aujourdhui, bilan, generation: generationDeDepart }
   try {
     await nettoyer(chantiers, passage)
     for (const chantier of chantiers) {

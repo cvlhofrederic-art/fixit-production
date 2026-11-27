@@ -39,7 +39,7 @@ const semaine = (pluies: Array<number | null>) => ({
 describe('seuils de l’alerte (les mêmes que l’écran Météo)', () => {
   it('pluie au-delà de 5 mm, gel sous 0 °C, vent au-delà de 60 km/h, chaleur au-delà de 33 °C', () => {
     expect(SEUILS_ALERTE_METEO).toEqual({ ventKmh: 60, gelC: 0, pluieMm: 5, chaleurC: 33 })
-    expect(motifsDuJour(jour({ rain: 12.4 }))).toEqual([{ type: 'pluie', valeur: 12 }])
+    expect(motifsDuJour(jour({ rain: 12.44 }))).toEqual([{ type: 'pluie', valeur: 12.4 }])
     expect(motifsDuJour(jour({ tempMin: -3.2 }))).toEqual([{ type: 'gel', valeur: -3 }])
     expect(motifsDuJour(jour({ windMax: 65 }))).toEqual([{ type: 'vent', valeur: 65 }])
     expect(motifsDuJour(jour({ tempMax: 36 }))).toEqual([{ type: 'chaleur', valeur: 36 }])
@@ -137,6 +137,10 @@ describe('texte de la notification et de l’e-mail', () => {
       corps: 'Previsto para amanhã, sexta-feira, 27 de novembro, na obra « Moradia Gaia »: geada -2 °C.',
     })
     expect(libelleMotifs([{ type: 'chaleur', valeur: 35 }, { type: 'pluie', valeur: 8 }], true)).toBe('calor 35 °C, chuva 8 mm')
+    // Pluie au dixième, comme l'écran Météo : juste au-dessus du seuil, jamais « 5 mm ».
+    const [pluie] = motifsDuJour(jour({ rain: 5.3 }))
+    expect(libelleMotifs([pluie], false)).toBe('pluie 5,3 mm')
+    expect(libelleMotifs([pluie], true)).toBe('chuva 5,3 mm')
   })
 
   it('sans date (ou date illisible) : « demain » seul ; chantier sans titre : un nom générique', () => {

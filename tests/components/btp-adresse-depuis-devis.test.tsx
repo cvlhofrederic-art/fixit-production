@@ -662,8 +662,8 @@ describe('fiche chantier — alerte météo par notification', () => {
   it('l’aide dit qui est prévenu et comment, et la règle d’un chantier « En attente »', async () => {
     await nouvelleFiche()
     const aide = caseAlerte().closest('label')?.textContent ?? ''
-    expect(aide).toContain('l’appli Vitfix Pro envoie une notification (salariés affectés et gérant) et les salariés affectés reçoivent un e-mail')
-    expect(aide).toContain('Chantier « En attente » : seulement la veille de son premier jour (les salariés, par e-mail).')
+    expect(aide).toContain('l’appli Vitfix Pro envoie une notification aux salariés affectés et à ceux qui gèrent tous les chantiers (gérant, secrétaire), et les salariés affectés reçoivent un e-mail')
+    expect(aide).toContain('Chantier « En attente » : seulement la veille de son premier jour (notification à ceux qui gèrent les chantiers, e-mail aux salariés).')
   })
 
   it('nom accessible de la case : son titre seul ; l’aide et la note GPS en description', async () => {

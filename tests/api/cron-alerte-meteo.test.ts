@@ -62,7 +62,7 @@ const journal = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn()
 vi.mock('@/lib/logger', () => ({ logger: journal }))
 
 const { GET } = await import('@/app/api/cron/alerte-meteo/route')
-const { CHANTIERS_PAR_APPEL, PAUSE_ENTRE_LOTS_MS, envoyerAlertesDeLaVeille } = await import('@/lib/btp/alerte-meteo-serveur')
+const { CHANTIERS_PAR_APPEL, DUREE_PASSAGE_MAX_MS, PAUSE_ENTRE_LOTS_MS, envoyerAlertesDeLaVeille } = await import('@/lib/btp/alerte-meteo-serveur')
 
 const SOCIETE = 'societe-1'
 /** Jeudi 26/11/2026, 18:15 UTC : 18:15 à Lisbonne (le chantier), dans la soirée. */
@@ -100,7 +100,8 @@ const lire = vi.fn(async (_url: string, _init?: RequestInit) => {
   }))
 })
 const attendre = vi.fn(async (_ms: number) => {})
-const envoyer = (maintenantMs = JEUDI_SOIR) => envoyerAlertesDeLaVeille({ maintenantMs, attendre, lire })
+const envoyer = (maintenantMs = JEUDI_SOIR, horloge: () => number = () => maintenantMs) =>
+  envoyerAlertesDeLaVeille({ maintenantMs, horloge, attendre, lire })
 
 beforeEach(() => {
   h.tables = {
@@ -298,6 +299,7 @@ describe('e-mail de la veille : heure, pannes, limites', () => {
     h.reponseLot = () => ({ ok: false, code: 'rejeu_refuse', statutHttp: 409, motif: 'invalid_idempotent_request' })
     const second = await envoyer()
     expect(second.rejouer).toBe(false)
+    expect(second.bilan).toMatchObject({ dejaTraites: 1, lotsEnEchec: 0, refuses: 0 })
     expect(h.lots.map(l => l.cle)).toEqual(['alerte-meteo-2026-11-27-c-dalle', 'alerte-meteo-2026-11-27-c-dalle'])
   })
 
@@ -326,7 +328,7 @@ describe('e-mail de la veille : heure, pannes, limites', () => {
   it(`au plus ${CHANTIERS_PAR_APPEL} chantiers par appel : le reste est compté, jamais passé sous silence`, async () => {
     pluies = {}
     h.tables.chantiers_btp = Array.from({ length: CHANTIERS_PAR_APPEL + 3 }, (_, i) =>
-      chantier({ id: `c-${String(i).padStart(3, '0')}` }))
+      chantier({ id: `c-${String(i).padStart(3, '0')}`, membres_ids: ['m-ana'] }))
     const { bilan } = await envoyer()
     expect(lire).toHaveBeenCalledTimes(CHANTIERS_PAR_APPEL)
     expect(bilan).toMatchObject({ chantiers: CHANTIERS_PAR_APPEL, nonTraites: 3 })
@@ -353,7 +355,7 @@ describe('e-mail de la veille : seconde relecture', () => {
 
   it('un chantier sans GPS et une prévision en panne : à rejouer quand même', async () => {
     statutMeteo = 502
-    h.tables.chantiers_btp = [chantier({ id: 'c-sans', latitude: null, longitude: null }), DALLE]
+    h.tables.chantiers_btp = [chantier({ id: 'c-sans', latitude: null, longitude: null, membres_ids: ['m-ana'] }), DALLE]
     const { bilan, rejouer } = await envoyer()
     expect(bilan).toMatchObject({ sansPosition: 1, previsionsIndisponibles: 1 })
     expect(rejouer).toBe(true)
@@ -386,5 +388,77 @@ describe('e-mail de la veille : seconde relecture', () => {
     expect(lire).toHaveBeenCalledTimes(1)
     expect(bilan.alertes).toBe(0)
     expect(h.lots).toEqual([])
+  })
+})
+
+describe('e-mail de la veille : troisième relecture', () => {
+  it('lot en traitement concurrent (409) : à rejouer', async () => {
+    h.reponseLot = () => ({ ok: false, code: 'rejeu_concurrent', statutHttp: 409, motif: 'concurrent_idempotent_requests' })
+    const { rejouer } = await envoyer()
+    expect(rejouer).toBe(true)
+  })
+
+  it('chantier sans aucun salarié à prévenir : ni prévision lue, ni place prise, ni rejeu si Open-Meteo est en panne', async () => {
+    statutMeteo = 502
+    h.tables.chantiers_btp = [chantier({ id: 'c-gerant-seul', membres_ids: [] })]
+    const { bilan, rejouer } = await envoyer()
+    expect(lire).not.toHaveBeenCalled()
+    expect(bilan).toMatchObject({ sansDestinataire: 1, chantiers: 0 })
+    expect(rejouer).toBe(false)
+  })
+
+  it(`durée bornée : après ${DUREE_PASSAGE_MAX_MS / 60_000} min, plus aucun chantier n’est commencé, et l’appel est à rejouer`, async () => {
+    pluies = {}
+    h.tables.chantiers_btp = Array.from({ length: 5 }, (_, i) => chantier({ id: `c-${i}`, membres_ids: ['m-ana'] }))
+    let ecoule = 0
+    const horloge = () => JEUDI_SOIR + ecoule
+    const lente = async () => {
+      ecoule += DUREE_PASSAGE_MAX_MS / 2
+      return new Response(JSON.stringify({ utc_offset_seconds: 0, daily: { time: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_sum: [], wind_speed_10m_max: [], weather_code: [] } }))
+    }
+    lire.mockImplementationOnce(lente).mockImplementationOnce(lente)
+    const { bilan, rejouer } = await envoyer(JEUDI_SOIR, horloge)
+    expect(lire).toHaveBeenCalledTimes(2)
+    expect(bilan).toMatchObject({ chantiers: 2, nonTraites: 3 })
+    expect(rejouer).toBe(true)
+  })
+})
+
+describe('GET /api/cron/alerte-meteo — signalements', () => {
+  beforeEach(() => {
+    vi.stubEnv('CRON_SECRET', 'secret-cron')
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(JEUDI_SOIR)
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => lire(String(url), init))
+  })
+  const appeler = async () => {
+    const res = await GET(new NextRequest('https://vitfix.io/api/cron/alerte-meteo', { headers: { authorization: 'Bearer secret-cron' } }))
+    return { status: res.status, json: await res.json() as Ligne }
+  }
+
+  it('limite de chantiers atteinte : 200 sans rejeu, mais Sentry prévenu', async () => {
+    pluies = {}
+    h.tables.chantiers_btp = Array.from({ length: CHANTIERS_PAR_APPEL + 1 }, (_, i) =>
+      chantier({ id: `c-${String(i).padStart(3, '0')}`, membres_ids: ['m-ana'] }))
+    const { status, json } = await appeler()
+    expect(status).toBe(200)
+    expect(json).toMatchObject({ nonTraites: 1 })
+    expect(journal.error).toHaveBeenCalledWith('[cron/alerte-meteo] passage incomplet', expect.anything(), expect.any(Error))
+  })
+
+  it('liste des sociétés coupée : signalée dans le bilan et à Sentry', async () => {
+    h.tables.chantiers_btp = Array.from({ length: 1000 }, (_, i) => chantier({ id: `c-${String(i).padStart(4, '0')}` }))
+    const { status, json } = await appeler()
+    expect(status).toBe(200)
+    expect(json).toMatchObject({ societesCoupees: true })
+    expect(journal.error).toHaveBeenCalled()
+  })
+
+  it('rejeu dont un lot revient en 409 (texte changé) : pas d’échec, pas de Sentry', async () => {
+    h.reponseLot = () => ({ ok: false, code: 'rejeu_refuse', statutHttp: 409, motif: 'invalid_idempotent_request' })
+    const { status, json } = await appeler()
+    expect(status).toBe(200)
+    expect(json).toMatchObject({ dejaTraites: 1, lotsEnEchec: 0 })
+    expect(journal.error).not.toHaveBeenCalled()
   })
 })

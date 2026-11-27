@@ -25,6 +25,8 @@ const natif = {
   appels: [] as Appel[],
   /** Réponse du système à la demande d'autorisation. */
   affichage: 'granted',
+  /** État lu sans dialogue (checkPermissions) : 'prompt' tant que la question n'a jamais été posée. */
+  etat: 'granted',
   /** Identifiants des notifications encore en attente (getPending) ; null : la lecture échoue. */
   enAttente: [] as number[] | null,
 }
@@ -37,7 +39,7 @@ function moduleNatifSimule() {
   }
   const reponses: Record<string, () => unknown> = {
     requestPermissions: () => ({ display: natif.affichage }),
-    checkPermissions: () => ({ display: natif.affichage }),
+    checkPermissions: () => ({ display: natif.etat }),
     schedule: () => ({ notifications: [] }),
     cancel: () => undefined,
     getPending: () => {
@@ -107,7 +109,7 @@ beforeEach(() => {
   // Horloge figée (seule la date : la minuterie de sansBlocage reste réelle).
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 10, 17, 8, 0, 0))
-  Object.assign(natif, { chargements: 0, lectures: 0, echecsDeChargement: 0, appels: [], affichage: 'granted', enAttente: [] })
+  Object.assign(natif, { chargements: 0, lectures: 0, echecsDeChargement: 0, appels: [], affichage: 'granted', etat: 'granted', enAttente: [] })
   vi.resetModules()
   vi.doMock('@capacitor/local-notifications', moduleNatifSimule)
 })
@@ -261,19 +263,32 @@ describe('alerte météo dans l’appli', () => {
 
   it('autorisation refusée : false, rien n’est programmé, et aucun dialogue n’est rouvert', async () => {
     dansLAppli()
-    natif.affichage = 'denied'
+    natif.etat = 'denied'
     const { programmerNotification } = await notifications()
     expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
     expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
   })
 
-  it('autorisationNotifications : seule à ouvrir le dialogue ; rend la réponse', async () => {
+  it('autorisationNotifications : le dialogue ne s’ouvre que si la question n’a jamais été posée', async () => {
     dansLAppli()
     const { autorisationNotifications } = await notifications()
+    natif.etat = 'prompt'
     expect(await sansBlocage(autorisationNotifications())).toBe(true)
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions', 'requestPermissions'])
+    natif.etat = 'prompt'
     natif.affichage = 'denied'
     expect(await sansBlocage(autorisationNotifications())).toBe(false)
-    expect(natif.appels.map(x => x.methode)).toEqual(['requestPermissions', 'requestPermissions'])
+    // Après un refus : plus aucun dialogue (sous Android 13+, un second refus serait définitif).
+    for (const etat of ['denied', 'prompt-with-rationale']) {
+      natif.appels = []
+      natif.etat = etat
+      expect(await sansBlocage(autorisationNotifications())).toBe(false)
+      expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
+    }
+    natif.appels = []
+    natif.etat = 'granted'
+    expect(await sansBlocage(autorisationNotifications())).toBe(true)
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
   })
 
   it('module natif introuvable : false et aucune exception (programmer comme annuler)', async () => {

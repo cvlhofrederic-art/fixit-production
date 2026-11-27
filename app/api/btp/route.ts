@@ -425,8 +425,9 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
  * 42703 en nommant la colonne. Le chantier s'enregistre alors sans elle au lieu d'échouer.
  * - membres_ids (employés affectés, migration 20261116) : déjà contrôlés (format, même compte), le second essai
  *   n'écrit que des colonnes contrôlées ;
- * - alerte_meteo (alerte météo par notification, migration 20261126b) : la case est perdue, le reste de la fiche est
- *   enregistré.
+ * - alerte_meteo (alerte météo par notification, migration 20261126b) : décochée (valeur par défaut de la colonne),
+ *   elle est retirée et le reste de la fiche est enregistré ; cochée, toute l'écriture est refusée (409) et rien n'est
+ *   enregistré (ecrireSansColonnesAbsentes).
  */
 const COLONNES_RECENTES_CHANTIER: Readonly<Record<string, string>> = {
   membres_ids: 'chantier enregistré sans ses employés (migration 20261116 à appliquer)',

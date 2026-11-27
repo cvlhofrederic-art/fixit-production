@@ -595,12 +595,16 @@ describe('tableau de bord — alerte météo du téléphone', () => {
     const { annulerNotification } = await import('@/lib/notifications')
     const finDeSession = vi.mocked(supabase.auth.signOut)
     finDeSession.mockClear()
+    let finirAnnulation: () => void = () => {}
+    mocks.annulerAlertes.mockImplementationOnce(() => new Promise<void>(r => { finirAnnulation = r }))
     await ouvrir(utilisateur('pro_societe'))
-    await seDeconnecter()
-    expect(mocks.annulerAlertes).toHaveBeenCalledTimes(1)
+    let deconnexion: Promise<void> = Promise.resolve()
+    await act(async () => { deconnexion = (proprietesRecues(mocks.etat, 'V5Sidebar')?.handleLogout as () => Promise<void>)() })
     expect(mocks.annulerAlertes).toHaveBeenCalledWith(annulerNotification)
+    // Tant que l'annulation n'est pas finie, la session n'est pas fermée.
+    expect(finDeSession).not.toHaveBeenCalled()
+    await act(async () => { finirAnnulation(); await deconnexion })
     expect(finDeSession).toHaveBeenCalledTimes(1)
-    expect(mocks.annulerAlertes.mock.invocationCallOrder[0]).toBeLessThan(finDeSession.mock.invocationCallOrder[0])
   })
 
   it('déconnexion d’un artisan : rien n’est annulé (règle n° 1)', async () => {

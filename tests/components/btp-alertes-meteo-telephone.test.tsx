@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   refresh: vi.fn(),
   programmer: vi.fn(async () => ({ programmees: 0, affichees: 0, annulees: 0, ignorees: 0 })),
   reprise: null as null | (() => void),
+  /** Génération des alertes (augmente à chaque déconnexion). */
+  generation: 0,
   retirerReprise: vi.fn(async () => {}),
 }))
 
@@ -31,7 +33,7 @@ vi.mock('@/lib/hooks/use-btp-data', () => ({
     return { items: h.chantiers, loading: h.chargement, error: h.erreur, refresh: h.refresh }
   },
 }))
-vi.mock('@/lib/btp/alerte-meteo-telephone', () => ({ programmerAlertesMeteo: h.programmer }))
+vi.mock('@/lib/btp/alerte-meteo-telephone', () => ({ programmerAlertesMeteo: h.programmer, generationAlertes: () => h.generation }))
 vi.mock('@/lib/notifications', () => ({
   programmerNotification: vi.fn(), annulerNotification: vi.fn(), notificationEnAttente: vi.fn(), autorisationNotifications: vi.fn(),
 }))
@@ -63,7 +65,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(DEBUT)
   Object.assign(h, {
-    appli: true, chargement: false, erreur: null, options: null, reprise: null,
+    appli: true, chargement: false, erreur: null, options: null, reprise: null, generation: 0,
     chantiers: [{ id: 'c-dalle', titre: 'Dalle', statut: 'En cours', alerteMeteo: true }],
     frais: [{ id: 'c-dalle', titre: 'Dalle', statut: 'Terminé', alerte_meteo: true }],
   })
@@ -88,7 +90,7 @@ describe('alerte météo dans l’appli', () => {
     expect(h.programmer).toHaveBeenCalledTimes(1)
     expect(h.programmer).toHaveBeenCalledWith(h.chantiers, true, expect.objectContaining({
       programmer: expect.any(Function), annuler: expect.any(Function), enAttente: expect.any(Function), autorisation: expect.any(Function),
-    }))
+    }), undefined, undefined, 0)
     expect(h.refresh).not.toHaveBeenCalled()
     expect(h.options).toMatchObject({ table: 'chantiers', autoImport: false, annoncerEchecs: false })
   })
@@ -108,7 +110,7 @@ describe('alerte météo dans l’appli', () => {
     expect(h.programmer).not.toHaveBeenCalled()
     await act(async () => { visibilite('visible') })
     expect(h.refresh).toHaveBeenCalledTimes(1)
-    expect(h.programmer).toHaveBeenCalledWith(h.frais, false, expect.anything())
+    expect(h.programmer).toHaveBeenCalledWith(h.frais, false, expect.anything(), undefined, undefined, 0)
   })
 })
 
@@ -122,7 +124,7 @@ describe('retour au premier plan', () => {
     await act(async () => { visibilite('visible') })
     expect(h.refresh).toHaveBeenCalledTimes(1)
     expect(h.programmer).toHaveBeenCalledTimes(2)
-    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything())
+    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything(), undefined, undefined, 0)
   })
 
   it('relecture en échec : rien n’est programmé (ni annulé) avec une liste vide', async () => {
@@ -169,7 +171,7 @@ describe('chantier enregistré dans l’appli, passages à la suite', () => {
     await act(async () => { ecriture() })
     expect(h.refresh).toHaveBeenCalledTimes(1)
     expect(h.programmer).toHaveBeenCalledTimes(2)
-    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything())
+    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything(), undefined, undefined, 0)
   })
 
   it('autre événement : rien ; démonté : l’écriture ne relit plus rien', async () => {
@@ -211,7 +213,7 @@ describe('chantier enregistré dans l’appli, passages à la suite', () => {
     plusTard(INTERVALLE_RELECTURE_MS + 2)
     await act(async () => { visibilite('visible') })
     expect(h.refresh).toHaveBeenCalledTimes(2)
-    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything())
+    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything(), undefined, undefined, 0)
   })
 
   it('visibilitychange et reprise de l’appli ensemble : une seule relecture', async () => {
@@ -222,5 +224,31 @@ describe('chantier enregistré dans l’appli, passages à la suite', () => {
       h.reprise?.()
     })
     expect(h.refresh).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('déconnexion pendant une relecture ou une attente', () => {
+  it('relecture en vol au moment de la déconnexion : rien n’est mis en file au retour', async () => {
+    let rendre: (lignes: unknown) => void = () => {}
+    await monter()
+    h.refresh.mockImplementationOnce(() => new Promise(r => { rendre = r }))
+    await act(async () => { window.dispatchEvent(new Event('vitfix:chantiers-ecrits')) })
+    h.generation = 1 // déconnexion : annulerAlertesProgrammees a augmenté la génération
+    await act(async () => { rendre(h.frais) })
+    expect(h.programmer).toHaveBeenCalledTimes(1)
+  })
+
+  it('passage mis en file avant la déconnexion : il garde la génération de son déclenchement', async () => {
+    let finirPremier: () => void = () => {}
+    h.programmer.mockImplementationOnce(async () => {
+      await new Promise<void>(r => { finirPremier = r })
+      return { programmees: 0, affichees: 0, annulees: 0, ignorees: 0 }
+    })
+    await monter()
+    await act(async () => { window.dispatchEvent(new Event('vitfix:chantiers-ecrits')) })
+    h.generation = 1
+    await act(async () => { finirPremier() })
+    expect(h.programmer).toHaveBeenCalledTimes(2)
+    expect(h.programmer.mock.calls[1].at(-1)).toBe(0)
   })
 })

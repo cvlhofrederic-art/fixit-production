@@ -167,15 +167,19 @@ function bookingIdToInt(id: string): number {
 const MARGE_IMMEDIATE_MS = 1000
 
 /**
- * Demande l'autorisation d'afficher des notifications (dialogue du système s'il n'a pas encore été répondu). À appeler
- * une seule fois par passage : sous Android 13+, chaque nouvelle demande après un refus rouvre le dialogue, et un
- * second refus est définitif. Faux hors de l'appli ou si le module ne se charge pas ; ne lève jamais.
+ * Autorisation d'afficher des notifications. Le dialogue du système ne s'ouvre que s'il n'a JAMAIS été répondu
+ * (« prompt ») : sous Android 13+, chaque demande après un refus le rouvre, et un second refus est définitif ; après
+ * un refus, faux sans dialogue (la seconde chance est gardée pour un écran qui l'expliquerait). Faux hors de l'appli
+ * ou si le module ne se charge pas ; ne lève jamais.
  * Sert à l'alerte météo des chantiers BTP (lib/btp/alerte-meteo-telephone.ts, 27/11/2026).
  */
 export async function autorisationNotifications(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
   try {
     const { plugin } = await charger()
+    const { display } = await plugin.checkPermissions()
+    if (display === 'granted') return true
+    if (display !== 'prompt') return false
     return await requestNotificationPermission(plugin)
   } catch (err) {
     console.warn('[notifications] autorisation impossible à demander :', err instanceof Error ? err.message : err)

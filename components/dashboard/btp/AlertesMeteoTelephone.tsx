@@ -13,7 +13,7 @@
 import { useEffect, useRef } from 'react'
 import { EVENEMENT_CHANTIERS_ECRITS, useBTPData } from '@/lib/hooks/use-btp-data'
 import { estAppMobile } from '@/lib/app-mobile'
-import { programmerAlertesMeteo, type ChantierPourAlerte } from '@/lib/btp/alerte-meteo-telephone'
+import { generationAlertes, programmerAlertesMeteo, type ChantierPourAlerte } from '@/lib/btp/alerte-meteo-telephone'
 import {
   annulerNotification, autorisationNotifications, notificationEnAttente, programmerNotification,
 } from '@/lib/notifications'
@@ -63,15 +63,20 @@ function AlertesDeLAppli({ artisanId, userId, isPt }: { artisanId: string; userI
   useEffect(() => {
     if (loading) return
     let actif = true
-    const programmer = (liste: readonly ChantierPourAlerte[]) => {
-      file.current = file.current.then(() => programmerAlertesMeteo(liste, isPt, OUTILS)).catch(signaler)
+    // La génération est relevée au déclenchement : un passage déclenché avant une déconnexion ne programme rien, même
+    // s'il ne démarre qu'après (file d'attente, relecture encore en vol).
+    const programmer = (liste: readonly ChantierPourAlerte[], generation = generationAlertes()) => {
+      file.current = file.current
+        .then(() => programmerAlertesMeteo(liste, isPt, OUTILS, undefined, undefined, generation))
+        .catch(signaler)
     }
     const relire = () => {
       derniere.current = Date.now()
+      const generation = generationAlertes()
       void refresh().then(lignes => {
-        if (!actif) return
+        if (!actif || generationAlertes() !== generation) return
         if (lignes === null) { derniere.current = 0; return } // lecture en échec : retentée au retour suivant
-        programmer(lignes as ChantierPourAlerte[])
+        programmer(lignes as ChantierPourAlerte[], generation)
       })
     }
     // Premier passage : la liste que le hook vient de lire, sans la relire.

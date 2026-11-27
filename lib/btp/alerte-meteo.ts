@@ -42,7 +42,10 @@ export type TypeMotifAlerte = 'pluie' | 'gel' | 'vent' | 'chaleur'
 
 export interface MotifAlerte {
   type: TypeMotifAlerte
-  /** Valeur arrondie : mm de pluie, °C de gel ou de chaleur, km/h de vent. */
+  /**
+   * Valeur arrondie : mm de pluie au dixième (comme l'écran Météo : 5,3 mm ne s'écrit pas « 5 mm », sous le seuil
+   * annoncé), °C de gel ou de chaleur et km/h de vent à l'unité (comme l'écran).
+   */
   valeur: number
 }
 
@@ -100,7 +103,7 @@ export function motifsDuJour(jour: JourPrevu): MotifAlerte[] {
   const motifs: MotifAlerte[] = []
   if (jour.windMax > SEUILS_ALERTE_METEO.ventKmh) motifs.push({ type: 'vent', valeur: Math.round(jour.windMax) })
   if (jour.tempMin < SEUILS_ALERTE_METEO.gelC) motifs.push({ type: 'gel', valeur: Math.round(jour.tempMin) })
-  if (jour.rain > SEUILS_ALERTE_METEO.pluieMm) motifs.push({ type: 'pluie', valeur: Math.round(jour.rain) })
+  if (jour.rain > SEUILS_ALERTE_METEO.pluieMm) motifs.push({ type: 'pluie', valeur: Math.round(jour.rain * 10) / 10 })
   if (jour.tempMax > SEUILS_ALERTE_METEO.chaleurC) motifs.push({ type: 'chaleur', valeur: Math.round(jour.tempMax) })
   return motifs
 }
@@ -148,7 +151,7 @@ export function momentAuChantier(instantMs: number, decalageS: number): { date: 
 }
 
 const LIBELLES: Record<TypeMotifAlerte, { fr: (v: number) => string; pt: (v: number) => string }> = {
-  pluie: { fr: v => `pluie ${v} mm`, pt: v => `chuva ${v} mm` },
+  pluie: { fr: v => `pluie ${v.toLocaleString('fr-FR')} mm`, pt: v => `chuva ${v.toLocaleString('pt-PT')} mm` },
   gel: { fr: v => `gel ${v} °C`, pt: v => `geada ${v} °C` },
   vent: { fr: v => `vent ${v} km/h`, pt: v => `vento ${v} km/h` },
   chaleur: { fr: v => `chaleur ${v} °C`, pt: v => `calor ${v} °C` },

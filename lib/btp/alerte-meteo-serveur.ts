@@ -12,10 +12,13 @@
 //     langue et nom de la fiche de la société ;
 //   - un lot Resend par chantier, clé d'idempotence (jour + chantier), une seconde entre deux lots (débit commun à
 //     tout Vitfix) ;
-//   - au plus CHANTIERS_PAR_APPEL chantiers par appel : le reste est compté et journalisé, jamais passé sous silence ;
-//   - `rejouer` : un lot en panne passagère, une société illisible, ou une prévision demandée sans réponse ; le second
-//     appel n'envoie rien en double (même clé d'idempotence, et mêmes messages dans le même ordre : sinon Resend
-//     refuserait le lot en 409) ; `lotsEnEchec` compte les lots non envoyés, que la route signale à Sentry.
+//   - un chantier sans aucun destinataire n'est pas lu (ni prévision, ni place dans la limite) ;
+//   - au plus CHANTIERS_PAR_APPEL chantiers et DUREE_PASSAGE_MAX_MS par appel (un Cron Trigger a 15 min, rejeu
+//     compris) : le reste est compté (`nonTraites`), signalé à Sentry par la route, jamais passé sous silence ;
+//   - `rejouer` : un lot en panne passagère, une société illisible, une prévision demandée sans réponse, ou la durée
+//     dépassée ; le second appel n'envoie rien en double (même clé d'idempotence ; les messages sont rangés dans le même
+//     ordre, et un lot dont le texte a changé entre-temps, la prévision ayant été republiée, revient en 409 : il est
+//     compté `dejaTraites`, il était parti) ; `lotsEnEchec` compte les lots non envoyés, que la route signale à Sentry.
 // Journal : identifiants et nombres seulement, jamais d'adresse ni de position.
 
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -40,6 +43,8 @@ import { STATUT_EN_COURS, estAffecte, type ChantierBtp, type EquipeBtp, type Mem
 export const CHANTIERS_PAR_APPEL = 100
 /** Lignes lues pour trouver les sociétés concernées (une ligne par chantier soumis). */
 export const LIGNES_SOCIETES_MAX = 1000
+/** Durée maximale d'un appel : deux appels (rejeu du Worker compris, une minute d'écart) tiennent dans 15 min. */
+export const DUREE_PASSAGE_MAX_MS = 6 * 60_000
 export const DELAI_PREVISION_MS = 8000
 export const PAUSE_ENTRE_LOTS_MS = 1000
 /** Plage d'envoi, en heures locales du chantier [début, fin) : l'e-mail ne part que dans cette plage. */
@@ -58,10 +63,16 @@ export interface BilanAlerteMeteo {
   sansPosition: number
   previsionsIndisponibles: number
   horsFenetre: number
-  /** Chantiers laissés de côté au-delà de CHANTIERS_PAR_APPEL. */
+  /** Chantiers laissés de côté : au-delà de CHANTIERS_PAR_APPEL, ou de DUREE_PASSAGE_MAX_MS. */
   nonTraites: number
+  /** Chantiers suivis sans aucun salarié à prévenir par e-mail (ni prévision lue, ni place dans la limite). */
+  sansDestinataire: number
   /** Lots d'e-mails non envoyés (panne, débit, quota, refus, configuration). */
   lotsEnEchec: number
+  /** Lots revenus en 409 au rejeu : déjà traités au premier appel, avec un texte qui a changé depuis. */
+  dejaTraites: number
+  /** Liste des sociétés coupée à LIGNES_SOCIETES_MAX : les suivantes ne sont pas traitées. */
+  societesCoupees: boolean
   raison?: 'colonne_absente'
 }
 
@@ -72,7 +83,10 @@ export interface ResultatAlerteMeteo {
 }
 
 export interface DependancesAlerteMeteo {
+  /** Instant de référence (« demain » et la plage d'envoi au chantier). */
   maintenantMs: number
+  /** Horloge réelle, pour borner la durée de l'appel. */
+  horloge: () => number
   attendre: (ms: number) => Promise<void>
   /** Lecture HTTP (fetch), appelée comme une fonction. */
   lire: (url: string, init?: RequestInit) => Promise<Response>
@@ -97,16 +111,18 @@ interface Passage {
   dep: DependancesAlerteMeteo
   lots: number
   budget: number
+  /** Heure (horloge) au-delà de laquelle plus aucun chantier n'est commencé. */
+  finMs: number
   rejouer: boolean
 }
 
 const bilanVide = (): BilanAlerteMeteo => ({
   societes: 0, chantiers: 0, alertes: 0, emails: 0, refuses: 0, sansPosition: 0, previsionsIndisponibles: 0, horsFenetre: 0,
-  nonTraites: 0, lotsEnEchec: 0,
+  nonTraites: 0, sansDestinataire: 0, lotsEnEchec: 0, dejaTraites: 0, societesCoupees: false,
 })
 
 /** Sociétés qui ont au moins un chantier soumis à l'alerte, en cours ou en attente ; colonne absente : la raison. */
-async function societesConcernees(): Promise<string[] | 'colonne_absente'> {
+async function societesConcernees(): Promise<{ ids: string[]; coupee: boolean } | 'colonne_absente'> {
   const { data, error } = await supabaseAdmin
     .from('chantiers_btp')
     .select('owner_id')
@@ -119,10 +135,10 @@ async function societesConcernees(): Promise<string[] | 'colonne_absente'> {
     throw new Error(`lecture des chantiers : ${error.code}`)
   }
   const lignes = (data ?? []) as Array<{ owner_id?: string | null }>
-  if (lignes.length >= LIGNES_SOCIETES_MAX) {
-    logger.warn('[cron/alerte-meteo] liste des sociétés coupée : les suivantes ne sont pas traitées', { lignes: lignes.length })
-  }
-  return [...new Set(lignes.map(l => l.owner_id).filter((id): id is string => typeof id === 'string' && id !== ''))]
+  const coupee = lignes.length >= LIGNES_SOCIETES_MAX
+  if (coupee) logger.warn('[cron/alerte-meteo] liste des sociétés coupée : les suivantes ne sont pas traitées', { lignes: lignes.length })
+  const ids = [...new Set(lignes.map(l => l.owner_id).filter((id): id is string => typeof id === 'string' && id !== ''))]
+  return { ids, coupee }
 }
 
 /** Nom et langue de chaque société ; lecture en échec : exception (rien n'est envoyé, l'appel est à rejouer). */
@@ -231,15 +247,19 @@ function compterLot(lot: ResultatLotEmailDetaille, nombre: number, chantierId: s
     p.bilan.refuses += lot.refuses.length
     return
   }
+  if (lot.code === 'rejeu_refuse') {
+    // Cette clé (jour + chantier) n'est donnée que par ce travail : le lot est parti au premier appel.
+    p.bilan.dejaTraites++
+    logger.warn('[cron/alerte-meteo] lot déjà traité aujourd’hui, avec un autre texte', { chantier: chantierId, code: lot.code })
+    return
+  }
   p.bilan.refuses += nombre
   p.bilan.lotsEnEchec++
   if (lot.code === 'reseau' || lot.code === 'limite' || lot.code === 'rejeu_concurrent') p.rejouer = true
   logger.warn('[cron/alerte-meteo] lot non envoyé', { chantier: chantierId, code: lot.code, motif: lot.motif })
 }
 
-async function traiterChantier(
-  chantier: ChantierAlerte, fiche: Fiche, membres: readonly MembreBtp[], equipes: readonly EquipeBtp[], p: Passage,
-): Promise<void> {
+async function traiterChantier(chantier: ChantierAlerte, fiche: Fiche, salaries: readonly MembreBtp[], p: Passage): Promise<void> {
   const prevision = await previsionDuChantier(chantier, p.dep)
   if (prevision.etat !== 'lue') {
     p.bilan[prevision.etat]++
@@ -249,8 +269,6 @@ async function traiterChantier(
   const alerte = alerteDuJour(prevision.jours, prevision.demain)
   if (!alerte) return
   p.bilan.alertes++
-  const salaries = destinataires(chantier, membres, equipes)
-  if (salaries.length === 0) return
   const { titre, corps } = texteAlerteDuLendemain(chantier.titre ?? '', alerte.motifs, fiche.isPt, alerte.date)
   const messages = salaries.map(m => messageAlerte(m, fiche, titre, corps))
   if (p.lots > 0) await p.dep.attendre(PAUSE_ENTRE_LOTS_MS)
@@ -263,24 +281,28 @@ async function traiterSociete(societeId: string, fiche: Fiche, p: Passage): Prom
   const { chantiers, membres, equipes } = await lireSociete(societeId)
   for (const chantier of chantiers) {
     if (!candidatDeDemain(chantier, p.dep.maintenantMs)) continue
+    const salaries = destinataires(chantier, membres, equipes)
+    if (salaries.length === 0) { p.bilan.sansDestinataire++; continue }
     if (p.budget <= 0) { p.bilan.nonTraites++; continue }
+    if (p.dep.horloge() >= p.finMs) { p.bilan.nonTraites++; p.rejouer = true; continue }
     p.budget--
     p.bilan.chantiers++
-    await traiterChantier(chantier, fiche, membres, equipes, p)
+    await traiterChantier(chantier, fiche, salaries, p)
   }
 }
 
 /** Envoie les e-mails de la veille pour toutes les sociétés concernées. Lève si la lecture de départ échoue. */
 export async function envoyerAlertesDeLaVeille(dep: DependancesAlerteMeteo): Promise<ResultatAlerteMeteo> {
   const bilan = bilanVide()
-  const societes = await societesConcernees()
-  if (societes === 'colonne_absente') {
+  const lecture = await societesConcernees()
+  if (lecture === 'colonne_absente') {
     logger.warn('[cron/alerte-meteo] chantiers_btp.alerte_meteo absente : migration 20261126b à appliquer')
     return { bilan: { ...bilan, raison: 'colonne_absente' }, rejouer: false }
   }
-  const fiches = await fichesDesSocietes(societes)
-  const p: Passage = { bilan, dep, lots: 0, budget: CHANTIERS_PAR_APPEL, rejouer: false }
-  for (const societeId of societes) {
+  bilan.societesCoupees = lecture.coupee
+  const fiches = await fichesDesSocietes(lecture.ids)
+  const p: Passage = { bilan, dep, lots: 0, budget: CHANTIERS_PAR_APPEL, finMs: dep.horloge() + DUREE_PASSAGE_MAX_MS, rejouer: false }
+  for (const societeId of lecture.ids) {
     bilan.societes++
     const fiche = fiches.get(societeId) ?? { nom: 'Vitfix', isPt: false }
     try {

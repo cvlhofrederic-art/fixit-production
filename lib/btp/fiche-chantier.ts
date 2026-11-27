@@ -116,8 +116,8 @@ export function questionRetirerPosition(titre: string, isPt: boolean): string {
  */
 export function aideAlerteMeteo(isPt: boolean): string {
   return isPt
-    ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): na véspera de chuva, geada, vento forte ou calor, a aplicação Vitfix Pro envia uma notificação (trabalhadores atribuídos e gerente) e os trabalhadores atribuídos recebem um e-mail. Obra « Pendente »: só na véspera do primeiro dia (os trabalhadores, por e-mail).'
-    : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : la veille de la pluie, du gel, du vent fort ou de la chaleur, l’appli Vitfix Pro envoie une notification (salariés affectés et gérant) et les salariés affectés reçoivent un e-mail. Chantier « En attente » : seulement la veille de son premier jour (les salariés, par e-mail).'
+    ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): na véspera de chuva, geada, vento forte ou calor, a aplicação Vitfix Pro envia uma notificação aos trabalhadores atribuídos e a quem gere todas as obras (gerente, administrativo), e os trabalhadores atribuídos recebem um e-mail. Obra « Pendente »: só na véspera do primeiro dia (notificação a quem gere as obras, e-mail aos trabalhadores).'
+    : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : la veille de la pluie, du gel, du vent fort ou de la chaleur, l’appli Vitfix Pro envoie une notification aux salariés affectés et à ceux qui gèrent tous les chantiers (gérant, secrétaire), et les salariés affectés reçoivent un e-mail. Chantier « En attente » : seulement la veille de son premier jour (notification à ceux qui gèrent les chantiers, e-mail aux salariés).'
 }
 
 /**
