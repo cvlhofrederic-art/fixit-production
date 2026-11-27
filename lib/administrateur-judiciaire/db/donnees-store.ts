@@ -17,7 +17,8 @@ import {
   repoTaches,
 } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { DonneesCreation, DonneesModification } from '@/lib/administrateur-judiciaire/db/repository'
-import { COMPTE_BANQUE_NON_RATTACHE, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
+import { refuserImportSurPeriodeArretee } from '@/lib/administrateur-judiciaire/db/rapprochements'
+import { banqueDuCompte, COMPTE_BANQUE_NON_RATTACHE, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import {
   ajDb,
   type Contrat,
@@ -107,6 +108,8 @@ export interface EtatDonneesStore {
   /**
    * Écritures 512 (renvoyées) et, pour chaque sortie, une écriture 471 « À ventiler ». Dates reçues en ISO. `compte` :
    * sous-compte 512 du compte bancaire choisi (db/releves-bancaires.ts) ; absent, « 512 » non rattaché, comme avant.
+   * Sur le sous-compte d'un compte bancaire : refusé en entier si une ligne est datée au plus tard du dernier arrêté
+   * clôturé de ce compte (période arrêtée protégée, décision du 26/11/2026, rb-04 A).
    */
   importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string) => Promise<Ecriture[]>
   imputerEncaissement: (ecritureId: string, coproprietaireId: string, dateIso: string) => Promise<void>
@@ -330,12 +333,21 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     // Correctif d'un défaut hérité de la maquette : les écritures (et leur journal d'activité) sont enregistrées dans
     // une seule transaction. Une erreur en cours de boucle n'en laisse aucune en base, alors qu'auparavant les
     // premières y restaient, absentes de l'état et donc du dédoublonnage : un nouvel import les dupliquait.
-    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog], async () => {
+    // Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : sur le sous-compte d'un compte bancaire, le relevé est
+    // refusé en entier si une ligne est datée au plus tard du dernier arrêté clôturé de ce compte. Contrôle fait dans la
+    // transaction, sur la date de l'écriture elle-même : ni un autre onglet ni un appel direct ne le contournent.
+    const banqueId = banqueDuCompte(compte),
+      dateEcriture = (ligne: LigneReleve): Date => {
+        const [annee, mois, jour] = ligne.date.split('-').map(Number)
+        return new Date(annee, mois - 1, jour)
+      }
+    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.rapprochements], async () => {
+      if (banqueId !== null) await refuserImportSurPeriodeArretee(banqueId, lignes.map((ligne) => dateVersIso(dateEcriture(ligne)) ?? ''))
       for (const ligne of lignes) {
-        const [annee, mois, jour] = ligne.date.split('-').map(Number),
+        const date = dateEcriture(ligne),
           ecriture = await repoEcritures.create({
             journalId,
-            date: new Date(annee, mois - 1, jour),
+            date,
             compte,
             libelle: ligne.libelle,
             montant: Math.abs(ligne.montant),
@@ -346,7 +358,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
           ecrituresAVentiler.push(
             await repoEcritures.create({
               journalId,
-              date: new Date(annee, mois - 1, jour),
+              date,
               compte: '471',
               libelle: `À ventiler · ${ligne.libelle} · relevé ${ecriture.id}`,
               montant: Math.abs(ligne.montant),

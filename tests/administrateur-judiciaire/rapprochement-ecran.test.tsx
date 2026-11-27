@@ -8,6 +8,7 @@ import { enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/co
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { abandonnerArreteCompte, cloturerArreteCompte, ouvrirArreteCompte } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
+import { repoEcritures } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
@@ -93,6 +94,17 @@ async function cliquerEtAttendre(bouton: HTMLElement) {
   })
   await waitFor(() => expect(pushCourant.mock.calls.length).toBeGreaterThan(avant))
   await patienter()
+}
+
+/**
+ * Sortie écrite sur le compte hors de l'import du relevé (autre outil), puis connue de l'écran. Période arrêtée protégée
+ * (rb-04 A, décision du 26/11/2026) : l'import d'un relevé daté dans une période clôturée est refusé
+ * (periode-arretee.test.ts) ; l'arrêté clôturé reste figé devant une écriture arrivée autrement.
+ */
+async function ecrireSortieHorsImport(date: Date, libelle: string, montant: number) {
+  const [modele] = (await ajDb.ecritures.toArray()).filter((ecriture) => ecriture.compte === `512-${banqueId}`)
+  const creee = await repoEcritures.create({ journalId: modele.journalId, date, compte: modele.compte, libelle, montant, sens: 'credit' })
+  useDonneesStore.setState((etat) => ({ ecritures: [...etat.ecritures, creee] }))
 }
 
 function saisirArrete(date: string, soldeBanque: string) {
@@ -351,9 +363,13 @@ describe('Rapprochement : solde compta recalculé jusqu’à la clôture, puis f
     // Le solde recalculé est enregistré avec la clôture.
     expect(await ajDb.rapprochements.get(arrete.id)).toMatchObject({ statut: 'Clôturé', soldeComptaCentimes: 31_750 })
 
-    // Figé : un autre relevé en retard ne change plus l'arrêté clôturé, ni en base ni à l'écran.
+    // Période arrêtée protégée (rb-04 A) : un autre relevé en retard, daté dans la période clôturée, est refusé.
+    await expect(importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-26', libelle: 'COMMISSION', montant: -5 }])).rejects.toThrow(
+      /^Import refusé : 1 ligne est datée au plus tard du 31\/05\/2026/,
+    )
+    // Figé : une écriture en retard arrivée hors de l'import ne change plus l'arrêté clôturé, ni en base ni à l'écran.
     await act(async () => {
-      await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-26', libelle: 'COMMISSION', montant: -5 }])
+      await ecrireSortieHorsImport(new Date(2026, 4, 26), 'COMMISSION', 5)
     })
     await patienter()
     expect(dansPanneau().getByText('Clôturé')).toBeInTheDocument()
@@ -381,11 +397,10 @@ describe('Rapprochement : solde compta recalculé jusqu’à la clôture, puis f
     const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-15', soldeBanqueCentimes: 45_000 })
     await cloturerArreteCompte(premier.id)
     await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
-    // Deux lignes en retard : l'une dans la période déjà clôturée, l'autre dans l'arrêté en cours.
-    await importerReleveSurCompte('C2', banqueId, [
-      { date: '2026-05-12', libelle: 'FRAIS AVANT LE PREMIER ARRETE', montant: -3 },
-      { date: '2026-05-25', libelle: 'FRAIS TENUE DE COMPTE', montant: -12 },
-    ])
+    // Deux lignes en retard : l'une dans la période déjà clôturée (écrite hors de l'import, qui la refuse : rb-04 A),
+    // l'autre dans l'arrêté en cours.
+    await ecrireSortieHorsImport(new Date(2026, 4, 12), 'FRAIS AVANT LE PREMIER ARRETE', 3)
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-25', libelle: 'FRAIS TENUE DE COMPTE', montant: -12 }])
     await rendre()
     const lignes = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row').slice(1)
     const cellules = (ligne: HTMLElement) => within(ligne).getAllByRole('cell').map((cellule) => cellule.textContent)

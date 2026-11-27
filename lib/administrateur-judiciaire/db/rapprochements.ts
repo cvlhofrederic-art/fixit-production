@@ -4,6 +4,7 @@ import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/reposit
 import { ajDb, type Ecriture, type Rapprochement } from '@/lib/administrateur-judiciaire/db/schema'
 import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { refuserImportEnPeriodeArretee } from '@/lib/administrateur-judiciaire/domain/periode-arretee'
 import {
   abandonnerArrete,
   cloturerArrete,
@@ -34,6 +35,9 @@ import {
  * l'écriture étant tracée au journal d'activité comme les autres (repository). Elle est lue à part (`abandonnes`) :
  * aucune règle ne la reçoit, elle ne compte ni comme arrêté en cours, ni comme dernier arrêté, ni dans un solde.
  * Aucun élément n'est encore rattaché à l'arrêté (côté compta indépendant du relevé non branché) : `elements` reste vide.
+ * Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : refuserImportSurPeriodeArretee, appelée par l'import d'un
+ * relevé dans sa transaction d'écriture, refuse le relevé dont une ligne est datée au plus tard du dernier arrêté clôturé
+ * du compte (domain/periode-arretee.ts).
  */
 
 export interface ArretesLus {
@@ -79,6 +83,19 @@ export async function listerArretes(banqueId: string): Promise<ArretesLus> {
     abandonnes: lus.filter(estAbandonne).sort(parDate),
     illisibles: lignes.length - lus.length,
   }
+}
+
+/**
+ * Refuse l'import, sur un compte, d'un relevé dont une ligne est datée au plus tard du dernier arrêté clôturé de ce
+ * compte (décision du 26/11/2026, rb-04 A ; règle et message du domaine). `dates` : date de chaque ligne à écrire
+ * (AAAA-MM-JJ). Le contrôle qui fait foi est celui fait DANS la transaction qui écrit les lignes (importerReleve du
+ * store), la table « rapprochements » dans sa portée : une clôture faite entre-temps ailleurs (autre onglet) passe avant
+ * ou après elle, jamais au milieu. Les arrêtés lus sont ceux qui comptent : un arrêté abandonné ou illisible (écrit hors
+ * de l'écran) ne protège rien.
+ */
+export async function refuserImportSurPeriodeArretee(banqueId: string, dates: readonly string[]): Promise<void> {
+  const { arretes } = await listerArretes(banqueId)
+  refuserImportEnPeriodeArretee(arretes, banqueId, dates)
 }
 
 /** Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours ou plus récent. */
