@@ -176,23 +176,48 @@ describe('modification du solde d’ouverture et arrêtés clôturés', () => {
     expect((await cloturerArreteCompte(arreteId)).soldeComptaCentimes).toBe(132_950)
   })
 
+  /**
+   * Comportement actuel, décrit avec des soldes de banque possibles (relecture du 27/11/2026) : le relevé de mai n'a
+   * jamais été importé. La banque donne 200,00 € au 30/04, puis 529,50 € au début du 01/06 (200,00 + 450,00 − 120,50 de
+   * mai), puis 628,50 € au 03/06 (+ 99,00 du 02/06). Le solde d'ouverture du 01/06, postérieur à l'arrêté clôturé du
+   * 30/04, est accepté SANS contrôle contre le solde de cet arrêté : règle à faire trancher par le référent métier
+   * (refuser, exiger la continuité avec l'arrêté, ou avertir), voir domain/solde-ouverture-compte.ts.
+   */
   it('arrêté clôturé antérieur à la date, arrêté en cours ou abandonné : aucun refus', async () => {
     const { id } = await enregistrerCompteBancaire('C2', saisie())
-    await importerReleveSurCompte('C2', id, RELEVE)
+    await importerReleveSurCompte('C2', id, [RELEVE[0], RELEVE[3]])
     const avril = await ouvrirArreteCompte(id, { dateArrete: '2026-04-30', soldeBanqueCentimes: 20_000 })
     await cloturerArreteCompte(avril.id)
     const abandonne = await ouvrirArreteCompte(id, { dateArrete: '2026-05-15', soldeBanqueCentimes: 1 })
     await abandonnerArreteCompte(abandonne.id)
-    await ouvrirArreteCompte(id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 132_950 })
-    await enregistrerCompteBancaire('C2', saisie(ouverture('1 000,00', '2026-05-01')), { id })
-    expect(await ajDb.banques.get(id)).toMatchObject({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })
-    // L'arrêté clôturé d'avril garde son solde figé ; celui de mai, en cours, se clôture avec le solde d'ouverture.
+    await ouvrirArreteCompte(id, { dateArrete: '2026-06-03', soldeBanqueCentimes: 62_850 })
+    await enregistrerCompteBancaire('C2', saisie(ouverture('529,50', '2026-06-01')), { id })
+    expect(await ajDb.banques.get(id)).toMatchObject({ soldeOuvertureCentimes: 52_950, soldeOuvertureAu: '2026-06-01' })
+    // L'arrêté clôturé d'avril garde son solde figé ; celui de juin, en cours, se clôture avec le solde d'ouverture.
     const { arretes } = await listerArretes(id)
     expect(arretes.map((arrete) => [arrete.dateArrete, arrete.statut, arrete.soldeComptaCentimes])).toEqual([
       ['2026-04-30', 'Clôturé', 20_000],
-      ['2026-05-31', 'En cours', 52_950],
+      ['2026-06-03', 'En cours', 29_900],
     ])
-    expect((await cloturerArreteCompte(arretes[1].id)).soldeComptaCentimes).toBe(132_950)
+    expect((await cloturerArreteCompte(arretes[1].id)).soldeComptaCentimes).toBe(62_850)
+  })
+
+  it('arrêté en cours après l’arrêté clôturé qui couvre la date : le refus dit d’abandonner d’abord, et ce chemin marche', async () => {
+    const { id } = await enregistrerCompteBancaire('C2', saisie(ouverture('1 000,00', '2026-05-01')))
+    await importerReleveSurCompte('C2', id, RELEVE)
+    // 1 000,00 + 450,00 au 15/05 ; 1 329,50 au 31/05.
+    const quinze = await ouvrirArreteCompte(id, { dateArrete: '2026-05-15', soldeBanqueCentimes: 145_000 })
+    await cloturerArreteCompte(quinze.id)
+    const mai = await ouvrirArreteCompte(id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 132_950 })
+    await expect(enregistrerCompteBancaire('C2', saisie(ouverture('900', '2026-05-01')), { id })).rejects.toThrow(
+      'Solde d’ouverture non modifié : l’arrêté clôturé du 15/05/2026 couvre sa date. Déclôturer d’abord cet arrêté (après avoir abandonné l’arrêté en cours du 31/05/2026).',
+    )
+    // Sans l'abandon, la déclôture est refusée elle aussi : le message doit donc l'annoncer.
+    await expect(decloturerArreteCompte(quinze.id)).rejects.toThrow('Déclôture refusée : un arrêté est en cours sur ce compte.')
+    await abandonnerArreteCompte(mai.id)
+    await decloturerArreteCompte(quinze.id)
+    await enregistrerCompteBancaire('C2', saisie(ouverture('900', '2026-05-01')), { id })
+    expect(await ajDb.banques.get(id)).toMatchObject({ soldeOuvertureCentimes: 90_000, soldeOuvertureAu: '2026-05-01' })
   })
 
   it('arrêté illisible sur le compte (il pourrait cacher un arrêté clôturé) : modification refusée', async () => {
@@ -208,6 +233,24 @@ describe('modification du solde d’ouverture et arrêtés clôturés', () => {
     })
     await expect(enregistrerCompteBancaire('C2', saisie(ouverture('100', '2026-05-01')), { id })).rejects.toThrow(/1 arrêté illisible sur ce compte/)
     expect(await ajDb.banques.get(id)).not.toHaveProperty('soldeOuvertureCentimes')
+  })
+
+  it('arrêté illisible sur le compte, solde d’ouverture renvoyé inchangé (le formulaire l’envoie toujours) : les autres champs se modifient', async () => {
+    const { id } = await enregistrerCompteBancaire('C2', saisie(ouverture('1 000,00', '2026-05-01')))
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: id,
+      statut: 'Clôturé',
+    })
+    await enregistrerCompteBancaire('C2', saisie({ libelle: 'Compte de gestion', ...ouverture('1000', '2026-05-01') }), { id })
+    expect(await ajDb.banques.get(id)).toMatchObject({ libelle: 'Compte de gestion', soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })
+    // Le solde d'ouverture, lui, reste refusé tant que l'arrêté illisible est là.
+    await expect(enregistrerCompteBancaire('C2', saisie({ libelle: 'Autre', ...ouverture('900', '2026-05-01') }), { id })).rejects.toThrow(/1 arrêté illisible sur ce compte/)
+    expect(await ajDb.banques.get(id)).toMatchObject({ libelle: 'Compte de gestion', soldeOuvertureCentimes: 100_000 })
   })
 
   it('compte clôturé : son solde d’ouverture ne se modifie plus', async () => {

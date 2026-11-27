@@ -20,7 +20,9 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * clôture, et le formulaire le dit. Même décision : un espace avant la ligne du solde compta, qui ne se lit plus comme la
  * suite de l'aide du solde banque (rb-c03 A), et un séparateur des milliers visible (rb-c02 A).
  * Décision du 26/11/2026 (PR 799, point 2, choix A) : ce solde reprend le solde d'ouverture du compte quand l'arrêté est
- * daté de son jour ou d'après, et la phrase d'explication le dit alors.
+ * daté de son jour ou d'après, et la phrase d'explication le dit alors. Le libellé devient dans ce cas « Solde compta du
+ * compte » (relecture du 27/11/2026) : ce montant n'est plus le solde du sous-compte 512 au journal, où le solde
+ * d'ouverture n'est pas écrit et où restent les lignes datées avant lui.
  * Aucune règle ici : l'écran contrôle la saisie et l'écriture applique le domaine ; un refus est signalé par un toast,
  * la modale restant ouverte.
  */
@@ -71,7 +73,7 @@ export function NouvelArreteModal({ compte, ecrituresBanque, onClose, onEnregist
             'Solde compta : date de l’arrêté à saisir.'
           ) : (
             <>
-              {`Solde compta du sous-compte 512 au ${dateIsoVersFr(valeurs.date)} : `}
+              {`Solde compta du ${ouvertureComptee ? 'compte' : 'sous-compte 512'} au ${dateIsoVersFr(valeurs.date)} : `}
               <b>{eurosArrete(soldeCompta)}</b>
             </>
           )}

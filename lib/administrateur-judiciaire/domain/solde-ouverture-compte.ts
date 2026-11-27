@@ -40,7 +40,18 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  *   improbable (un solde d'ouverture constate un solde passé, comme un arrêté) ;
  * - changement (verifierChangementSoldeOuverture) : refusé sur un compte clôturé, et tant qu'un arrêté clôturé couvre la
  *   date du solde d'ouverture (l'ancienne ou la nouvelle) : son solde compta figé repose sur lui, il faut le déclôturer
- *   d'abord. Un arrêté en cours se recalcule ; un arrêté abandonné ne compte dans aucune règle.
+ *   d'abord. Un arrêté en cours se recalcule ; un arrêté abandonné ne compte dans aucune règle. La déclôture étant
+ *   refusée tant qu'un arrêté est en cours sur le compte (domain/rapprochement-bancaire.ts, decloturerArrete), le refus
+ *   dit alors d'abandonner d'abord cet arrêté en cours.
+ *
+ * Point ouvert, à faire trancher par le référent métier (relecture du 27/11/2026) : un solde d'ouverture daté APRÈS un
+ * arrêté clôturé est accepté sans contrôle. Le solde du compte à la date de cet arrêté est pourtant connu (son solde
+ * banque, égal au solde compta à la clôture) : un solde d'ouverture qui ne le prolonge pas fait sauter le solde du compte
+ * après une période rapprochée, sans écriture ni ligne de relevé. Trois règles possibles, aucune n'est retenue ici :
+ * refuser un solde d'ouverture daté après le dernier arrêté clôturé du compte ; exiger qu'il soit égal au solde banque
+ * de cet arrêté plus les lignes importées entre les deux dates (ce qui refuse aussi le cas, possible, d'un relevé
+ * intermédiaire jamais importé) ; l'accepter avec un avertissement à l'écran. Même question, à l'envers, pour la clôture
+ * d'un arrêté daté avant un solde d'ouverture déjà saisi.
  */
 
 /** Solde d'ouverture d'un compte : son solde au début du jour `au`, avant les mouvements de ce jour. */
@@ -113,7 +124,7 @@ export interface ChangementSoldeOuverture {
   apres: SoldeOuverture | null
   /** Compte clôturé : false. */
   compteActif: boolean
-  /** Arrêtés du compte qui comptent (en cours, clôturés) ; jamais les arrêtés abandonnés. */
+  /** Arrêtés du compte qui comptent (en cours, clôturés) ; jamais les arrêtés abandonnés. Un seul est en cours, au plus. */
   arretes: readonly Pick<ArreteRapprochement, 'dateArrete' | 'statut'>[]
 }
 
@@ -121,7 +132,8 @@ export interface ChangementSoldeOuverture {
  * Refuse, avec le message affiché, de saisir, modifier ou retirer le solde d'ouverture d'un compte clôturé, ou d'un compte
  * dont un arrêté clôturé couvre la date du solde d'ouverture, l'ancienne ou la nouvelle (arrêté daté de ce jour ou
  * d'après) : le solde compta figé de cet arrêté a été calculé avec l'ancien solde d'ouverture, ou sans le nouveau. Sans
- * changement, rien n'est refusé.
+ * changement, rien n'est refusé. Le refus dit la marche à suivre en entier : déclôturer, après avoir abandonné l'arrêté
+ * en cours du compte s'il y en a un (tant qu'il existe, la déclôture est refusée elle aussi).
  */
 export function verifierChangementSoldeOuverture({ avant, apres, compteActif, arretes }: ChangementSoldeOuverture): void {
   if (memeSoldeOuverture(avant, apres)) return
@@ -134,9 +146,11 @@ export function verifierChangementSoldeOuverture({ avant, apres, compteActif, ar
     .sort((a, b) => b.localeCompare(a))
   if (couvrants.length === 0) return
   const dernier = dateIsoVersFr(couvrants[0])
+  const enCours = arretes.find((arrete) => arrete.statut === 'En cours')
+  const apresAbandon = enCours ? ` (après avoir abandonné l’arrêté en cours du ${dateIsoVersFr(enCours.dateArrete)})` : ''
   throw new Error(
     couvrants.length === 1
-      ? `Solde d’ouverture non modifié : l’arrêté clôturé du ${dernier} couvre sa date. Déclôturer d’abord cet arrêté.`
-      : `Solde d’ouverture non modifié : ${couvrants.length} arrêtés clôturés couvrent sa date. Les déclôturer d’abord, en commençant par celui du ${dernier}.`,
+      ? `Solde d’ouverture non modifié : l’arrêté clôturé du ${dernier} couvre sa date. Déclôturer d’abord cet arrêté${apresAbandon}.`
+      : `Solde d’ouverture non modifié : ${couvrants.length} arrêtés clôturés couvrent sa date. Les déclôturer d’abord, en commençant par celui du ${dernier}${apresAbandon}.`,
   )
 }

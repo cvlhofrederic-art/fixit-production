@@ -42,8 +42,10 @@ import { soldeOuvertureEnregistre, type SoldeOuverture } from '@/lib/administrat
  *   pas le solde réel d'un compte ouvert avant le premier relevé importé ; null sans solde d'ouverture ni ligne ;
  * - contrôle « compte repris à solder » : toujours neutralisé (la vue passe au contrôle un solde neutre de 0, lu comme
  *   « soldé »). Il pourrait désormais être lancé pour un compte repris dont le solde d'ouverture est saisi ; ce n'est pas
- *   fait ici, la décision ne le prévoit pas (point à soumettre). Un seul bandeau signale les comptes repris actifs dont
- *   le solde reste inconnu, c'est-à-dire sans solde d'ouverture.
+ *   fait ici, la décision ne le prévoit pas (point à soumettre). Tant qu'il ne tourne pas, tout compte repris actif est
+ *   signalé, pour que « Comptes conformes au mode appliqué » ne couvre jamais un compte repris non soldé sans le dire
+ *   (relecture du 27/11/2026) : un bandeau pour ceux dont le solde reste inconnu (sans solde d'ouverture), un autre pour
+ *   ceux dont le solde d'ouverture est saisi, que le rappel ne lit pas encore.
  */
 
 /** Compte lisible (nature connue), prêt à afficher. */
@@ -88,6 +90,8 @@ export interface VueComptesBancaires {
   obligationFonds: ObligationFondsTravaux
   /** Comptes repris actifs sans solde d'ouverture : leur solde n'est pas connu ici. */
   reprisSansSoldeConnu: number
+  /** Comptes repris actifs au solde d'ouverture saisi : solde connu, mais le contrôle « à solder » ne le lit pas encore. */
+  reprisAvecSoldeOuverture: number
   /** Pratique du cabinet pour un administrateur provisoire (J37), proposée, jamais imposée ; null sinon. */
   pratiqueAdministrateurProvisoire: ModeTenueComptes | null
 }
@@ -182,6 +186,8 @@ export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancair
   const comptes = comptesLisibles(entree.comptes, entree.ecritures)
   const { resolu, erreurMode } = resoudreMode(entree.reglagesCabinet, entree.choixMandat)
   const obligationFonds = obligationFondsTravaux(IMMEUBLE_NON_RENSEIGNE, entree.aujourdhui)
+  const reprisActifs = comptes.filter((compte) => compte.actif && compte.nature === 'repris_ancien_gestionnaire')
+  const reprisSansSoldeConnu = reprisActifs.filter((compte) => compte.soldeOuverture === null).length
   const controles: CompteBancaireMandat[] = comptes.map((compte) => ({
     nature: compte.nature,
     iban: compte.iban,
@@ -201,9 +207,8 @@ export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancair
     erreurMode,
     informations: informationsComptesMandat(controles),
     obligationFonds,
-    reprisSansSoldeConnu: comptes.filter(
-      (compte) => compte.actif && compte.nature === 'repris_ancien_gestionnaire' && compte.soldeOuverture === null,
-    ).length,
+    reprisSansSoldeConnu,
+    reprisAvecSoldeOuverture: reprisActifs.length - reprisSansSoldeConnu,
     pratiqueAdministrateurProvisoire: estAdministrateurProvisoire(entree.fondement) ? MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE : null,
   }
 }

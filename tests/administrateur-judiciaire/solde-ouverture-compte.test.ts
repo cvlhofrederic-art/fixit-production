@@ -194,6 +194,19 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
     )
   })
 
+  it('arrêté en cours sur le compte : le refus dit de l’abandonner avant de déclôturer (la déclôture est refusée tant qu’il existe)', () => {
+    const enCours = arrete('2026-06-30', 'En cours')
+    expect(() =>
+      verifierChangementSoldeOuverture({ avant, apres: null, compteActif: true, arretes: [arrete('2026-05-31', 'Clôturé'), enCours] }),
+    ).toThrow(
+      'Solde d’ouverture non modifié : l’arrêté clôturé du 31/05/2026 couvre sa date. Déclôturer d’abord cet arrêté (après avoir abandonné l’arrêté en cours du 30/06/2026).',
+    )
+    const plusieurs = [arrete('2026-05-10', 'Clôturé'), enCours, arrete('2026-05-31', 'Clôturé')]
+    expect(() => verifierChangementSoldeOuverture({ avant, apres: null, compteActif: true, arretes: plusieurs })).toThrow(
+      'Solde d’ouverture non modifié : 2 arrêtés clôturés couvrent sa date. Les déclôturer d’abord, en commençant par celui du 31/05/2026 (après avoir abandonné l’arrêté en cours du 30/06/2026).',
+    )
+  })
+
   it('arrêté clôturé antérieur à la date, arrêté en cours : aucun refus (l’arrêté en cours se recalcule)', () => {
     const arretes = [arrete('2026-04-30', 'Clôturé'), arrete('2026-05-31', 'En cours')]
     expect(() => verifierChangementSoldeOuverture({ avant, apres: null, compteActif: true, arretes })).not.toThrow()
@@ -233,10 +246,11 @@ describe('vue « Comptes bancaires du mandat » avec un solde d’ouverture', ()
     expect(vue([compte({ actif: false, soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })]).comptes[0].soldeCentimes).toBe(145_000)
   })
 
-  it('comptes repris : seuls ceux sans solde d’ouverture gardent un solde inconnu ; le contrôle « à solder » reste neutralisé', () => {
+  it('comptes repris : seuls ceux sans solde d’ouverture gardent un solde inconnu ; le contrôle « à solder » reste neutralisé, et la vue compte ceux qu’il ne lit pas', () => {
     const repris = (id: string, surcharge: Partial<Banque> = {}) => compte({ id, nature: 'repris_ancien_gestionnaire', ...surcharge })
+    const ouvert = { soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' }
     const rendue = vueComptesBancaires({
-      comptes: [repris('B1', { soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' }), repris('B2'), repris('B3', { actif: false })],
+      comptes: [repris('B1', ouvert), repris('B2'), repris('B3', { actif: false }), repris('B4', { actif: false, ...ouvert }), compte({ id: 'B5', ...ouvert })],
       ecritures,
       reglagesCabinet: { modeParDefaut: 'compte_separe_syndicat' },
       choixMandat: null,
@@ -246,6 +260,9 @@ describe('vue « Comptes bancaires du mandat » avec un solde d’ouverture', ()
     expect(rendue.reprisSansSoldeConnu).toBe(1)
     // Non réactivé par cette PR : le compte repris au solde d'ouverture saisi (1 450,00 €) ne déclenche pas le rappel.
     expect(rendue.controle?.anomalies.map((anomalie) => anomalie.code)).not.toContain('compte_repris_a_solder')
+    // Tant que ce rappel n'est pas lancé, l'écran doit le dire aussi pour le compte repris actif au solde pourtant connu
+    // (relecture du 27/11/2026) : ni le compte repris clôturé, ni le compte courant.
+    expect(rendue.reprisAvecSoldeOuverture).toBe(1)
   })
 })
 

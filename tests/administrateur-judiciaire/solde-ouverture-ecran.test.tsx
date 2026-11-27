@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TresorerieModule } from '@/components/administrateur-judiciaire/modules/finances/TresorerieModule'
 import { ToastContext, type ToastApi } from '@/components/administrateur-judiciaire/ui/toast'
-import { enregistrerCompteBancaire, type SaisieCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
+import { cloturerCompteBancaire, enregistrerCompteBancaire, type SaisieCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { cloturerArreteCompte, ouvrirArreteCompte } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
@@ -188,7 +188,7 @@ describe('Solde d’ouverture : solde du compte et avertissements', () => {
     expect(titresAlertes().filter((titre) => titre.includes('avant le solde d’ouverture'))).toEqual([])
   })
 
-  it('compte repris sans solde d’ouverture : solde inconnu signalé ; avec solde d’ouverture : plus de bandeau, sans rappel « à solder »', async () => {
+  it('compte repris sans solde d’ouverture : solde inconnu signalé ; avec solde d’ouverture : solde affiché, sans rappel « à solder »', async () => {
     const repris = await ajouter({ nature: 'repris_ancien_gestionnaire', libelle: 'Ancien compte', iban: IBAN_B })
     await rendre()
     expect(titresAlertes()).toContain("Compte repris de l'ancien syndic ou administrateur : solde inconnu ici.")
@@ -207,6 +207,28 @@ describe('Solde d’ouverture : solde du compte et avertissements', () => {
     // Contrôle « compte repris à solder » non réactivé par cette PR.
     expect(panneauComptes().textContent).not.toContain('non soldé')
   })
+
+  it('compte repris au solde d’ouverture saisi, avec un compte courant : « Comptes conformes » jamais sans le bandeau du rappel non lancé', async () => {
+    await ajouter()
+    await ajouter({ nature: 'repris_ancien_gestionnaire', libelle: 'Ancien compte', iban: IBAN_B, soldeOuverture: { montant: '500', au: '2026-05-01' } })
+    await rendre()
+    expect(lignesComptes()[1].textContent).toContain(euros(500))
+    // Le contrôle « compte repris à solder » ne tourne pas : sans bandeau, « Comptes conformes » couvrirait un compte repris qui garde un solde.
+    expect(titresAlertes()).toContain('Comptes conformes au mode appliqué.')
+    expect(titresAlertes()).toContain("Compte repris de l'ancien syndic ou administrateur : rappel « solder puis clôturer » non lancé.")
+    expect(panneauComptes().textContent).toContain(
+      'Le solde d’ouverture est saisi, mais ce rappel ne lit pas encore le solde du compte : un compte repris qui garde un solde n’est pas signalé ici.',
+    )
+    expect(titresAlertes()).not.toContain("Compte repris de l'ancien syndic ou administrateur : solde inconnu ici.")
+  })
+
+  it('compte repris clôturé au solde d’ouverture saisi, ou aucun compte repris : aucun bandeau du rappel', async () => {
+    await ajouter({ soldeOuverture: { montant: '500', au: '2026-05-01' } })
+    const repris = await ajouter({ nature: 'repris_ancien_gestionnaire', libelle: 'Ancien compte', iban: IBAN_B, soldeOuverture: { montant: '0', au: '2026-05-01' } })
+    await cloturerCompteBancaire(repris.id)
+    await rendre()
+    expect(titresAlertes().filter((titre) => titre.includes('solder puis clôturer') || titre.includes('solde inconnu'))).toEqual([])
+  })
 })
 
 describe('Solde d’ouverture : rapprochement', () => {
@@ -216,13 +238,31 @@ describe('Solde d’ouverture : rapprochement', () => {
     await rendre()
     fireEvent.click(within(panneauRapprochement()).getByRole('button', { name: /Nouvel arrêté/ }))
     fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-05-31' } })
-    expect(screen.getByRole('dialog').textContent).toContain('Solde compta du sous-compte 512 au 31/05/2026 : 1 329,50 €')
+    expect(screen.getByRole('dialog').textContent).toContain('Solde compta du compte au 31/05/2026 : 1 329,50 €')
     expect(screen.getByRole('dialog').textContent).toContain(
       'Solde d’ouverture du 01/05/2026 et lignes de relevé importées sur ce compte depuis cette date, jusqu’à celle de l’arrêté',
     )
     // Arrêté daté avant le solde d'ouverture : celui-ci n'y entre pas, la phrase d'origine reste.
     fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-04-30' } })
     expect(screen.getByRole('dialog').textContent).toContain(`Solde compta du sous-compte 512 au 30/04/2026 : ${euros(0)}`)
+    expect(screen.getByRole('dialog').textContent).toContain('Lignes de relevé importées sur ce compte jusqu’à cette date')
+  })
+
+  it('« Nouvel arrêté » daté du jour même du solde d’ouverture : il y entre, avec les lignes de ce jour, et le formulaire le dit', async () => {
+    const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-10' } })
+    await importerReleveSurCompte('C2', id, RELEVE)
+    await rendre()
+    fireEvent.click(within(panneauRapprochement()).getByRole('button', { name: /Nouvel arrêté/ }))
+    fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-05-10' } })
+    // 1 000,00 au début du 10/05, plus le virement de ce jour.
+    expect(screen.getByRole('dialog').textContent).toContain('Solde compta du compte au 10/05/2026 : 1 450,00 €')
+    expect(screen.getByRole('dialog').textContent).toContain(
+      'Solde d’ouverture du 10/05/2026 et lignes de relevé importées sur ce compte depuis cette date, jusqu’à celle de l’arrêté',
+    )
+    expect(screen.getByRole('dialog').textContent).not.toContain('sous-compte 512')
+    // La veille : le solde d'ouverture n'y entre pas, libellé et phrase d'origine.
+    fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-05-09' } })
+    expect(screen.getByRole('dialog').textContent).toContain(`Solde compta du sous-compte 512 au 09/05/2026 : ${euros(0)}`)
     expect(screen.getByRole('dialog').textContent).toContain('Lignes de relevé importées sur ce compte jusqu’à cette date')
   })
 

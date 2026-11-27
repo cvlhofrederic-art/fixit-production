@@ -181,7 +181,8 @@ function AlerteLignesAvantOuverture({ compte, au }: Readonly<{ compte: CompteAff
 
 /**
  * Alertes du domaine : anomalies (ou comptes conformes), seulement quand le mode se résout ; information Caisse des
- * dépôts et entrées non connues, qui ne dépendent pas du mode ; lignes de relevé datées avant un solde d'ouverture.
+ * dépôts et entrées non connues, qui ne dépendent pas du mode ; lignes de relevé datées avant un solde d'ouverture ;
+ * comptes repris actifs, avec ou sans solde d'ouverture, tant que le rappel « solder puis clôturer » n'est pas lancé.
  */
 function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
   return (
@@ -223,6 +224,16 @@ function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
         <Alert kind="" icon="info" title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : solde inconnu ici.`}>
           Le rappel « solder puis clôturer » n’est pas lancé : sans solde d’ouverture saisi, le solde affiché ne reprend pas
           le solde du compte avant le premier relevé importé.
+        </Alert>
+      )}
+      {vue.reprisAvecSoldeOuverture > 0 && (
+        <Alert
+          kind=""
+          icon="info"
+          title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : rappel « solder puis clôturer » non lancé.`}
+        >
+          Le solde d’ouverture est saisi, mais ce rappel ne lit pas encore le solde du compte : un compte repris qui garde
+          un solde n’est pas signalé ici.
         </Alert>
       )}
       {vue.illisibles > 0 && (
