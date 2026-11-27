@@ -235,7 +235,10 @@ describe('Appels de fonds en mode réel — écran', () => {
     expect(texte).toContain('Bloque la diffusion de l’avis : Compte')
     expect(texte).not.toContain('Bloquant')
     // ap-03 du 22/11/2026 : mode du cabinet par défaut (compte séparé), aucun compte courant ouvert : pas de compte désigné.
-    expect(texte).toContain('Compte qui reçoit les règlements non désigné : aucun compte actif « Compte courant au nom du syndicat »')
+    // Question 11 du 26/11/2026 : cette anomalie bloquante de l'avis entier porte le même début de phrase que celle d'un
+    // compte, car le bouton « Écrire l'appel » reste actif à côté.
+    const alerte = avis().getByText(/Compte qui reçoit les règlements non désigné/)
+    expect(texteDe(alerte)).toMatch(/^Bloque la diffusion de l’avis : Compte qui reçoit les règlements non désigné : aucun compte actif « Compte courant au nom du syndicat »/)
     const ecrire = avis().getByRole('button', { name: 'Écrire l’appel' })
     expect((ecrire as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(ecrire)
@@ -404,6 +407,9 @@ describe('Appels de fonds en mode réel — écran', () => {
     const texte = texteDe(panneau('Avis d’appel par copropriétaire'))
     expect(texte).toContain("Virement au compte à la Caisse des dépôts : l'avis nomme le syndicat comme bénéficiaire")
     expect(texte).not.toContain('Compte qui reçoit les règlements non désigné')
+    // Question 11 du 26/11/2026 : seule une anomalie bloquante change de début ; l'avertissement de l'avis entier reste tel quel.
+    expect(texteDe(avis().getByText(/^Virement au compte à la Caisse des dépôts/))).toMatch(/^Virement au compte/)
+    expect(texte).not.toContain('Bloque la diffusion de l’avis : Virement')
   })
 
   it('fiches non reprises : « Reprendre les fiches de toutes les copropriétés » crée identités, comptes et positions (D2)', async () => {
