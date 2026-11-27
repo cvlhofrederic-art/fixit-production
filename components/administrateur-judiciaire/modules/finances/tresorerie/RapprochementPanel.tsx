@@ -208,7 +208,7 @@ function ArreteAffiche({ arrete, decloturer, abandonner, occupe, lectureSeule }:
         </p>
       )}
       <div style={{ fontSize: 11.5, color: 'var(--navy-300)' }}>
-        Équilibre : solde banque − suspens banque = solde compta − suspens compta. Clôture possible seulement à l’équilibre.
+        Équilibre : solde banque − suspens banque = solde compta − suspens compta.{!lectureSeule && ' Clôture possible seulement à l’équilibre.'}
       </div>
     </>
   )

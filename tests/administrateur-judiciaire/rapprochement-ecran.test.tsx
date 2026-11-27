@@ -503,6 +503,9 @@ describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la
     fireEvent.change(liste, { target: { value: ferme.id } })
     await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 30/04/2026' })).toBeInTheDocument())
     expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
+    // Règle d’équilibre : définition gardée, promesse de clôture masquée (aucune clôture possible sur ce compte).
+    expect(panneau().textContent).toContain('Équilibre : solde banque − suspens banque = solde compta − suspens compta.')
+    expect(panneau().textContent).not.toContain('Clôture possible seulement à l’équilibre')
     expect(dansPanneau().getAllByText('Clôturé').length).toBeGreaterThan(0)
     const liste2 = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row').slice(1)
     expect(liste2.map((ligne) => ligne.textContent?.slice(0, 10))).toEqual(['30/04/2026', '31/03/2026'])
@@ -512,6 +515,13 @@ describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la
     fireEvent.change(liste, { target: { value: banqueId } })
     await waitFor(() => expect(dansPanneau().queryByText(PHRASE)).toBeNull())
     await waitFor(() => expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled())
+  })
+
+  it('compte actif avec un arrêté en cours : la règle d’équilibre garde sa promesse de clôture', async () => {
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
+    await rendre()
+    await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/05/2026' })).toBeInTheDocument())
+    expect(panneau().textContent).toContain('Équilibre : solde banque − suspens banque = solde compta − suspens compta. Clôture possible seulement à l’équilibre.')
   })
 
   it('aucun compte actif, un compte clôturé : choisi d’office, en lecture seule', async () => {
@@ -552,6 +562,8 @@ describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la
     await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/05/2026' })).toBeInTheDocument())
     expect(dansPanneau().getByText('En cours')).toBeInTheDocument()
     expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
+    expect(panneau().textContent).toContain('Équilibre : solde banque')
+    expect(panneau().textContent).not.toContain('Clôture possible seulement à l’équilibre')
     for (const nom of [/Nouvel arrêté/, /Clôturer/, /Déclôturer/, /Abandonner/]) expect(dansPanneau().queryByRole('button', { name: nom })).toBeNull()
   })
 })
