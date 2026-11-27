@@ -522,18 +522,27 @@ describe('fiche chantier — alerte météo par notification', () => {
     await nouvelleFiche()
     const zone = screen.getByRole('status')
     expect(zone.textContent).toBe('')
-    expect(caseAlerte().getAttribute('aria-describedby')).toBe(zone.id)
+    expect(caseAlerte().getAttribute('aria-describedby')?.split(' ')).toContain(zone.id)
     expect(zone.getAttribute('aria-live')).toBe('polite')
     fireEvent.click(caseAlerte())
     expect(zone.textContent).toContain('L’alerte a besoin de la position GPS du chantier')
-    expect(zone.textContent).toContain('« Placer à ma position actuelle » (écran Pointage équipes, onglet Affectations)')
+    expect(zone.textContent).toContain('sur place (chantier « En cours »), « Placer à ma position actuelle » (écran Pointage équipes, onglet Affectations)')
   })
 
-  it('l’aide dit qui est prévenu, et la règle d’un chantier « En attente »', async () => {
+  it('l’aide dit qui est prévenu et comment, et la règle d’un chantier « En attente »', async () => {
     await nouvelleFiche()
     const aide = caseAlerte().closest('label')?.textContent ?? ''
-    expect(aide).toContain('les salariés affectés reçoivent une notification sur l’appli Vitfix Pro et un e-mail')
-    expect(aide).toContain('Chantier « En attente » : l’e-mail seulement, la veille du jour de début.')
+    expect(aide).toContain('l’appli Vitfix Pro envoie une notification (salariés affectés et gérant) et les salariés affectés reçoivent un e-mail')
+    expect(aide).toContain('Chantier « En attente » : seulement la veille de son premier jour (les salariés, par e-mail).')
+  })
+
+  it('nom accessible de la case : son titre seul ; l’aide et la note GPS en description', async () => {
+    await nouvelleFiche()
+    const casePlacee = caseAlerte()
+    expect(casePlacee.getAttribute('aria-labelledby')).toBe('chantier-alerte-meteo-titre')
+    expect(document.getElementById('chantier-alerte-meteo-titre')?.textContent).toBe('🔔 Alerte météo par notification')
+    expect(casePlacee.getAttribute('aria-describedby')).toBe('chantier-alerte-meteo-aide chantier-alerte-meteo-gps')
+    expect(document.getElementById('chantier-alerte-meteo-aide')?.textContent).toContain('Pour un chantier exposé aux intempéries')
   })
 
   it('soumis à l’alerte sans position GPS : pastille grisée « sans GPS » dans la liste', async () => {

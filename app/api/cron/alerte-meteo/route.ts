@@ -6,7 +6,8 @@
 // lib/btp/alerte-meteo-serveur.ts ; ici :
 //   - en-tête « Authorization: Bearer CRON_SECRET » (lib/cron/autorisation.ts) ; sinon 401 ;
 //   - 200 avec le bilan (des nombres) ; 503 s'il faut rejouer l'appel, ce que fait le Worker une fois, sans doublon
-//     (clé d'idempotence par jour et par chantier) ; 500 sans détail si la lecture de départ échoue.
+//     (clé d'idempotence par jour et par chantier) ; 500 sans détail si la lecture de départ échoue ;
+//   - passage incomplet ou lot refusé : signalé à Sentry (logger.error avec une erreur).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { logger } from '@/lib/logger'
@@ -28,6 +29,11 @@ export async function GET(request: NextRequest) {
   try {
     const { bilan, rejouer } = await envoyerAlertesDeLaVeille({ maintenantMs: Date.now(), attendre, lire })
     logger.info('[cron/alerte-meteo] terminé', { ...bilan, rejouer })
+    // Passage incomplet (prévision, société ou lot à rejouer, lot refusé : quota, clé absente…) : signalé à Sentry,
+    // sans quoi personne ne le verrait (au plus deux fois par soir, avec le rejeu du Worker).
+    if (rejouer || bilan.lotsEnEchec > 0) {
+      logger.error('[cron/alerte-meteo] passage incomplet', { ...bilan, rejouer }, new Error('alerte météo : passage incomplet'))
+    }
     return NextResponse.json(bilan, { status: rejouer ? 503 : 200 })
   } catch (err) {
     logger.error('[cron/alerte-meteo] échec', {}, err)

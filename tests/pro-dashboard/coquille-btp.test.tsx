@@ -550,11 +550,18 @@ describe('tableau de bord — alerte météo du téléphone', () => {
     await act(async () => { await (proprietesRecues(mocks.etat, 'V5Sidebar')?.handleLogout as () => Promise<void>)() })
   }
 
-  it('déconnexion d’une société BTP : les alertes programmées sur le téléphone sont annulées', async () => {
+  it('déconnexion d’une société BTP : les alertes programmées sur le téléphone sont annulées, avant la fin de session', async () => {
     mocks.annulerAlertes.mockClear()
+    const { supabase } = await import('@/lib/supabase')
+    const { annulerNotification } = await import('@/lib/notifications')
+    const finDeSession = vi.mocked(supabase.auth.signOut)
+    finDeSession.mockClear()
     await ouvrir(utilisateur('pro_societe'))
     await seDeconnecter()
     expect(mocks.annulerAlertes).toHaveBeenCalledTimes(1)
+    expect(mocks.annulerAlertes).toHaveBeenCalledWith(annulerNotification)
+    expect(finDeSession).toHaveBeenCalledTimes(1)
+    expect(mocks.annulerAlertes.mock.invocationCallOrder[0]).toBeLessThan(finDeSession.mock.invocationCallOrder[0])
   })
 
   it('déconnexion d’un artisan : rien n’est annulé (règle n° 1)', async () => {

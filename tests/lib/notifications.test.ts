@@ -37,6 +37,7 @@ function moduleNatifSimule() {
   }
   const reponses: Record<string, () => unknown> = {
     requestPermissions: () => ({ display: natif.affichage }),
+    checkPermissions: () => ({ display: natif.affichage }),
     schedule: () => ({ notifications: [] }),
     cancel: () => undefined,
     getPending: () => {
@@ -211,14 +212,14 @@ describe('rappels J-1 dans l’appli : le module natif est le proxy de registerP
 const ALERTE = { cle: 'alerte-meteo:c-dalle:2026-11-18', titre: '🌧️ Alerte météo demain : Dalle', corps: 'Prévu demain : pluie 12 mm.' }
 
 describe('alerte météo dans l’appli', () => {
-  it('heure future : programmée à cette heure, sous l’identifiant de la clé, sans rester bloquée', async () => {
+  it('heure future : programmée à cette heure, sous l’identifiant de la clé, sans dialogue d’autorisation', async () => {
     dansLAppli()
     const { programmerNotification } = await notifications()
     const a = new Date(2026, 10, 17, 18, 0, 0)
 
     expect(await sansBlocage(programmerNotification({ ...ALERTE, a, extra: { chantierId: 'c-dalle' } }))).toBe(true)
 
-    expect(natif.appels.map(x => x.methode)).toEqual(['requestPermissions', 'schedule'])
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions', 'schedule'])
     const [notification] = notificationsProgrammees(natif.appels[1])
     expect(notification).toMatchObject({
       title: ALERTE.titre, body: ALERTE.corps, schedule: { at: a, allowWhileIdle: true }, extra: { chantierId: 'c-dalle' },
@@ -258,22 +259,33 @@ describe('alerte météo dans l’appli', () => {
     expect(await sansBlocage(notificationEnAttente(ALERTE.cle))).toBe(true)
   })
 
-  it('autorisation refusée : false, rien n’est programmé', async () => {
+  it('autorisation refusée : false, rien n’est programmé, et aucun dialogue n’est rouvert', async () => {
     dansLAppli()
     natif.affichage = 'denied'
     const { programmerNotification } = await notifications()
     expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
-    expect(natif.appels.map(x => x.methode)).toEqual(['requestPermissions'])
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
+  })
+
+  it('autorisationNotifications : seule à ouvrir le dialogue ; rend la réponse', async () => {
+    dansLAppli()
+    const { autorisationNotifications } = await notifications()
+    expect(await sansBlocage(autorisationNotifications())).toBe(true)
+    natif.affichage = 'denied'
+    expect(await sansBlocage(autorisationNotifications())).toBe(false)
+    expect(natif.appels.map(x => x.methode)).toEqual(['requestPermissions', 'requestPermissions'])
   })
 
   it('module natif introuvable : false et aucune exception (programmer comme annuler)', async () => {
     dansLAppli()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    natif.echecsDeChargement = 2
-    const { programmerNotification, annulerNotification } = await notifications()
+    natif.echecsDeChargement = 3
+    const { programmerNotification, annulerNotification, autorisationNotifications } = await notifications()
     expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
-    await expect(sansBlocage(annulerNotification(ALERTE.cle))).resolves.toBeUndefined()
+    expect(await sansBlocage(annulerNotification(ALERTE.cle))).toBe(false)
+    expect(await sansBlocage(autorisationNotifications())).toBe(false)
     expect(natif.appels).toEqual([])
+    expect(await sansBlocage(annulerNotification(ALERTE.cle))).toBe(true)
   })
 })
 
@@ -282,15 +294,16 @@ describe('hors de l’appli (site web)', () => {
     expect(Capacitor.isNativePlatform()).toBe(false)
     const {
       scheduleInterventionReminder, cancelInterventionReminder, sendImmediateNotification,
-      programmerNotification, annulerNotification, notificationEnAttente,
+      programmerNotification, annulerNotification, notificationEnAttente, autorisationNotifications,
     } = await notifications()
 
     await sansBlocage(scheduleInterventionReminder(RDV))
     await sansBlocage(cancelInterventionReminder(RDV.id))
     await sansBlocage(sendImmediateNotification('Nouveau RDV', 'Débouchage'))
     expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
-    await sansBlocage(annulerNotification(ALERTE.cle))
+    expect(await sansBlocage(annulerNotification(ALERTE.cle))).toBe(false)
     expect(await sansBlocage(notificationEnAttente(ALERTE.cle))).toBe(false)
+    expect(await sansBlocage(autorisationNotifications())).toBe(false)
 
     expect(natif.chargements).toBe(0)
     expect(natif.lectures).toBe(0)

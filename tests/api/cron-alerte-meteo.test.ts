@@ -58,7 +58,8 @@ vi.mock('@/lib/email', async (io) => ({
     return h.reponseLot ? h.reponseLot(messages) : { ok: true, acceptes: messages.map((_, i) => i), refuses: [] }
   }),
 }))
-vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }))
+const journal = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }))
+vi.mock('@/lib/logger', () => ({ logger: journal }))
 
 const { GET } = await import('@/app/api/cron/alerte-meteo/route')
 const { CHANTIERS_PAR_APPEL, PAUSE_ENTRE_LOTS_MS, envoyerAlertesDeLaVeille } = await import('@/lib/btp/alerte-meteo-serveur')
@@ -81,14 +82,17 @@ const MEMBRES = [
   membre('m-sans-adresse', 'pas-une-adresse'),
 ]
 
-/** Fausse réponse d'Open-Meteo (Lisbonne, décalage 0) : sept jours depuis le 26/11, pluie par date. */
+/** Fausse réponse d'Open-Meteo : sept jours depuis le 26/11, pluie par date, décalage horaire du chantier (Lisbonne : 0). */
 let pluies: Record<string, number> = {}
 let statutMeteo = 200
+let decalage = 0
+let exception: Error | null = null
 const lire = vi.fn(async (_url: string, _init?: RequestInit) => {
+  if (exception) throw exception
   if (statutMeteo !== 200) return new Response('', { status: statutMeteo })
   const dates = ['2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02']
   return new Response(JSON.stringify({
-    utc_offset_seconds: 0,
+    utc_offset_seconds: decalage,
     daily: {
       time: dates, temperature_2m_max: dates.map(() => 15), temperature_2m_min: dates.map(() => 8),
       precipitation_sum: dates.map(d => pluies[d] ?? 0), wind_speed_10m_max: dates.map(() => 10), weather_code: dates.map(() => 61),
@@ -111,8 +115,11 @@ beforeEach(() => {
   h.reponseLot = null
   pluies = { '2026-11-27': 12 }
   statutMeteo = 200
+  decalage = 0
+  exception = null
   lire.mockClear()
   attendre.mockClear()
+  journal.error.mockClear()
 })
 
 afterEach(() => {
@@ -152,11 +159,24 @@ describe('GET /api/cron/alerte-meteo', () => {
     expect(json).toMatchObject({ societes: 1, chantiers: 1, alertes: 1, emails: 2 })
   })
 
-  it('à rejouer (aucune prévision lue) : 503, que le Worker rejoue une fois', async () => {
+  it('à rejouer (aucune prévision lue) : 503, que le Worker rejoue une fois, et Sentry prévenu', async () => {
     statutMeteo = 429
     const { status, json } = await appeler()
     expect(status).toBe(503)
     expect(json).toMatchObject({ previsionsIndisponibles: 1, emails: 0 })
+    expect(journal.error).toHaveBeenCalledWith('[cron/alerte-meteo] passage incomplet', expect.objectContaining({ rejouer: true }), expect.any(Error))
+  })
+
+  it('lot refusé (quota, clé absente) : 200 sans rejeu, mais Sentry prévenu ; passage complet : rien', async () => {
+    h.reponseLot = () => ({ ok: false, code: 'quota', statutHttp: 429, motif: 'daily_quota_exceeded' })
+    const refuse = await appeler()
+    expect(refuse.status).toBe(200)
+    expect(refuse.json).toMatchObject({ lotsEnEchec: 1 })
+    expect(journal.error).toHaveBeenCalledTimes(1)
+    journal.error.mockClear()
+    h.reponseLot = null
+    await appeler()
+    expect(journal.error).not.toHaveBeenCalled()
   })
 
   it('colonne alerte_meteo absente de la base : 200 sans envoi, en le disant', async () => {
@@ -310,5 +330,61 @@ describe('e-mail de la veille : heure, pannes, limites', () => {
     const { bilan } = await envoyer()
     expect(lire).toHaveBeenCalledTimes(CHANTIERS_PAR_APPEL)
     expect(bilan).toMatchObject({ chantiers: CHANTIERS_PAR_APPEL, nonTraites: 3 })
+  })
+})
+
+describe('e-mail de la veille : seconde relecture', () => {
+  it('destinataires rangés par adresse : un rejeu renvoie le même lot, dans le même ordre', async () => {
+    // Identifiants dans l'ordre inverse des adresses : l'ordre de lecture ne suffit pas, le tri par adresse est prouvé.
+    h.tables.membres_btp = [membre('m-a', 'zoe@exemple.test'), membre('m-b', 'bruno@exemple.test'), membre('m-c', 'ana@exemple.test')]
+    h.tables.chantiers_btp = [chantier({ id: 'c-dalle', titre: 'Dalle Villa', membres_ids: ['m-a', 'm-b', 'm-c'] })]
+    await envoyer()
+    expect(h.lots[0].messages.map(m => m.to)).toEqual(['ana@exemple.test', 'bruno@exemple.test', 'zoe@exemple.test'])
+    const membresLus = h.requetes.find(r => r.table === 'membres_btp') as Requete
+    expect(membresLus.ordre).toBe('id')
+  })
+
+  it('prévision en exception (réseau coupé, délai dépassé) : comptée indisponible, à rejouer', async () => {
+    exception = new TypeError('fetch failed')
+    const { bilan, rejouer } = await envoyer()
+    expect(bilan.previsionsIndisponibles).toBe(1)
+    expect(rejouer).toBe(true)
+  })
+
+  it('un chantier sans GPS et une prévision en panne : à rejouer quand même', async () => {
+    statutMeteo = 502
+    h.tables.chantiers_btp = [chantier({ id: 'c-sans', latitude: null, longitude: null }), DALLE]
+    const { bilan, rejouer } = await envoyer()
+    expect(bilan).toMatchObject({ sansPosition: 1, previsionsIndisponibles: 1 })
+    expect(rejouer).toBe(true)
+  })
+
+  it('lot en panne réseau : à rejouer, et compté parmi les lots en échec', async () => {
+    h.reponseLot = () => ({ ok: false, code: 'reseau', statutHttp: null, motif: 'delai_depasse' })
+    const { bilan, rejouer } = await envoyer()
+    expect(rejouer).toBe(true)
+    expect(bilan.lotsEnEchec).toBe(1)
+  })
+
+  it.each([
+    ['Paris (UTC+1), 19:15', 3600, true],
+    ['Martinique (UTC-4), 14:15', -4 * 3600, true],
+    ['La Réunion (UTC+4), 22:15', 4 * 3600, true],
+    ['Nouvelle-Calédonie (UTC+11), 05:15 le lendemain', 11 * 3600, false],
+  ])('heure du chantier : %s → envoi %s', async (_lieu, secondes, envoi) => {
+    decalage = secondes as number
+    pluies = { '2026-11-27': 12, '2026-11-28': 12 }
+    const { bilan } = await envoyer()
+    expect(h.lots.length > 0).toBe(envoi)
+    expect(bilan.horsFenetre).toBe(envoi ? 0 : 1)
+  })
+
+  it('« En attente » qui commence après-demain : lu, mais personne n’est prévenu ce soir', async () => {
+    pluies = { '2026-11-27': 12, '2026-11-28': 12 }
+    h.tables.chantiers_btp = [chantier({ id: 'c-samedi', statut: 'En attente', date_debut: '2026-11-28', membres_ids: ['m-ana'] })]
+    const { bilan } = await envoyer()
+    expect(lire).toHaveBeenCalledTimes(1)
+    expect(bilan.alertes).toBe(0)
+    expect(h.lots).toEqual([])
   })
 })

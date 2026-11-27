@@ -4,16 +4,18 @@
 //   - chantiers soumis à l'alerte (chantiers_btp.alerte_meteo, migration 20261126b) suivis demain : « En cours », ou
 //     « En attente » dont demain est le premier jour (chantierSuiviLe, la règle du téléphone) ; colonne absente : rien ;
 //   - prévision Open-Meteo du chantier, délai borné ; « demain » et l'heure sont ceux du chantier (décalage horaire de
-//     la réponse) ; hors de la soirée du chantier (FENETRE_SOIR), rien n'est envoyé : un appel en retard ou lancé à la
-//     main ne prévient pas en pleine nuit pour le mauvais jour ;
+//     la réponse) ; hors de la plage d'envoi à l'heure du chantier (FENETRE_ENVOI, 12 h - 23 h : de l'Europe aux
+//     Antilles et à La Réunion pour un passage à 18:15 UTC), rien n'est envoyé : un appel en retard ou lancé à la main
+//     ne prévient pas en pleine nuit pour le mauvais jour ;
 //   - destinataires : les salariés actifs affectés au chantier (directement ou par leur équipe) qui ont une adresse
 //     e-mail, une fois chacune, qu'ils aient l'appli ou non (le serveur ne sait pas ce que le téléphone a programmé) ;
 //     langue et nom de la fiche de la société ;
 //   - un lot Resend par chantier, clé d'idempotence (jour + chantier), une seconde entre deux lots (débit commun à
 //     tout Vitfix) ;
 //   - au plus CHANTIERS_PAR_APPEL chantiers par appel : le reste est compté et journalisé, jamais passé sous silence ;
-//   - `rejouer` : un lot en panne passagère, une société illisible, ou aucune prévision lue ; le second appel n'envoie
-//     rien en double (même clé d'idempotence).
+//   - `rejouer` : un lot en panne passagère, une société illisible, ou une prévision demandée sans réponse ; le second
+//     appel n'envoie rien en double (même clé d'idempotence, et mêmes messages dans le même ordre : sinon Resend
+//     refuserait le lot en 409) ; `lotsEnEchec` compte les lots non envoyés, que la route signale à Sentry.
 // Journal : identifiants et nombres seulement, jamais d'adresse ni de position.
 
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -40,8 +42,8 @@ export const CHANTIERS_PAR_APPEL = 100
 export const LIGNES_SOCIETES_MAX = 1000
 export const DELAI_PREVISION_MS = 8000
 export const PAUSE_ENTRE_LOTS_MS = 1000
-/** Soirée du chantier, en heures locales [début, fin) : l'e-mail ne part que dans cette plage. */
-export const FENETRE_SOIR = { debut: 16, fin: 22 } as const
+/** Plage d'envoi, en heures locales du chantier [début, fin) : l'e-mail ne part que dans cette plage. */
+export const FENETRE_ENVOI = { debut: 12, fin: 23 } as const
 
 const COLONNE_ABSENTE = new Set(['42703', 'PGRST204'])
 const FORME_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -58,6 +60,8 @@ export interface BilanAlerteMeteo {
   horsFenetre: number
   /** Chantiers laissés de côté au-delà de CHANTIERS_PAR_APPEL. */
   nonTraites: number
+  /** Lots d'e-mails non envoyés (panne, débit, quota, refus, configuration). */
+  lotsEnEchec: number
   raison?: 'colonne_absente'
 }
 
@@ -98,7 +102,7 @@ interface Passage {
 
 const bilanVide = (): BilanAlerteMeteo => ({
   societes: 0, chantiers: 0, alertes: 0, emails: 0, refuses: 0, sansPosition: 0, previsionsIndisponibles: 0, horsFenetre: 0,
-  nonTraites: 0,
+  nonTraites: 0, lotsEnEchec: 0,
 })
 
 /** Sociétés qui ont au moins un chantier soumis à l'alerte, en cours ou en attente ; colonne absente : la raison. */
@@ -138,7 +142,7 @@ async function lireSociete(societeId: string): Promise<{ chantiers: ChantierAler
   const [chantiersRes, membresRes, equipesRes] = await Promise.all([
     supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', societeId).eq('alerte_meteo', true).in('statut', STATUTS_LUS)
       .order('id').limit(LIGNES_SOCIETES_MAX),
-    supabaseAdmin.from('membres_btp').select('*').eq('owner_id', societeId).limit(500),
+    supabaseAdmin.from('membres_btp').select('*').eq('owner_id', societeId).order('id').limit(500),
     supabaseAdmin.from('equipes_btp').select('*, equipe_membres_btp(membre_id)').eq('owner_id', societeId).limit(200),
   ])
   const erreur = chantiersRes.error || membresRes.error || equipesRes.error
@@ -161,7 +165,7 @@ function candidatDeDemain(chantier: ChantierAlerte, maintenantMs: number): boole
   return debut !== null && debut >= aujourdhui && debut <= dateDecalee(aujourdhui, 2)
 }
 
-/** Prévision du chantier, et « demain » à l'heure du chantier ; hors de la soirée du chantier : rien à envoyer. */
+/** Prévision du chantier, et « demain » à l'heure du chantier ; hors de la plage d'envoi : rien à envoyer. */
 async function previsionDuChantier(chantier: ChantierAlerte, dep: DependancesAlerteMeteo): Promise<Prevision> {
   const url = urlPrevisionsMeteo(chantier.latitude, chantier.longitude)
   if (!url) return { etat: 'sansPosition' }
@@ -178,7 +182,7 @@ async function previsionDuChantier(chantier: ChantierAlerte, dep: DependancesAle
       return { etat: 'previsionsIndisponibles' }
     }
     const moment = momentAuChantier(dep.maintenantMs, decalage)
-    if (moment.heure < FENETRE_SOIR.debut || moment.heure >= FENETRE_SOIR.fin) return { etat: 'horsFenetre' }
+    if (moment.heure < FENETRE_ENVOI.debut || moment.heure >= FENETRE_ENVOI.fin) return { etat: 'horsFenetre' }
     return { etat: 'lue', demain: moment.demain, jours: joursDePrevisions(corps) }
   } catch (err) {
     logger.warn('[cron/alerte-meteo] prévision illisible', { chantier: chantier.id, erreur: err instanceof Error ? err.name : typeof err })
@@ -186,10 +190,15 @@ async function previsionDuChantier(chantier: ChantierAlerte, dep: DependancesAle
   }
 }
 
-/** Salariés actifs affectés au chantier, avec une adresse valable (une seule fois chacune, sans tenir compte de la casse). */
+/**
+ * Salariés actifs affectés au chantier, avec une adresse valable (une seule fois chacune, sans tenir compte de la
+ * casse), rangés par adresse : un rejeu envoie le même lot, dans le même ordre.
+ */
 function destinataires(chantier: ChantierAlerte, membres: readonly MembreBtp[], equipes: readonly EquipeBtp[]): MembreBtp[] {
   const vues = new Set<string>()
-  return membres.filter(m => {
+  const adresse = (m: MembreBtp) => (m.email ?? '').trim().toLowerCase()
+  const parAdresse = [...membres].sort((a, b) => adresse(a).localeCompare(adresse(b)) || a.id.localeCompare(b.id))
+  return parAdresse.filter(m => {
     const email = (m.email ?? '').trim().toLowerCase()
     if (m.actif === false || !FORME_EMAIL.test(email) || vues.has(email)) return false
     if (!estAffecte(m, chantier, equipes)) return false
@@ -223,6 +232,7 @@ function compterLot(lot: ResultatLotEmailDetaille, nombre: number, chantierId: s
     return
   }
   p.bilan.refuses += nombre
+  p.bilan.lotsEnEchec++
   if (lot.code === 'reseau' || lot.code === 'limite' || lot.code === 'rejeu_concurrent') p.rejouer = true
   logger.warn('[cron/alerte-meteo] lot non envoyé', { chantier: chantierId, code: lot.code, motif: lot.motif })
 }
@@ -281,6 +291,7 @@ export async function envoyerAlertesDeLaVeille(dep: DependancesAlerteMeteo): Pro
     }
   }
   if (bilan.nonTraites > 0) logger.warn('[cron/alerte-meteo] limite de chantiers atteinte', { nonTraites: bilan.nonTraites })
-  if (bilan.chantiers > 0 && bilan.previsionsIndisponibles === bilan.chantiers) p.rejouer = true
+  // Une prévision demandée sans réponse : le second appel retente ces chantiers, sans renvoyer les lots déjà partis.
+  if (bilan.previsionsIndisponibles > 0) p.rejouer = true
   return { bilan, rejouer: p.rejouer }
 }

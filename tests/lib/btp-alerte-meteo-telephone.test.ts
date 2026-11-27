@@ -2,9 +2,10 @@
 // (appli Vitfix Pro, 26/11/2026) : 18 h la veille de chaque journée en alerte des trois jours suivants (le dimanche soir
 // pour le lundi), tout de suite après 18 h (une seule fois), annulée quand l'alerte, la case, le statut ou l'affectation
 // disparaissent, jamais sur une prévision illisible ; mémoire de l'appareil purgée ; journées cherchées par leur date.
-// L'heure du téléphone est passée en paramètre : rien ne dépend de l'horloge ni du fuseau de la machine.
+// L'heure du téléphone est passée en paramètre ; le fuseau est fixé à Europe/Paris (le poste est à Lisbonne, la CI en
+// UTC, où une date UTC prise pour la date locale passerait inaperçue).
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dateDecalee } from '@/lib/btp/alerte-meteo'
 import {
   annulerAlertesProgrammees, cleNotificationAlerte, programmerAlertesMeteo, type ChantierPourAlerte,
@@ -28,17 +29,25 @@ const meteo = (pluies: Record<string, number>, debut = '2026-11-26') => vi.fn(as
 
 const outils = (enAttente = false) => ({
   programmer: vi.fn(async (_p: { cle: string; titre: string; corps: string; a?: Date; extra?: Record<string, unknown> }) => true),
-  annuler: vi.fn(async (_cle: string) => {}),
+  annuler: vi.fn(async (_cle: string) => true),
   enAttente: vi.fn(async (_cle: string) => enAttente),
+  autorisation: vi.fn(async () => true),
 })
 /** Jeudi 26/11/2026 à l'heure dite, heure du téléphone. */
 const jeudi = (heure: number, minute = 15) => new Date(2026, 10, 26, heure, minute)
 const cles = (o: ReturnType<typeof outils>) => o.programmer.mock.calls.map(c => c[0].cle)
 
+const TZ_INITIAL = process.env.TZ
 beforeEach(() => {
+  process.env.TZ = 'Europe/Paris'
   localStorage.clear()
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
+afterEach(() => {
+  if (TZ_INITIAL === undefined) delete process.env.TZ
+  else process.env.TZ = TZ_INITIAL
+})
+const memoire = (cle: string) => localStorage.getItem('vitfix_btp_alerte_meteo_' + cle)
 
 describe('alerte météo de la veille sur le téléphone', () => {
   it('avant 18 h : programmée pour 18 h aujourd’hui, avec le texte et le jour de l’alerte', async () => {
@@ -215,18 +224,20 @@ describe('quels chantiers', () => {
 })
 
 describe('mémoire de l’appareil et fuseaux', () => {
-  it('les journées passées sont oubliées, les suivantes gardées, sans annulation', async () => {
+  it('journées passées retirées (une notification restée en attente est annulée) ; celle du jour et les suivantes gardées', async () => {
     localStorage.setItem('vitfix_btp_alerte_meteo_' + cleNotificationAlerte('c-dalle', '2026-11-20'), 'programmee')
+    localStorage.setItem('vitfix_btp_alerte_meteo_' + cleNotificationAlerte('c-toit', '2026-11-21'), 'affichee')
     localStorage.setItem('vitfix_btp_alerte_meteo_' + cleNotificationAlerte('c-dalle', '2026-11-26'), 'affichee')
     localStorage.setItem('vitfix_btp_alerte_meteo_' + CLE_VENDREDI, 'programmee')
     localStorage.setItem('autre_cle', 'x')
     const o = outils()
     await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
-    expect(localStorage.getItem('vitfix_btp_alerte_meteo_' + cleNotificationAlerte('c-dalle', '2026-11-20'))).toBeNull()
-    expect(localStorage.getItem('vitfix_btp_alerte_meteo_' + cleNotificationAlerte('c-dalle', '2026-11-26'))).toBeNull()
-    expect(localStorage.getItem('vitfix_btp_alerte_meteo_' + CLE_VENDREDI)).toBe('programmee')
+    expect(memoire(cleNotificationAlerte('c-dalle', '2026-11-20'))).toBeNull()
+    expect(memoire(cleNotificationAlerte('c-toit', '2026-11-21'))).toBeNull()
+    expect(o.annuler.mock.calls).toEqual([[cleNotificationAlerte('c-dalle', '2026-11-20')]])
+    expect(memoire(cleNotificationAlerte('c-dalle', '2026-11-26'))).toBe('affichee')
+    expect(memoire(CLE_VENDREDI)).toBe('programmee')
     expect(localStorage.getItem('autre_cle')).toBe('x')
-    expect(o.annuler).not.toHaveBeenCalled()
   })
 
   it('déconnexion : les notifications encore programmées sont annulées, la mémoire reste ; jamais plus d’attente que prévu', async () => {
@@ -251,5 +262,110 @@ describe('mémoire de l’appareil et fuseaux', () => {
     expect(o.programmer).not.toHaveBeenCalled()
     await programmerAlertesMeteo([DALLE], false, o, minuitEtDemi, meteo({ '2026-11-28': 12 }, '2026-11-26'))
     expect(o.programmer.mock.calls[0][0]).toMatchObject({ cle: cleNotificationAlerte('c-dalle', '2026-11-28'), a: new Date(2026, 10, 27, 18, 0, 0, 0) })
+  })
+})
+
+describe('seconde relecture : enchaînements, heure réelle, autorisation, annulations', () => {
+  it('deux chantiers suivis : chacun sa notification ; décocher l’un n’annule que la sienne', async () => {
+    const TOIT: ChantierPourAlerte = { ...DALLE, id: 'c-toit', titre: 'Toiture' }
+    const o = outils()
+    await programmerAlertesMeteo([DALLE, TOIT], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    expect(cles(o)).toEqual([CLE_VENDREDI, cleNotificationAlerte('c-toit', '2026-11-27')])
+    await programmerAlertesMeteo([DALLE, { ...TOIT, alerteMeteo: false }], false, o, jeudi(15), meteo({ '2026-11-27': 12 }))
+    expect(o.annuler.mock.calls).toEqual([[cleNotificationAlerte('c-toit', '2026-11-27')]])
+  })
+
+  it('alerte disparue puis revenue le soir : remontrée (la clé a été oubliée à l’annulation)', async () => {
+    const o = outils()
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(15), meteo({ '2026-11-27': 1 }))
+    expect(memoire(CLE_VENDREDI)).toBeNull()
+    const bilan = await programmerAlertesMeteo([DALLE], false, o, jeudi(19), meteo({ '2026-11-27': 12 }))
+    expect(bilan.affichees).toBe(1)
+  })
+
+  it('annulation en échec (module natif) : la trace reste, l’annulation est refaite au passage suivant', async () => {
+    const o = outils()
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    o.annuler.mockResolvedValueOnce(false)
+    const premier = await programmerAlertesMeteo([], false, o, jeudi(15), meteo({}))
+    expect(premier.annulees).toBe(0)
+    expect(memoire(CLE_VENDREDI)).toBe('programmee')
+    const second = await programmerAlertesMeteo([], false, o, jeudi(16), meteo({}))
+    expect(second.annulees).toBe(1)
+    expect(memoire(CLE_VENDREDI)).toBeNull()
+  })
+
+  it('position GPS retirée après la programmation : la notification est annulée', async () => {
+    const o = outils()
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    const bilan = await programmerAlertesMeteo([{ ...DALLE, latitude: null, longitude: null }], false, o, jeudi(15), meteo({}))
+    expect(o.annuler).toHaveBeenCalledWith(CLE_VENDREDI)
+    expect(bilan.annulees).toBe(1)
+  })
+
+  it('autorisation refusée : demandée une seule fois par passage, rien de programmé, les annulations ont lieu', async () => {
+    const o = outils()
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    const refus = { ...outils(), autorisation: vi.fn(async () => false) }
+    const TOIT: ChantierPourAlerte = { ...DALLE, id: 'c-toit' }
+    await programmerAlertesMeteo([{ ...DALLE, alerteMeteo: false }, TOIT], false, refus, jeudi(10),
+      meteo({ '2026-11-27': 12, '2026-11-28': 12, '2026-11-29': 12 }))
+    expect(refus.autorisation).toHaveBeenCalledTimes(1)
+    expect(refus.programmer).not.toHaveBeenCalled()
+    expect(refus.annuler).toHaveBeenCalledWith(CLE_VENDREDI)
+  })
+
+  it('aucune alerte à programmer : l’autorisation n’est pas demandée', async () => {
+    const o = outils()
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({}))
+    expect(o.autorisation).not.toHaveBeenCalled()
+  })
+
+  it('passage qui franchit 18 h : décidé à l’heure réelle ; notification déjà partie, rien n’est republié', async () => {
+    const o = outils(false)
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), meteo({ '2026-11-27': 12 }))
+    let heure = new Date(2026, 10, 26, 17, 59, 58)
+    const horloge = () => heure
+    const lente = vi.fn(async () => {
+      heure = new Date(2026, 10, 26, 18, 0, 2)
+      return meteo({ '2026-11-27': 12 })()
+    })
+    await programmerAlertesMeteo([DALLE], false, o, horloge, lente)
+    expect(o.programmer).toHaveBeenCalledTimes(1)
+    expect(memoire(CLE_VENDREDI)).toBe('affichee')
+  })
+
+  it('prévision lue un autre jour que la veille : le texte dit de quel jour elle date', async () => {
+    const o = outils()
+    const vendredi = new Date(2026, 10, 27, 7, 30)
+    await programmerAlertesMeteo([DALLE], false, o, vendredi, meteo({ '2026-11-28': 9, '2026-11-30': 15 }, '2026-11-27'))
+    const corps = Object.fromEntries(o.programmer.mock.calls.map(c => [c[0].cle, c[0].corps]))
+    expect(corps[cleNotificationAlerte('c-dalle', '2026-11-28')]).toBe('Prévu demain, samedi 28 novembre, sur le chantier « Dalle Villa » : pluie 9 mm.')
+    expect(corps[cleNotificationAlerte('c-dalle', '2026-11-30')])
+      .toBe('Prévu demain, lundi 30 novembre, sur le chantier « Dalle Villa » : pluie 15 mm (prévision du vendredi 27 novembre).')
+  })
+
+  it('lecture des prévisions bornée dans le temps', async () => {
+    const o = outils()
+    const lire = meteo({ '2026-11-27': 12 })
+    await programmerAlertesMeteo([DALLE], false, o, jeudi(9), lire)
+    const init = (lire.mock.calls[0] as unknown as [string, RequestInit | undefined])[1]
+    expect(init?.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('déconnexion pendant un passage : ce passage ne programme plus rien après l’annulation', async () => {
+    const o = outils()
+    let reprendre: () => void = () => {}
+    const suspendue = vi.fn(async () => {
+      await new Promise<void>(r => { reprendre = r })
+      return meteo({ '2026-11-27': 12 })()
+    })
+    const passage = programmerAlertesMeteo([DALLE], false, o, jeudi(9), suspendue)
+    await vi.waitFor(() => expect(suspendue).toHaveBeenCalled())
+    await annulerAlertesProgrammees(o.annuler)
+    reprendre()
+    await passage
+    expect(o.programmer).not.toHaveBeenCalled()
   })
 })

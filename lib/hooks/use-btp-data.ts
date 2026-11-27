@@ -571,6 +571,19 @@ function marquerEcriture(cacheKey: string, oublierCopie = true): void {
   if (oublierCopie) delete _dataCache[cacheKey]
 }
 
+/**
+ * Émis sur `window` après une écriture confirmée sur les chantiers (ajout, modification, suppression) : les instances
+ * du hook ne se préviennent pas entre elles, et l'alerte météo du téléphone (AlertesMeteoTelephone, 27/11/2026) doit
+ * relire tout de suite une case cochée ou décochée dans l'appli. Émis avant la relecture de l'instance qui écrit : les
+ * deux relectures partagent la même requête.
+ */
+export const EVENEMENT_CHANTIERS_ECRITS = 'vitfix:chantiers-ecrits'
+
+function annoncerEcriture(table: ShortName): void {
+  if (table !== 'chantiers' || typeof window === 'undefined') return
+  window.dispatchEvent(new Event(EVENEMENT_CHANTIERS_ECRITS))
+}
+
 /** Options d'une modification : `keepalive` laisse la requête aboutir même si la page se ferme (onglet fermé, rechargement). */
 export interface OptionsModification {
   keepalive?: boolean
@@ -865,6 +878,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       }
       // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
       marquerEcriture(cacheKey)
+      annoncerEcriture(table)
       const json = await res.json()
       await refresh()
       return json.row ? mapFromSupabase(table, json.row) : null
@@ -898,6 +912,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         throw new EcritureRefusee(`Update ${tableName} failed: ${res.status}`)
       }
       marquerEcriture(cacheKey)
+      annoncerEcriture(table)
       await refresh()
       return true
     } catch (err) {
@@ -920,6 +935,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         throw new EcritureRefusee(`Delete ${tableName} failed: ${res.status}`)
       }
       marquerEcriture(cacheKey)
+      annoncerEcriture(table)
       await refresh()
       return true
     } catch (err) {
@@ -928,7 +944,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.suppression, { id: `btp-ecriture-${tableName}` })
       return false
     }
-  }, [tableName, cacheKey, refresh])
+  }, [table, tableName, cacheKey, refresh])
 
   return { items, loading, error, refresh, add, update, remove }
 }

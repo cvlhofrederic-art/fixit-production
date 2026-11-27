@@ -1245,11 +1245,13 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                   employés affectés, ceux qu'elle prévient. */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label htmlFor="chantier-alerte-meteo" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12 }}>
-                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo} aria-describedby="chantier-alerte-meteo-gps"
+                  {/* Nom accessible : le titre seul ; l'aide et la note GPS en description. */}
+                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo}
+                    aria-labelledby="chantier-alerte-meteo-titre" aria-describedby="chantier-alerte-meteo-aide chantier-alerte-meteo-gps"
                     onChange={e => setForm({ ...form, alerteMeteo: e.target.checked })} style={{ marginTop: 2 }} />
                   <span>
-                    <strong>🔔 {isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}</strong>
-                    <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>{aideAlerteMeteo(isPt)}</span>
+                    <strong id="chantier-alerte-meteo-titre">🔔 {isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}</strong>
+                    <span id="chantier-alerte-meteo-aide" style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>{aideAlerteMeteo(isPt)}</span>
                   </span>
                 </label>
                 {/* Zone toujours présente dont seul le contenu change : un lecteur d'écran annonce la note quand elle apparaît. */}

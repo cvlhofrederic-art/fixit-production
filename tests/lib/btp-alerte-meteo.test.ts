@@ -96,9 +96,17 @@ describe('dates et heure du chantier', () => {
     expect(dateDecalee('2026-10-25', 1)).toBe('2026-10-26')
   })
 
-  it('dateLocale : la date de l’appareil, pas la date UTC', () => {
-    expect(dateLocale(new Date(2026, 10, 27, 0, 30))).toBe('2026-11-27')
-    expect(dateLocale(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05')
+  it('dateLocale : la date de l’appareil, pas la date UTC (fuseau fixé : à Lisbonne l’hiver, ou en UTC, rien ne se verrait)', () => {
+    const tzInitial = process.env.TZ
+    try {
+      process.env.TZ = 'Europe/Paris'
+      expect(dateLocale(new Date(2026, 10, 27, 0, 30))).toBe('2026-11-27') // 26/11 23:30 UTC
+      process.env.TZ = 'Atlantic/Azores'
+      expect(dateLocale(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05') // 06/01 00:59 UTC
+    } finally {
+      if (tzInitial === undefined) delete process.env.TZ
+      else process.env.TZ = tzInitial
+    }
   })
 
   it('décalage horaire de la réponse, borné ; heure et lendemain au chantier', () => {

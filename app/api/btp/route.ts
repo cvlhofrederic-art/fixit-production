@@ -439,9 +439,10 @@ function colonneRecenteAbsente(table: TableEcrivable, ligne: Ligne, error: Erreu
   return Object.keys(COLONNES_RECENTES_CHANTIER).find(col => col in ligne && message.includes(col)) ?? null
 }
 
-/** Case « Alerte météo » cochée alors que la colonne manque : refusée plutôt que perdue en silence. */
-const MESSAGE_ALERTE_METEO_EN_ATTENTE = 'Alerte météo non enregistrée : mise à jour de la base en attente. Réessayez plus tard. '
-  + '— Alerta meteorológico não guardado: atualização da base de dados pendente. Tente mais tarde.'
+/** Case « Alerte météo » cochée alors que la colonne manque : toute l'écriture est refusée, plutôt que perdue en silence. */
+const MESSAGE_ALERTE_METEO_EN_ATTENTE = 'Chantier non enregistré : l’alerte météo attend une mise à jour de la base. Décochez-la pour '
+  + 'enregistrer le reste, ou réessayez plus tard. — Obra não guardada: o alerta meteorológico aguarda uma atualização da '
+  + 'base de dados. Desmarque-o para guardar o resto, ou tente mais tarde.'
 
 /**
  * Rejoue l'écriture sans chaque colonne récente absente de la base (une à la fois, deux au plus). Exception : une

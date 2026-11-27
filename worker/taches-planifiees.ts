@@ -16,8 +16,8 @@ import type { ContexteExecution, Gestionnaire } from './cache-pages-publiques'
 
 /**
  * Alerte météo des chantiers BTP : e-mail de la veille, à 18:15 UTC (18:15 à Lisbonne l'hiver, 19:15 l'été ; 19:15 et
- * 20:15 à Paris), après la notification de 18 h programmée par l'appli. La route n'envoie rien hors de la soirée du
- * chantier.
+ * 20:15 à Paris), après la notification de 18 h programmée par l'appli. La route n'envoie rien hors de la plage
+ * d'envoi à l'heure du chantier (12 h - 23 h).
  */
 export const CRON_ALERTE_METEO = '15 18 * * *'
 

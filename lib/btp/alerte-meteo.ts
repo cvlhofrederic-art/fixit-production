@@ -172,21 +172,25 @@ export function jourEnLettres(date: string, isPt: boolean): string | null {
 
 /**
  * Titre et texte de la notification ou de l'e-mail de la veille, pour un chantier. Le jour visé est écrit en lettres :
- * un e-mail lu le lendemain matin ne laisse pas de doute sur la journée.
+ * un e-mail lu le lendemain matin ne laisse pas de doute sur la journée. `datePrevision` : jour où la prévision a été
+ * lue, quand ce n'est pas la veille (notification programmée le vendredi pour le dimanche soir) ; il est alors dit.
  */
 export function texteAlerteDuLendemain(
-  titreChantier: string, motifs: readonly MotifAlerte[], isPt: boolean, date?: string,
+  titreChantier: string, motifs: readonly MotifAlerte[], isPt: boolean, date?: string, datePrevision?: string,
 ): { titre: string; corps: string } {
   const icone = motifs[0] ? ICONES[motifs[0].type] : '⚠️'
   const chantier = titreChantier.trim() || (isPt ? 'Obra' : 'Chantier')
   const detail = libelleMotifs(motifs, isPt)
   const jour = date ? jourEnLettres(date, isPt) : null
+  const lue = datePrevision ? jourEnLettres(datePrevision, isPt) : null
   if (isPt) {
     const quando = jour ? `amanhã, ${jour},` : 'amanhã'
-    return { titre: `${icone} Alerta meteorológico amanhã: ${chantier}`, corps: `Previsto para ${quando} na obra « ${chantier} »: ${detail}.` }
+    const origem = lue ? ` (previsão de ${lue})` : ''
+    return { titre: `${icone} Alerta meteorológico amanhã: ${chantier}`, corps: `Previsto para ${quando} na obra « ${chantier} »: ${detail}${origem}.` }
   }
   const quand = jour ? `demain, ${jour},` : 'demain'
-  return { titre: `${icone} Alerte météo demain : ${chantier}`, corps: `Prévu ${quand} sur le chantier « ${chantier} » : ${detail}.` }
+  const origine = lue ? ` (prévision du ${lue})` : ''
+  return { titre: `${icone} Alerte météo demain : ${chantier}`, corps: `Prévu ${quand} sur le chantier « ${chantier} » : ${detail}${origine}.` }
 }
 
 /** La case « Alerte météo par notification » du chantier est-elle cochée ? */

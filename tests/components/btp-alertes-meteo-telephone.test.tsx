@@ -25,13 +25,16 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/lib/app-mobile', () => ({ estAppMobile: () => h.appli }))
 vi.mock('@/lib/hooks/use-btp-data', () => ({
+  EVENEMENT_CHANTIERS_ECRITS: 'vitfix:chantiers-ecrits',
   useBTPData: (options: Record<string, unknown>) => {
     h.options = options
     return { items: h.chantiers, loading: h.chargement, error: h.erreur, refresh: h.refresh }
   },
 }))
 vi.mock('@/lib/btp/alerte-meteo-telephone', () => ({ programmerAlertesMeteo: h.programmer }))
-vi.mock('@/lib/notifications', () => ({ programmerNotification: vi.fn(), annulerNotification: vi.fn(), notificationEnAttente: vi.fn() }))
+vi.mock('@/lib/notifications', () => ({
+  programmerNotification: vi.fn(), annulerNotification: vi.fn(), notificationEnAttente: vi.fn(), autorisationNotifications: vi.fn(),
+}))
 vi.mock('@capacitor/app', () => ({
   App: {
     addListener: vi.fn(async (_evenement: string, rappel: () => void) => {
@@ -84,7 +87,7 @@ describe('alerte météo dans l’appli', () => {
     await monter(true)
     expect(h.programmer).toHaveBeenCalledTimes(1)
     expect(h.programmer).toHaveBeenCalledWith(h.chantiers, true, expect.objectContaining({
-      programmer: expect.any(Function), annuler: expect.any(Function), enAttente: expect.any(Function),
+      programmer: expect.any(Function), annuler: expect.any(Function), enAttente: expect.any(Function), autorisation: expect.any(Function),
     }))
     expect(h.refresh).not.toHaveBeenCalled()
     expect(h.options).toMatchObject({ table: 'chantiers', autoImport: false, annoncerEchecs: false })
@@ -95,7 +98,7 @@ describe('alerte météo dans l’appli', () => {
     const { rerender } = await monter()
     expect(h.programmer).not.toHaveBeenCalled()
     h.chargement = false
-    rerender(<AlertesMeteoTelephone artisanId="fiche-1" userId="u1" isPt={false} />)
+    await act(async () => { rerender(<AlertesMeteoTelephone artisanId="fiche-1" userId="u1" isPt={false} />) })
     expect(h.programmer).toHaveBeenCalledTimes(1)
   })
 
@@ -154,5 +157,70 @@ describe('retour au premier plan', () => {
     plusTard(INTERVALLE_RELECTURE_MS + 1)
     await act(async () => { visibilite('visible') })
     expect(h.refresh).not.toHaveBeenCalled()
+  })
+})
+
+describe('chantier enregistré dans l’appli, passages à la suite', () => {
+  const ecriture = () => window.dispatchEvent(new Event('vitfix:chantiers-ecrits'))
+
+  it('chantier enregistré (case cochée ou décochée) : relu et reprogrammé tout de suite, sans attendre l’heure', async () => {
+    await monter()
+    expect(h.programmer).toHaveBeenCalledTimes(1)
+    await act(async () => { ecriture() })
+    expect(h.refresh).toHaveBeenCalledTimes(1)
+    expect(h.programmer).toHaveBeenCalledTimes(2)
+    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything())
+  })
+
+  it('autre événement : rien ; démonté : l’écriture ne relit plus rien', async () => {
+    const { unmount } = await monter()
+    await act(async () => { window.dispatchEvent(new Event('vitfix:autre-chose')) })
+    expect(h.refresh).not.toHaveBeenCalled()
+    unmount()
+    await act(async () => { ecriture() })
+    expect(h.refresh).not.toHaveBeenCalled()
+  })
+
+  it('deux passages rapprochés : le second attend la fin du premier', async () => {
+    let finirPremier: () => void = () => {}
+    const ordre: string[] = []
+    h.programmer.mockImplementationOnce(async () => {
+      ordre.push('début 1')
+      await new Promise<void>(r => { finirPremier = r })
+      ordre.push('fin 1')
+      return { programmees: 0, affichees: 0, annulees: 0, ignorees: 0 }
+    })
+    h.programmer.mockImplementationOnce(async () => {
+      ordre.push('début 2')
+      return { programmees: 0, affichees: 0, annulees: 0, ignorees: 0 }
+    })
+    await monter()
+    await act(async () => { ecriture() })
+    expect(ordre).toEqual(['début 1'])
+    await act(async () => { finirPremier() })
+    expect(ordre).toEqual(['début 1', 'fin 1', 'début 2'])
+  })
+
+  it('relecture en échec : nouvel essai au retour suivant, sans attendre une heure de plus', async () => {
+    await monter()
+    h.frais = null
+    plusTard(INTERVALLE_RELECTURE_MS + 1)
+    await act(async () => { visibilite('visible') })
+    expect(h.refresh).toHaveBeenCalledTimes(1)
+    h.frais = [{ id: 'c-dalle', titre: 'Dalle', statut: 'En cours', alerte_meteo: true }]
+    plusTard(INTERVALLE_RELECTURE_MS + 2)
+    await act(async () => { visibilite('visible') })
+    expect(h.refresh).toHaveBeenCalledTimes(2)
+    expect(h.programmer).toHaveBeenLastCalledWith(h.frais, false, expect.anything())
+  })
+
+  it('visibilitychange et reprise de l’appli ensemble : une seule relecture', async () => {
+    await monter()
+    plusTard(INTERVALLE_RELECTURE_MS + 1)
+    await act(async () => {
+      visibilite('visible')
+      h.reprise?.()
+    })
+    expect(h.refresh).toHaveBeenCalledTimes(1)
   })
 })

@@ -184,8 +184,8 @@ describe('POST /api/btp — alerte météo d’un chantier (alerte_meteo)', () =
     h.etat.alerteAbsente = true
     const res = await ecrire({ action: 'update', id: 'villa', data: { statut: 'En cours', alerte_meteo: true } })
     expect(res.status).toBe(409)
-    expect(String(res.json.error)).toContain('Alerte météo non enregistrée')
-    expect(String(res.json.error)).toContain('Alerta meteorológico não guardado')
+    expect(String(res.json.error)).toContain('Chantier non enregistré : l’alerte météo attend une mise à jour de la base')
+    expect(String(res.json.error)).toContain('Obra não guardada')
     expect(h.etat.envois).toHaveLength(1)
   })
 
