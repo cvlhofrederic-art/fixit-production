@@ -521,6 +521,26 @@ describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la
     expect(dansPanneau().getByLabelText('Compte rapproché')).toHaveDisplayValue('Ancien compte · …2606 (clôturé)')
     expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
     expect(dansPanneau().queryByRole('button', { name: /Nouvel arrêté/ })).toBeNull()
+    // Texte conservé (relecture, à valider par le référent métier) : l'indication vaut pour un nouvel arrêté.
+    expect(dansPanneau().getByText('Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».')).toBeInTheDocument()
+  })
+
+  it('compte clôturé avec un arrêté illisible : l’alerte ne promet pas de reprise des actions (refusées pour toujours)', async () => {
+    const ferme = await compteCloture()
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe-cloture',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: ferme.id,
+      statut: 'En cours' as const,
+    })
+    await rendre()
+    fireEvent.change(dansPanneau().getByLabelText('Compte rapproché'), { target: { value: ferme.id } })
+    await waitFor(() => expect(panneau().textContent).toContain('1 arrêté de la base non affiché'))
+    expect(panneau().textContent).toContain('à reprendre dans la base locale')
+    expect(panneau().textContent).not.toContain('Ni ouverture')
   })
 
   it('compte clôturé avec un arrêté en cours (relevé par la relecture) : affiché, en lecture seule, ni clôture ni abandon', async () => {

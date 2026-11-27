@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AbandonArreteModal } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/AbandonArreteModal'
 import { arreteCourant, controlerSaisieArrete, eurosArrete, type ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import {
@@ -47,7 +47,10 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * - Décision du 26/11/2026 (PR 799, point 18) : les comptes clôturés sont proposés après les actifs, marqués
  *   « (clôturé) » ; leurs arrêtés (panneau et « Arrêtés du compte ») s'affichent en lecture seule, sans « Nouvel
  *   arrêté », « Clôturer », « Déclôturer » ni « Abandonner », avec une phrase qui le dit. L'écriture les refuse aussi
- *   (db/rapprochements.ts). Un arrêté encore en cours sur un compte clôturé s'affiche de même, sans action possible.
+ *   (db/rapprochements.ts). Un arrêté encore en cours sur un compte clôturé s'affiche de même, sans action possible. POINT À SOUMETTRE au référent métier : la clôture d'un compte
+ *   n'est pas refusée s'il a un arrêté en cours (cloturerCompteBancaire) ; cet arrêté reste « En cours » pour toujours (clôture, abandon et
+ *   réactivation impossibles) et son écart reste recalculé à l'écran. Option a : refuser la clôture du compte ; option b : proposer l'abandon
+ *   de l'arrêté à ce moment. Rien n'est codé tant qu'il n'y a pas de décision.
  * - Aucun élément à pointer : les écritures du compte viennent toutes du relevé importé, le côté compta indépendant
  *   (règlements, remises) n'est pas branché ; les cases « Auto / Pointé / En suspens » de la maquette n'ont donc rien à
  *   montrer, et le panneau le dit. Décision du 26/11/2026 (rb-13 B) : les taux « Rapproché auto » et « manuel », toujours
@@ -288,7 +291,7 @@ function ContenuArretes({
       )}
       {lus.illisibles > 0 && (
         <Alert kind="rust" title={`${lus.illisibles} arrêté${s} de la base non affiché${s}`}>
-          Sans la forme d’un arrêté : à reprendre dans la base locale. Ni ouverture, ni clôture, ni déclôture tant qu’il en reste.
+          Sans la forme d’un arrêté : à reprendre dans la base locale.{!actions.lectureSeule && ' Ni ouverture, ni clôture, ni déclôture tant qu’il en reste.'}
         </Alert>
       )}
       {courant ? (
@@ -341,30 +344,36 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
     }
   }
 
+  // Bouton d'en-tête : aucun en lecture seule (compte clôturé), « Clôturer » sur l'arrêté en cours, sinon « Nouvel arrêté ».
+  let boutonEntete: ReactNode = null
+  if (!lectureSeule && courant?.statut === 'En cours') {
+    boutonEntete = (
+      <button
+        type="button"
+        className="btn gold sm"
+        aria-label={`Clôturer l’arrêté du ${dateIsoVersFr(courant.dateArrete)}`}
+        disabled={!pret || occupe}
+        onClick={() => void lancer(() => ecritures.cloturer(courant))}
+      >
+        <Icon name="check" />
+        Clôturer
+      </button>
+    )
+  } else if (!lectureSeule) {
+    boutonEntete = (
+      <button type="button" className="btn gold sm" disabled={!pret} onClick={() => setModale('nouvel-arrete')}>
+        <Icon name="plus" />
+        Nouvel arrêté
+      </button>
+    )
+  }
+
   return (
     <Panel
       title={courant ? `Rapprochement au ${dateIsoVersFr(courant.dateArrete)}` : 'Rapprochement bancaire'}
       sub="Arrêtés successifs par compte : un seul en cours, clôture à l’équilibre"
       icon="check"
-      right={
-        lectureSeule ? null : courant?.statut === 'En cours' ? (
-          <button
-            type="button"
-            className="btn gold sm"
-            aria-label={`Clôturer l’arrêté du ${dateIsoVersFr(courant.dateArrete)}`}
-            disabled={!pret || occupe}
-            onClick={() => void lancer(() => ecritures.cloturer(courant))}
-          >
-            <Icon name="check" />
-            Clôturer
-          </button>
-        ) : (
-          <button type="button" className="btn gold sm" disabled={!pret} onClick={() => setModale('nouvel-arrete')}>
-            <Icon name="plus" />
-            Nouvel arrêté
-          </button>
-        )
-      }
+      right={boutonEntete}
     >
       <ChoixCompteBancaire label="Compte rapproché" name="rapprochement-compte" etat={etatComptes} actifs={actifs} clotures={clotures} choisi={compte} choisir={setChoix} />
       {compte && (
