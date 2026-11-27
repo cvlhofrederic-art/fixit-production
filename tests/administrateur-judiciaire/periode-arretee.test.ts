@@ -48,6 +48,16 @@ const arrete = (surcharge: Partial<ArreteRapprochement> = {}): ArreteRapprocheme
   ...surcharge,
 })
 
+/** Constat quand seul le dernier arrêté clôturé (31/05/2026) contient une ligne. */
+const SEUL_CONCERNE = { lignes: 1, dateArrete: '2026-05-31', arreteEnCours: null, arretesConcernes: 1, plusAncienArrete: '2026-05-31' }
+
+// Plusieurs arrêtés clôturés concernés (retour de relecture) : déclôturer le dernier ne suffit pas, et le motif le dit.
+const PLUSIEURS_QUOI_FAIRE =
+  'Aucune ligne du relevé n’est importée, et déclôturer le dernier arrêté ne suffit pas. Pour importer le relevé en entier : '
+const PLUSIEURS_UN_PAR_UN =
+  'déclôturer ces arrêtés un par un, du plus récent au plus ancien, en abandonnant chaque arrêté déclôturé avant de déclôturer le ' +
+  'précédent. Un abandon est définitif : l’arrêté abandonné est à refaire.'
+
 describe('domaine : lignes datées dans une période arrêtée', () => {
   it('date du dernier arrêté clôturé du compte ; null sans arrêté clôturé', () => {
     const arretes = [
@@ -69,6 +79,8 @@ describe('domaine : lignes datées dans une période arrêtée', () => {
       lignes: 2,
       dateArrete: '2026-05-31',
       arreteEnCours: null,
+      arretesConcernes: 1,
+      plusAncienArrete: '2026-05-31',
     })
     expect(lignesEnPeriodeArretee(arretes, 'B1', ['2026-06-01', '2026-06-02'])).toBeNull()
     expect(lignesEnPeriodeArretee(arretes, 'B1', [])).toBeNull()
@@ -85,6 +97,8 @@ describe('domaine : lignes datées dans une période arrêtée', () => {
       lignes: 1,
       dateArrete: '2026-05-31',
       arreteEnCours: '2026-06-10',
+      arretesConcernes: 1,
+      plusAncienArrete: '2026-05-31',
     })
   })
 
@@ -92,19 +106,61 @@ describe('domaine : lignes datées dans une période arrêtée', () => {
     expect(lignesEnPeriodeArretee([arrete()], 'B1', [''])?.lignes).toBe(1)
   })
 
+  it('plusieurs arrêtés clôturés : ceux dont la période contient une ligne sont comptés, le plus ancien est rendu', () => {
+    const arretes = [
+      arrete({ id: 'A0', dateArrete: '2026-03-31' }),
+      arrete({ id: 'A1', dateArrete: '2026-04-30' }),
+      arrete({ id: 'A2', dateArrete: '2026-05-31' }),
+      arrete({ id: 'A9', banqueId: 'B2', dateArrete: '2026-04-25' }),
+    ]
+    // Ligne du 20/04 : elle entre dans le solde figé au 30/04 et dans celui au 31/05, pas dans celui au 31/03.
+    expect(lignesEnPeriodeArretee(arretes, 'B1', ['2026-04-20', '2026-05-20', '2026-06-02'])).toEqual({
+      lignes: 2,
+      dateArrete: '2026-05-31',
+      arreteEnCours: null,
+      arretesConcernes: 2,
+      plusAncienArrete: '2026-04-30',
+    })
+    // Le jour même d'un arrêté plus ancien : dans sa période.
+    expect(lignesEnPeriodeArretee(arretes, 'B1', ['2026-03-31'])).toMatchObject({ lignes: 1, arretesConcernes: 3, plusAncienArrete: '2026-03-31' })
+    // Lignes postérieures à l'avant-dernier arrêté : seul le dernier est concerné.
+    expect(lignesEnPeriodeArretee(arretes, 'B1', ['2026-05-01', '2026-05-20'])).toMatchObject({
+      lignes: 2,
+      arretesConcernes: 1,
+      plusAncienArrete: '2026-05-31',
+    })
+    // Date qui n'en est pas une : l'écriture entre dans le solde de toute période, tous les arrêtés clôturés sont concernés.
+    expect(lignesEnPeriodeArretee(arretes, 'B1', [''])).toMatchObject({ lignes: 1, arretesConcernes: 3, plusAncienArrete: '2026-03-31' })
+  })
+
+  it('motif, plusieurs arrêtés clôturés concernés : déclôturer le dernier ne suffit pas, et l’abandon qu’il faudrait est dit définitif', () => {
+    expect(
+      motifPeriodeArretee({ lignes: 2, dateArrete: '2026-05-31', arreteEnCours: null, arretesConcernes: 2, plusAncienArrete: '2026-04-30' }),
+    ).toBe(
+      '2 lignes sont datées au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte, et 2 arrêtés clôturés sont ' +
+        `concernés, jusqu’à celui du 30/04/2026. ${PLUSIEURS_QUOI_FAIRE}${PLUSIEURS_UN_PAR_UN}`,
+    )
+    expect(
+      motifPeriodeArretee({ lignes: 1, dateArrete: '2026-05-31', arreteEnCours: '2026-06-10', arretesConcernes: 3, plusAncienArrete: '2026-03-31' }),
+    ).toBe(
+      '1 ligne est datée au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte, et 3 arrêtés clôturés sont ' +
+        `concernés, jusqu’à celui du 31/03/2026. ${PLUSIEURS_QUOI_FAIRE}abandonner d’abord l’arrêté en cours du 10/06/2026, puis ${PLUSIEURS_UN_PAR_UN}`,
+    )
+  })
+
   it('motif : nombre de lignes, date de l’arrêté, relevé refusé en entier, quoi faire', () => {
-    expect(motifPeriodeArretee({ lignes: 1, dateArrete: '2026-05-31', arreteEnCours: null })).toBe(
+    expect(motifPeriodeArretee({ ...SEUL_CONCERNE, lignes: 1 })).toBe(
       '1 ligne est datée au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte. Aucune ligne du relevé ' +
         'n’est importée : déclôturer d’abord cet arrêté, puis importer le relevé en entier.',
     )
-    expect(motifPeriodeArretee({ lignes: 3, dateArrete: '2026-05-31', arreteEnCours: null })).toBe(
+    expect(motifPeriodeArretee({ ...SEUL_CONCERNE, lignes: 3 })).toBe(
       '3 lignes sont datées au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte. Aucune ligne du relevé ' +
         'n’est importée : déclôturer d’abord cet arrêté, puis importer le relevé en entier.',
     )
   })
 
   it('motif avec un arrêté en cours : l’abandonner d’abord, la déclôture étant refusée tant qu’il existe', () => {
-    expect(motifPeriodeArretee({ lignes: 2, dateArrete: '2026-05-31', arreteEnCours: '2026-06-10' })).toBe(
+    expect(motifPeriodeArretee({ ...SEUL_CONCERNE, lignes: 2, arreteEnCours: '2026-06-10' })).toBe(
       '2 lignes sont datées au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte. Aucune ligne du relevé ' +
         'n’est importée : abandonner d’abord l’arrêté en cours du 10/06/2026, déclôturer celui du 31/05/2026, puis importer ' +
         'le relevé en entier.',
@@ -218,6 +274,56 @@ describe('base locale : import refusé dans une période arrêtée', () => {
     expect((await ecrituresDuCompte()).map((ecriture) => ecriture.libelle).sort()).toEqual(['VIR CHARGES', 'VIR JUIN'])
   })
 
+  it('deux arrêtés clôturés, lignes dans les deux périodes : le refus ne dit pas de déclôturer le dernier, qui ne suffirait pas', async () => {
+    // Retour de relecture : suivre « déclôturer d'abord cet arrêté » menait à devoir abandonner l'arrêté déclôturé.
+    for (const dateArrete of ['2026-04-30', '2026-05-31']) {
+      const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete, soldeBanqueCentimes: 0 })
+      await cloturerArreteCompte(ouvert.id)
+    }
+    const lignes = [
+      { date: '2026-04-20', libelle: 'VIR AVRIL', montant: 80 },
+      { date: '2026-05-20', libelle: 'VIR MAI', montant: 90 },
+    ]
+    await expect(importerReleveSurCompte('C2', banqueId, lignes)).rejects.toThrow(
+      'Import refusé : 2 lignes sont datées au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte, et 2 arrêtés ' +
+        `clôturés sont concernés, jusqu’à celui du 30/04/2026. ${PLUSIEURS_QUOI_FAIRE}${PLUSIEURS_UN_PAR_UN}`,
+    )
+    // Lignes de mai seulement : un seul arrêté concerné, le message d'origine, que la déclôture suffit à lever.
+    const mai = lignes.slice(1)
+    await expect(importerReleveSurCompte('C2', banqueId, mai)).rejects.toThrow(/Aucune ligne du relevé n’est importée : déclôturer d’abord cet arrêté/)
+    const dernier = (await listerArretes(banqueId)).arretes[1]
+    await decloturerArreteCompte(dernier.id)
+    await importerReleveSurCompte('C2', banqueId, mai)
+    expect((await ecrituresDuCompte()).map((ecriture) => ecriture.libelle)).toEqual(['VIR MAI'])
+  })
+
+  it('arrêté illisible sur le compte (écrit hors de l’écran) : import refusé tant qu’il reste, comme les autres écritures', async () => {
+    // Clôturé mais mal formé (solde qui n'est pas en centimes entiers) : sa période ne peut pas être lue, donc pas protégée.
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: banqueId,
+      dateArrete: '2026-05-31',
+      soldeBanqueCentimes: 0,
+      soldeComptaCentimes: 12.5,
+      statut: 'Clôturé',
+      elements: [],
+    })
+    expect((await listerArretes(banqueId)).illisibles).toBe(1)
+    const lignes = [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }]
+    const refus = /^1 arrêté illisible sur ce compte \(écrit hors de l’écran\) : à reprendre dans la base locale d’abord\.$/
+    await expect(importerReleveSurCompte('C2', banqueId, lignes)).rejects.toThrow(refus)
+    await expect(useDonneesStore.getState().importerReleve('C2', lignes, compteBanque(banqueId))).rejects.toThrow(refus)
+    expect(await ecrituresDuCompte()).toHaveLength(0)
+    // La ligne reprise dans la base locale : l'import repasse.
+    await ajDb.rapprochements.delete('arrete-externe')
+    await importerReleveSurCompte('C2', banqueId, lignes)
+    expect(await ecrituresDuCompte()).toHaveLength(1)
+  })
+
   it('l’arrêté clôturé d’un compte ne protège pas un autre compte, ni les lignes non rattachées (« 512 » seul)', async () => {
     await cloturerMai()
     const autre = await enregistrerCompteBancaire('C2', { nature: 'fonds_travaux', libelle: '', iban: IBAN_B, bic: null, etablissement: null })
@@ -236,5 +342,27 @@ describe('base locale : import refusé dans une période arrêtée', () => {
       /^Import refusé/,
     )
     expect((await ajDb.journaux.toArray()).filter((journal) => journal.coproprieteId === copro.id)).toHaveLength(0)
+  })
+
+  it('copropriété sans journal, appel direct du store : le refus n’en laisse pas non plus, ni en base ni dans l’état', async () => {
+    const copro = await useDonneesStore.getState().createCopropriete({ nom: 'Résidence des Tilleuls', adresse: '1 rue des Tilleuls', nbLots: 4, fondement: 'art. 29-1', rg: '' })
+    const compte = await enregistrerCompteBancaire(copro.id, { nature: 'courant', libelle: '', iban: IBAN_B, bic: null, etablissement: null })
+    const ouvert = await ouvrirArreteCompte(compte.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(ouvert.id)
+    const duCopro = (journal: { coproprieteId: string }) => journal.coproprieteId === copro.id
+    // Sans le pré-contrôle de importerReleveSurCompte : appel direct, ou arrêté clôturé entre-temps dans un autre onglet.
+    await expect(
+      useDonneesStore.getState().importerReleve(copro.id, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }], compteBanque(compte.id)),
+    ).rejects.toThrow(/^Import refusé/)
+    expect((await ajDb.journaux.toArray()).filter(duCopro)).toHaveLength(0)
+    expect(useDonneesStore.getState().journaux.filter(duCopro)).toHaveLength(0)
+    // Import accepté : le journal est ouvert avec les écritures, en base et dans l'état.
+    const [ecriture] = await useDonneesStore
+      .getState()
+      .importerReleve(copro.id, [{ date: '2026-06-02', libelle: 'VIR JUIN', montant: 99 }], compteBanque(compte.id))
+    const journaux = (await ajDb.journaux.toArray()).filter(duCopro)
+    expect(journaux).toHaveLength(1)
+    expect(ecriture.journalId).toBe(journaux[0].id)
+    expect(useDonneesStore.getState().journaux.filter(duCopro)).toEqual(journaux)
   })
 })

@@ -11,7 +11,9 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  * `erreur` et signalé à `signalerErreur`.
  * Période arrêtée protégée (décision du 26/11/2026, PR 799, rb-04 A) : le panneau « Importer un relevé » lit lui aussi
  * les arrêtés du compte du relevé. `relire` fait donc relire tous les lecteurs montés : une clôture ou une déclôture
- * faite dans le panneau « Rapprochement » est connue de l'import sans nouvelle analyse.
+ * faite dans le panneau « Rapprochement » est connue de l'import sans nouvelle analyse. Un échec de lecture toucherait
+ * alors tous les lecteurs à la fois : un seul le signale à l'utilisateur, celui du panneau « Rapprochement » ; les
+ * autres passent `signalerErreur` à null et gardent l'échec dans `erreur` (retour de relecture de la suite rb-04).
  */
 
 /** Lecteurs montés, à relancer ensemble (voir l'en-tête). */
@@ -39,7 +41,7 @@ interface Lecture {
   erreur: string | null
 }
 
-export function useArretesRapprochement(banqueId: string | null, signalerErreur: (message: string) => void): ArretesLusEcran {
+export function useArretesRapprochement(banqueId: string | null, signalerErreur: ((message: string) => void) | null): ArretesLusEcran {
   const [version, setVersion] = useState(0)
   const [lecture, setLecture] = useState<Lecture | null>(null)
   // Dernière fonction reçue : la signaler ne relance pas la lecture (une nouvelle fonction à chaque rendu).
@@ -59,7 +61,8 @@ export function useArretesRapprochement(banqueId: string | null, signalerErreur:
         if (abandonnee) return
         const message = erreur instanceof Error ? erreur.message : String(erreur)
         setLecture({ banqueId, arretes: [], illisibles: 0, erreur: message })
-        refSignaler.current(message)
+        // null : lecteur secondaire, l'échec est déjà signalé par le panneau « Rapprochement » (voir l'en-tête).
+        refSignaler.current?.(message)
       },
     )
     return () => {

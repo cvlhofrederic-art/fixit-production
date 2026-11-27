@@ -109,7 +109,8 @@ export interface EtatDonneesStore {
    * Écritures 512 (renvoyées) et, pour chaque sortie, une écriture 471 « À ventiler ». Dates reçues en ISO. `compte` :
    * sous-compte 512 du compte bancaire choisi (db/releves-bancaires.ts) ; absent, « 512 » non rattaché, comme avant.
    * Sur le sous-compte d'un compte bancaire : refusé en entier si une ligne est datée au plus tard du dernier arrêté
-   * clôturé de ce compte (période arrêtée protégée, décision du 26/11/2026, rb-04 A).
+   * clôturé de ce compte (période arrêtée protégée, décision du 26/11/2026, rb-04 A), ou tant qu'un arrêté illisible
+   * reste sur ce compte. Un refus ne laisse ni écriture ni journal ouvert pour l'occasion.
    */
   importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string) => Promise<Ecriture[]>
   imputerEncaissement: (ecritureId: string, coproprietaireId: string, dateIso: string) => Promise<void>
@@ -317,32 +318,34 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
   },
   importerReleve: async (coproprieteId, lignes, compte = COMPTE_BANQUE_NON_RATTACHE) => {
     if (!estCompteBanque(compte)) throw new Error(`Compte « ${compte} » : sous-compte 512 attendu pour un relevé bancaire.`)
-    let journal = get().journaux.find((existant) => existant.coproprieteId === coproprieteId)
-    if (!journal) {
-      const cree = await repoJournaux.create({
-        coproprieteId,
-      })
-      journal = cree
-      set((etat) => ({
-        journaux: [...etat.journaux, cree],
-      }))
-    }
-    const ecrituresBanque: Ecriture[] = [],
-      ecrituresAVentiler: Ecriture[] = [],
-      journalId = journal.id
+    const journalExistant = get().journaux.find((existant) => existant.coproprieteId === coproprieteId),
+      journauxCrees: Journal[] = [],
+      ecrituresBanque: Ecriture[] = [],
+      ecrituresAVentiler: Ecriture[] = []
     // Correctif d'un défaut hérité de la maquette : les écritures (et leur journal d'activité) sont enregistrées dans
     // une seule transaction. Une erreur en cours de boucle n'en laisse aucune en base, alors qu'auparavant les
     // premières y restaient, absentes de l'état et donc du dédoublonnage : un nouvel import les dupliquait.
     // Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : sur le sous-compte d'un compte bancaire, le relevé est
     // refusé en entier si une ligne est datée au plus tard du dernier arrêté clôturé de ce compte. Contrôle fait dans la
     // transaction, sur la date de l'écriture elle-même : ni un autre onglet ni un appel direct ne le contournent.
+    // Le journal d'une copropriété qui n'en a pas est ouvert dans la même transaction, après ce contrôle (retour de
+    // relecture de la suite rb-04) : un refus, ou une erreur en cours de boucle, ne laisse pas de journal vide en base.
+    // L'état n'est mis à jour qu'une fois la transaction validée.
     const banqueId = banqueDuCompte(compte),
       dateEcriture = (ligne: LigneReleve): Date => {
         const [annee, mois, jour] = ligne.date.split('-').map(Number)
         return new Date(annee, mois - 1, jour)
       }
-    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.rapprochements], async () => {
+    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.rapprochements, ajDb.journaux], async () => {
       if (banqueId !== null) await refuserImportSurPeriodeArretee(banqueId, lignes.map((ligne) => dateVersIso(dateEcriture(ligne)) ?? ''))
+      let journalId = journalExistant?.id
+      if (journalId === undefined) {
+        const cree = await repoJournaux.create({
+          coproprieteId,
+        })
+        journauxCrees.push(cree)
+        journalId = cree.id
+      }
       for (const ligne of lignes) {
         const date = dateEcriture(ligne),
           ecriture = await repoEcritures.create({
@@ -368,6 +371,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
       }
     })
     set((etat) => ({
+      journaux: journauxCrees.length > 0 ? [...etat.journaux, ...journauxCrees] : etat.journaux,
       ecritures: [...etat.ecritures, ...ecrituresBanque, ...ecrituresAVentiler],
     }))
     return ecrituresBanque

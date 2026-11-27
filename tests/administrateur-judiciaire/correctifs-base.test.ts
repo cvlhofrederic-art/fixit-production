@@ -163,12 +163,16 @@ describe('correctif — import de relevé interrompu', () => {
     expect(await ecrituresEnBase()).toEqual([])
     expect(await ajDb.activityLog.where('entite').equals('ecritures').count()).toBe(journalAvant)
     expect(etat().ecritures).toEqual([])
-    // Le journal de la copropriété reste créé et affiché, comme avant.
-    expect(etat().journaux.filter((journal) => journal.coproprieteId === COPRO)).toHaveLength(1)
+    // Le journal de la copropriété, ouvert pour cet import dans la même transaction, n'est pas laissé vide non plus
+    // (retour de relecture de la suite rb-04 de la PR 799 ; il restait créé auparavant), ni en base ni dans l'état.
+    expect(await ajDb.journaux.where('coproprieteId').equals(COPRO).count()).toBe(0)
+    expect(etat().journaux.filter((journal) => journal.coproprieteId === COPRO)).toHaveLength(0)
 
-    // Nouvel import du même relevé, puis rechargement : chaque ligne une seule fois.
+    // Nouvel import du même relevé, puis rechargement : chaque ligne une seule fois, dans un seul journal.
     const banque = await etat().importerReleve(COPRO, lignes)
     expect(banque).toHaveLength(5)
+    expect(await ajDb.journaux.where('coproprieteId').equals(COPRO).count()).toBe(1)
+    expect(etat().journaux.filter((journal) => journal.coproprieteId === COPRO)).toHaveLength(1)
     useDonneesStore.setState({ loading: false })
     await etat().loadAll()
     const enBase = await ecrituresEnBase()

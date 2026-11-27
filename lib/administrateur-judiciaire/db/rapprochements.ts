@@ -37,7 +37,8 @@ import {
  * Aucun élément n'est encore rattaché à l'arrêté (côté compta indépendant du relevé non branché) : `elements` reste vide.
  * Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : refuserImportSurPeriodeArretee, appelée par l'import d'un
  * relevé dans sa transaction d'écriture, refuse le relevé dont une ligne est datée au plus tard du dernier arrêté clôturé
- * du compte (domain/periode-arretee.ts).
+ * du compte (domain/periode-arretee.ts). Comme les autres écritures, elle refuse aussi tant qu'un arrêté illisible reste
+ * sur le compte (arretesSurs).
  */
 
 export interface ArretesLus {
@@ -85,20 +86,7 @@ export async function listerArretes(banqueId: string): Promise<ArretesLus> {
   }
 }
 
-/**
- * Refuse l'import, sur un compte, d'un relevé dont une ligne est datée au plus tard du dernier arrêté clôturé de ce
- * compte (décision du 26/11/2026, rb-04 A ; règle et message du domaine). `dates` : date de chaque ligne à écrire
- * (AAAA-MM-JJ). Le contrôle qui fait foi est celui fait DANS la transaction qui écrit les lignes (importerReleve du
- * store), la table « rapprochements » dans sa portée : une clôture faite entre-temps ailleurs (autre onglet) passe avant
- * ou après elle, jamais au milieu. Les arrêtés lus sont ceux qui comptent : un arrêté abandonné ou illisible (écrit hors
- * de l'écran) ne protège rien.
- */
-export async function refuserImportSurPeriodeArretee(banqueId: string, dates: readonly string[]): Promise<void> {
-  const { arretes } = await listerArretes(banqueId)
-  refuserImportEnPeriodeArretee(arretes, banqueId, dates)
-}
-
-/** Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours ou plus récent. */
+/** Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours, plus récent ou clôturé. */
 async function arretesSurs(banqueId: string): Promise<ArreteRapprochement[]> {
   const { arretes, illisibles } = await listerArretes(banqueId)
   if (illisibles > 0) {
@@ -106,6 +94,21 @@ async function arretesSurs(banqueId: string): Promise<ArreteRapprochement[]> {
     throw new Error(`${illisibles} arrêté${s} illisible${s} sur ce compte (écrit${s} hors de l’écran) : à reprendre dans la base locale d’abord.`)
   }
   return arretes
+}
+
+/**
+ * Refuse l'import, sur un compte, d'un relevé dont une ligne est datée au plus tard du dernier arrêté clôturé de ce
+ * compte (décision du 26/11/2026, rb-04 A ; règle et message du domaine). `dates` : date de chaque ligne à écrire
+ * (AAAA-MM-JJ). Le contrôle qui fait foi est celui fait DANS la transaction qui écrit les lignes (importerReleve du
+ * store), la table « rapprochements » dans sa portée : une clôture faite entre-temps ailleurs (autre onglet) passe avant
+ * ou après elle, jamais au milieu. Les arrêtés lus sont ceux qui comptent : un arrêté abandonné ne protège rien.
+ * Arrêté illisible sur le compte (écrit hors de l'écran) : l'import est refusé tant qu'il reste, quelles que soient les
+ * dates, comme l'ouverture, la clôture, la déclôture et l'abandon (retour de relecture de la suite rb-04, à confirmer
+ * par le référent métier). Une ligne clôturée mais mal formée ne dit pas quelle période elle arrête : la laisser de côté
+ * laisserait entrer une ligne dans une période peut-être arrêtée.
+ */
+export async function refuserImportSurPeriodeArretee(banqueId: string, dates: readonly string[]): Promise<void> {
+  refuserImportEnPeriodeArretee(await arretesSurs(banqueId), banqueId, dates)
 }
 
 /** Solde compta d'un compte bancaire à une date (ce jour compris) : celui de son sous-compte 512 ; aucune écriture : 0. */

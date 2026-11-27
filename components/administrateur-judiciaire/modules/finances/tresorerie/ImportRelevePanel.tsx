@@ -46,7 +46,8 @@ import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain
  * tard du dernier arrêté clôturé du compte est bloqué en entier, dans le bandeau « Import bloqué » des autres motifs, et
  * le bouton d'import est inactif. Le blocage est recalculé à chaque affichage sur les arrêtés du compte (avecPeriodeArretee,
  * useArretesRapprochement) : il suit une clôture ou une déclôture faite dans le panneau « Rapprochement ». La base refuse
- * de toute façon l'import (db/releves-bancaires.ts) : après un refus, les arrêtés sont relus.
+ * de toute façon l'import (db/releves-bancaires.ts) : après un refus, les arrêtés sont relus. Plusieurs arrêtés clôturés
+ * concernés : le bandeau dit que déclôturer le dernier ne suffit pas (motif du domaine, libellé à valider).
  */
 
 /** Fichiers proposés : CSV, CFONB 120 (.txt, .cfonb) et camt.053 (.xml, .053). */
@@ -153,9 +154,10 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   const [choixCompte, setChoixCompte] = useState('')
   const actifs = comptesActifs(comptes, etatComptes)
   const compteChoisi = compteDeLImport(actifs, choixCompte)
-  const arretesLus = useArretesRapprochement(compteChoisi?.id ?? null, (message) =>
-    push({ kind: 'warn', title: 'Arrêtés illisibles', desc: message }),
-  )
+  // Échec de lecture des arrêtés : signalé une seule fois, par le panneau « Rapprochement » du même écran (toast
+  // « Arrêtés illisibles ») ; pas de second toast identique ici. Sans arrêtés lus, aucun blocage n'est montré : la base
+  // contrôle de toute façon à l'import.
+  const arretesLus = useArretesRapprochement(compteChoisi?.id ?? null, null)
   // Changement de copropriété (sélecteur du haut ou select local), de compte ou de l'IBAN du compte : l'analyse faite
   // pour l'ancien est abandonnée. Ajustement pendant le rendu, sans remontage de l'écran.
   const [codeAnalyse, setCodeAnalyse] = useState(copro?.code)

@@ -44,7 +44,9 @@ const IBAN_FIXTURE = 'FR76 1234 5000 1000 0123 4567 849'
 
 const CSV_MAI_JUIN = 'Date;Libellé;Montant\n20/05/2026;PRLV EAU;-120,50\n31/05/2026;FRAIS TENUE;-12,00\n02/06/2026;VIR JUIN;99,00'
 
-const QUOI_FAIRE = 'Aucune ligne du relevé n’est importée : déclôturer d’abord cet arrêté, puis importer le relevé en entier.'
+const CSV_AVRIL_MAI = 'Date;Libellé;Montant\n20/04/2026;VIR AVRIL;80,00\n20/05/2026;VIR MAI;90,00\n02/06/2026;VIR JUIN;99,00'
+
+const QUOI_FAIRE ='Aucune ligne du relevé n’est importée : déclôturer d’abord cet arrêté, puis importer le relevé en entier.'
 
 const patienter = () =>
   act(async () => {
@@ -270,5 +272,37 @@ describe('écran : import bloqué dans une période arrêtée', () => {
         'importée : abandonner d’abord l’arrêté en cours du 03/06/2026, déclôturer celui du 31/05/2026, puis importer le relevé en entier.',
     )
     expect(boutonImporter()).toBeDisabled()
+  })
+
+  it('deux arrêtés clôturés, lignes dans les deux périodes : le bandeau dit que déclôturer le dernier ne suffit pas, et qu’un abandon est définitif', async () => {
+    await cloturerAu('2026-04-30')
+    await cloturerAu('2026-05-31')
+    await rendre()
+    analyser(CSV_AVRIL_MAI)
+    expect(bandeauBloque()?.querySelector('p')?.textContent).toBe(
+      '2 lignes sont datées au plus tard du 31/05/2026, date du dernier arrêté clôturé de ce compte, et 2 arrêtés clôturés sont ' +
+        'concernés, jusqu’à celui du 30/04/2026. Aucune ligne du relevé n’est importée, et déclôturer le dernier arrêté ne suffit pas. ' +
+        'Pour importer le relevé en entier : déclôturer ces arrêtés un par un, du plus récent au plus ancien, en abandonnant chaque ' +
+        'arrêté déclôturé avant de déclôturer le précédent. Un abandon est définitif : l’arrêté abandonné est à refaire.',
+    )
+    expect(boutonImporter()).toHaveTextContent('Importer 3 lignes')
+    expect(boutonImporter()).toBeDisabled()
+  })
+
+  it('lecture des arrêtés impossible : un seul toast « Arrêtés illisibles », celui du panneau « Rapprochement »', async () => {
+    const espion = vi.spyOn(ajDb.rapprochements, 'where').mockImplementation(() => {
+      throw new Error('Base verrouillée')
+    })
+    try {
+      await rendre()
+      await waitFor(() => expect(pushCourant.mock.calls.length).toBeGreaterThan(0))
+      await patienter()
+      expect(pushCourant.mock.calls.map(([toast]) => toast)).toEqual([{ kind: 'warn', title: 'Arrêtés illisibles', desc: 'Base verrouillée' }])
+      // Lecture impossible : pas de blocage montré à l'écran, la base contrôle de toute façon à l'écriture.
+      analyser(CSV_MAI_JUIN)
+      expect(bandeauBloque()).toBeNull()
+    } finally {
+      espion.mockRestore()
+    }
   })
 })
