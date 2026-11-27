@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Faz tudo e serviços diversos">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffaea"/>
+      <stop offset="1" stop-color="#f5f3ef"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g transform="translate(450 140) rotate(-20 150 150)">
+    <rect x="80" y="0" width="60" height="220" fill="#1a1a1a" rx="6"/>
+    <path d="M70 -10 Q110 -50 150 -10 L150 30 Q110 10 70 30 Z" fill="#FFC107" stroke="#1a1a1a" stroke-width="4"/>
+  </g>
+  <g transform="translate(660 140) rotate(20 150 150)">
+    <rect x="80" y="0" width="60" height="220" fill="#FFC107" stroke="#1a1a1a" stroke-width="4" rx="6"/>
+    <rect x="40" y="-30" width="140" height="60" fill="#1a1a1a" rx="6"/>
+  </g>
+  <text x="600" y="500" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="40" font-weight="700" fill="#1a1a1a">Profissionais Verificados</text>
+  <text x="600" y="560" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" fill="#6b6b6b">VITFIX Portugal</text>
+</svg>
