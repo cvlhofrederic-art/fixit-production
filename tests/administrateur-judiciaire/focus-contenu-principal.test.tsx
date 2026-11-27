@@ -2,14 +2,9 @@ import './fuseau-paris'
 import 'fake-indexeddb/auto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Shell } from '@/components/administrateur-judiciaire/shell/Shell'
-import { ToastProvider } from '@/components/administrateur-judiciaire/ui/toast'
-import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
-import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
-import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
-import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { act, fireEvent, screen, within } from '@testing-library/react'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { monterShellJudiciaire as monterShell, preparerShellJudiciaire } from '../helpers/shell-judiciaire'
 
 /**
  * Focus rendu au contenu principal après une navigation depuis la palette ⌘K : <main id="main" tabindex="-1"> reçoit
@@ -36,40 +31,13 @@ beforeAll(async () => {
     document.head.appendChild(feuille)
     feuilles.push(feuille)
   }
-  localStorage.clear()
-  await viderBaseLocale()
-  await initialiserBaseDemo()
-  useDonneesStore.setState({ loaded: false, loading: false })
-  await useDonneesStore.getState().loadAll()
 })
+
+preparerShellJudiciaire()
 
 afterAll(() => {
   for (const feuille of feuilles) feuille.remove()
 })
-
-beforeEach(() => {
-  localStorage.clear()
-  window.scrollTo = (() => undefined) as typeof window.scrollTo
-  useSelectionDossier.setState({ code: null, coproprietaireId: null })
-  window.history.replaceState(null, '', '#tresorerie')
-})
-
-afterEach(() => {
-  cleanup()
-  window.history.replaceState(null, '', window.location.pathname)
-})
-
-async function monterShell(): Promise<void> {
-  await act(async () => {
-    render(
-      <div id="aj-root" lang="fr">
-        <ToastProvider>
-          <Shell />
-        </ToastProvider>
-      </div>,
-    )
-  })
-}
 
 const palette = () => screen.queryByRole('dialog', { name: 'Palette de commandes' })
 

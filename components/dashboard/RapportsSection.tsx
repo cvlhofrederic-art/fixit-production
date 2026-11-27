@@ -10,11 +10,11 @@ import { generateRapportPDF } from '@/lib/rapport-pdf'
 import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
 import { documentsPourSynthese } from '@/lib/documents/liste-effective'
-import { idFicheDocuments } from '@/lib/documents/identite-documents'
 import { modeleRapportSociete } from '@/lib/pdf/modeles-societes'
 import { carteDocumentsLies } from '@/components/dashboard/rapports/document-lie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
 
 interface CompanyData {
   name?: string
@@ -455,7 +455,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     let lues: PhotoRecord[] = []
     try {
       const headers = await getAuthHeaders()
-      const res = await fetch(`/api/artisan-photos?artisan_id=${artisan.id}`, { headers })
+      // Compte invité dans une société : photos et identité sont celles de la fiche de la société (idFicheDocuments).
+      const res = await fetch(`/api/artisan-photos?artisan_id=${idFicheDocuments(artisan)}`, { headers })
       const json = await res.json()
       if (json.data) {
         lues = json.data
@@ -469,18 +470,20 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     return lues
   }
 
-  // Fetch artisan company data once (with auth)
+  // Fetch artisan company data once (with auth). Fiche des documents : la sienne, ou celle de la société pour un compte
+  // invité (pour un artisan, c'est artisan.id, comme avant).
+  const ficheDesDocuments = idFicheDocuments(artisan)
   useEffect(() => {
-    if (!artisan?.id) return
+    if (!ficheDesDocuments) return
     ;(async () => {
       try {
         const headers = await getAuthHeaders()
-        const res = await fetch(`/api/artisan-company?artisan_id=${artisan.id}`, { headers })
+        const res = await fetch(`/api/artisan-company?artisan_id=${ficheDesDocuments}`, { headers })
         const d = await res.json()
         if (d.company) setCompanyData(d.company)
       } catch {}
     })()
-  }, [artisan?.id])
+  }, [ficheDesDocuments])
 
   const ecrireRapportsLocaux = (liste: RapportIntervention[]) => {
     try { localStorage.setItem(storageKey, JSON.stringify(liste)) } catch (e) { console.warn('[storage] saveRapports', e) }

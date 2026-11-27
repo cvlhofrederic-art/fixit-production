@@ -1,4 +1,5 @@
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 
 /**
  * Rapprochement bancaire par arrêtés successifs (cartographie Gestéam, tranche 29). Fonctions pures, montants en
@@ -12,9 +13,16 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  *
  * Équilibre : solde banque − éléments de banque non rapprochés = solde compta − éléments comptables non rapprochés
  * (les suspens de chaque côté sont ce que l'autre côté n'a pas encore enregistré).
+ *
+ * Décision du 26/11/2026 (PR 799, rb-01 A) — un arrêté « En cours » mal saisi s'abandonne (abandonnerArrete) : absent de
+ * Gestéam, règle de gestion VitFix. L'arrêté abandonné est d'un autre type (ArreteAbandonne) : aucune règle de ce
+ * fichier ni de rapprochement-pieces.ts ne le reçoit, il n'entre donc dans aucun solde ni aucune période arrêtée.
  */
 
+/** Statuts d'un arrêté qui compte ; l'arrêté abandonné porte STATUT_ARRETE_ABANDONNE, hors de ce type. */
 export type StatutArrete = 'En cours' | 'Clôturé'
+
+export const STATUT_ARRETE_ABANDONNE = 'Abandonné'
 
 /** Nature d'une pièce soldée par un élément rapproché : règlement (sortie, point 38) ou encaissement (entrée, point 16). */
 export type TypePieceRapprochee = 'reglement' | 'encaissement'
@@ -103,11 +111,41 @@ export function ouvrirArrete(
   return { ...saisie, statut: 'En cours', elements: [] }
 }
 
-/** Clôture un arrêté à l'équilibre seulement. */
+/**
+ * Clôture un arrêté en cours, à l'équilibre seulement. Un arrêté déjà clôturé est refusé : ses soldes sont figés à la
+ * clôture (décision du 26/11/2026, rb-03 A), seule une déclôture le rouvre.
+ * Le calcul de la base (cloturerArreteCompte : solde compta recalculé dans la transaction) fait foi ; l'écran n'en montre
+ * qu'une estimation. L'écart est dit en euros, comme dans le panneau (espaces insécables U+00A0, jamais U+202F).
+ */
 export function cloturerArrete(arrete: ArreteRapprochement): ArreteRapprochement {
+  if (arrete.statut !== 'En cours') throw new Error('Clôture refusée : arrêté déjà clôturé.')
   const { equilibre, ecartCentimes } = etatArrete(arrete)
-  if (!equilibre) throw new Error(`Clôture refusée : arrêté non équilibré (écart ${ecartCentimes} centimes).`)
+  if (!equilibre) {
+    const ecart = formatEurosCentimes(ecartCentimes / 100).replaceAll(' ', ' ')
+    throw new Error(`Clôture refusée : arrêté non équilibré (écart ${ecart}).`)
+  }
   return { ...arrete, statut: 'Clôturé' }
+}
+
+/** Arrêté abandonné : gardé pour mémoire avec ses montants, hors de toute règle (voir l'en-tête). */
+export interface ArreteAbandonne extends Omit<ArreteRapprochement, 'statut'> {
+  statut: typeof STATUT_ARRETE_ABANDONNE
+}
+
+/**
+ * Abandonne un arrêté « En cours » mal saisi (solde banque ou date erronés) : décision du 26/11/2026, rb-01 A. Jamais un
+ * arrêté clôturé. Refusé tant qu'un élément y est pointé : les pièces pointées sont « Rapproché » (J8), un pointage ne
+ * se perd pas sans bruit ; les éléments en suspens, eux, ne valent que pour cet arrêté.
+ */
+export function abandonnerArrete(arrete: ArreteRapprochement): ArreteAbandonne {
+  if (arrete.statut !== 'En cours')
+    throw new Error(`Abandon refusé : seul un arrêté en cours peut être abandonné (arrêté « ${arrete.statut} »).`)
+  const pointes = arrete.elements.filter((element) => element.rapproche !== false).length
+  if (pointes > 0) {
+    const s = pointes > 1 ? 's' : ''
+    throw new Error(`Abandon refusé : ${pointes} élément${s} pointé${s} sur cet arrêté, à dépointer d’abord.`)
+  }
+  return { ...arrete, statut: STATUT_ARRETE_ABANDONNE }
 }
 
 export interface SuspensALaDate {

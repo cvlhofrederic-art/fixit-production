@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, verifyArtisanOwnership } from '@/lib/auth-helpers'
+import type { User } from '@supabase/supabase-js'
+import { getAuthUser, getUserRole, verifyArtisanOwnership } from '@/lib/auth-helpers'
+import { ficheSocieteDuSousCompte } from '@/lib/btp/fiche-societe'
+import { niveauSur } from '@/lib/btp/perimetre-compte'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -30,6 +33,21 @@ async function avecLiensFrais<T extends { url?: unknown }>(
   })
   // Lien impossible à créer (stockage indisponible, valeur d'un autre site) : la valeur enregistrée, comme avant.
   return photos.map((p, i) => (liens[i] ? { ...p, url: liens[i] } : p))
+}
+
+/**
+ * Compte invité dans une société BTP (sans fiche à lui) : la fiche visée est-elle celle de SA société, avec le niveau
+ * voulu sur le module photos_chantier (lecture : READ ou FULL ; écriture : FULL) ? Toujours faux pour un autre compte,
+ * qui garde le contrôle de propriétaire d'origine. Les photos de la société sont rangées sous sa fiche : le dossier du
+ * seau et les liens signés suivent, sans autre changement.
+ */
+async function ficheDeLaSocieteAutorisee(user: User, ficheId: string, ecriture: boolean): Promise<boolean> {
+  if (getUserRole(user) !== 'pro_societe') return false
+  const fiche = await ficheSocieteDuSousCompte(user, supabaseAdmin, (perimetre) => {
+    const niveau = niveauSur(perimetre, 'photos_chantier')
+    return ecriture ? niveau === 'FULL' : niveau !== 'NONE'
+  })
+  return !!fiche?.ok && fiche.ficheId === ficheId
 }
 
 const artisanPhotosFormSchema = z.object({
@@ -66,7 +84,7 @@ export async function GET(request: NextRequest) {
 
   // Les photos portent la date, le libellé et la position des chantiers : la fiche demandée doit être
   // celle du compte connecté.
-  if (!(await verifyArtisanOwnership(user.id, artisanId, supabaseAdmin))) {
+  if (!(await verifyArtisanOwnership(user.id, artisanId, supabaseAdmin)) && !(await ficheDeLaSocieteAutorisee(user, artisanId, false))) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
@@ -149,7 +167,7 @@ export async function POST(request: NextRequest) {
       .select('id, user_id')
       .eq('id', artisanId)
       .single()
-    if (!artisanProfile || artisanProfile.user_id !== user.id) {
+    if (!artisanProfile || (artisanProfile.user_id !== user.id && !(await ficheDeLaSocieteAutorisee(user, artisanId, true)))) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
@@ -291,7 +309,7 @@ export async function PATCH(request: NextRequest) {
       .select('user_id')
       .eq('id', photo.artisan_id)
       .single()
-    if (!artisanProfile || artisanProfile.user_id !== user.id) {
+    if (!artisanProfile || (artisanProfile.user_id !== user.id && !(await ficheDeLaSocieteAutorisee(user, photo.artisan_id, true)))) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
@@ -359,7 +377,7 @@ export async function DELETE(request: NextRequest) {
     .select('user_id')
     .eq('id', photo.artisan_id)
     .single()
-  if (!artisanProfile || artisanProfile.user_id !== user.id) {
+  if (!artisanProfile || (artisanProfile.user_id !== user.id && !(await ficheDeLaSocieteAutorisee(user, photo.artisan_id, true)))) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 

@@ -31,6 +31,8 @@ export interface EntreeJournal {
   bornes: Array<{ colonne: string; operateur: 'gte' | 'gt' | 'lte' | 'lt'; valeur: unknown }>
   /** Exclusions `.neq(colonne, valeur)`. */
   differentDe: Record<string, unknown>
+  /** Filtres `.not(colonne, 'is', null)` : colonnes qui doivent être renseignées. */
+  nonNul: string[]
   limite?: number
   /** Colonnes demandées au `select`, pour les cas qui vérifient ce qui est lu (ou pas) en base. */
   colonnes?: string
@@ -64,7 +66,7 @@ interface Resultat { data: unknown; error: ErreurFaux | null; count?: number | n
 const TABLES_SANS_ID = new Set(['equipe_membres_btp', 'settings_btp'])
 
 function constructeur(base: FauxBase, table: string) {
-  const entree: EntreeJournal = { table, operation: 'select', filtres: {}, dans: {}, estNul: {}, bornes: [], differentDe: {} }
+  const entree: EntreeJournal = { table, operation: 'select', filtres: {}, dans: {}, estNul: {}, bornes: [], differentDe: {}, nonNul: [] }
   base.journal.push(entree)
   let colonnes = '*'
   let enTete = false
@@ -92,6 +94,7 @@ function constructeur(base: FauxBase, table: string) {
     // `NULL <> x` vaut « inconnu » en SQL : PostgREST exclut la ligne, comme pour les bornes ci-dessus.
     && Object.entries(entree.differentDe).every(([colonne, valeur]) =>
       !nulEnBase(ligne[colonne]) && ligne[colonne] !== valeur)
+    && entree.nonNul.every(colonne => !nulEnBase(ligne[colonne]))
     && dansLesBornes(ligne)
 
   const executer = (): Resultat => {
@@ -162,6 +165,12 @@ function constructeur(base: FauxBase, table: string) {
   b.in = (colonne: string, valeurs: unknown[]) => { entree.dans[colonne] = valeurs; return b }
   b.is = (colonne: string, valeur: unknown) => { entree.estNul[colonne] = valeur; return b }
   b.neq = (colonne: string, valeur: unknown) => { entree.differentDe[colonne] = valeur; return b }
+  // Seule forme simulée : `.not(colonne, 'is', null)`. Toute autre lèverait une erreur plutôt que d'être ignorée.
+  b.not = (colonne: string, operateur: string, valeur: unknown) => {
+    if (operateur !== 'is' || valeur !== null) throw new Error(`faux Supabase : not(${colonne}, ${operateur}, …) non simulé`)
+    entree.nonNul.push(colonne)
+    return b
+  }
   for (const operateur of ['gte', 'gt', 'lte', 'lt'] as const) {
     b[operateur] = (colonne: string, valeur: unknown) => { entree.bornes.push({ colonne, operateur, valeur }); return b }
   }
