@@ -9,7 +9,7 @@
 // L'artisan garde le comportement d'avant.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
 const ecrituresDirectes = vi.hoisted(() => [] as Array<{ table: string; ligne: unknown; id: unknown }>)
@@ -124,6 +124,58 @@ describe('Photos chantier du BTP pro — liaison d’une photo à un rapport', (
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(vi.mocked(toast.error).mock.calls[0][0]).toBe('Modification gardée sur cet appareil : la copie en ligne du rapport n\'a pas pu être mise à jour.')
     expect(photosDe(UUID_B)).toEqual(['photo-1'])
+  })
+})
+
+// Relecture du 26/11/2026 : un refus du serveur passait pour une réussite (la liste était relue, rien ne changeait).
+describe('Photos chantier — refus du serveur', () => {
+  it('suppression refusée (compte en lecture seule) : un message le dit', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      init?.method === 'DELETE' ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="pro_societe" />)
+    fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.supprimerLaPhoto/ }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurSuppression'))
+  })
+
+  it('attribution refusée : un message le dit', async () => {
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      init?.method === 'PATCH' ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="pro_societe" />)
+    fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.chantier$/ }))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurAttributionPhoto'))
+  })
+
+  // Règle n° 1 : ces messages ne visent que le BTP ; l'artisan garde l'écran d'avant.
+  it('artisan : suppression refusée, aucun message ajouté (comme avant)', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      init?.method === 'DELETE' ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="artisan" />)
+    fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.supprimerLaPhoto/ }))
+
+    await waitFor(() => expect(vi.mocked(globalThis.fetch).mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true))
+    await act(async () => { await Promise.resolve() })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('lecture refusée : un message le dit, au lieu de « aucune photo » seul', async () => {
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      String(url).startsWith('/api/artisan-photos') ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="pro_societe" />)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurChargementPhotos'))
   })
 })
 

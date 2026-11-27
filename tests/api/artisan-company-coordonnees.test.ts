@@ -43,7 +43,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
 vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() } }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => ({ id: 'utilisateur-de-test' })) }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => ({ id: 'utilisateur-de-test' })))
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(async () => true),
   getClientIP: vi.fn(() => '127.0.0.1'),
