@@ -23,7 +23,8 @@ import {
  * (sa forme est figée par l'oracle de la base locale), comme db/sinistres.ts et db/comptes-bancaires.ts.
  * Les règles sont celles du domaine (rapprochement-bancaire.ts), qui lève l'erreur affichée : un seul arrêté en cours
  * par compte, date postérieure au dernier, clôture à l'équilibre, déclôture du dernier arrêté clôturé, abandon d'un
- * arrêté en cours seulement. Chaque écriture relit les arrêtés du compte dans sa transaction : deux écritures qui se
+ * arrêté en cours seulement. Un compte clôturé garde ses arrêtés en lecture seule : ouverture, clôture, déclôture et abandon
+ * y sont refusés (arreteEtSonCompte). Chaque écriture relit les arrêtés du compte dans sa transaction : deux écritures qui se
  * chevauchent passent l'une après l'autre.
  * Solde compta : celui du sous-compte 512 du compte à la date de l'arrêté (db/sous-comptes-banque.ts) ; aucune
  * écriture : 0. Décision du 26/11/2026 (PR 799, rb-01 C et rb-03 A) : il n'est plus figé à l'ouverture. Tant que
@@ -131,11 +132,15 @@ export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete,
   })
 }
 
+const REFUS_COMPTE_CLOTURE = 'Compte bancaire clôturé : aucune écriture d’arrêté (arrêtés en lecture seule).'
+
 /** Arrêté lisible qui compte d'après son identifiant, avec les arrêtés de son compte ; un arrêté abandonné est refusé. */
 async function arreteEtSonCompte(id: string): Promise<{ arrete: ArreteRapprochement; duCompte: ArreteRapprochement[] }> {
   const ligne = await repoRapprochements.get(id)
   if (!ligne) throw new Error(`Arrêté introuvable : « ${id} ».`)
   if (ligne.statut === STATUT_ARRETE_ABANDONNE) throw new Error('Arrêté abandonné : ni clôture, ni déclôture, ni nouvel abandon.')
+  // Compte clôturé (décision du 26/11/2026, PR 799 point 18) : ses arrêtés se consultent, aucune écriture ne les change.
+  if ((await repoBanques.get(ligne.bancaireId))?.actif === false) throw new Error(REFUS_COMPTE_CLOTURE)
   const duCompte = await arretesSurs(ligne.bancaireId)
   const arrete = duCompte.find((candidat) => candidat.id === id)
   if (!arrete) throw new Error(`Arrêté illisible : « ${id} ».`)
@@ -147,7 +152,7 @@ async function arreteEtSonCompte(id: string): Promise<{ arrete: ArreteRapprochem
  * transaction ; ce solde est enregistré avec la clôture, puis ne bouge plus.
  */
 export async function cloturerArreteCompte(id: string, options: OptionsEcriture = {}): Promise<ArreteRapprochement> {
-  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.ecritures, ajDb.activityLog], async () => {
+  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.ecritures, ajDb.activityLog], async () => {
     const { arrete } = await arreteEtSonCompte(id)
     const cloture = cloturerArrete(avecSoldeComptaCourant(arrete, await ajDb.ecritures.toArray()))
     await repoRapprochements.update(
@@ -161,7 +166,7 @@ export async function cloturerArreteCompte(id: string, options: OptionsEcriture 
 
 /** Déclôture le dernier arrêté clôturé d'un compte sans arrêté en cours (decloturerArrete) : son solde compta se recalcule de nouveau. */
 export async function decloturerArreteCompte(id: string, options: OptionsEcriture = {}): Promise<ArreteRapprochement> {
-  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.activityLog], async () => {
+  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.activityLog], async () => {
     const { duCompte } = await arreteEtSonCompte(id)
     const rouvert = decloturerArrete(duCompte, id)
     await repoRapprochements.update(id, { statut: rouvert.statut }, { actor: options.actor ?? null })
@@ -175,7 +180,7 @@ export async function decloturerArreteCompte(id: string, options: OptionsEcritur
  * arrêté abandonné.
  */
 export async function abandonnerArreteCompte(id: string, options: OptionsEcriture = {}): Promise<ArreteAbandonne> {
-  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.activityLog], async () => {
+  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.activityLog], async () => {
     const { arrete } = await arreteEtSonCompte(id)
     const abandonne = abandonnerArrete(arrete)
     await repoRapprochements.update(id, { statut: abandonne.statut }, { actor: options.actor ?? null })

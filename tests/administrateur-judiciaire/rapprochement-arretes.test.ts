@@ -111,6 +111,24 @@ describe('ouverture d’un arrêté', () => {
   })
 })
 
+describe('compte clôturé : arrêtés en lecture seule (PR de suite de la 799, point 18, décision du 26/11/2026)', () => {
+  it('clôture, déclôture et abandon refusés sur un compte clôturé ; lecture et état des arrêtés intacts', async () => {
+    const clos = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(clos.id)
+    const enCours = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    await cloturerCompteBancaire(banqueId)
+    const avant = await ajDb.rapprochements.toArray()
+    const refus = /Compte bancaire clôturé : aucune écriture d’arrêté/
+    await expect(cloturerArreteCompte(enCours.id)).rejects.toThrow(refus)
+    await expect(abandonnerArreteCompte(enCours.id)).rejects.toThrow(refus)
+    await expect(decloturerArreteCompte(clos.id)).rejects.toThrow(refus)
+    await expect(ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-30', soldeBanqueCentimes: 0 })).rejects.toThrow(/Compte bancaire clôturé/)
+    expect(await ajDb.rapprochements.toArray()).toEqual(avant)
+    const lus = await listerArretes(banqueId)
+    expect(lus.arretes.map((arrete) => arrete.statut)).toEqual(['Clôturé', 'En cours'])
+  })
+})
+
 describe('clôture et déclôture', () => {
   it('clôture refusée hors équilibre (écart dit par le domaine) ; acceptée à l’équilibre', async () => {
     await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])

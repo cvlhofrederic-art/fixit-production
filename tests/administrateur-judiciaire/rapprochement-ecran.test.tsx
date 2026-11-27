@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TresorerieModule } from '@/components/administrateur-judiciaire/modules/finances/TresorerieModule'
 import { ToastContext, type ToastApi } from '@/components/administrateur-judiciaire/ui/toast'
-import { enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
+import { cloturerCompteBancaire, enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { abandonnerArreteCompte, cloturerArreteCompte, ouvrirArreteCompte } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
@@ -474,5 +474,64 @@ describe('Rapprochement : corrections de la décision du 26/11/2026 (rb-13, rb-c
     // Ordre de la liste : celui de la base (création dans la même milliseconde), donc comparé sans l'ordre.
     expect(Array.from(liste.options).map((option) => option.text).sort()).toEqual(['Compte principal · …0189', 'Fonds de travaux · …2606', 'Placement sans IBAN'])
     expect(Array.from(liste.options).map((option) => option.value)).toContain(autre.id)
+  })
+})
+
+describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la 799, point 18, décision du 26/11/2026)', () => {
+  const PHRASE = 'Compte clôturé : ses arrêtés sont consultables en lecture seule.'
+
+  /** Compte clôturé aux deux arrêtés clôturés (le plus récent affiché, les deux listés). */
+  async function compteCloture() {
+    const ferme = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Ancien compte', iban: IBAN_B, bic: null, etablissement: null })
+    const un = await ouvrirArreteCompte(ferme.id, { dateArrete: '2026-03-31', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(un.id)
+    const deux = await ouvrirArreteCompte(ferme.id, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(deux.id)
+    await cloturerCompteBancaire(ferme.id)
+    return ferme
+  }
+
+  it('proposé après les comptes actifs, marqué « (clôturé) » ; arrêtés affichés sans aucune action ni « Nouvel arrêté »', async () => {
+    const ferme = await compteCloture()
+    await rendre()
+    const liste = dansPanneau().getByLabelText('Compte rapproché') as HTMLSelectElement
+    expect(Array.from(liste.options).map((option) => option.text)).toEqual(['Compte principal · …0189', 'Ancien compte · …2606 (clôturé)'])
+    // Compte actif d'abord : ses actions restent là, sans la phrase.
+    expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
+    expect(dansPanneau().queryByText(PHRASE)).toBeNull()
+
+    fireEvent.change(liste, { target: { value: ferme.id } })
+    await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 30/04/2026' })).toBeInTheDocument())
+    expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
+    expect(dansPanneau().getAllByText('Clôturé').length).toBeGreaterThan(0)
+    const liste2 = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row').slice(1)
+    expect(liste2.map((ligne) => ligne.textContent?.slice(0, 10))).toEqual(['30/04/2026', '31/03/2026'])
+    for (const nom of [/Nouvel arrêté/, /Clôturer/, /Déclôturer/, /Abandonner/]) expect(dansPanneau().queryByRole('button', { name: nom })).toBeNull()
+
+    // Retour sur un compte actif : actions et absence de la phrase.
+    fireEvent.change(liste, { target: { value: banqueId } })
+    await waitFor(() => expect(dansPanneau().queryByText(PHRASE)).toBeNull())
+    await waitFor(() => expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled())
+  })
+
+  it('aucun compte actif, un compte clôturé : choisi d’office, en lecture seule', async () => {
+    await ajDb.banques.clear()
+    await compteCloture()
+    await rendre()
+    expect(dansPanneau().getByLabelText('Compte rapproché')).toHaveDisplayValue('Ancien compte · …2606 (clôturé)')
+    expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
+    expect(dansPanneau().queryByRole('button', { name: /Nouvel arrêté/ })).toBeNull()
+  })
+
+  it('compte clôturé avec un arrêté en cours (relevé par la relecture) : affiché, en lecture seule, ni clôture ni abandon', async () => {
+    const ferme = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Ancien compte', iban: IBAN_B, bic: null, etablissement: null })
+    await ouvrirArreteCompte(ferme.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
+    await cloturerCompteBancaire(ferme.id)
+    await rendre()
+    fireEvent.change(dansPanneau().getByLabelText('Compte rapproché'), { target: { value: ferme.id } })
+    await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/05/2026' })).toBeInTheDocument())
+    expect(dansPanneau().getByText('En cours')).toBeInTheDocument()
+    expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
+    for (const nom of [/Nouvel arrêté/, /Clôturer/, /Déclôturer/, /Abandonner/]) expect(dansPanneau().queryByRole('button', { name: nom })).toBeNull()
   })
 })
