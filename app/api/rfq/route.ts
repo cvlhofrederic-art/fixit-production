@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { isProSocieteRole } from '@/lib/auth-helpers'
+import { getUserRole, isProSocieteRole } from '@/lib/auth-helpers'
+import { lirePerimetreBtp, niveauSur } from '@/lib/btp/perimetre-compte'
+import { societeNonResolue } from '@/lib/btp/titulaire-documents'
 
 // Ce qui est saisi ici part par e-mail, depuis l'adresse d'envoi de la plateforme, à chaque fournisseur actif du
 // pays (lib/email-rfq.ts) : chaque champ a une longueur maximale, et une demande porte 100 lignes au plus.
@@ -37,6 +39,27 @@ function getSupabase() {
   if (!url || !key) throw new Error('Missing Supabase env vars')
   return createClient(url, key)
 }
+/**
+ * Compte sous lequel les demandes de prix sont lues et rangées, ou null pour un refus (26/11/2026).
+ *
+ * Un compte invité dans une société BTP les rangeait sous SON identifiant : la secrétaire envoyait une demande (les
+ * e-mails partaient chez les fournisseurs) que le gérant ne voyait jamais, et aucun module n'était vérifié — un
+ * comptable sans « Devis fournisseurs » pouvait en envoyer. Désormais : la société, avec le module rfq_btp (lecture :
+ * READ ou FULL ; envoi et décision sur une offre : FULL). Tout autre compte — artisan, super_admin, gérant titulaire —
+ * garde son propre identifiant, comme avant.
+ */
+async function proprietaireDesDemandes(user: User, admin: SupabaseClient, ecriture: boolean): Promise<string | null> {
+  if (getUserRole(user) !== 'pro_societe') return user.id
+  const perimetre = await lirePerimetreBtp(user, admin)
+  if (perimetre.titulaire) return user.id
+  if (societeNonResolue(user, perimetre)) return null
+  const niveau = niveauSur(perimetre, 'rfq_btp')
+  if (ecriture ? niveau !== 'FULL' : niveau === 'NONE') return null
+  return perimetre.societeId
+}
+
+const REFUS_ROLE = "Votre rôle dans l'entreprise ne donne pas accès aux demandes de prix aux fournisseurs."
+
 function getSupabaseAnon() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -58,10 +81,12 @@ export async function GET(req: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const supabase = getSupabase()
+    const proprietaire = await proprietaireDesDemandes(user, supabase, false)
+    if (!proprietaire) return NextResponse.json({ error: REFUS_ROLE }, { status: 403 })
     const { data: rfqs, error } = await supabase
       .from('rfqs')
       .select('*, rfq_items(*), offers(id, supplier_name, total_price, delivery_days, status, created_at)')
-      .eq('user_id', user.id)
+      .eq('user_id', proprietaire)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -90,6 +115,8 @@ export async function POST(req: NextRequest) {
     if (!(await checkRateLimit(`rfq_post_${user.id}`, DEMANDES_MAX_PAR_MINUTE, 60_000))) return rateLimitResponse()
 
     const supabase = getSupabase()
+    const proprietaire = await proprietaireDesDemandes(user, supabase, true)
+    if (!proprietaire) return NextResponse.json({ error: REFUS_ROLE }, { status: 403 })
     const rawBody = await req.json()
     const parsed = rfqBodySchema.safeParse(rawBody)
     if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
@@ -107,7 +134,7 @@ export async function POST(req: NextRequest) {
 
     const { data: rfq, error: rfqError } = await supabase
       .from('rfqs')
-      .insert({ user_id: user.id, title, message, country, status: 'pending' })
+      .insert({ user_id: proprietaire, title, message, country, status: 'pending' })
       .select()
       .single()
 
@@ -190,6 +217,8 @@ export async function PATCH(req: NextRequest) {
     const { offer_id, status } = parsed.data
 
     const supabase = getSupabase()
+    const proprietaire = await proprietaireDesDemandes(user, supabase, true)
+    if (!proprietaire) return NextResponse.json({ error: REFUS_ROLE }, { status: 403 })
     const { data: offre, error: offreError } = await supabase
       .from('offers')
       .select('id, rfq_id, status, total_price')
@@ -202,7 +231,7 @@ export async function PATCH(req: NextRequest) {
       .from('rfqs')
       .select('id, status')
       .eq('id', offre.rfq_id)
-      .eq('user_id', user.id)
+      .eq('user_id', proprietaire)
       .maybeSingle()
     if (demandeError) throw demandeError
     if (!demande) return NextResponse.json({ error: 'Offre introuvable' }, { status: 404 })

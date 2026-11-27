@@ -4,7 +4,9 @@
 //   - mode artisan_id : 403 si la fiche n'appartient pas à l'utilisateur connecté, 200 avec ses clients
 //     (réservations groupées par client) ;
 //   - mode client_id : 403 sans réservation commune, 200 avec ;
-//   - 400 sans paramètre.
+//   - 400 sans paramètre ;
+//   - compte invité dans une société BTP (26/11/2026) : la fiche de SA société s'il a le module clients, jamais une
+//     autre ; un salarié de terrain (clients NONE) est refusé.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -13,15 +15,18 @@ type Ligne = Record<string, unknown>
 
 const h = vi.hoisted(() => {
   const etat = {
-    user: null as null | { id: string },
+    user: null as null | { id: string; app_metadata?: Record<string, unknown> },
     profils: [] as Array<{ id: string; user_id: string }>,
+    /** Lignes d'équipe (pro_team_members) : rattachement d'un compte invité à sa société. */
+    equipe: [] as Ligne[],
     bookings: [] as Ligne[],
     utilisateurs: {} as Record<string, { id: string; email: string; user_metadata: Record<string, unknown> }>,
   }
   const from = (table: string) => {
     const filtres: Array<[string, unknown]> = []
     const lignes = (): Ligne[] => {
-      const source: Ligne[] = table === 'profiles_artisan' ? etat.profils : table === 'bookings' ? etat.bookings : []
+      const sources: Record<string, Ligne[]> = { profiles_artisan: etat.profils, bookings: etat.bookings, pro_team_members: etat.equipe }
+      const source: Ligne[] = sources[table] ?? []
       return source.filter((l) => filtres.every(([c, v]) => l[c] === v))
     }
     const b: Record<string, unknown> = {}
@@ -34,6 +39,7 @@ const h = vi.hoisted(() => {
       const [premiere] = lignes()
       return premiere ? { data: premiere, error: null } : { data: null, error: { message: 'no rows' } }
     }
+    b.maybeSingle = async () => ({ data: lignes()[0] ?? null, error: null })
     b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
       Promise.resolve({ data: lignes(), error: null }).then(ok, ko)
     return b
@@ -41,7 +47,7 @@ const h = vi.hoisted(() => {
   return { etat, from }
 })
 
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.user) }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => h.etat.user))
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(async () => true),
   getClientIP: vi.fn(() => '127.0.0.1'),
@@ -78,6 +84,7 @@ const appeler = async (query: string) => {
 
 beforeEach(() => {
   h.etat.user = { id: USER_A }
+  h.etat.equipe = []
   h.etat.profils = [
     { id: ARTISAN_A, user_id: USER_A },
     { id: ARTISAN_B, user_id: USER_B },
@@ -149,5 +156,49 @@ describe('GET /api/artisan-clients?client_id — pré-remplissage du devis', () 
     h.etat.user = { id: '770e8400-e29b-41d4-a716-446655440002' }
     const res = await appeler(`?client_id=${CLIENT_1}`)
     expect(res.status).toBe(403)
+  })
+})
+
+describe('GET /api/artisan-clients — compte invité dans une société BTP', () => {
+  // ARTISAN_A tient lieu de fiche de la société, USER_A de compte titulaire. Un compte neuf par cas : resolveCompanyId
+  // garde la société d'un compte 60 s en mémoire.
+  let compteur = 0
+  const invite = (role: string) => {
+    compteur += 1
+    const id = `00000000-0000-4000-9200-${String(compteur).padStart(12, '0')}`
+    h.etat.user = { id, app_metadata: { role: 'pro_societe', pro_team_role: role, company_id: USER_A } }
+    h.etat.equipe = [{ id: `membre-${id}`, user_id: id, company_id: USER_A, is_active: true }]
+    return id
+  }
+
+  it('la secrétaire voit les clients de la société (l’écran envoie son propre compte)', async () => {
+    const id = invite('SECRETAIRE')
+    const res = await appeler(`?artisan_id=${id}`)
+    expect(res.status).toBe(200)
+    expect(res.json.clients.map((c: { id: string }) => c.id)).toEqual([CLIENT_1])
+  })
+
+  it('le co-gérant peut désigner directement la fiche de la société', async () => {
+    invite('GERANT')
+    expect((await appeler(`?artisan_id=${ARTISAN_A}`)).status).toBe(200)
+  })
+
+  it('jamais la fiche d’une autre entreprise', async () => {
+    invite('GERANT')
+    const res = await appeler(`?artisan_id=${ARTISAN_B}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('un salarié de terrain (clients fermés) est refusé', async () => {
+    const id = invite('OUVRIER')
+    expect((await appeler(`?artisan_id=${id}`)).status).toBe(403)
+    expect((await appeler(`?client_id=${CLIENT_1}`)).status).toBe(403)
+  })
+
+  it('pré-remplissage du devis : un client de la société est rendu à la secrétaire', async () => {
+    invite('SECRETAIRE')
+    const res = await appeler(`?client_id=${CLIENT_1}`)
+    expect(res.status).toBe(200)
+    expect(res.json.id).toBe(CLIENT_1)
   })
 })

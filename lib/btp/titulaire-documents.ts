@@ -258,13 +258,16 @@ export async function resoudreTitulaireDocuments(
   if (!ficheId) return refus('fiche_societe_absente')
 
   const lisibles = famillesLisibles(perimetre)
+  // Sans droit sur les documents, le compte ne reçoit que de quoi afficher son entreprise. Celui qui peut modifier la
+  // fiche (« Mon profil » en FULL, par dérogation du gérant) la reçoit entière, secrets retirés : sinon son formulaire
+  // et ses zones d'intervention s'ouvraient vides, et un enregistrement remplaçait des valeurs qu'il ne voyait pas.
+  const ficheEntiere = lisibles.length > 0 || niveauSur(perimetre, 'settings') === 'FULL'
   return {
     ok: true,
     perimetre,
     societeId: perimetre.societeId,
     ficheId,
-    // Sans droit sur les documents, le compte ne reçoit que de quoi afficher son entreprise.
-    fiche: lisibles.length === 0 ? ficheEnTeteSeulement(fiche) : ficheSansSecrets(fiche),
+    fiche: ficheEntiere ? ficheSansSecrets(fiche) : ficheEnTeteSeulement(fiche),
     lisibles,
   }
 }
