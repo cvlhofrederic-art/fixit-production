@@ -3,6 +3,9 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
+import { toast } from 'sonner'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import { absencesDetaillees, lireAbsencesArtisan } from '@/lib/absences-artisan'
 
 type SlotType = 'rdv' | 'visite'
@@ -25,6 +28,20 @@ export function useAvailability(
 
   const toggleAutoAccept = useCallback(async () => {
     const newVal = !autoAccept
+    if (estSousCompteSociete(artisan)) {
+      // Compte invité : la fiche est celle de la société, que la RLS ne le laisse pas modifier (elle filtrait sans
+      // erreur et l'interrupteur basculait quand même). Le serveur l'écrit s'il en a le droit ; l'interrupteur ne
+      // bascule qu'une fois l'enregistrement fait.
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const res = token
+        ? await authFetch('/api/artisan-settings', token, { method: 'POST', body: JSON.stringify({ auto_accept: newVal }) }).catch(() => null)
+        : null
+      if (res?.ok) { setAutoAccept(newVal); return }
+      const corps = res ? await res.json().catch(() => ({})) as { error?: string; code?: string } : {}
+      const estPt = typeof document !== 'undefined' && document.documentElement.lang.startsWith('pt')
+      toast.error(messageRefusDocuments({ message: corps.error || (estPt ? 'Não foi possível guardar.' : 'Enregistrement impossible.'), code: corps.code }, estPt))
+      return
+    }
     setAutoAccept(newVal)
     if (artisan) {
       await supabase.from('profiles_artisan').update({ auto_accept: newVal }).eq('id', artisan.id)

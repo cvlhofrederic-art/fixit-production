@@ -131,6 +131,9 @@ export function estRoleDeTerrain(role: string | null | undefined): boolean {
  *   lib/dictionnaire-materiaux/disponibilite.ts) ;
  * - `settings` en lecture : « Mon profil » s'ouvre, pour changer son mot de passe ; /api/btp ne lui rend pas les
  *   réglages de la société et n'en accepte l'écriture qu'en FULL.
+ * - `rapports` : fermé par défaut. Décision de Frédéric du 26/11/2026 : « C'est moi qui donnerait les accès ou pas aux
+ *   rapports uniquement aux employés qui le font » — il l'accorde employé par employé, en lecture (voir les rapports de la
+ *   société) ou en écriture (les rédiger et les modifier), depuis Gestion des comptes → Modifier.
  * - `outillage` en lecture, pour le responsable de chantier seulement (`responsableDeChantier` : chef de chantier
  *   et conducteur de travaux, pas l'ouvrier) : les outils et véhicules de SES chantiers, et la vérification de chaque
  *   vendredi qu'il valide (demande de Frédéric du 26/11/2026). Comme le pointage, /api/btp/outillage laisse ce niveau

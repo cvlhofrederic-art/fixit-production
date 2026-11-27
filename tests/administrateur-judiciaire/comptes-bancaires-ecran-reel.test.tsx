@@ -145,7 +145,9 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     await rendre()
     const titres = screen.getAllByRole('heading', { level: 3 }).map((titre) => titre.textContent)
     expect(titres.indexOf('Comptes bancaires du mandat')).toBe(0)
-    expect(titres.indexOf('Importer un relevé')).toBe(1)
+    // Puis le rapprochement (maquette : ses deux panneaux avant l'import), puis l'import du relevé.
+    expect(titres.indexOf('Rapprochement bancaire')).toBe(1)
+    expect(titres.indexOf('Importer un relevé')).toBe(2)
     expect(screen.queryByRole('combobox', { name: 'Exemple' })).toBeNull()
   })
 
@@ -609,5 +611,22 @@ describe('Comptes bancaires en mode réel — données relues', () => {
     await patienter()
     expect(lignesComptes()).toHaveLength(0)
     expect(dansPanneau().getByText('Aucun compte enregistré pour cette copropriété.')).toBeInTheDocument()
+  })
+})
+
+describe('Rapprochement en mode réel', () => {
+  it('« Nouvel arrêté » : date du jour réelle proposée, arrêté écrit dans « rapprochements » sur le compte créé', async () => {
+    const { AUJOURDHUI_ISO } = await import('@/lib/administrateur-judiciaire/mode')
+    const cree = await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    const { push } = await rendre()
+    const rapprochement = screen.getByRole('heading', { level: 3, name: 'Rapprochement bancaire' }).closest('.panel') as HTMLElement
+    fireEvent.click(within(rapprochement).getByRole('button', { name: /Nouvel arrêté/ }))
+    expect(dialogue().getByLabelText('Date de l’arrêté')).toHaveValue(AUJOURDHUI_ISO)
+    fireEvent.change(dialogue().getByLabelText('Solde banque'), { target: { value: '0' } })
+    await enregistrer()
+    expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Arrêté ouvert' })
+    expect(await ajDb.rapprochements.toArray()).toEqual([
+      expect.objectContaining({ bancaireId: cree.id, dateArrete: AUJOURDHUI_ISO, soldeBanqueCentimes: 0, soldeComptaCentimes: 0, statut: 'En cours' }),
+    ])
   })
 })
