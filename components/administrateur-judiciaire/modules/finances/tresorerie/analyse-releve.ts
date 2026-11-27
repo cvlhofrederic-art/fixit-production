@@ -228,7 +228,10 @@ function lignesExistantes(entree: EntreeAnalyseReleve): LigneReleve[] {
  * groupé par quatre, comme partout ailleurs dans le module. Le domaine garde l'IBAN tel que lu dans le fichier.
  */
 export const textePourEcran = (texte: string): string =>
-  texte.replaceAll(/\bIBAN ([A-Z]{2}\d{2}[A-Z0-9]{11,30})\b/g, (_, iban: string) => `IBAN ${ibanGroupe(iban)}`)
+  texte
+    .replaceAll(/\bIBAN ([A-Z]{2}\d{2}[A-Z0-9]{11,30})\b/g, (_, iban: string) => `IBAN ${ibanGroupe(iban)}`)
+    // Nom court d'une fiche (« Compte principal · …7849 ») : « … » et les quatre chiffres restent sur la même ligne (joint insécable).
+    .replaceAll(/…(?=\d)/g, '…⁠')
 
 /** Montant d'un relevé lu pour « Relevés lus » : le symbole de l'euro à la place du code « EUR » (rb-c08 A) ; autre devise : son code. */
 const montantLu = (montantMineur: number, decimales: number, devise: string): string =>

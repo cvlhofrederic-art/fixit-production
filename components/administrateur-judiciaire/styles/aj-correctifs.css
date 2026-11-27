@@ -150,3 +150,9 @@
 #aj-root .vfx-import-actions>span{order:-1}
 #aj-root .vfx-import-actions>.btn{flex-shrink:0}
 }
+
+/*
+ * PR 799, relevés importés : les pastilles de la colonne « État » de « Relevés lus » (« Déjà importé », « Non repris, à vérifier »)
+ * passaient sur deux lignes à 1440 px. Elles restent sur une ligne, à toute largeur (la fiche du téléphone les aligne à droite).
+ */
+#aj-root .vfx-etat-releve .pill{white-space:nowrap}

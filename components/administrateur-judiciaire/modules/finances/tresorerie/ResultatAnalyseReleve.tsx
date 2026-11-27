@@ -155,7 +155,7 @@ function TableauRelevesLus({ releves }: Readonly<{ releves: readonly ReleveLu[] 
               <td role="cell" className="num-cell" style={{ textAlign: 'right' }} data-label="Mouvements">
                 {releve.mouvements}
               </td>
-              <td role="cell" data-label="État">
+              <td role="cell" className="vfx-etat-releve" data-label="État">
                 <Pill kind={PILL_ETAT_RELEVE[releve.etat].kind} noDot>
                   {PILL_ETAT_RELEVE[releve.etat].label}
                 </Pill>

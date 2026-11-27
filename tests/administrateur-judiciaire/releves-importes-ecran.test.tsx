@@ -185,7 +185,7 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
       // Puis celui du 06/10 au 07/10/2026, sans mouvement non plus.
       suivant = sansMouvement.map((ligne) => ligne.replace('061026', '071026').replace('051026', '061026')),
       PHRASE_SANS_LIGNE =
-        'Aucune ligne à écrire. Le relevé est gardé : il sera reconnu au prochain import, et son solde de clôture pourra être repris dans un arrêté.',
+        'Aucune ligne à écrire. « Enregistrer le relevé » le garde : il sera reconnu au prochain import, et son solde de clôture pourra être repris dans un arrêté.',
       PHRASE_LIGNES = 'Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.'
 
     it('relevé déjà importé suivi d’un relevé nouveau sans mouvement : « Enregistrer le relevé » le garde, sans écrire de ligne', async () => {
@@ -235,6 +235,9 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
       expect(titresAlertes()).toEqual([])
       expect(etatsRelevesLus()).toEqual(['Contrôlé', 'Contrôlé'])
       expect(boutonEnregistrer()).toHaveTextContent('Enregistrer les 2 relevés')
+      expect(panneauImport().textContent).toContain(
+        'Aucune ligne à écrire. « Enregistrer les 2 relevés » les garde : ils seront reconnus au prochain import, et leur solde de clôture pourra être repris dans un arrêté.',
+      )
       const avant = pushCourant.mock.calls.length
       await act(async () => {
         fireEvent.click(boutonEnregistrer())
@@ -289,7 +292,7 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     expect(titresAlertes()).toEqual(['Relevé déjà importé'])
     const bandeau = alerte('Relevé déjà importé') as HTMLElement
     expect(bandeau.textContent).toContain(
-      'Relevé 1 (IBAN FR76 1234 5000 1000 0123 4567 849, du 30/09/2026 au 05/10/2026) : déjà importé le 04/06/2026 sur un autre compte de la copropriété (« Compte principal · …7849 », clôturé), ses 4 mouvements ne sont pas repris.',
+      'Relevé 1 (IBAN FR76 1234 5000 1000 0123 4567 849, du 30/09/2026 au 05/10/2026) : déjà importé le 04/06/2026 sur un autre compte de la copropriété (« Compte principal · …\u20607849 », clôturé), ses 4 mouvements ne sont pas repris.',
     )
     expect(bandeau.textContent).toContain('Rien à importer : tous les relevés de ce fichier sont déjà enregistrés.')
     expect(etatsRelevesLus()).toEqual(['Déjà importé'])
@@ -425,11 +428,11 @@ describe('« Nouvel arrêté » : solde banque repris du dernier relevé import�
     expect(champDate().value).toBe(AUJOURDHUI_ISO)
     expect(champSolde().value).toBe('472,94')
     expect(aide()).toBe(
-      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté : à vérifier. Modifiable ; négatif : découvert.',
+      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté : à vérifier. Modifiable\u00A0; négatif\u00A0: découvert.',
     )
     fireEvent.change(champDate(), { target: { value: '2026-05-05' } })
     expect(champSolde().value).toBe('472,94')
-    expect(aide()).toBe('Solde de clôture du relevé du 05/05/2026, modifiable ; négatif : découvert.')
+    expect(aide()).toBe('Solde de clôture du relevé du 05/05/2026, modifiable\u00A0; négatif\u00A0: découvert.')
     // Avant la clôture du relevé : plus rien à proposer.
     fireEvent.change(champDate(), { target: { value: '2026-05-04' } })
     expect(champSolde().value).toBe('')
@@ -510,10 +513,10 @@ describe('solde proposé : texte du champ et aide (fonctions pures)', () => {
   it('aide : source « relevé du JJ/MM/AAAA », réserve quand le relevé est clos avant la date de l’arrêté', () => {
     expect(aideSoldeBanque(null)).toBe('Solde du relevé de la banque à cette date ; négatif : découvert.')
     expect(aideSoldeBanque({ centimes: 1, dateReleve: '2026-05-05', anterieur: false })).toBe(
-      'Solde de clôture du relevé du 05/05/2026, modifiable ; négatif : découvert.',
+      'Solde de clôture du relevé du 05/05/2026, modifiable\u00A0; négatif\u00A0: découvert.',
     )
     expect(aideSoldeBanque({ centimes: 1, dateReleve: '2026-05-05', anterieur: true })).toBe(
-      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté : à vérifier. Modifiable ; négatif : découvert.',
+      'Solde de clôture du relevé du 05/05/2026, antérieur à la date de l’arrêté : à vérifier. Modifiable\u00A0; négatif\u00A0: découvert.',
     )
   })
 })

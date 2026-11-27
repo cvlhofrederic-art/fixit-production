@@ -152,8 +152,11 @@ function libelleImporter(analyse: AnalyseReleve): string {
 
 /** Phrase à côté du bouton : ce que fait l'import. */
 const PHRASE_IMPORT = 'Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.'
-const PHRASE_RELEVE_SANS_LIGNE =
-  'Aucune ligne à écrire. Le relevé est gardé : il sera reconnu au prochain import, et son solde de clôture pourra être repris dans un arrêté.'
+/** Avant le clic : le relevé n'est pas encore gardé, c'est « Enregistrer … » qui le garde (accord selon le nombre de relevés). */
+const phraseReleveSansLigne = (releves: number): string =>
+  releves > 1
+    ? `Aucune ligne à écrire. « Enregistrer les ${releves} relevés » les garde : ils seront reconnus au prochain import, et leur solde de clôture pourra être repris dans un arrêté.`
+    : 'Aucune ligne à écrire. « Enregistrer le relevé » le garde : il sera reconnu au prochain import, et son solde de clôture pourra être repris dans un arrêté.'
 
 /** Relevés déjà importés (sur ce compte ou sur une autre fiche de la copropriété), annoncés avec le résultat de l'analyse ; null : aucun. */
 function annonceDejaImportes(nombre: number): string | null {
@@ -366,7 +369,7 @@ export function ImportRelevePanel({
                 color: 'var(--navy-500)',
               }}
             >
-              {relevesSeulsAGarder(analyse) ? PHRASE_RELEVE_SANS_LIGNE : PHRASE_IMPORT}
+              {relevesSeulsAGarder(analyse) ? phraseReleveSansLigne(analyse.relevesAImporter.length) : PHRASE_IMPORT}
             </span>
           </div>
         </div>
