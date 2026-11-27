@@ -20,6 +20,7 @@ import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase, fusionnerDocumentsDeLaBase } from '@/lib/document-sync'
 import { lireDocumentsSociete, lireTitulaireSociete } from '@/lib/documents/societe-client'
 import { messageRefusDocuments } from '@/lib/documents/messages-refus'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
 import { dedupeDocsByIdentity, optionsFusionPourRole } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -285,7 +286,8 @@ function DashboardPage() {
     onNewBooking: (b: Booking) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
     getAuthToken: getDashAuthToken,
     t, isPt,
-  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
+    estSociete: orgRole === 'pro_societe',
+  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking, orgRole])
   const {
     notifications, setNotifications,
     showNotifDropdown, setShowNotifDropdown,
@@ -418,6 +420,13 @@ function DashboardPage() {
         user_id: titulaire.valeur.societeId,
         fiche_societe_id: titulaire.valeur.ficheId,
       })
+      // « Mon profil » part de la fiche de la société, comme pour le gérant. Sans cela le formulaire restait vide, sans
+      // valeurs de référence, et son premier enregistrement aurait effacé nom, coordonnées et mentions légales de la
+      // fiche. Aucune adresse de connexion en repli : celle du salarié n'est pas celle de l'entreprise.
+      initSettingsForm(ficheSociete, '', role)
+      // État de l'interrupteur « Validation automatique » : celui de la société (absent de la fiche d'en-tête d'un
+      // salarié de terrain, qui ne peut de toute façon pas le changer).
+      setAutoAccept(!!(ficheSociete as { auto_accept?: unknown }).auto_accept)
 
       // Ses propres brouillons d'abord, pour que l'écran s'ouvre tout de suite, puis la liste de la société.
       try {
@@ -1646,6 +1655,7 @@ function DashboardPage() {
               <MeteoChantierSection
                 userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt}
                 importDevis={isProGerant || proCanAccess('devis')} gestionChantiers={isProGerant || proCanWrite('chantiers')}
+                devisParLeServeur={estSousCompteSociete(artisan)}
               />
             </SectionErrorBoundary>
           )}

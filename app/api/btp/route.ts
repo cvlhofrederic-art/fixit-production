@@ -124,8 +124,9 @@ async function chantiersDuSalarie(
 type Rattachement = ResolutionMembre['statut'] | null
 
 /**
- * Lecture d'une liste pour le compte connecté : rien si son rôle n'y a pas accès, tout s'il a FULL, sinon la vue
- * restreinte (moins de lignes ET moins de colonnes, voir lib/btp/perimetre-compte.ts).
+ * Lecture d'une liste pour le compte connecté : rien si son rôle n'y a pas accès, tout s'il a FULL (ou READ sur une
+ * liste montrée en entier en lecture, comme les rapports), sinon la vue restreinte (moins de lignes ET moins de
+ * colonnes, voir lib/btp/perimetre-compte.ts).
  */
 async function lireListePour(
   perimetre: PerimetreBtp,

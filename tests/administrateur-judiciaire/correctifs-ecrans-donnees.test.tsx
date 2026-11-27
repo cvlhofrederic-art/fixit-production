@@ -9,10 +9,12 @@ import { PrestatairesModule } from '@/components/administrateur-judiciaire/modul
 import { Fiche360PersonneModule } from '@/components/administrateur-judiciaire/modules/pilotage/Fiche360PersonneModule'
 import { RepriseJudiciaireModule } from '@/components/administrateur-judiciaire/modules/pilotage/RepriseJudiciaireModule'
 import { ToastContext, type ToastApi } from '@/components/administrateur-judiciaire/ui/toast'
+import { enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
+import { estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { PIECES_REPRISE } from '@/lib/administrateur-judiciaire/domain/reprise'
 import { AUJOURDHUI_ISO, CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
@@ -223,8 +225,9 @@ describe('Banque et recouvrement — imputations concurrentes (constat 24)', () 
     etat().ecritures.filter(
       (ecriture) => ecriture.compte.startsWith('450-') && ecriture.libelle.endsWith(`relevé ${ecritureId}`),
     )
+  // Ligne de banque : « 512 » seul (import du store) ou sous-compte 512 du compte choisi à l'import de l'écran.
   const ligne512 = (libelle: string) => {
-    const ecriture = etat().ecritures.find((candidate) => candidate.compte === '512' && candidate.libelle === libelle)
+    const ecriture = etat().ecritures.find((candidate) => estCompteBanque(candidate.compte) && candidate.libelle === libelle)
     if (!ecriture) throw new Error(`Ligne introuvable : ${libelle}`)
     return ecriture
   }
@@ -277,7 +280,10 @@ describe('Banque et recouvrement — imputations concurrentes (constat 24)', () 
       '08/06/2026;VIR IMPORT 3;30,00',
       '09/06/2026;VIR IMPORT 4;40,00',
     ].join('\n')
+    // L'import de l'écran se fait sur un compte bancaire de la copropriété (choisi d'office : le seul actif).
+    await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Compte principal', iban: null, bic: null, etablissement: null })
     const { push } = rendre(<TresorerieModule />)
+    await waitFor(() => expect(screen.getByLabelText('Compte bancaire du relevé')).toHaveDisplayValue('Compte principal'))
     fireEvent.change(screen.getByLabelText('Relevé bancaire'), { target: { value: releve } })
     fireEvent.click(screen.getByRole('button', { name: /Analyser/ }))
     for (let numero = 1; numero <= 4; numero++)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  abandonnerArrete,
   cloturerArrete,
   decloturerArrete,
   etatArrete,
@@ -14,6 +15,9 @@ import {
  * - Équilibre : solde banque − suspens banque = solde compta − suspens compta.
  * - Taux rapproché automatiquement / manuellement (colonnes Rap% et Man% de Gestéam).
  * - Un seul arrêté « En cours » par compte ; clôture à l'équilibre ; seule la dernière clôture se déclôture.
+ * - Décision du 26/11/2026 (rb-01) : un arrêté « En cours » s'abandonne (statut « Abandonné », hors de toute règle),
+ *   jamais un arrêté clôturé. Un arrêté déjà clôturé ne se clôture pas une seconde fois (rb-03 : son solde compta est
+ *   figé à la clôture).
  */
 
 const el = (id: string, cote: 'banque' | 'compta', montantCentimes: number, rapproche: ElementRapprochement['rapproche']): ElementRapprochement => ({
@@ -85,6 +89,30 @@ describe('rapprochement — ouverture, clôture, déclôture', () => {
   it('clôture seulement à l’équilibre', () => {
     expect(() => cloturerArrete(arrete())).toThrow(/équilibr/i)
     expect(cloturerArrete(arrete({ soldeComptaCentimes: 970_000 })).statut).toBe('Clôturé')
+  })
+
+  it('clôture refusée pour un arrêté déjà clôturé, même à l’équilibre (rb-03 : solde compta figé à la clôture)', () => {
+    expect(() => cloturerArrete(arrete({ soldeComptaCentimes: 970_000, statut: 'Clôturé' }))).toThrow('Clôture refusée : arrêté déjà clôturé.')
+  })
+
+  it('abandon d’un arrêté en cours (rb-01) : statut « Abandonné », rien d’autre ne change', () => {
+    const enCours = arrete({ elements: [el('e3', 'compta', -40_000, false)] })
+    expect(abandonnerArrete(enCours)).toEqual({ ...enCours, statut: 'Abandonné' })
+    // L'arrêté reçu n'est pas modifié.
+    expect(enCours.statut).toBe('En cours')
+  })
+
+  it('abandon refusé pour un arrêté clôturé (rb-01 : jamais un arrêté clôturé)', () => {
+    expect(() => abandonnerArrete(arrete({ statut: 'Clôturé', elements: [] }))).toThrow(
+      'Abandon refusé : seul un arrêté en cours peut être abandonné (arrêté « Clôturé »).',
+    )
+  })
+
+  it('abandon refusé tant qu’un élément est pointé : un pointage ne se perd pas sans bruit', () => {
+    expect(() => abandonnerArrete(arrete())).toThrow('Abandon refusé : 3 éléments pointés sur cet arrêté, à dépointer d’abord.')
+    expect(() => abandonnerArrete(arrete({ elements: [el('e5', 'banque', 8_000, 'manuel')] }))).toThrow(
+      'Abandon refusé : 1 élément pointé sur cet arrêté, à dépointer d’abord.',
+    )
   })
 
   it('déclôture seulement le dernier arrêté clôturé du compte, sans arrêté en cours', () => {

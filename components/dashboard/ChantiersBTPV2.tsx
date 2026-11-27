@@ -13,6 +13,9 @@ import { confirmationRelocaliser } from '@/components/dashboard/btp/pointage/tex
 import { COLONNES_LIEU_DEVIS, champsAdresseDuLieu, libelleChoixDevis, lieuDuDevis, messageAdresseImportee } from '@/lib/btp/lieu-devis'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
+import { lierDevisAuChantierSociete, lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import { toast } from 'sonner'
 import {
   PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
@@ -68,6 +71,34 @@ const COLONNES_DEVIS_IMPORT = 'id, numero, client_name, total_ht_cents, items, c
 interface MembreSummary {
   id: string; prenom: string; nom: string; role: string
   daily_cost: number; actif: boolean
+}
+
+type DocLie = { id: string; type: 'devis' | 'facture'; numero: string; client_name: string; total_ht: number | null; status: string }
+type LigneDocument = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Devis et factures rattachés, rangés par chantier (lignes de la table, lues par le navigateur ou par le serveur). */
+function grouperDocumentsLies(devis: readonly LigneDocument[], factures: readonly LigneDocument[]): Record<string, DocLie[]> {
+  const grouped: Record<string, DocLie[]> = {}
+  const ranger = (d: LigneDocument, type: DocLie['type']) => {
+    const cid = d.chantier_id as string
+    if (!cid) return
+    if (!grouped[cid]) grouped[cid] = []
+    grouped[cid].push({ id: d.id, type, numero: d.numero || '', client_name: d.client_name || '', total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null, status: d.status || '' })
+  }
+  for (const d of devis) ranger(d, 'devis')
+  for (const f of factures) ranger(f, 'facture')
+  return grouped
+}
+
+/** Devis proposés par « Lier un devis » (au plus 50, dans l'ordre reçu : les plus récents d'abord). */
+function devisALier(lignes: readonly LigneDocument[]) {
+  return lignes.slice(0, 50).map(d => ({
+    id: d.id as string,
+    numero: d.numero || '',
+    client_name: d.client_name || '',
+    total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null,
+    status: d.status || '',
+  }))
 }
 
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
@@ -157,6 +188,27 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dl = isPt ? 'pt-PT' : 'fr-FR'
+  // Compte invité dans la société : ses devis sont ceux de l'entreprise, que la RLS ne lui rend pas. Lus et liés par le
+  // serveur (app/api/pro/documents/chantiers), qui vérifie son rôle ; le titulaire garde ses lectures directes.
+  const sousCompte = estSousCompteSociete(artisan)
+  // Une seule lecture du serveur pour les deux chargements du montage (devis à importer, documents liés). L'ouverture
+  // d'une fiche, « Lier un devis » et la relecture après une liaison la refont. Une lecture en échec n'est pas gardée :
+  // la suivante réessaie (elle servait sinon à chaque ouverture de « Nouveau chantier », tant que l'écran restait ouvert).
+  const lectureSocieteRef = useRef<ReturnType<typeof lireDocumentsDesChantiers> | null>(null)
+  const documentsDeLaSociete = useCallback(async (relire = false) => {
+    if (relire || !lectureSocieteRef.current) lectureSocieteRef.current = lireDocumentsDesChantiers()
+    const lecture = lectureSocieteRef.current
+    const lu = await lecture
+    if (!lu.ok && lectureSocieteRef.current === lecture) lectureSocieteRef.current = null
+    return lu
+  }, [])
+  /**
+   * Une lecture des documents de la société en échec se dit : la liste restait vide, « aucun document lié », « aucun
+   * devis trouvé ». Un rôle sans droit sur les devis (salarié de terrain) n'a rien à y voir : pas de message.
+   */
+  const signalerLectureEnEchec = useCallback((lu: { message: string; code?: string }) => {
+    if (lu.code !== 'aucun_droit') toast.error(messageRefusDocuments(lu, isPt), { id: 'chantiers-documents-societe' })
+  }, [isPt])
 
   const { items: chantiers, loading, add, update, remove } = useBTPData({
     table: 'chantiers',
@@ -201,19 +253,29 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   const [search, setSearch] = useState('')
 
   // ── Fetch devis + membres quand le modal s'ouvre ──
-  const loadDevisAndMembres = useCallback(async () => {
+  const loadDevisAndMembres = useCallback(async (relire = false) => {
     setLoadingDevis(true)
     try {
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = {}
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
       const devisRequete = (colonnes: string) => supabase.from('devis').select(colonnes).eq('artisan_id', artisan?.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50)
-      const [lectureAvecLieu, membresRes] = await Promise.all([
-        devisRequete(`${COLONNES_DEVIS_IMPORT}, ${COLONNES_LIEU_DEVIS}`),
+      const lireDevis = async (): Promise<DevisSummary[] | null> => {
+        if (sousCompte) {
+          // Un rôle sans droit sur les devis (salarié de terrain) reçoit un refus : aucun devis à proposer.
+          const lu = await documentsDeLaSociete(relire)
+          if (!lu.ok) { signalerLectureEnEchec(lu); return null }
+          return lu.valeur.devis.slice(0, 50) as unknown as DevisSummary[]
+        }
+        const lectureAvecLieu = await devisRequete(`${COLONNES_DEVIS_IMPORT}, ${COLONNES_LIEU_DEVIS}`)
+        const devisRes = lectureAvecLieu.error ? await devisRequete(`${COLONNES_DEVIS_IMPORT}, client_address`) : lectureAvecLieu
+        return devisRes.data ? (devisRes.data as unknown as DevisSummary[]) : null
+      }
+      const [devisLus, membresRes] = await Promise.all([
+        lireDevis(),
         fetch('/api/btp?table=membres', { headers }),
       ])
-      const devisRes = lectureAvecLieu.error ? await devisRequete(`${COLONNES_DEVIS_IMPORT}, client_address`) : lectureAvecLieu
-      if (devisRes.data) setDevisList(devisRes.data as unknown as DevisSummary[])
+      if (devisLus) setDevisList(devisLus)
       if (membresRes.ok) {
         const j = await membresRes.json()
         const membres = (j.membres || []).filter((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; daily_cost?: number }) => m.actif !== false)
@@ -253,7 +315,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       }
     } catch (e) { console.error('loadDevisAndMembres:', e) }
     setLoadingDevis(false)
-  }, [artisan?.id, settings])
+  }, [artisan?.id, settings, sousCompte, documentsDeLaSociete, signalerLectureEnEchec])
 
   // ── Géocode ──
   // La position GPS déclenche le pointage automatique des employés : seule une position précise de l'adresse (numéro,
@@ -461,7 +523,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
     setForm(fiche)
     setChoixAdresseOuvert(false)
     setShowModal(true)
-    loadDevisAndMembres()
+    void loadDevisAndMembres(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -557,62 +619,63 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
 
   // ── Fetch linked docs (devis + factures with chantier_id set) ──
-  const loadLinkedDocs = useCallback(async () => {
+  const loadLinkedDocs = useCallback(async (relire = false) => {
     if (!artisan?.id) return
     try {
+      if (sousCompte) {
+        const lu = await documentsDeLaSociete(relire)
+        if (lu.ok) setLinkedDocs(grouperDocumentsLies(lu.valeur.devis, lu.valeur.factures))
+        else signalerLectureEnEchec(lu)
+        return
+      }
       const [devisRes, facturesRes] = await Promise.all([
         supabase.from('devis').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null).is('deleted_at', null),
         supabase.from('factures').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null).is('deleted_at', null),
       ])
-      const grouped: Record<string, Array<{id: string, type: 'devis'|'facture', numero: string, client_name: string, total_ht: number|null, status: string}>> = {}
-      for (const d of (devisRes.data || [])) {
-        const cid = (d as any).chantier_id as string
-        if (!grouped[cid]) grouped[cid] = []
-        grouped[cid].push({ id: d.id, type: 'devis', numero: d.numero || '', client_name: d.client_name || '', total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null, status: d.status || '' })
-      }
-      for (const f of (facturesRes.data || [])) {
-        const cid = (f as any).chantier_id as string
-        if (!grouped[cid]) grouped[cid] = []
-        grouped[cid].push({ id: f.id, type: 'facture', numero: (f as any).numero || '', client_name: f.client_name || '', total_ht: f.total_ht_cents != null ? f.total_ht_cents / 100 : null, status: f.status || '' })
-      }
-      setLinkedDocs(grouped)
+      setLinkedDocs(grouperDocumentsLies(devisRes.data || [], facturesRes.data || []))
     } catch (e) { console.error('loadLinkedDocs:', e) }
-  }, [artisan?.id])
+  }, [artisan?.id, sousCompte, documentsDeLaSociete, signalerLectureEnEchec])
 
-  useEffect(() => { loadLinkedDocs() }, [loadLinkedDocs])
+  useEffect(() => { void loadLinkedDocs() }, [loadLinkedDocs])
 
   // ── Open link modal: fetch unlinked devis ──
   const openLinkModal = useCallback(async (chantierId: string) => {
     setShowLinkModal(chantierId)
     try {
+      if (sousCompte) {
+        const lu = await documentsDeLaSociete(true)
+        if (!lu.ok) { toast.error(messageRefusDocuments(lu, isPt)); setAvailableDevis([]); return }
+        setAvailableDevis(devisALier(lu.valeur.devis.filter(d => !d.chantier_id)))
+        return
+      }
       const { data } = await supabase
         .from('devis')
         .select('id, numero, client_name, total_ht_cents, status')
         .eq('artisan_id', artisan?.id)
         .is('chantier_id', null)
+        // Un devis supprimé n'est plus proposé (la liste des documents liés les écarte déjà).
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(50)
-      setAvailableDevis((data || []).map((d: any) => ({
-        id: d.id,
-        numero: d.numero || '',
-        client_name: d.client_name || '',
-        total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null,
-        status: d.status || '',
-      })))
+      setAvailableDevis(devisALier(data || []))
     } catch (e) { console.error('openLinkModal:', e) }
-  }, [artisan?.id])
+  }, [artisan?.id, sousCompte, isPt, documentsDeLaSociete])
 
   // ── Link a devis to a chantier ──
   const linkDevis = useCallback(async (devisId: string, chantierId: string) => {
-    const { error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId)
-    if (error) {
-      toast.error(isPt ? 'Erro ao associar o orçamento' : 'Erreur lors de la liaison')
+    const echec = isPt ? 'Erro ao associar o orçamento' : 'Erreur lors de la liaison'
+    if (sousCompte) {
+      const envoye = await lierDevisAuChantierSociete(devisId, chantierId)
+      if (!envoye.ok) { toast.error(envoye.code ? messageRefusDocuments(envoye, isPt) : echec); return }
     } else {
-      toast.success(isPt ? 'Orçamento associado à obra' : 'Devis lié au chantier')
-      setShowLinkModal(null)
-      await loadLinkedDocs()
+      // `.select` : une mise à jour que la RLS filtre ne renvoie pas d'erreur, seulement aucune ligne.
+      const { data, error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId).select('id')
+      if (error || !data || data.length === 0) { toast.error(echec); return }
     }
-  }, [loadLinkedDocs, isPt])
+    toast.success(isPt ? 'Orçamento associado à obra' : 'Devis lié au chantier')
+    setShowLinkModal(null)
+    await loadLinkedDocs(true)
+  }, [loadLinkedDocs, isPt, sousCompte])
 
   // ── Filter + search ──
   const filtered = useMemo(() => {
@@ -697,7 +760,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
         {!lectureSeule && (
           <button
             className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres() }}
+            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres(true) }}
           >
             + {isPt ? 'Nova obra' : 'Nouveau chantier'}
           </button>
@@ -724,7 +787,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
               </p>
               <button
                 className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-                onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres() }}
+                onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres(true) }}
               >
                 + {isPt ? 'Criar obra' : 'Créer un chantier'}
               </button>

@@ -20,11 +20,12 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   authFetch: vi.fn(),
   toastSuccess: vi.fn(),
+  toastError: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: mocks.getSession } } }))
 vi.mock('@/lib/api-client', () => ({ authFetch: mocks.authFetch }))
-vi.mock('sonner', () => ({ toast: { success: mocks.toastSuccess, warning: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: mocks.toastSuccess, warning: vi.fn(), error: mocks.toastError } }))
 
 import { useSettings } from '@/hooks/dashboard/useSettings'
 
@@ -79,6 +80,7 @@ beforeEach(() => {
   mocks.getSession.mockReset().mockResolvedValue({ data: { session: { access_token: 'jeton-de-test' } } })
   mocks.authFetch.mockReset().mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
   mocks.toastSuccess.mockReset()
+  mocks.toastError.mockReset()
 })
 
 describe('Mon profil d’une société BTP : seuls les champs changés sont enregistrés', () => {
@@ -138,6 +140,32 @@ describe('Mon profil d’une société BTP : seuls les champs changés sont enre
     await enregistrer(rendu)
 
     expect(corpsEnvoyes()).toEqual([{ tva_intra: 'FR00 000000000' }])
+  })
+})
+
+// Compte invité dans une société BTP (26/11/2026) : `artisan.id` est son compte, `fiche_societe_id` la fiche de la
+// société, que /api/artisan-settings modifie désormais pour lui (lib/btp/fiche-societe.ts).
+describe('Mon profil d’un compte invité : la fiche de la société n’est jamais écrasée', () => {
+  const INVITE: Profil = { ...FICHE_SOCIETE, id: 'compte-du-salarie', user_id: 'compte-du-gerant', fiche_societe_id: 'fiche-de-test' }
+
+  it('formulaire jamais chargé depuis la fiche : rien n’est envoyé (les 18 champs vides l’auraient effacée)', async () => {
+    const setArtisan = vi.fn()
+    const rendu = renderHook(() => useSettings(INVITE, setArtisan, {}, false, t))
+    await act(async () => { await rendu.result.current.saveSettings() })
+
+    expect(corpsEnvoyes()).toEqual([])
+    expect(mocks.toastError).toHaveBeenCalledTimes(1)
+    expect(setArtisan).not.toHaveBeenCalled()
+  })
+
+  it('chargé depuis la fiche, sans adresse de connexion : seul le champ changé part, jamais l’e-mail du salarié', async () => {
+    const setArtisan = vi.fn()
+    const rendu = renderHook(() => useSettings({ ...INVITE, email: null }, setArtisan, {}, false, t))
+    act(() => { rendu.result.current.initSettingsForm({ ...INVITE, email: null }, '', 'pro_societe') })
+    act(() => { rendu.result.current.setSettingsForm({ ...rendu.result.current.settingsForm, phone: '09 08 07 06 05' }) })
+    await act(async () => { await rendu.result.current.saveSettings() })
+
+    expect(corpsEnvoyes()).toEqual([{ phone: '09 08 07 06 05' }])
   })
 })
 

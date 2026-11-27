@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
 import { adresseComplete, geocoderAdresse, type Pays } from '@/lib/btp/geocodage'
 import { supabase } from '@/lib/supabase'
+import { lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
 import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
 import { SEUILS_ALERTE_METEO } from '@/lib/btp/alerte-meteo'
 import {
@@ -259,7 +260,13 @@ async function positionsPourMeteo(chantiers: ChantierItem[], pays: Pays): Promis
 interface DevisChoix { id: string; numero: string | null; client_name: string | null; lieu: LieuDevis }
 
 /** Devis de la fiche (les plus récents d'abord) qui portent un lieu d'intervention, ou à défaut l'adresse du client. */
-async function chargerDevisAvecLieu(ficheId: string): Promise<DevisChoix[]> {
+async function lireLignesDevis(ficheId: string, parLeServeur: boolean): Promise<Array<Record<string, unknown>>> {
+  if (parLeServeur) {
+    // Compte invité dans la société : la RLS ne lui rend aucun devis de l'entreprise, le serveur les lit pour lui.
+    const lu = await lireDocumentsDesChantiers()
+    if (!lu.ok) throw new Error(lu.message)
+    return lu.valeur.devis.slice(0, 100)
+  }
   const base = 'id, numero, client_name, created_at'
   const requete = (colonnes: string) => supabase.from('devis').select(colonnes)
     .eq('artisan_id', ficheId).is('deleted_at', null).order('created_at', { ascending: false }).limit(100)
@@ -268,7 +275,11 @@ async function chargerDevisAvecLieu(ficheId: string): Promise<DevisChoix[]> {
   // synchronisation n'écrit plus : demandée seulement ici).
   if (error) ({ data, error } = await requete(`${base}, client_address`))
   if (error) throw new Error(error.message)
-  return ((data ?? []) as unknown as Array<Record<string, unknown>>).flatMap(d => {
+  return (data ?? []) as unknown as Array<Record<string, unknown>>
+}
+
+async function chargerDevisAvecLieu(ficheId: string, parLeServeur = false): Promise<DevisChoix[]> {
+  return (await lireLignesDevis(ficheId, parLeServeur)).flatMap(d => {
     const lieu = lieuDuDevis(d)
     if (!lieu || typeof d.id !== 'string') return []
     return [{ id: d.id, numero: typeof d.numero === 'string' ? d.numero : null, client_name: typeof d.client_name === 'string' ? d.client_name : null, lieu }]
@@ -379,8 +390,10 @@ const TEXTES_CHANTIERS = {
  * serait vide, et des lieux gardés sur un appareil partagé ne le concernent pas.
  * `gestionChantiers` : peut-il créer et modifier les chantiers ? Sinon, les messages ne l'invitent pas à le faire.
  */
-export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt, importDevis = true, gestionChantiers = true }: {
+export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt, importDevis = true, gestionChantiers = true, devisParLeServeur = false }: {
   userId: string; authUserId?: string; isPt?: boolean; importDevis?: boolean; gestionChantiers?: boolean
+  /** Compte invité dans une société : ses devis sont ceux de l'entreprise, lus par le serveur. */
+  devisParLeServeur?: boolean
 }) {
   const textesChantiers = TEXTES_CHANTIERS[gestionChantiers ? 'gestion' : 'consultation']
   // Use auth user ID from prop (matches ChantiersBTPV2 cache key), fallback to resolving
@@ -543,7 +556,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt,
     setChoixDevisOuvert(true)
     setDevisChoix(null)
     setErreurDevis(false)
-    chargerDevisAvecLieu(userId)
+    chargerDevisAvecLieu(userId, devisParLeServeur)
       .then(setDevisChoix)
       .catch((err: unknown) => {
         console.warn('[MeteoChantier] devis non chargés :', err)
