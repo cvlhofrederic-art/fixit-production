@@ -565,12 +565,20 @@ describe('/api/btp/pointage — ligne d’équipe illisible (signalement du 27/1
     expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
   })
 
+  it('co-gérant désactivé : « Couper » reste refusé (403), comme avant, avec ou sans panne', async () => {
+    etat.user = { ...OUVRIER_INACTIF, app_metadata: { ...OUVRIER_INACTIF.app_metadata, pro_team_role: 'GERANT' } }
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
+    etat.pannes.set('pro_team_members', 2)
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
+  })
+
   it('super_admin portant la société d’un autre compte : refusé (403) comme avant, sans relecture qui le ferait gérant', async () => {
     const id = randomUUID()
     etat.user = { id, email: 'admin@exemple.test', app_metadata: { role: 'super_admin', pro_team_role: 'GERANT', company_id: SOC_A } }
     etat.tables.pro_team_members.push({ id: randomUUID(), company_id: SOC_A, user_id: id, email: 'admin@exemple.test', role: 'GERANT', is_active: true })
     expect((await lire()).status).toBe(403)
     expect((await envoyer({ action: 'reglage_auto', actif: false })).status).toBe(403)
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
     expect(etat.ecritures).toEqual([])
   })
 })

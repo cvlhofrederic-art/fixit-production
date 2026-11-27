@@ -92,14 +92,16 @@ const refus = (status: number, error: string) => NextResponse.json({ error }, { 
 /**
  * Société du compte (gérant : lui-même ; sous-compte actif : sa société), ses employés, chantiers en cours, équipes
  * et l'interrupteur du pointage automatique. null pour un compte qui n'est pas une société BTP.
+ * `panneToleree` : une ligne d'équipe illisible est traitée comme avant le 27/11/2026, comme une ligne absente, au lieu
+ * de lever une erreur. Seul « Couper » le demande.
  */
-async function lireContexte(user: User): Promise<Contexte | null> {
+async function lireContexte(user: User, panneToleree = false): Promise<Contexte | null> {
   const role = getUserRole(user)
   if (role !== 'pro_societe' && role !== 'super_admin') return null
   const resolution = await resoudreSocieteDuCompte(user, supabaseAdmin)
   // Ligne d'équipe illisible (panne) : erreur à réessayer. Le salarié recevait « compte non relié à une fiche
   // employé », sur l'écran où s'ouvre son appli (signalement du 27/11/2026).
-  if (resolution.etat === 'illisible') throw new Error('ligne d’équipe du compte illisible')
+  if (resolution.etat === 'illisible' && !panneToleree) throw new Error('ligne d’équipe du compte illisible')
   const societeId = resolution.etat === 'resolue' ? resolution.societeId : user.id
   // Co-gérant rattaché à une autre société sans ligne d'équipe active (désactivé) : la résolution retombe sur lui ; il
   // n'a pas de société à son nom, et il y aurait écrit des réglages de pointage (25/11/2026). Un salarié désactivé
@@ -333,17 +335,15 @@ export async function POST(request: NextRequest) {
   const corps = lu.data
 
   try {
-    // Couper le pointage en arrière-plan reste possible même sans fiche employé reliée (compte détaché entre-temps), et
-    // même pendant une panne de lecture de l'équipe (27/11/2026) : seule la société BTP est vérifiée, et seulement ce
-    // téléphone-là est retiré, jamais un autre téléphone du compte.
-    if (corps.action === 'appareil_retirer') {
-      const role = getUserRole(user)
-      if (role !== 'pro_societe' && role !== 'super_admin') return refus(403, 'Accès réservé aux sociétés BTP')
-      return NextResponse.json({ retires: await retirerAppareils({ id: corps.appareil, user_id: user.id }) })
-    }
-    const ctx = await lireContexte(user)
+    // « Couper » tolère une ligne d'équipe illisible, comme avant le 27/11/2026 : il ne touche que ce téléphone-là.
+    const ctx = await lireContexte(user, corps.action === 'appareil_retirer')
     if (!ctx) return refus(403, 'Accès réservé aux sociétés BTP')
     if (corps.action === 'reglage_auto') return await reglerPointageAuto(ctx, user, corps.actif, corps.confirmation)
+    // Couper le pointage en arrière-plan reste possible même sans fiche employé reliée (compte détaché entre-temps) ;
+    // seulement ce téléphone-là, jamais un autre téléphone du compte.
+    if (corps.action === 'appareil_retirer') {
+      return NextResponse.json({ retires: await retirerAppareils({ id: corps.appareil, user_id: user.id }) })
+    }
 
     if (ctx.resolution.statut !== 'relie') return refus(409, ctx.resolution.statut === 'ambigu' ? 'fiche_ambigue' : 'fiche_absente')
     const membre = ctx.resolution.membre

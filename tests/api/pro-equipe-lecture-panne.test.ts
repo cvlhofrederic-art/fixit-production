@@ -73,6 +73,16 @@ describe('GET /api/pro/team — ligne d’équipe du compte illisible', () => {
     expect(json).not.toHaveProperty('members')
   })
 
+  it('la lecture de sa ligne lève une exception : 500 aussi (la route n’a pas d’autre filet)', async () => {
+    coGerant()
+    h.base.erreurs.push({ table: TABLE, operation: 'select', erreur: PANNE, siFiltre: 'user_id', lever: true })
+
+    const { status, json } = await lire()
+
+    expect(status).toBe(500)
+    expect(json).not.toHaveProperty('members')
+  })
+
   it('panne passagère : la relecture retrouve la société, son équipe s’affiche', async () => {
     const saLigne = coGerant()
     h.base.erreurs.push({ table: TABLE, operation: 'select', erreur: PANNE, fois: 1 })
