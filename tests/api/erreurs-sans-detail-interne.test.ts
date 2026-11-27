@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   genererXml: vi.fn((): string => '<xml/>'),
 }))
 
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.user) }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => h.user))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', () => ({ logger: h.journal }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => clientMemoire(h.base).from(t) } }))

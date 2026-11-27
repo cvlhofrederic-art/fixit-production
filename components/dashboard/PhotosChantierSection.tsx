@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import { toast } from 'sonner'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
 
 /* ========== PHOTOS CHANTIER ========== */
 
@@ -159,10 +160,14 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      let url = `/api/artisan-photos?artisan_id=${artisan.id}`
+      // Compte invité dans une société : les photos sont rangées sous la fiche de la société, pas sous son compte.
+      let url = `/api/artisan-photos?artisan_id=${idFicheDocuments(artisan)}`
       if (filter === 'unassigned') url += '&unassigned=true'
       else if (filter !== 'all') url += `&booking_id=${filter}`
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+      // BTP : une lecture refusée (compte en lecture seule, fiche de la société illisible) n'est pas « aucune photo ».
+      // Règle n° 1 : l'artisan garde l'écran d'avant.
+      if (!res.ok && enregistrementBTP) { toast.error(t('proDash.photos.erreurChargementPhotos')); return }
       const json = await res.json()
       if (json.data) setPhotos(json.data)
     } catch (e) { console.error('Error loading photos:', e); toast.error(t('proDash.photos.erreurChargementPhotos')) }
@@ -175,11 +180,14 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      await fetch('/api/artisan-photos', {
+      const res = await fetch('/api/artisan-photos', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ photo_id: photoId, booking_id: bookingId }),
       })
+      // BTP : un refus (compte en lecture seule, fiche de la société illisible) n'est pas une réussite : la liste relue
+      // ne changeait pas, sans aucun message. L'artisan garde l'écran d'avant (règle n° 1).
+      if (!res.ok && enregistrementBTP) toast.error(t('proDash.photos.erreurAttributionPhoto'))
       setAssigning(null)
       loadPhotos()
     } catch (e) { console.error('Error assigning photo:', e); toast.error(t('proDash.photos.erreurAttributionPhoto')) }
@@ -190,10 +198,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      await fetch(`/api/artisan-photos?id=${photoId}`, {
+      const res = await fetch(`/api/artisan-photos?id=${photoId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       })
+      if (!res.ok && enregistrementBTP) toast.error(t('proDash.photos.erreurSuppression'))
       loadPhotos()
     } catch (e) { console.error('Error deleting photo:', e); toast.error(t('proDash.photos.erreurSuppression')) }
   }
@@ -211,7 +220,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         if (!file.type.startsWith('image/')) { toast.error(`${file.name} : ${t('proDash.photos.typeNonSupporte')}`); continue }
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('artisan_id', artisan.id)
+        formData.append('artisan_id', idFicheDocuments(artisan) ?? artisan.id)
         formData.append('source', 'desktop')
         formData.append('taken_at', new Date().toISOString())
         const res = await fetch('/api/artisan-photos', {
