@@ -55,11 +55,12 @@ describe('specs E2E Vitfix Signal', () => {
     })
 
     it('aucune adresse de production, aucune clé, aucun mot de passe de compte de test', () => {
-      expect(source).not.toMatch(/vitfix\.io/i)
+      // Recherche de texte, sans casse : l'adresse ne doit apparaître nulle part dans la spec.
+      expect(source.toLowerCase()).not.toContain('vitfix.io')
       expect(source).not.toContain('SUPABASE_SERVICE_ROLE_KEY')
       expect(source).not.toMatch(/E2E_[A-Z_]*PASSWORD/)
       expect(source).not.toMatch(/process\.env/)
-      expect(source).not.toMatch(/supabase\.co/i)
+      expect(source.toLowerCase()).not.toContain('supabase.co')
     })
 
     it('adresses e-mail fictives seulement (@exemple.test)', () => {
