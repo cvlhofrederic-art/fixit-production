@@ -301,12 +301,12 @@ describe('anciens documents d\'une société portugaise : état réel du stockag
 describe('langue de la société, pas de l\'écran', () => {
   const SUD_TRAVAUX = {
     id: 'art-sud', company_name: 'SUD TRAVAUX', email: 'contact@exemple.fr', legal_form: 'SAS', language: 'fr',
-    company_address: '115 Rue Claude Nicolas Ledoux, 13290 Aix-en-Provence',
+    company_address: '12 rue de l\'Exemple, 13001 Marseille',
   } as ArtisanBasic
   const SOCIETE_PT_FICHE = { ...SOCIETE_PT, language: 'pt' } as ArtisanBasic
   const devisEmis = (tvaRate: number) => ({
-    id: '6f1c2a34-0000-4000-8000-00000000c033', savedAt: '2026-11-20T10:00:00.000Z', sentAt: '2026-11-20T10:00:00.000Z',
-    docNumber: 'DEV-2026-033', status: 'envoye', docType: 'devis', clientName: 'SIGA',
+    id: '6f1c2a34-0000-4000-8000-00000000c012', savedAt: '2026-11-20T10:00:00.000Z', sentAt: '2026-11-20T10:00:00.000Z',
+    docNumber: 'DEV-2026-012', status: 'envoye', docType: 'devis', clientName: 'Client Exemple',
     lines: [{ id: 1, description: 'Façade', qty: 1, unit: 'f', priceHT: 1000, tvaRate, totalHT: 1000 }], materialLines: [], fraisLines: [],
   })
   const taux = (nom: string) => screen.queryAllByRole('option', { name: nom }).length
