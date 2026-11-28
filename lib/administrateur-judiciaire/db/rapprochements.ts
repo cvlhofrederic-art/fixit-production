@@ -9,11 +9,13 @@ import {
   cloturerArrete,
   decloturerArrete,
   ouvrirArrete,
+  refusArretesIllisibles,
   STATUT_ARRETE_ABANDONNE,
   type ArreteAbandonne,
   type ArreteRapprochement,
   type StatutArrete,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Arrêtés de rapprochement d'un compte bancaire, écrits par l'écran « Banque et recouvrement » (« Nouvel arrêté »,
@@ -23,8 +25,9 @@ import {
  * (sa forme est figée par l'oracle de la base locale), comme db/sinistres.ts et db/comptes-bancaires.ts.
  * Les règles sont celles du domaine (rapprochement-bancaire.ts), qui lève l'erreur affichée : un seul arrêté en cours
  * par compte, date postérieure au dernier, clôture à l'équilibre, déclôture du dernier arrêté clôturé, abandon d'un
- * arrêté en cours seulement. Chaque écriture relit les arrêtés du compte dans sa transaction : deux écritures qui se
- * chevauchent passent l'une après l'autre.
+ * arrêté en cours seulement ; et deux règles jusqu'ici propres à l'écran (décision du 26/11/2026, rb-16 A) : date
+ * d'arrêté ni future ni improbable, aucune écriture tant qu'un arrêté illisible reste sur le compte. Chaque écriture
+ * relit les arrêtés du compte dans sa transaction : deux écritures qui se chevauchent passent l'une après l'autre.
  * Solde compta : celui du sous-compte 512 du compte à la date de l'arrêté (db/sous-comptes-banque.ts) ; aucune
  * écriture : 0. Décision du 26/11/2026 (PR 799, rb-01 C et rb-03 A) : il n'est plus figé à l'ouverture. Tant que
  * l'arrêté est en cours, la valeur enregistrée n'est que celle de l'ouverture : le solde qui vaut est recalculé sur les
@@ -81,13 +84,15 @@ export async function listerArretes(banqueId: string): Promise<ArretesLus> {
   }
 }
 
-/** Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours ou plus récent. */
+/**
+ * Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours ou plus récent. La règle et
+ * son message sont ceux du domaine (refusArretesIllisibles, décision du 26/11/2026, rb-16 A) ; c'est ici, seul endroit
+ * qui lit les lignes de la base, qu'elle s'applique : toute écriture sur les arrêtés d'un compte passe par cette lecture.
+ */
 async function arretesSurs(banqueId: string): Promise<ArreteRapprochement[]> {
   const { arretes, illisibles } = await listerArretes(banqueId)
-  if (illisibles > 0) {
-    const s = illisibles > 1 ? 's' : ''
-    throw new Error(`${illisibles} arrêté${s} illisible${s} sur ce compte (écrit${s} hors de l’écran) : à reprendre dans la base locale d’abord.`)
-  }
+  const refus = refusArretesIllisibles(illisibles)
+  if (refus) throw new Error(refus)
   return arretes
 }
 
@@ -115,7 +120,11 @@ export interface SaisieArrete {
   soldeBanqueCentimes: number
 }
 
-/** Ouvre un arrêté « En cours » sur un compte actif ; solde compta du moment, recalculé ensuite (voir l'en-tête). */
+/**
+ * Ouvre un arrêté « En cours » sur un compte actif ; solde compta du moment, recalculé ensuite (voir l'en-tête). La date
+ * est refusée après le jour de l'application (date figée en démonstration), comme à l'écran (ouvrirArrete, rb-16 A) :
+ * ce jour n'est pas un paramètre, aucun appelant ne peut assouplir la règle.
+ */
 export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete, options: OptionsEcriture = {}): Promise<ArreteRapprochement> {
   return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.ecritures, ajDb.activityLog], async () => {
     const compte = await repoBanques.get(banqueId)
@@ -124,7 +133,7 @@ export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete,
     const existants = await arretesSurs(banqueId)
     // Date invalide : solde provisoire sans objet, ouvrirArrete refuse la saisie.
     const soldeComptaCentimes = estDateIsoValide(saisie.dateArrete) ? soldeComptaAu(await ajDb.ecritures.toArray(), banqueId, saisie.dateArrete) : 0
-    const arrete = ouvrirArrete(existants, { id: genererId(), banqueId, ...saisie, soldeComptaCentimes })
+    const arrete = ouvrirArrete(existants, { id: genererId(), banqueId, ...saisie, soldeComptaCentimes }, AUJOURDHUI_ISO)
     const { id, banqueId: bancaireId, ...champs } = arrete
     await repoRapprochements.create({ bancaireId, ...champs }, { id, actor: options.actor ?? null })
     return arrete
