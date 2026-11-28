@@ -5,6 +5,7 @@ import { EXEMPLE_RELEVE_BANCAIRE_CSV } from '@/components/administrateur-judicia
 import {
   analyserReleve,
   analyseValablePour,
+  avecPeriodeArretee,
   decoderTexteReleve,
   LIBELLES_FORMAT_RELEVE,
   refusTailleReleve,
@@ -29,6 +30,7 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
 import type { Ecriture } from '@/lib/administrateur-judiciaire/db/schema'
+import { useArretesRapprochement } from '@/lib/administrateur-judiciaire/db/use-arretes'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-360'
 import type { ReleveImporte } from '@/lib/administrateur-judiciaire/domain/import/releves-importes'
@@ -52,6 +54,12 @@ import type { ReleveImporte } from '@/lib/administrateur-judiciaire/domain/impor
  * précédent.
  * Décision du 26/11/2026 (PR 799) : sur téléphone, « Importer N lignes » passe sous la phrase, en entier (rb-c06 A, classe
  * vfx-import-actions, règles de aj-correctifs.css) ; le motif « Aucun compte bancaire actif » n'est dit qu'une fois (rb-c08 A).
+ * Décision du 26/11/2026 (PR 799, rb-04 A), période arrêtée protégée : un relevé dont une ligne retenue est datée au plus
+ * tard du dernier arrêté clôturé du compte est bloqué en entier, dans le bandeau « Import bloqué » des autres motifs, et
+ * le bouton d'import est inactif. Le blocage est recalculé à chaque affichage sur les arrêtés du compte (avecPeriodeArretee,
+ * useArretesRapprochement) : il suit une clôture ou une déclôture faite dans le panneau « Rapprochement ». La base refuse
+ * de toute façon l'import (db/releves-bancaires.ts) : après un refus, les arrêtés sont relus. Plusieurs arrêtés clôturés
+ * concernés : le bandeau dit que déclôturer le dernier ne suffit pas (motif du domaine, libellé à valider).
  */
 
 /** Fichiers proposés : CSV, CFONB 120 (.txt, .cfonb) et camt.053 (.xml, .053). */
@@ -227,6 +235,10 @@ export function ImportRelevePanel({
   const [choixCompte, setChoixCompte] = useState('')
   const actifs = comptesActifs(comptes, etatComptes)
   const compteChoisi = compteDeLImport(actifs, choixCompte)
+  // Échec de lecture des arrêtés : signalé une seule fois, par le panneau « Rapprochement » du même écran (toast
+  // « Arrêtés illisibles ») ; pas de second toast identique ici. Sans arrêtés lus, aucun blocage n'est montré : la base
+  // contrôle de toute façon à l'import.
+  const arretesLus = useArretesRapprochement(compteChoisi?.id ?? null, null)
   // Changement de copropriété (sélecteur du haut ou select local), de compte ou de l'IBAN du compte : l'analyse faite
   // pour l'ancien est abandonnée. Ajustement pendant le rendu, sans remontage de l'écran.
   const [codeAnalyse, setCodeAnalyse] = useState(copro?.code)
@@ -236,6 +248,8 @@ export function ImportRelevePanel({
     setAnalyse(null)
   }
   if (analyse && !analyseValablePour(analyse, compteChoisi)) setAnalyse(null)
+  // Analyse affichée : celle du fichier, avec le blocage de la période arrêtée d'après les arrêtés lus (rb-04 A).
+  const analyseAffichee = analyse && avecPeriodeArretee(analyse, arretesLus.arretes)
   const motifCompte = motifSansCompte(etatComptes, actifs.length, compteChoisi)
   // « Aucun compte bancaire actif » est déjà dit sous la liste des comptes : pas répété dans le bandeau (rb-c08 A, décision
   // du 26/11/2026). Le bouton reste inactif et la zone aria-live l'annonce toujours avec le résultat de l'analyse.
@@ -278,6 +292,8 @@ export function ImportRelevePanel({
       setSelections({})
     } catch (erreur) {
       push({ kind: 'warn', title: 'Import impossible', desc: messageErreur(erreur) })
+      // Refus possible pour un arrêté clôturé ailleurs depuis la lecture (autre onglet) : l'écran relit et le montre.
+      arretesLus.relire()
     } finally {
       // Relevés gardés relus après une réussite comme après un refus (relevé gardé entre-temps par un autre import).
       relireReleves()
@@ -340,15 +356,15 @@ export function ImportRelevePanel({
         placeholder={EXEMPLE_RELEVE_BANCAIRE_CSV}
       />
       <p className="sr-only" aria-live="polite">
-        {annonceAnalyse(analyse, motifCompte)}
+        {annonceAnalyse(analyseAffichee, motifCompte)}
       </p>
-      {analyse && (
+      {analyseAffichee && (
         <div
           style={{
             marginTop: 12,
           }}
         >
-          <ResultatAnalyseReleve analyse={analyse} personnes={personnes} selections={selections} setSelections={setSelections} />
+          <ResultatAnalyseReleve analyse={analyseAffichee} personnes={personnes} selections={selections} setSelections={setSelections} />
           {motifCompte && !motifDejaAffiche && (
             <Alert kind="warn" icon="alert" title="Import impossible">
               {motifCompte}
@@ -367,13 +383,13 @@ export function ImportRelevePanel({
               onClick={importer}
               disabled={
                 importEnCours ||
-                (analyse.retenues.length === 0 && analyse.relevesAImporter.length === 0) ||
+                (analyseAffichee.retenues.length === 0 && analyseAffichee.relevesAImporter.length === 0) ||
                 motifCompte !== null ||
-                analyse.blocage !== null
+                analyseAffichee.blocage !== null
               }
             >
               <Icon name="check" />
-              {libelleImporter(analyse)}
+              {libelleImporter(analyseAffichee)}
             </button>
             <span
               style={{
@@ -381,7 +397,7 @@ export function ImportRelevePanel({
                 color: 'var(--navy-500)',
               }}
             >
-              {relevesSeulsAGarder(analyse) ? phraseReleveSansLigne(analyse.relevesAImporter.length) : PHRASE_IMPORT}
+              {relevesSeulsAGarder(analyseAffichee) ? phraseReleveSansLigne(analyseAffichee.relevesAImporter.length) : PHRASE_IMPORT}
             </span>
           </div>
         </div>

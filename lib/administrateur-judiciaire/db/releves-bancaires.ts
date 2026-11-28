@@ -17,6 +17,10 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * relevés dont viennent les lignes (chacun avec ses mouvements repris) ; ils sont gardés dans la même transaction, avec
  * les informations de chaque mouvement sur sa ligne, et un relevé déjà gardé pour la copropriété fait refuser l'import
  * (db/releves-importes.ts). Sans relevé (CSV), rien n'est gardé : comportement inchangé.
+ * Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : refusé en entier si une ligne est datée au plus tard du
+ * dernier arrêté clôturé du compte, ou tant qu'un arrêté illisible reste sur le compte. Le contrôle est celui du store,
+ * dans la transaction d'écriture, qui ouvre aussi le journal d'une copropriété qui n'en a pas : un refus n'en laisse pas,
+ * et ne garde aucun relevé.
  */
 export async function importerReleveSurCompte(
   coproprieteId: string,

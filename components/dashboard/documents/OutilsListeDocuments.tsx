@@ -21,6 +21,7 @@ import {
 } from '@/lib/documents/recherche-documents'
 import { telechargerDocumentsGroupes } from '@/lib/pdf/telechargement-groupe'
 import type { DownloadContext, SavedDevis } from '@/lib/pdf/download-saved-devis'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
 
 type Traduire = (cle: string) => string
 
@@ -255,7 +256,7 @@ export interface ProgressionTelechargement {
 }
 
 /** Fiche de l'artisan ou de la société, telle que les listes la reçoivent (champs lus comme par chaque ligne). */
-type ArtisanTelechargement = { id: string; company_name?: string | null } | null
+type ArtisanTelechargement = { id: string; company_name?: string | null; fiche_societe_id?: string } | null
 
 const champTexte = (fiche: object, nom: string): string | null => {
   const valeur = (fiche as Record<string, unknown>)[nom]
@@ -298,7 +299,9 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
       locale: locale as DownloadContext['locale'],
       t,
       artisan: artisan ? {
-        id: artisan.id,
+        // Fiche de la société pour un salarié invité (son `id` est son propre compte), comme le bouton « Télécharger »
+        // de chaque ligne : sans elle, ni gabarit de la société, ni RIB de repli, ni langue de la société au PDF.
+        id: idFicheDocuments(artisan) ?? artisan.id,
         company_name: artisan.company_name,
         logo_url: champTexte(artisan, 'logo_url'),
         rm: champTexte(artisan, 'rm'),

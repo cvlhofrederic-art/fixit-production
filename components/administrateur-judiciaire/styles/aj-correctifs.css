@@ -2,8 +2,8 @@
  * Correctifs de la feuille de la maquette, écrits à la main. Chargée en dernier (app/(commun)/administrateur-judiciaire/
  * layout.tsx) : aj.css est générée par scripts/administrateur-judiciaire/extraire-maquette.mjs et réécrite à chaque
  * extraction, elle ne se corrige donc pas à la main. Tous les sélecteurs sont scopés sous #aj-root.
- * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts, correctifs-cadre-telephone.test.tsx et
- * correctifs-rapprochement-telephone.test.tsx.
+ * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts, correctifs-cadre-telephone.test.tsx,
+ * correctifs-rapprochement-telephone.test.tsx et correctifs-entetes-affichage.test.tsx.
  */
 
 /*
@@ -102,15 +102,24 @@
  * (74 px du bas, FixyLauncher.tsx). Correctif partiel : le temps de leur affichage (× pour fermer), ils couvrent toujours le
  * contenu à cette hauteur, et le bas de la fenêtre de Fixy quand elle est ouverte, où se trouve sa zone de demande (message
  * d'une action lancée depuis Fixy, par exemple). Aucun emplacement ne laisse toutes les actions libres.
+ * Sur ordinateur aussi (décision du 26/11/2026, page de validation de la PR 799, point rb-c07 A) : à 24 px du bas et du
+ * bord droit, ils couvraient le bouton Fixy (22 px du bas, 39 à 42 px de haut, mesuré dans Chrome à 1440 px). Fenêtre de
+ * Fixy fermée : même hauteur qu'au téléphone, toujours dans le coin à droite. Fenêtre ouverte (440 px de large à 22 px du
+ * bord droit, posée à 74 px du bas) : à 74 px, ils en couvriraient toute la zone de demande ; ils restent à 24 px du bas
+ * et passent à gauche de la fenêtre (22 + 440 + 16 px du bord droit), sans déborder de l'écran sous 875 px. Choix de
+ * placement à valider par le référent métier (la décision dit seulement que le bouton est couvert).
  */
-@media (max-width: 768px){#aj-root .vfx-toast-viewport{bottom:74px}}
+#aj-root .vfx-toast-viewport{bottom:74px}
+@media (min-width: 769px){#aj-root:has([role="dialog"][aria-label="Fixy"]) .vfx-toast-viewport{bottom:24px;right:478px;max-width:min(380px,calc(100vw - 494px))}}
 
 /*
  * En-tête de l'avis d'appel coincé (« Avis d'appel par copropriétaire ») : sous 769 px, le titre se réduisait à côté du
  * sélecteur de l'appel (trois lignes à 375 px). Le bloc du titre garde au moins 120 px ; sinon, les contrôles passent à la
- * ligne, toujours à droite. Seulement pour les en-têtes qui le demandent (Panel, propriété controlesALaLigne) : la décision
- * du 22/11/2026 ne nomme que l'avis d'appel et les comptes bancaires du mandat ; ceux-ci (ComptesBancairesPanel.tsx, PR 799
- * en attente) le demanderont après la PR 799.
+ * ligne, toujours à droite. Seulement pour les en-têtes qui le demandent (Panel, propriété controlesALaLigne) : l'avis
+ * d'appel (décision du 22/11/2026) ; les comptes bancaires du mandat, la rédaction automatique du dossier du juge, le
+ * « Relevé des diligences » et les tableaux de bord « Suivi budgétaire cumulé » et « État des mandats » (décision du
+ * 26/11/2026, page de validation de la PR 834, points ct-01 et ct-07).
+ * Test : correctifs-entetes-affichage.test.tsx, qui relève aussi tout autre en-tête qui le demanderait.
  */
 @media (max-width: 768px){#aj-root .panel-head.vfx-entete-a-la-ligne{flex-wrap:wrap}#aj-root .vfx-entete-a-la-ligne>div:not(.h-ico):not(.right){flex:1 1 120px;min-width:0}}
 
@@ -156,3 +165,23 @@
  * passaient sur deux lignes à 1440 px. Elles restent sur une ligne, à toute largeur (la fiche du téléphone les aligne à droite).
  */
 #aj-root .vfx-etat-releve .pill{white-space:nowrap}
+
+/*
+ * Première cellule d'en-tête des tableaux restée blanche (décision du 26/11/2026, page de validation de la PR 799, point
+ * rb-c07 A ; test : correctifs-entetes-affichage.test.tsx) : sous 1025 px, la première colonne est collante et aj.css lui
+ * donne un fond blanc opaque, pour cacher ce qui défile dessous, en-tête compris, alors que les autres cellules d'en-tête
+ * sont sur le fond des en-têtes (--paper). L'en-tête garde un fond opaque, celui des autres en-têtes ; les cellules du
+ * corps gardent le blanc. Au-dessus de 1024 px, rien ne change.
+ */
+@media (max-width: 1024px){#aj-root .tbl thead th:first-child{background:var(--paper)}}
+
+/*
+ * Tableau de bord : « Échéances prioritaires » et « État des mandats » étaient côte à côte à toutes les largeurs. Leur
+ * grille était écrite en ligne dans TableauDeBordModule.tsx (1fr 1.25fr) : à 375 px, chaque panneau n'avait qu'environ 160 px,
+ * titres sur deux lignes et liste coupée au bord. C'est la cause de l'en-tête coincé d'« État des mandats » (décision du
+ * 26/11/2026, page de validation de la PR 834, point ct-07) ; corriger la grille est un choix à valider par le référent
+ * métier. Elle passe ici, identique au-dessus de 768 px, sur une colonne sur téléphone, comme les en-têtes ci-dessus
+ * (entre 769 et 1024 px, chaque panneau garde plus de 400 px). Test : correctifs-entetes-affichage.test.tsx.
+ */
+#aj-root .vfx-grille-echeances-mandats{display:grid;grid-template-columns:1fr 1.25fr;gap:16px}
+@media (max-width: 768px){#aj-root .vfx-grille-echeances-mandats{grid-template-columns:1fr}}

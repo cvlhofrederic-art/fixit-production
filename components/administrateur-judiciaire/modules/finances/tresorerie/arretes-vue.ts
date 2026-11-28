@@ -1,9 +1,9 @@
 import type { SaisieArrete } from '@/lib/administrateur-judiciaire/db/rapprochements'
-import { dateIsoVersFr, estDateIsoValide, messagePlausibilite, plausibiliteDate } from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { parserMontant } from '@/lib/administrateur-judiciaire/domain/import/csv'
 import type { SoldeBanquePropose } from '@/lib/administrateur-judiciaire/domain/import/releves-importes'
-import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { refusDateArrete, type ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 
 /**
  * Vue du panneau « Rapprochement » de l'écran « Banque et recouvrement » (RapprochementPanel.tsx) : arrêté affiché et
@@ -68,15 +68,16 @@ export interface ValeursArrete {
 }
 
 /**
- * Contrôle de la saisie avant l'écriture : date à saisir, valide, ni future ni d'une année improbable (plausibiliteDate :
- * un arrêté constate un solde passé) ; solde lisible. Les règles de l'arrêté (un seul en cours, date postérieure au
- * dernier) restent celles du domaine, appliquées à l'écriture.
+ * Contrôle de la saisie avant l'écriture : date à saisir, valide, ni future ni d'une année improbable (règle commune du
+ * domaine, refusDateArrete : un arrêté constate un solde passé ; décision du 26/11/2026, rb-16 A) ; solde lisible. Les
+ * règles de l'arrêté (un seul en cours, date postérieure au dernier, et de nouveau la date) sont celles du domaine,
+ * appliquées à l'écriture.
  */
 export function controlerSaisieArrete(valeurs: ValeursArrete, aujourdhui: string): { saisie: SaisieArrete } | { erreur: string } {
   if (!valeurs.date) return { erreur: 'Date de l’arrêté à saisir.' }
   if (!estDateIsoValide(valeurs.date)) return { erreur: 'Date de l’arrêté invalide : JJ/MM/AAAA attendu.' }
-  const anomalie = plausibiliteDate(valeurs.date, aujourdhui, { futurAdmis: false })
-  if (anomalie) return { erreur: messagePlausibilite('Arrêté daté', valeurs.date, anomalie) }
+  const refusDate = refusDateArrete(valeurs.date, aujourdhui)
+  if (refusDate) return { erreur: refusDate }
   const soldeBanqueCentimes = soldeSaisiVersCentimes(valeurs.soldeBanque)
   if (soldeBanqueCentimes === null)
     return { erreur: 'Solde banque illisible : montant en euros attendu (ex. 1 234,56 ; négatif pour un découvert).' }

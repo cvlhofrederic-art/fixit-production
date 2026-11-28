@@ -12,7 +12,8 @@ export interface PanelProps {
   flush?: boolean
   /**
    * Sur téléphone, contenu de droite renvoyé sous le titre quand celui-ci manquerait de place (classe
-   * vfx-entete-a-la-ligne, aj-correctifs.css). Réservé aux en-têtes que vise la décision du 22/11/2026.
+   * vfx-entete-a-la-ligne, aj-correctifs.css). Réservé aux en-têtes que visent les décisions du 22/11/2026 et du 26/11/2026
+   * (liste gardée par tests/administrateur-judiciaire/correctifs-entetes-affichage.test.tsx).
    */
   controlesALaLigne?: boolean
 }
