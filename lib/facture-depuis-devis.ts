@@ -65,7 +65,10 @@ export type ResultatControleAcompte = { ok: true } | { ok: false; erreur: Erreur
 export interface OptionsFactureDepuisDevis {
   /** Factures connues (émises ou non) : repère la facture déjà émise et les acomptes du devis. */
   factures: DocumentLike[]
+  /** Langue du document produit (titre, notes, lignes de déduction) : celle de la fiche de la société (lib/btp/langue-documents.ts). */
   locale?: TvaLocale
+  /** Langue des messages de refus, affichés à l'écran : celle de l'interface. Défaut : la langue du document. */
+  langueMessages?: TvaLocale
   /** Date du jour AAAA-MM-JJ (injectable pour les tests). Défaut : aujourd'hui, heure du poste. */
   aujourdHui?: string
 }
@@ -284,16 +287,17 @@ function notesFacture(devis: DocumentLike, locale: TvaLocale): string {
  */
 export function buildFactureDepuisDevis(devis: DocumentLike, options: OptionsFactureDepuisDevis): ResultatFactureDepuisDevis {
   const locale = options.locale ?? 'fr'
+  const langueMessages = options.langueMessages ?? locale
   const aujourdHui = options.aujourdHui || dateDuJourLocale()
 
-  const refusDevis = refusStatutOuClient(devis, locale)
+  const refusDevis = refusStatutOuClient(devis, langueMessages)
   if (refusDevis) return refusDevis
 
   // Montants du devis tels que le formulaire les affiche (quantité × prix unitaire).
   const devisRecalcule = recalculerTotauxLignes(devis)
   const basesDevis = basesHtParTaux(devis)
   const totalDevisCents = totalBasesCents(basesDevis)
-  if (!(totalDevisCents > 0)) return refuser(locale, 'montant_nul')
+  if (!(totalDevisCents > 0)) return refuser(langueMessages, 'montant_nul')
 
   // Avant le contrôle de la date de prestation : celui-ci renvoie vers l'acompte, qui serait
   // refusé à son tour sur un devis déjà facturé.
@@ -302,12 +306,12 @@ export function buildFactureDepuisDevis(devis: DocumentLike, options: OptionsFac
     // Une situation de travaux ne s'annule pas : le solde s'établit depuis l'écran Factures.
     const situations = dejaEmises.filter((f) => sousType(f) === 'situation')
     return situations.length === dejaEmises.length
-      ? refuser(locale, 'situations_emises', numerosDe(situations))
-      : refuser(locale, 'deja_facture', numerosDe(dejaEmises))
+      ? refuser(langueMessages, 'situations_emises', numerosDe(situations))
+      : refuser(langueMessages, 'deja_facture', numerosDe(dejaEmises))
   }
 
   const prestation = String(devis.prestationDate || '').slice(0, 10)
-  if (prestation && prestation > aujourdHui) return refuser(locale, 'prestation_future', formaterDateCourte(prestation))
+  if (prestation && prestation > aujourdHui) return refuser(langueMessages, 'prestation_future', formaterDateCourte(prestation))
 
   const regime = regimeTvaEffectif(devis)
   const refusTva = refusRegime(devis)
@@ -318,11 +322,11 @@ export function buildFactureDepuisDevis(devis: DocumentLike, options: OptionsFac
   const basesDeduites = lignesDeduction.map((l) => ({ taux: l.tvaRate, baseCents: Math.round(l.totalHT * 100) }))
   const totalHtCents = totalDevisCents + totalBasesCents(basesDeduites)
   if (acomptes.length > 0) {
-    if (totalHtCents === 0) return refuser(locale, 'acomptes_couvrent_le_devis', numerosDe(acomptes))
-    if (totalHtCents < 0) return refuser(locale, 'acomptes_depassent_le_devis', numerosDe(acomptes), formaterMontantCents(-totalHtCents))
+    if (totalHtCents === 0) return refuser(langueMessages, 'acomptes_couvrent_le_devis', numerosDe(acomptes))
+    if (totalHtCents < 0) return refuser(langueMessages, 'acomptes_depassent_le_devis', numerosDe(acomptes), formaterMontantCents(-totalHtCents))
     // Devis modifié depuis un acompte : une base négative sur un taux ferait une TVA négative.
     if (additionnerBases(basesDevis, basesDeduites).some((b) => b.baseCents < 0)) {
-      return refuser(locale, 'acomptes_incoherents', numerosDe(acomptes))
+      return refuser(langueMessages, 'acomptes_incoherents', numerosDe(acomptes))
     }
   }
 

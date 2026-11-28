@@ -67,24 +67,30 @@ describe('rapprochement — état d’un arrêté', () => {
 
 describe('rapprochement — ouverture, clôture, déclôture', () => {
   const cloture = (id: string, dateArrete: string) => arrete({ id, dateArrete, statut: 'Clôturé' })
+  // Jour de référence : date d'arrêté refusée après lui (rb-16 A, tests dans rapprochement-regles-communes.test.ts).
+  const AUJOURDHUI = '2026-11-27'
 
   it('ouvre un arrêté après le dernier arrêté clôturé du compte', () => {
-    const nouveau = ouvrirArrete([cloture('a-0', '2026-10-10')], {
-      id: 'a-1',
-      banqueId: 'b-courant',
-      dateArrete: '2026-10-20',
-      soldeBanqueCentimes: 1_000_000,
-      soldeComptaCentimes: 1_000_000,
-    })
+    const nouveau = ouvrirArrete(
+      [cloture('a-0', '2026-10-10')],
+      {
+        id: 'a-1',
+        banqueId: 'b-courant',
+        dateArrete: '2026-10-20',
+        soldeBanqueCentimes: 1_000_000,
+        soldeComptaCentimes: 1_000_000,
+      },
+      AUJOURDHUI,
+    )
     expect(nouveau).toMatchObject({ statut: 'En cours', elements: [] })
   })
 
   it('refuse un deuxième arrêté en cours sur le même compte, ou une date non postérieure', () => {
     const saisie = { id: 'a-2', banqueId: 'b-courant', dateArrete: '2026-10-30', soldeBanqueCentimes: 0, soldeComptaCentimes: 0 }
-    expect(() => ouvrirArrete([arrete()], saisie)).toThrow(/en cours/i)
-    expect(() => ouvrirArrete([cloture('a-0', '2026-10-30')], saisie)).toThrow(/post[ée]rieur/i)
-    expect(ouvrirArrete([arrete({ banqueId: 'b-fonds-travaux' })], saisie).banqueId).toBe('b-courant')
-    expect(() => ouvrirArrete([], { ...saisie, dateArrete: '30/10/2026' })).toThrow(/date/i)
+    expect(() => ouvrirArrete([arrete()], saisie, AUJOURDHUI)).toThrow(/en cours/i)
+    expect(() => ouvrirArrete([cloture('a-0', '2026-10-30')], saisie, AUJOURDHUI)).toThrow(/post[ée]rieur/i)
+    expect(ouvrirArrete([arrete({ banqueId: 'b-fonds-travaux' })], saisie, AUJOURDHUI).banqueId).toBe('b-courant')
+    expect(() => ouvrirArrete([], { ...saisie, dateArrete: '30/10/2026' }, AUJOURDHUI)).toThrow(/date/i)
   })
 
   it('clôture seulement à l’équilibre', () => {

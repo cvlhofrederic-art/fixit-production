@@ -1,4 +1,4 @@
-import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { estDateIsoValide, messagePlausibilite, plausibiliteDate } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 
 /**
@@ -17,6 +17,11 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
  * Décision du 26/11/2026 (PR 799, rb-01 A) — un arrêté « En cours » mal saisi s'abandonne (abandonnerArrete) : absent de
  * Gestéam, règle de gestion VitFix. L'arrêté abandonné est d'un autre type (ArreteAbandonne) : aucune règle de ce
  * fichier ni de rapprochement-pieces.ts ne le reçoit, il n'entre donc dans aucun solde ni aucune période arrêtée.
+ *
+ * Décision du 26/11/2026 (PR 799, rb-16 A) — deux règles, jusqu'ici propres à l'écran, sont ici, pour toute écriture des
+ * arrêtés quel que soit l'écran : date d'arrêté ni future ni improbable (refusDateArrete, appliquée par ouvrirArrete) ;
+ * aucune écriture tant qu'un arrêté illisible reste sur le compte (refusArretesIllisibles : la règle et son message,
+ * appliqués par db/rapprochements.ts, seul à lire les lignes de la base).
  */
 
 /** Statuts d'un arrêté qui compte ; l'arrêté abandonné porte STATUT_ARRETE_ABANDONNE, hors de ce type. */
@@ -93,12 +98,44 @@ export function etatArrete(arrete: ArreteRapprochement): EtatArrete {
   }
 }
 
-/** Ouvre un arrêté : un seul « En cours » par compte, date postérieure au dernier arrêté du compte. */
+/**
+ * Règle commune (décision du 26/11/2026, PR 799, rb-16 A ; jusqu'ici propre à l'écran) : un arrêté constate un solde
+ * passé, sa date n'est donc ni future ni d'une année improbable (plausibiliteDate). `dateArrete` et `aujourdhui` :
+ * AAAA-MM-JJ valides, sinon une erreur est levée. null si la date est plausible, sinon le refus, dit comme à l'écran.
+ */
+export function refusDateArrete(dateArrete: string, aujourdhui: string): string | null {
+  const anomalie = plausibiliteDate(dateArrete, aujourdhui, { futurAdmis: false })
+  return anomalie ? messagePlausibilite('Arrêté daté', dateArrete, anomalie) : null
+}
+
+/**
+ * Règle commune (même décision, rb-16 A) : une ligne de la base sans la forme d'un arrêté (écrite hors de l'écran)
+ * pourrait cacher un arrêté en cours, plus récent ou clôturé. Tant qu'il en reste une sur le compte, aucune écriture sur
+ * ses arrêtés (ouverture, clôture, déclôture, abandon…). `illisibles` : nombre de ces lignes sur le compte. null s'il n'y
+ * en a aucune, sinon le refus. Seule la base lit ces lignes : c'est elle qui l'applique (db/rapprochements.ts,
+ * arretesSurs), l'écran s'en sert pour désactiver ses boutons.
+ */
+export function refusArretesIllisibles(illisibles: number): string | null {
+  if (!Number.isInteger(illisibles) || illisibles < 0) throw new Error(`Nombre d'arrêtés illisibles invalide (${illisibles}).`)
+  if (illisibles === 0) return null
+  const s = illisibles > 1 ? 's' : ''
+  return `${illisibles} arrêté${s} illisible${s} sur ce compte (écrit${s} hors de l’écran) : à reprendre dans la base locale d’abord.`
+}
+
+/**
+ * Ouvre un arrêté : un seul « En cours » par compte, date postérieure au dernier arrêté du compte, ni future ni d'une
+ * année improbable au jour `aujourdhui` (AAAA-MM-JJ valide, sinon erreur ; refusDateArrete). Ce dernier refus est levé
+ * après les autres : un arrêté déjà en cours, ou une date non postérieure, gardent leur message. L'écran contrôle la
+ * date en premier (arretes-vue.ts) : une faute de frappe sur l'année y est dite comme telle.
+ */
 export function ouvrirArrete(
   existants: ArreteRapprochement[],
   saisie: Pick<ArreteRapprochement, 'id' | 'banqueId' | 'dateArrete' | 'soldeBanqueCentimes' | 'soldeComptaCentimes'>,
+  aujourdhui: string,
 ): ArreteRapprochement {
   if (!estDateIsoValide(saisie.dateArrete)) throw new Error(`Date d'arrêté invalide (${saisie.dateArrete}) : AAAA-MM-JJ attendu.`)
+  // Calculé d'abord (un jour de référence invalide lève tout de suite), levé en dernier.
+  const refusDate = refusDateArrete(saisie.dateArrete, aujourdhui)
   for (const [nom, montant] of [
     ['solde banque', saisie.soldeBanqueCentimes],
     ['solde compta', saisie.soldeComptaCentimes],
@@ -108,6 +145,7 @@ export function ouvrirArrete(
   if (duCompte.some((a) => a.statut === 'En cours')) throw new Error('Un arrêté est déjà en cours sur ce compte : le clôturer d’abord.')
   const dernier = duCompte.reduce<string | null>((max, a) => (max === null || a.dateArrete > max ? a.dateArrete : max), null)
   if (dernier && saisie.dateArrete <= dernier) throw new Error(`Date d'arrêté non postérieure au dernier arrêté du compte (${dernier}).`)
+  if (refusDate) throw new Error(refusDate)
   return { ...saisie, statut: 'En cours', elements: [] }
 }
 

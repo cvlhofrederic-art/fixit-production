@@ -12,9 +12,11 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
 
+// Langue de l'écran : français, sauf dans les cas « langue de la société » (lib/btp/langue-documents.ts)
+const ecran = vi.hoisted(() => ({ locale: 'fr' as 'fr' | 'pt' }))
 vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (key: string) => key, locale: 'fr' }),
-  useLocale: () => 'fr',
+  useTranslation: () => ({ t: (key: string) => key, locale: ecran.locale }),
+  useLocale: () => ecran.locale,
 }))
 vi.mock('@/lib/supabase', () => ({
   supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
@@ -401,5 +403,74 @@ describe('DevisSection — « Facturer » propose Totale ou Acompte (BTP)', () =
     expect(a1).not.toBeDisabled()              // ré-émission permise
     expect(a1).toHaveTextContent(/déjà émis/i) // mais visible que c'est fait
     expect(screen.getByRole('button', { name: /Acompte 2.*30/ })).not.toHaveTextContent(/déjà émis/i)
+  })
+})
+
+// Constat du 27/11/2026 : la facture d'acompte AC-2026-030 de SUD TRAVAUX (société française), émise depuis le tableau
+// de bord ouvert sur /pt, était entièrement en portugais. Un document BTP émis en un clic suit la langue de la FICHE de
+// la société (lib/btp/langue-documents.ts) ; les messages affichés gardent celle de l'écran.
+describe('DevisSection — documents dans la langue de la société, pas de l\'écran (BTP)', () => {
+  const FRANCAISE = { ...ARTISAN, language: 'fr' } as typeof ARTISAN
+  const PORTUGAISE = { ...ARTISAN, company_name: 'VITFIX CONSTRUÇÕES', language: 'pt' } as typeof ARTISAN
+  const SANS_LANGUE = { ...ARTISAN, language: null } as typeof ARTISAN
+  const designations = (doc: Record<string, unknown>) => (doc.lines as { description: string }[]).map((l) => l.description)
+
+  beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); vi.mocked(chargerRibProfil).mockResolvedValue(null); ecran.locale = 'pt' })
+  afterEach(() => { cleanup(); ecran.locale = 'fr' })
+
+  async function acompteFinal(artisan: typeof ARTISAN) {
+    const setSavedDocuments = vi.fn()
+    render(<DevisSection {...props(vi.fn(), setSavedDocuments)} artisan={artisan} />)
+    await waitFor(() => expect(screen.getByText('DEV-2026-009')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.devis.facturer'))
+    fireEvent.click(screen.getByRole('button', { name: /Facture d'acompte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Acompte 3.*20/ }))
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalled())
+    return emis(setSavedDocuments)
+  }
+
+  it('société française sur écran portugais : facture d\'acompte en français (cas AC-2026-030)', async () => {
+    const acompte = await acompteFinal(FRANCAISE)
+    expect(acompte.docTitle).toBe('Acompte n° 3 sur 3 (20 %) — Rénovation appartement')
+    expect(designations(acompte)).toEqual(['Acompte de 20 % sur travaux soumis à la TVA au taux de 20 %'])
+    expect(acompte.linesName).toBe('Acompte')
+    expect(String(acompte.notes)).toMatch(/^Acompte de 20 % \(n° 3 sur 3\) sur le devis /)
+    expect(String(acompte.notes)).toContain('Échéance : À la livraison.')
+    expect(JSON.stringify(acompte)).not.toMatch(/Adiantamento|orçamento|Vencimento/)
+  })
+
+  it('fiche sans langue : société française, comme sa série de numérotation', async () => {
+    expect((await acompteFinal(SANS_LANGUE)).docTitle).toMatch(/^Acompte n° 3 sur 3/)
+  })
+
+  it('société portugaise sur écran français : adiantamento en portugais, échéance traduite', async () => {
+    ecran.locale = 'fr'
+    const acompte = await acompteFinal(PORTUGAISE)
+    expect(acompte.docTitle).toBe('Adiantamento n.º 3 de 3 (20 %) — Rénovation appartement')
+    expect(designations(acompte)).toEqual(['Adiantamento de 20 % por conta dos trabalhos sujeitos a IVA à taxa de 20 %'])
+    expect(acompte.linesName).toBe('Adiantamento')
+    expect(String(acompte.notes)).toContain('Vencimento: No final dos trabalhos.')
+  })
+
+  it('identité sans langue connue (aucune clé language) : langue de l\'écran, comme avant', async () => {
+    expect((await acompteFinal(ARTISAN)).docTitle).toMatch(/^Adiantamento n\.º 3 de 3/)
+  })
+
+  it('facture totale d\'une société française sur écran portugais : en français', async () => {
+    const setSavedDocuments = vi.fn()
+    render(<DevisSection {...props(vi.fn(), setSavedDocuments)} artisan={FRANCAISE} />)
+    await cliquerFactureTotale()
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalled())
+    const facture = emis(setSavedDocuments)
+    expect(String(facture.notes)).toContain('Réf. devis : DEV-2026-009')
+    expect(String(facture.notes)).not.toContain('orçamento')
+  })
+
+  it('refus de la facture totale : message dans la langue de l\'écran', async () => {
+    render(<DevisSection {...props(vi.fn(), vi.fn(), [], { ...DEVIS, docNumber: '', status: 'brouillon' })} artisan={FRANCAISE} />)
+    await waitFor(() => expect(screen.getByText('A & W SAS')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('proDash.devis.facturer'))
+    fireEvent.click(screen.getByRole('button', { name: /Facture totale/i }))
+    expect(toast.error).toHaveBeenCalledWith('Este orçamento ainda é um rascunho: valide-o antes de o faturar.')
   })
 })
