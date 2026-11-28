@@ -96,7 +96,7 @@ export const COLONNES_BTP: Record<TableEcrivable, Record<string, SpecColonne>> =
     membres_ids: { type: 'liste_uuid', nonNul: true, cible: 'membres_btp' },
     // Chantier soumis à l'alerte météo par notification (migration 20261126b, décision du 26/11/2026).
     alerte_meteo: { type: 'booleen', nonNul: true },
-    // Équipe retouchée jour par jour ({ "AAAA-MM-JJ": [uuid…] }, objet vide par défaut ; migration 20261128c,
+    // Équipe retouchée jour par jour ({ "AAAA-MM-JJ": [uuid…] }, objet vide par défaut ; migration 20261128f,
     // lib/btp/equipe-par-jour.ts) : chaque employé désigné doit être un membre du compte, comme dans membres_ids.
     equipe_par_jour: { type: 'equipe_jours', nonNul: true, cible: 'membres_btp' },
   },

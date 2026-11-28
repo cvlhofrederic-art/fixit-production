@@ -1,4 +1,4 @@
--- 20261128c_chantiers_btp_equipe_par_jour.sql
+-- 20261128f_chantiers_btp_equipe_par_jour.sql
 --
 -- Équipe d'une obra jour par jour (demande de Frédéric du 28/11/2026) : « on doit pouvoir choisir les employés qui y
 -- sont, et pouvoir modifier par JOUR si jamais d'autres y sont ».

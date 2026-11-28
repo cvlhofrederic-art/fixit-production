@@ -21,7 +21,7 @@ const h = vi.hoisted(() => {
     autreColonneAbsente: false,
     /** Colonne alerte_meteo (migration 20261126b) absente : le chantier s'enregistre sans la case. */
     alerteAbsente: false,
-    /** Colonne equipe_par_jour (migration 20261128c) absente : une obra sans jour retouché s'enregistre sans elle. */
+    /** Colonne equipe_par_jour (migration 20261128f) absente : une obra sans jour retouché s'enregistre sans elle. */
     equipeAbsente: false,
     chantiers: [] as Ligne[],
     /** Employés (membres_btp) : la route vérifie que ceux affectés au chantier sont du compte. */
@@ -271,7 +271,7 @@ describe('POST /api/btp — équipe habituelle changée : le passé ne bouge pas
   })
 })
 
-// Équipe jour par jour (migration 20261128c, 28/11/2026). Même règle que l'alerte météo : sans la colonne, une obra sans
+// Équipe jour par jour (migration 20261128f, 28/11/2026). Même règle que l'alerte météo : sans la colonne, une obra sans
 // jour retouché (objet vide, valeur par défaut, envoyé par toute nouvelle fiche) s'enregistre sans elle ; une retouche
 // n'est jamais perdue en silence. Et chaque employé désigné un jour doit être un employé de la société.
 describe('POST /api/btp — équipe d’une obra jour par jour (equipe_par_jour)', () => {
@@ -281,7 +281,7 @@ describe('POST /api/btp — équipe d’une obra jour par jour (equipe_par_jour)
     const res = await ecrire({ action: 'insert', data: { titre: 'Moradia', membres_ids: [M1], equipe_par_jour: {} } })
     expect(res.status).toBe(201)
     expect(h.etat.envois.map(e => 'equipe_par_jour' in e.valeur)).toEqual([true, false])
-    expect(h.etat.avertissements).toEqual([expect.stringContaining('migration 20261128c')])
+    expect(h.etat.avertissements).toEqual([expect.stringContaining('migration 20261128f')])
   })
 
   it('colonne absente, un jour retouché : refus 409 qui le dit (français et portugais), rien n’est réécrit', async () => {

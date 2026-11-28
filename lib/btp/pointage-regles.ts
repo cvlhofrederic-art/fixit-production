@@ -53,7 +53,7 @@ export interface ChantierBtp {
   longitude?: number | null
   geo_rayon_m?: number | null
   membres_ids?: string[] | null
-  /** Équipe retouchée jour par jour ({ "AAAA-MM-JJ": [membres] }, migration 20261128c ; lib/btp/equipe-par-jour.ts). */
+  /** Équipe retouchée jour par jour ({ "AAAA-MM-JJ": [membres] }, migration 20261128f ; lib/btp/equipe-par-jour.ts). */
   equipe_par_jour?: unknown
 }
 

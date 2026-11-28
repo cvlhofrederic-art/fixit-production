@@ -23,7 +23,7 @@ import { SOURCES_DES_COLONNES, colonnesModifiees, mapToSupabase } from '@/lib/ho
 // par la migration 20261116 du pointage géolocalisé (PR #703), appliquée en production le 16/11/2026, et
 // chantiers_btp.alerte_meteo (boolean NOT NULL, false par défaut), ajoutée par la migration 20261126b de l'alerte météo
 // par chantier (26/11/2026), à appliquer en production AVANT la fusion de la PR qui l'apporte, et
-// chantiers_btp.equipe_par_jour (jsonb NOT NULL, objet vide par défaut), ajoutée par la migration 20261128c de l'équipe
+// chantiers_btp.equipe_par_jour (jsonb NOT NULL, objet vide par défaut), ajoutée par la migration 20261128f de l'équipe
 // jour par jour (28/11/2026) ; sans elle, la route enregistre une obra sans jour retouché et refuse une retouche (409).
 const RELEVE_PRODUCTION: Record<TableEcrivable, string> = {
   chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*, membres_ids:uuid[]!*, alerte_meteo:boolean!*, equipe_par_jour:jsonb!*',

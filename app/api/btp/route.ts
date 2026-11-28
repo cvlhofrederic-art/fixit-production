@@ -410,7 +410,7 @@ function normaliserLigne(table: TableEcrivable, ligne: Ligne): void {
 /**
  * L'équipe habituelle d'un chantier change : ses jours passés gardent l'ancienne équipe (figerJoursPasses). Fait ici
  * pour tous les écrans qui écrivent membres_ids (fiche de l'obra, onglet Affectations du pointage). Rien à figer si la
- * colonne equipe_par_jour manque encore (migration 20261128c) ou si la fiche est introuvable ; une lecture en échec
+ * colonne equipe_par_jour manque encore (migration 20261128f) ou si la fiche est introuvable ; une lecture en échec
  * n'empêche pas l'enregistrement (le passé n'est alors pas figé, et le journal le dit).
  */
 async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne, paysDeLEcran: PaysObra | null): Promise<void> {
@@ -483,13 +483,13 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
  * - alerte_meteo (alerte météo par notification, migration 20261126b) : décochée (valeur par défaut de la colonne),
  *   elle est retirée et le reste de la fiche est enregistré ; cochée, toute l'écriture est refusée (409) et rien n'est
  *   enregistré (ecrireSansColonnesAbsentes).
- * - equipe_par_jour (équipe retouchée jour par jour, migration 20261128c) : vide (aucun jour retouché, valeur par
+ * - equipe_par_jour (équipe retouchée jour par jour, migration 20261128f) : vide (aucun jour retouché, valeur par
  *   défaut de la colonne), elle est retirée ; avec au moins un jour retouché, toute l'écriture est refusée (409).
  */
 const COLONNES_RECENTES_CHANTIER: Readonly<Record<string, string>> = {
   membres_ids: 'chantier enregistré sans ses employés (migration 20261116 à appliquer)',
   alerte_meteo: 'chantier enregistré sans son alerte météo (migration 20261126b à appliquer)',
-  equipe_par_jour: 'chantier enregistré sans équipe par jour (migration 20261128c à appliquer)',
+  equipe_par_jour: 'chantier enregistré sans équipe par jour (migration 20261128f à appliquer)',
 }
 
 /** Jours retouchés alors que la colonne manque : refus plutôt que perte en silence (comme l'alerte météo cochée). */

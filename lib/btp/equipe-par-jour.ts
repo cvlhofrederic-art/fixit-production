@@ -6,7 +6,7 @@
  * Deux niveaux, sans rien changer à ce qui existait :
  *   1. l'équipe habituelle du chantier, `membres_ids` (migration 20261116), cochée dans la fiche ; elle travaille les
  *      jours ouvrés, du lundi au vendredi ;
- *   2. `equipe_par_jour` (migration 20261128c) : pour un jour donné, la liste EXACTE des employés présents, qui remplace
+ *   2. `equipe_par_jour` (migration 20261128f) : pour un jour donné, la liste EXACTE des employés présents, qui remplace
  *      l'équipe habituelle ce jour-là. Un samedi travaillé, un jour férié chômé, un renfort d'un jour, un absent.
  * Un jour à venir dont la liste égale l'équipe habituelle disparaît (`simplifierEquipeParJour`). Le passé, lui, ne
  * bouge plus : un jour passé garde sa liste, et quand l'équipe habituelle change, les jours passés sans liste reçoivent
