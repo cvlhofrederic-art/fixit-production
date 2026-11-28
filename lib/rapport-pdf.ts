@@ -9,6 +9,8 @@ import type { ModeleRapport } from '@/lib/pdf/modeles-societes'
 
 export interface RapportPDFData {
   rapportNumber: string
+  /** Création du rapport (ISO) : date d'émission stable des gabarits de société. */
+  createdAt?: string
   refDevisFact: string
   // Artisan
   artisanName: string

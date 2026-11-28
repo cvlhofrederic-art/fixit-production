@@ -91,6 +91,48 @@ describe('Rapports : gabarit de relatório de la société', () => {
     expect(photos.map((p) => p.id)).toEqual(['photo-1', 'photo-2'])
   })
 
+  it('numéro d’un nouveau rapport : série RT pour la société Vitfix, RAP inchangée ailleurs', async () => {
+    // Horloge figée : le numéro porte l'année en cours.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-15T10:00:00Z'))
+    try {
+      const existants = [
+        { ...RAPPORT, id: 'rap_1', rapportNumber: 'RAP-2026-007' },
+        { ...RAPPORT, id: 'rap_2', rapportNumber: 'RT-2026-004' },
+        { ...RAPPORT, id: 'rap_3', rapportNumber: 'RT-2025-019' },
+      ]
+      const numeroDuNouveau = async (artisan: Artisan, orgRole: string) => {
+        localStorage.setItem(`fixit_rapports_${artisan.id}`, JSON.stringify(existants))
+        const { container, unmount } = render(<RapportsSection artisan={artisan} bookings={[]} services={[]} orgRole={orgRole} />)
+        fireEvent.click(await screen.findByRole('button', { name: '+ Novo relatório' }))
+        const numero = container.querySelector('.v22-ref')?.textContent
+        unmount()
+        return numero
+      }
+      // Vitfix : la série RT a son propre compteur, par année (les anciens RAP restent tels quels).
+      expect(await numeroDuNouveau({ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan, 'pro_societe')).toBe('RT-2026-005')
+      expect(await numeroDuNouveau({ id: 'compte-salarie', fiche_societe_id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan, 'pro_societe')).toBe('RT-2026-005')
+      // Autre société BTP et artisan : série RAP, comme avant.
+      expect(await numeroDuNouveau({ id: 'fiche-autre-societe' } as unknown as Artisan, 'pro_societe')).toBe('RAP-2026-008')
+      expect(await numeroDuNouveau({ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan, 'artisan')).toBe('RAP-2026-008')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('courriel au client : « relatório técnico » pour la société Vitfix, « relatório de obra » pour une autre société', async () => {
+    const ouvrir = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const corpsDuCourriel = async (artisan: Artisan) => {
+      localStorage.setItem(`fixit_rapports_${artisan.id}`, JSON.stringify([{ ...RAPPORT, clientEmail: 'cliente@example.pt' }]))
+      const { unmount } = render(<RapportsSection artisan={artisan} bookings={[]} services={[]} orgRole="pro_societe" />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Email' }))
+      unmount()
+      return decodeURIComponent(String(ouvrir.mock.calls.at(-1)?.[0]))
+    }
+    expect(await corpsDuCourriel({ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan)).toContain('Segue em anexo o relatório técnico RAP-2026-001')
+    expect(await corpsDuCourriel({ id: 'fiche-autre-societe' } as unknown as Artisan)).toContain('Segue em anexo o relatório de obra RAP-2026-001')
+  })
+
   it('rapport sans photo liée : les photos ne sont pas lues pour rien', async () => {
     localStorage.setItem(`fixit_rapports_${VITFIX_SOCIETE_PROFIL_ID}`, JSON.stringify([{ ...RAPPORT, linkedPhotoIds: [] }]))
     render(<RapportsSection artisan={{ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan} bookings={[]} services={[]} orgRole="pro_societe" />)

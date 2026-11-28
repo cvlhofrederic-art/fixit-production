@@ -58,6 +58,8 @@ interface RapportTableRowProps {
   documentsParId?: Map<string, DocumentLie>
   /** Rôle de l'espace (« pro_societe » : vocabulaire de la construction dans le courriel en portugais). */
   orgRole?: string
+  /** Société au gabarit Vitfix : son PDF s'intitule « Relatório Técnico », le courriel le nomme ainsi. */
+  relatorioTecnico?: boolean
   dateFmtLocale: string
   onEdit: (r: RapportIntervention) => void
   onDelete: (id: string) => void
@@ -72,6 +74,7 @@ export default function RapportTableRow({
   artisanId,
   documentsParId,
   orgRole,
+  relatorioTecnico,
   dateFmtLocale,
   onEdit,
   onDelete,
@@ -181,11 +184,14 @@ export default function RapportTableRow({
           {r.clientEmail && (
             <button onClick={() => {
               // Courriel préparé pour le client du professionnel : rédigé dans la langue de l'interface
-              // (« relatório de obra » côté société BTP, « relatório de intervenção » côté artisan).
+              // (« relatório de obra » côté société BTP, « relatório técnico » pour une société au gabarit Vitfix,
+              // « relatório de intervenção » côté artisan).
+              let designacao = 'relatório de intervenção'
+              if (isBtp) designacao = relatorioTecnico ? 'relatório técnico' : 'relatório de obra'
               const dateIntervention = r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : ''
               const subject = isPt ? encodeURIComponent(`Relatório ${r.rapportNumber} · ${r.artisanName || 'Fixit'}`) : encodeURIComponent(`Rapport ${r.rapportNumber} \u2014 ${r.artisanName || 'Fixit'}`)
               const body = isPt
-                ? encodeURIComponent(`Caro(a) ${r.clientName || ''},\n\nSegue em anexo o ${isBtp ? 'relatório de obra' : 'relatório de intervenção'} ${r.rapportNumber} de ${dateIntervention}.\n\nCom os melhores cumprimentos,\n${r.artisanName || ''}${r.artisanPhone ? '\n' + r.artisanPhone : ''}`)
+                ? encodeURIComponent(`Caro(a) ${r.clientName || ''},\n\nSegue em anexo o ${designacao} ${r.rapportNumber} de ${dateIntervention}.\n\nCom os melhores cumprimentos,\n${r.artisanName || ''}${r.artisanPhone ? '\n' + r.artisanPhone : ''}`)
                 : encodeURIComponent(`Bonjour ${r.clientName || ''},\n\nVeuillez trouver ci-joint le rapport d'intervention ${r.rapportNumber} du ${r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : ''}.\n\nCordialement,\n${r.artisanName || ''}${r.artisanPhone ? '\n' + r.artisanPhone : ''}`)
               window.open(`mailto:${encodeURIComponent(r.clientEmail)}?subject=${subject}&body=${body}`)
               onMarkSent(r.id)
