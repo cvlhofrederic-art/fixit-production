@@ -7,12 +7,14 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  * le référent métier, décision du 26/11/2026 : « Saisir un solde d'ouverture (date et montant) pour chaque compte »).
  * Fonctions pures, montant en CENTIMES ENTIERS signés (négatif : découvert), date ISO (AAAA-MM-JJ), sans écran.
  *
- * Ce que dit le solde d'ouverture : le solde du compte AU DÉBUT du jour indiqué, avant les mouvements de ce jour (le
- * solde de fin de la veille). À partir de ce jour, le solde du compte est ce montant plus les lignes de relevé datées de
- * ce jour ou d'après (db/sous-comptes-banque.ts, soldeCompteBancaireCentimes) ; les lignes datées avant sont tenues pour
- * déjà comprises dans ce montant et n'y entrent pas une seconde fois (elles sont comptées et signalées). Avant ce jour,
- * rien ne change : le solde reste la somme des lignes importées. Facultatif : un compte ouvert pendant la mission part
- * de zéro.
+ * Ce que dit le solde d'ouverture (réponse du référent métier du 28/11/2026, PR 848, point 2, choix B : « Passer au
+ * solde de fin de journée : montant et date se recopient tels quels depuis le relevé ») : le solde du compte À LA FIN du
+ * jour indiqué, les mouvements de ce jour compris. C'est ainsi qu'un relevé CFONB 120 ou camt.053 écrit son ancien
+ * solde, daté de la veille de son premier jour. À partir de ce jour, le solde du compte est ce montant plus les lignes
+ * de relevé datées APRÈS ce jour (db/sous-comptes-banque.ts, soldeCompteBancaireCentimes) ; les lignes datées de ce jour
+ * ou d'avant sont tenues pour déjà comprises dans ce montant et n'y entrent pas une seconde fois : elles restent
+ * importées, comptées et signalées (même réponse, point 3, choix A). Avant ce jour, le solde du compte n'est pas connu :
+ * un arrêté n'y est pas ouvert (point 5). Facultatif : un compte ouvert pendant la mission part de zéro.
  *
  * Représentation retenue : deux champs du compte (table « banques », non indexés), lus par les calculs. AUCUNE écriture
  * n'est passée au journal. Ce n'est ni un avis juridique ni un avis comptable ; raisons, textes lus sur Légifrance le
@@ -42,19 +44,23 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  *   date du solde d'ouverture (l'ancienne ou la nouvelle) : son solde compta figé repose sur lui, il faut le déclôturer
  *   d'abord. Un arrêté en cours se recalcule ; un arrêté abandonné ne compte dans aucune règle. La déclôture étant
  *   refusée tant qu'un arrêté est en cours sur le compte (domain/rapprochement-bancaire.ts, decloturerArrete), le refus
- *   dit alors d'abandonner d'abord cet arrêté en cours.
- *
- * Point ouvert, à faire trancher par le référent métier (relecture du 27/11/2026) : un solde d'ouverture daté APRÈS un
- * arrêté clôturé est accepté sans contrôle. Le solde du compte à la date de cet arrêté est pourtant connu (son solde
- * banque, égal au solde compta à la clôture) : un solde d'ouverture qui ne le prolonge pas fait sauter le solde du compte
- * après une période rapprochée, sans écriture ni ligne de relevé. Trois règles possibles, aucune n'est retenue ici :
- * refuser un solde d'ouverture daté après le dernier arrêté clôturé du compte ; exiger qu'il soit égal au solde banque
- * de cet arrêté plus les lignes importées entre les deux dates (ce qui refuse aussi le cas, possible, d'un relevé
- * intermédiaire jamais importé) ; l'accepter avec un avertissement à l'écran. Même question, à l'envers, pour la clôture
- * d'un arrêté daté avant un solde d'ouverture déjà saisi.
+ *   dit alors d'abandonner d'abord cet arrêté en cours ;
+ * - solde d'ouverture et arrêtés (réponses du référent métier du 28/11/2026, PR 848, points 4 et 5, choix A) : « un solde
+ *   d'ouverture se date avant le premier arrêté du compte », et un arrêté daté avant lui est refusé, « solde inconnu
+ *   avant le JJ/MM/AAAA ». Les deux règles disent la même chose de chaque côté : aucun arrêté qui compte n'est daté avant
+ *   le solde d'ouverture de son compte. Un solde d'ouverture daté après un arrêté ferait sauter le solde du compte après
+ *   une période rapprochée, sans écriture ni ligne de relevé (verifierChangementSoldeOuverture le refuse) ; un arrêté
+ *   daté avant lui serait calculé sur un solde inconnu (refusArreteAvantOuverture, appliquée à l'ouverture et à la
+ *   clôture par db/rapprochements.ts). Le même jour est admis des deux côtés : avec un solde de fin de journée, l'arrêté
+ *   de ce jour a pour solde compta le solde d'ouverture lui-même. La réponse ne nommait que l'arrêté clôturé : l'arrêté
+ *   en cours est traité de même, faute de quoi il resterait un arrêté en cours daté avant le solde d'ouverture, que sa
+ *   clôture refuserait (choix à soumettre au référent métier) ;
+ * - solde d'ouverture illisible (même réponse, point 8, choix A) : des champs enregistrés hors de l'écran, sans date ou
+ *   mal formés, n'entrent toujours dans aucun solde, mais soldeOuvertureIllisible les reconnaît, pour que l'écran les
+ *   signale par un bandeau au lieu de les ignorer en silence.
  */
 
-/** Solde d'ouverture d'un compte : son solde au début du jour `au`, avant les mouvements de ce jour. */
+/** Solde d'ouverture d'un compte : son solde à la fin du jour `au`, les mouvements de ce jour compris. */
 export interface SoldeOuverture {
   /** Centimes entiers signés ; négatif : découvert. */
   centimes: number
@@ -113,6 +119,17 @@ export function soldeOuvertureEnregistre(compte: ChampsSoldeOuverture): SoldeOuv
   return { centimes, au }
 }
 
+/**
+ * Vrai quand le compte porte un solde d'ouverture illisible : un des deux champs est renseigné, sans que l'ensemble ait
+ * la forme d'un solde d'ouverture (montant sans date, date sans montant, centimes non entiers, date mal formée). Une
+ * telle ligne ne peut venir que d'une écriture hors de l'écran. Champs absents ou à null : aucun solde d'ouverture, rien
+ * à signaler.
+ */
+export function soldeOuvertureIllisible(compte: ChampsSoldeOuverture): boolean {
+  const renseigne = (compte.soldeOuvertureCentimes ?? null) !== null || (compte.soldeOuvertureAu ?? null) !== null
+  return renseigne && soldeOuvertureEnregistre(compte) === null
+}
+
 /** Même solde d'ouverture : même montant et même date, ou aucun des deux côtés. */
 export const memeSoldeOuverture = (a: SoldeOuverture | null, b: SoldeOuverture | null): boolean =>
   a === null || b === null ? a === b : a.centimes === b.centimes && a.au === b.au
@@ -128,16 +145,53 @@ export interface ChangementSoldeOuverture {
   arretes: readonly Pick<ArreteRapprochement, 'dateArrete' | 'statut'>[]
 }
 
+type ArreteDuCompte = ChangementSoldeOuverture['arretes'][number]
+
+/** Règle dite à la fin du refus d'un solde d'ouverture daté après un arrêté du compte (mots du référent métier ; le même jour est admis). */
+const REGLE_PREMIER_ARRETE = 'Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour.'
+
+/**
+ * Refus d'un solde d'ouverture daté après un arrêté du compte, clôturé ou en cours (réponse du référent métier du
+ * 28/11/2026, PR 848, point 4, choix A : « Le refuser : un solde d'ouverture se date avant le premier arrêté du
+ * compte ») ; null s'il est daté au plus tard du premier arrêté (le même jour est admis : solde de fin de journée), si le
+ * compte n'a aucun arrêté qui compte, ou si le solde d'ouverture est retiré.
+ */
+function refusOuvertureApresArrete(apres: SoldeOuverture | null, arretes: readonly ArreteDuCompte[]): string | null {
+  if (apres === null) return null
+  const premier = arretes.reduce<ArreteDuCompte | null>((min, arrete) => (min === null || arrete.dateArrete < min.dateArrete ? arrete : min), null)
+  if (premier === null || premier.dateArrete >= apres.au) return null
+  const arrete = `${dateIsoVersFr(premier.dateArrete)}, ${premier.statut === 'En cours' ? 'en cours' : 'clôturé'}`
+  return `Solde d’ouverture refusé : daté du ${dateIsoVersFr(apres.au)}, après le premier arrêté du compte (${arrete}). ${REGLE_PREMIER_ARRETE}`
+}
+
+/**
+ * Refus d'un arrêté daté avant le solde d'ouverture de son compte (même réponse, point 5, choix A : « Le refuser :
+ * "solde inconnu avant le JJ/MM/AAAA" ») ; null pour un arrêté daté du jour du solde d'ouverture (solde de fin de
+ * journée : son solde compta est ce solde) ou d'après, et pour un compte sans solde d'ouverture. `dateArrete` :
+ * AAAA-MM-JJ valide. Même forme que les règles communes des arrêtés (refus dit en texte, ou null) ; appliquée par
+ * db/rapprochements.ts, qui lit le compte, à l'ouverture et à la clôture d'un arrêté.
+ */
+export function refusArreteAvantOuverture(dateArrete: string, ouverture: SoldeOuverture | null): string | null {
+  if (ouverture === null || dateArrete >= ouverture.au) return null
+  return `Arrêté daté du ${dateIsoVersFr(dateArrete)} : solde inconnu avant le ${dateIsoVersFr(ouverture.au)}, date du solde d’ouverture du compte.`
+}
+
 /**
  * Refuse, avec le message affiché, de saisir, modifier ou retirer le solde d'ouverture d'un compte clôturé, ou d'un compte
  * dont un arrêté clôturé couvre la date du solde d'ouverture, l'ancienne ou la nouvelle (arrêté daté de ce jour ou
  * d'après) : le solde compta figé de cet arrêté a été calculé avec l'ancien solde d'ouverture, ou sans le nouveau. Sans
  * changement, rien n'est refusé. Le refus dit la marche à suivre en entier : déclôturer, après avoir abandonné l'arrêté
  * en cours du compte s'il y en a un (tant qu'il existe, la déclôture est refusée elle aussi).
+ * Refuse aussi, et d'abord, un solde d'ouverture daté APRÈS un arrêté du compte, clôturé ou en cours (réponse du
+ * référent métier du 28/11/2026, PR 848, point 4, choix A ; voir l'en-tête) : la date elle-même est refusée, déclôturer
+ * n'y changerait rien. Le refus nomme le premier arrêté du compte. Le même jour n'est pas « après ». Retirer le solde
+ * d'ouverture, ou le laisser tel quel, n'est jamais refusé par cette règle.
  */
 export function verifierChangementSoldeOuverture({ avant, apres, compteActif, arretes }: ChangementSoldeOuverture): void {
   if (memeSoldeOuverture(avant, apres)) return
   if (!compteActif) throw new Error('Compte bancaire clôturé : son solde d’ouverture ne se modifie plus.')
+  const refusDate = refusOuvertureApresArrete(apres, arretes)
+  if (refusDate) throw new Error(refusDate)
   const dates = [avant?.au, apres?.au].filter((date): date is string => date !== undefined)
   const premiere = dates.reduce((min, date) => (date < min ? date : min), dates[0])
   const couvrants = arretes

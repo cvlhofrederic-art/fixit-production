@@ -246,7 +246,8 @@ export interface Banque extends EntiteEnregistree {
   reserveAuFondsTravaux?: boolean
   /**
    * Solde d'ouverture du compte (décision du 26/11/2026, PR 799, point 2, choix A ; domain/solde-ouverture-compte.ts) :
-   * solde au début du jour `soldeOuvertureAu` (AAAA-MM-JJ), en centimes entiers signés (négatif : découvert). Les deux
+   * solde à la fin du jour `soldeOuvertureAu` (AAAA-MM-JJ ; réponse du référent métier du 28/11/2026, PR 848, point 2,
+   * choix B : solde de fin de journée), en centimes entiers signés (négatif : découvert). Les deux
    * champs vont ensemble ; absents ou à null : aucun solde d'ouverture (le compte part de zéro). Optionnels et non
    * indexés : aucun changement de version de la base. Aucune écriture au journal de banque : les calculs du sous-compte
    * 512 le lisent (db/sous-comptes-banque.ts).

@@ -111,8 +111,9 @@ function champsCompte(saisie: SaisieCompteBancaire): ChampsCompte {
  * introuvable, une nature inconnue, un IBAN invalide ou une marque du fonds portée par une autre nature.
  * Solde d'ouverture (saisie.soldeOuverture, s'il est fourni) : contrôlé par le domaine (montant et date ensemble, date
  * ni invalide ni après aujourd'hui). À la création, il n'est écrit que s'il est saisi. À la modification, son changement
- * est refusé, sans aucune écriture du compte, sur un compte clôturé, sous un arrêté clôturé qui couvre sa date
- * (déclôturer d'abord) ou tant qu'un arrêté illisible pourrait en cacher un ; inchangé, il n'est pas réécrit.
+ * est refusé, sans aucune écriture du compte, sur un compte clôturé, daté après un arrêté du compte (réponse du référent
+ * métier du 28/11/2026, PR 848, point 4), sous un arrêté clôturé qui couvre sa date (déclôturer d'abord) ou tant qu'un
+ * arrêté illisible pourrait en cacher un ; inchangé, il n'est pas réécrit.
  */
 export async function enregistrerCompteBancaire(
   coproprieteId: string,

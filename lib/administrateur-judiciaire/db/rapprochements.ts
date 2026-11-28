@@ -14,7 +14,11 @@ import {
   type ArreteRapprochement,
   type StatutArrete,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
-import { soldeOuvertureEnregistre, type SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
+import {
+  refusArreteAvantOuverture,
+  soldeOuvertureEnregistre,
+  type SoldeOuverture,
+} from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 
 /**
  * Arrêtés de rapprochement d'un compte bancaire, écrits par l'écran « Banque et recouvrement » (« Nouvel arrêté »,
@@ -35,6 +39,10 @@ import { soldeOuvertureEnregistre, type SoldeOuverture } from '@/lib/administrat
  * arrêté daté de son jour ou d'après (soldeCompteBancaireCentimes), à l'ouverture, au recalcul et à la clôture, qui le
  * relit sur le compte dans sa transaction. Saisi ou corrigé pendant qu'un arrêté est en cours, il y entre donc aussi ;
  * il ne se modifie plus sous un arrêté clôturé qui couvre sa date (db/comptes-bancaires.ts).
+ * Arrêté daté avant le solde d'ouverture de son compte (réponse du référent métier du 28/11/2026, PR 848, point 5,
+ * choix A) : refusé, « solde inconnu avant le JJ/MM/AAAA » (refusArreteAvantOuverture, domain/solde-ouverture-compte.ts),
+ * à l'ouverture et à la clôture. À l'ouverture, ce refus sur la date est levé en dernier, après ceux d'ouvrirArrete : un
+ * arrêté déjà en cours ou une date non postérieure au dernier arrêté gardent leur message.
  * Arrêté abandonné (décision du 26/11/2026, rb-01 A) : la ligne reste en base avec ses montants, statut « Abandonné »,
  * l'écriture étant tracée au journal d'activité comme les autres (repository). Elle est lue à part (`abandonnes`) :
  * aucune règle ne la reçoit, elle ne compte ni comme arrêté en cours, ni comme dernier arrêté, ni dans un solde.
@@ -142,6 +150,9 @@ export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete,
       : 0
     const arrete = ouvrirArrete(existants, { id: genererId(), banqueId, ...saisie, soldeComptaCentimes })
     const { id, banqueId: bancaireId, ...champs } = arrete
+    // Arrêté daté avant le solde d'ouverture du compte : refusé, la date en dernier (PR 848, point 5 ; voir l'en-tête).
+    const refus = refusArreteAvantOuverture(arrete.dateArrete, soldeOuvertureEnregistre(compte))
+    if (refus) throw new Error(refus)
     await repoRapprochements.create({ bancaireId, ...champs }, { id, actor: options.actor ?? null })
     return arrete
   })
@@ -161,12 +172,16 @@ async function arreteEtSonCompte(id: string): Promise<{ arrete: ArreteRapprochem
 /**
  * Clôture un arrêté en cours, à l'équilibre seulement (cloturerArrete), sur le solde compta recalculé dans la
  * transaction, avec le solde d'ouverture du compte relu dans la même transaction ; ce solde est enregistré avec la
- * clôture, puis ne bouge plus.
+ * clôture, puis ne bouge plus. Un arrêté en cours daté avant le solde d'ouverture de son compte (état que l'écran
+ * n'écrit plus : solde d'ouverture enregistré hors de l'écran) n'est pas clôturé : son solde compta ne dit rien, le
+ * solde du compte n'est pas connu avant cette date (réponse du référent métier du 28/11/2026, PR 848, point 5).
  */
 export async function cloturerArreteCompte(id: string, options: OptionsEcriture = {}): Promise<ArreteRapprochement> {
   return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.ecritures, ajDb.activityLog], async () => {
     const { arrete } = await arreteEtSonCompte(id)
     const ouverture = soldeOuvertureEnregistre((await repoBanques.get(arrete.banqueId)) ?? {})
+    const refus = arrete.statut === 'En cours' ? refusArreteAvantOuverture(arrete.dateArrete, ouverture) : null
+    if (refus) throw new Error(refus)
     const cloture = cloturerArrete(avecSoldeComptaCourant(arrete, await ajDb.ecritures.toArray(), ouverture))
     await repoRapprochements.update(
       id,

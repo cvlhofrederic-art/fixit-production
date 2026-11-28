@@ -9,16 +9,23 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
 import {
   lireSaisieSoldeOuverture,
   memeSoldeOuverture,
+  refusArreteAvantOuverture,
   soldeOuvertureEnregistre,
+  soldeOuvertureIllisible,
   verifierChangementSoldeOuverture,
 } from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 
 /**
  * Solde d'ouverture d'un compte bancaire (PR 799, point 2, choix A validé par le référent métier, décision du
- * 26/11/2026) : montant signé et date, saisis sur le compte. Le solde vaut au DÉBUT du jour indiqué, avant ses
- * mouvements. Il entre dans le solde du sous-compte 512 du compte à partir de cette date ; les lignes de relevé datées
- * avant sont tenues pour déjà comprises dans ce solde. Avant cette date, le solde reste la somme des lignes importées.
- * Règles pures : saisie, lecture d'une ligne de la base, changement refusé quand un arrêté clôturé couvre la date.
+ * 26/11/2026) : montant signé et date, saisis sur le compte. Règles pures : saisie, lecture d'une ligne de la base,
+ * changement refusé quand un arrêté clôturé couvre la date.
+ * Réponses du référent métier du 28/11/2026 (PR 848) :
+ * - point 2, choix B : le solde vaut à la FIN du jour indiqué, ses mouvements compris (montant et date se recopient tels
+ *   quels depuis le relevé). Seules les lignes datées APRÈS ce jour s'y ajoutent ;
+ * - point 3, choix A : les lignes datées de ce jour ou d'avant restent importées, hors du solde, et sont signalées ;
+ * - point 4, choix A : un solde d'ouverture daté après un arrêté du compte est refusé ;
+ * - point 5, choix A : un arrêté daté avant le solde d'ouverture est refusé (« solde inconnu avant le JJ/MM/AAAA ») ;
+ * - point 8, choix A : un solde d'ouverture enregistré sans date ou mal formé est reconnu, pour être signalé.
  */
 
 const AUJOURDHUI = '2026-06-04'
@@ -79,6 +86,21 @@ describe('solde d’ouverture lu sur une ligne de la base (soldeOuvertureEnregis
     expect(memeSoldeOuverture({ centimes: 1, au: '2026-05-01' }, { centimes: 1, au: '2026-05-02' })).toBe(false)
     expect(memeSoldeOuverture({ centimes: 0, au: '2026-05-01' }, null)).toBe(false)
   })
+
+  it('solde d’ouverture illisible (point 8) : un champ présent sans former un solde d’ouverture ; absents ou à null : aucun, rien à signaler', () => {
+    expect(soldeOuvertureIllisible({})).toBe(false)
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: null, soldeOuvertureAu: null })).toBe(false)
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })).toBe(false)
+    // Sans date, ou date sans montant.
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: 100_000 })).toBe(true)
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: null })).toBe(true)
+    expect(soldeOuvertureIllisible({ soldeOuvertureAu: '2026-05-01' })).toBe(true)
+    // Mal formé : centimes non entiers, montant en texte, date au format français, date vide.
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: 12.5, soldeOuvertureAu: '2026-05-01' })).toBe(true)
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: '1000', soldeOuvertureAu: '2026-05-01' })).toBe(true)
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: 100, soldeOuvertureAu: '01/05/2026' })).toBe(true)
+    expect(soldeOuvertureIllisible({ soldeOuvertureCentimes: 100, soldeOuvertureAu: '' })).toBe(true)
+  })
 })
 
 describe('solde d’un compte bancaire avec son solde d’ouverture (soldeCompteBancaireCentimes)', () => {
@@ -99,11 +121,14 @@ describe('solde d’un compte bancaire avec son solde d’ouverture (soldeCompte
     expect(soldeCompteBancaireCentimes(ecritures, 'B3', null)).toBeNull()
   })
 
-  it('avec solde d’ouverture : ce solde plus les lignes datées de son jour ou d’après ; les lignes d’avant n’y entrent pas', () => {
-    // 1 000,00 + 450,00 (le jour même : le solde vaut au début du jour) − 120,50 + 99,00 ; les 200,00 du 20/04 sont déjà dans le solde d'ouverture.
-    expect(soldeCompteBancaireCentimes(ecritures, 'B1', ouverture)).toBe(142_850)
-    expect(soldeCompteBancaireCentimes(ecritures, 'B1', ouverture, '2026-05-31')).toBe(132_950)
-    expect(soldeCompteBancaireCentimes(ecritures, 'B1', ouverture, '2026-05-01')).toBe(145_000)
+  it('avec solde d’ouverture (fin de journée) : ce solde plus les lignes datées APRÈS son jour ; celles de son jour ou d’avant n’y entrent pas', () => {
+    // 1 000,00 − 120,50 + 99,00 ; les 200,00 du 20/04 et les 450,00 du 01/05 (le jour même : le solde vaut à la fin du jour) sont déjà dans le solde d'ouverture.
+    expect(soldeCompteBancaireCentimes(ecritures, 'B1', ouverture)).toBe(97_850)
+    expect(soldeCompteBancaireCentimes(ecritures, 'B1', ouverture, '2026-05-31')).toBe(87_950)
+    // Le jour même : le solde d'ouverture, tel quel.
+    expect(soldeCompteBancaireCentimes(ecritures, 'B1', ouverture, '2026-05-01')).toBe(100_000)
+    // Le lendemain d'une ligne : elle s'ajoute.
+    expect(soldeCompteBancaireCentimes(ecritures, 'B1', { centimes: 100_000, au: '2026-04-30' }, '2026-05-01')).toBe(145_000)
   })
 
   it('à une date antérieure au solde d’ouverture : celui-ci n’entre pas encore dans le solde (lignes importées seulement)', () => {
@@ -117,8 +142,10 @@ describe('solde d’un compte bancaire avec son solde d’ouverture (soldeCompte
     expect(soldeCompteBancaireCentimes([], 'B3', { centimes: 0, au: '2026-05-01' })).toBe(0)
   })
 
-  it('lignes datées avant le solde d’ouverture : comptées pour l’avertissement (jour même exclu, autres comptes aussi)', () => {
-    expect(lignesAvantOuverture(ecritures, 'B1', ouverture)).toBe(1)
+  it('lignes datées du jour du solde d’ouverture ou d’avant : comptées pour l’avertissement (jour même compris, autres comptes exclus)', () => {
+    expect(lignesAvantOuverture(ecritures, 'B1', ouverture)).toBe(2)
+    expect(lignesAvantOuverture(ecritures, 'B1', { centimes: 0, au: '2026-04-30' })).toBe(1)
+    expect(lignesAvantOuverture(ecritures, 'B1', { centimes: 0, au: '2026-04-19' })).toBe(0)
     expect(lignesAvantOuverture(ecritures, 'B1', { centimes: 0, au: '2026-06-03' })).toBe(4)
     expect(lignesAvantOuverture(ecritures, 'B1', null)).toBe(0)
     expect(lignesAvantOuverture(ecritures, 'B3', ouverture)).toBe(0)
@@ -129,14 +156,33 @@ describe('solde d’un compte bancaire avec son solde d’ouverture (soldeCompte
       id: 'A1',
       banqueId: 'B1',
       dateArrete: '2026-05-31',
-      soldeBanqueCentimes: 132_950,
+      soldeBanqueCentimes: 87_950,
       soldeComptaCentimes: 0,
       statut: 'En cours',
       elements: [],
     }
-    expect(avecSoldeComptaCourant(arrete, ecritures, ouverture).soldeComptaCentimes).toBe(132_950)
+    expect(avecSoldeComptaCourant(arrete, ecritures, ouverture).soldeComptaCentimes).toBe(87_950)
     expect(avecSoldeComptaCourant(arrete, ecritures).soldeComptaCentimes).toBe(52_950)
     expect(avecSoldeComptaCourant({ ...arrete, statut: 'Clôturé' }, ecritures, ouverture).soldeComptaCentimes).toBe(0)
+    // Arrêté du jour même du solde d'ouverture : son solde compta est ce solde, les lignes de ce jour y sont déjà.
+    expect(avecSoldeComptaCourant({ ...arrete, dateArrete: '2026-05-01' }, ecritures, ouverture).soldeComptaCentimes).toBe(100_000)
+  })
+})
+
+describe('arrêté daté avant le solde d’ouverture (refusArreteAvantOuverture, point 5)', () => {
+  const ouverture = { centimes: 100_000, au: '2026-05-01' }
+
+  it('arrêté daté avant le jour du solde d’ouverture : refusé, « solde inconnu avant le JJ/MM/AAAA »', () => {
+    expect(refusArreteAvantOuverture('2026-04-30', ouverture)).toBe(
+      'Arrêté daté du 30/04/2026 : solde inconnu avant le 01/05/2026, date du solde d’ouverture du compte.',
+    )
+    expect(refusArreteAvantOuverture('2025-12-31', ouverture)).toContain('solde inconnu avant le 01/05/2026')
+  })
+
+  it('arrêté du jour même (solde de fin de journée) ou d’après, compte sans solde d’ouverture : aucun refus', () => {
+    expect(refusArreteAvantOuverture('2026-05-01', ouverture)).toBeNull()
+    expect(refusArreteAvantOuverture('2026-05-31', ouverture)).toBeNull()
+    expect(refusArreteAvantOuverture('2026-04-30', null)).toBeNull()
   })
 })
 
@@ -169,7 +215,7 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
     expect(() => verifierChangementSoldeOuverture({ avant, apres: null, compteActif: true, arretes })).toThrow(refus)
     // Première saisie sous un arrêté déjà clôturé : son solde compta figé ne la contient pas.
     expect(() => verifierChangementSoldeOuverture({ avant: null, apres: avant, compteActif: true, arretes })).toThrow(refus)
-    // Arrêté daté du jour même du solde d'ouverture : couvert (le solde vaut au début de ce jour).
+    // Arrêté daté du jour même du solde d'ouverture : couvert (son solde compta figé est ce solde, ou a été calculé sans lui).
     expect(() => verifierChangementSoldeOuverture({ avant: null, apres: avant, compteActif: true, arretes: [arrete('2026-05-01', 'Clôturé')] })).toThrow(
       /arrêté clôturé du 01\/05\/2026/,
     )
@@ -177,14 +223,59 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
 
   it('date déplacée : l’ancienne date et la nouvelle comptent toutes deux', () => {
     const arretes = [arrete('2026-05-31', 'Clôturé')]
-    // Ancienne date couverte, nouvelle date postérieure à l'arrêté : le solde figé contenait l'ancien solde d'ouverture.
-    expect(() => verifierChangementSoldeOuverture({ avant, apres: { centimes: 100_000, au: '2026-06-01' }, compteActif: true, arretes })).toThrow(
+    // Ancienne date couverte, nouvelle date avancée, toujours couverte : le solde figé contenait l'ancien solde d'ouverture.
+    expect(() => verifierChangementSoldeOuverture({ avant, apres: { centimes: 100_000, au: '2026-05-15' }, compteActif: true, arretes })).toThrow(
       /Déclôturer d’abord/,
     )
-    // Ancienne date postérieure à l'arrêté, nouvelle date couverte.
+    // Ancienne date postérieure à l'arrêté (enregistrée avant la règle du point 4), nouvelle date couverte.
     expect(() =>
       verifierChangementSoldeOuverture({ avant: { centimes: 100_000, au: '2026-06-01' }, apres: avant, compteActif: true, arretes }),
     ).toThrow(/Déclôturer d’abord/)
+  })
+
+  describe('solde d’ouverture daté après un arrêté du compte (point 4) : refusé', () => {
+    const REGLE = 'Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour.'
+    const juin = { centimes: 52_950, au: '2026-06-01' }
+
+    it('après un arrêté clôturé : première saisie et déplacement de la date refusés, avec la date de cet arrêté', () => {
+      const arretes = [arrete('2026-04-30', 'Clôturé')]
+      const refus = `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (30/04/2026, clôturé). ${REGLE}`
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(refus)
+      expect(() => verifierChangementSoldeOuverture({ avant: { centimes: 20_000, au: '2026-04-01' }, apres: juin, compteActif: true, arretes })).toThrow(refus)
+    })
+
+    it('ce refus passe avant « Déclôturer d’abord » : déclôturer ne suffirait pas, la date elle-même est refusée', () => {
+      // Ancienne date couverte par l'arrêté clôturé du 31/05, nouvelle date postérieure à cet arrêté.
+      expect(() =>
+        verifierChangementSoldeOuverture({ avant, apres: { centimes: 100_000, au: '2026-06-01' }, compteActif: true, arretes: [arrete('2026-05-31', 'Clôturé')] }),
+      ).toThrow(`Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, clôturé). ${REGLE}`)
+    })
+
+    it('après un arrêté en cours : refusé aussi (il serait daté avant le solde d’ouverture, ce que le point 5 refuse)', () => {
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes: [arrete('2026-05-31', 'En cours')] })).toThrow(
+        `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). ${REGLE}`,
+      )
+    })
+
+    it('plusieurs arrêtés : le refus nomme le premier arrêté du compte', () => {
+      const arretes = [arrete('2026-05-31', 'En cours'), arrete('2026-04-30', 'Clôturé'), arrete('2026-03-31', 'Clôturé')]
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(/premier arrêté du compte \(31\/03\/2026, clôturé\)/)
+    })
+
+    it('le jour même du premier arrêté : pas « après » (solde de fin de journée) ; en cours, il se recalcule ; clôturé, il couvre la date', () => {
+      const jourMeme = { centimes: 52_950, au: '2026-05-31' }
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: jourMeme, compteActif: true, arretes: [arrete('2026-05-31', 'En cours')] })).not.toThrow()
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: jourMeme, compteActif: true, arretes: [arrete('2026-05-31', 'Clôturé')] })).toThrow(
+        'Solde d’ouverture non modifié : l’arrêté clôturé du 31/05/2026 couvre sa date. Déclôturer d’abord cet arrêté.',
+      )
+    })
+
+    it('solde d’ouverture déjà daté après un arrêté (enregistré avant cette règle) : inchangé ou retiré, admis ; autre montant à la même date, refusé', () => {
+      const arretes = [arrete('2026-04-30', 'Clôturé')]
+      expect(() => verifierChangementSoldeOuverture({ avant: juin, apres: { ...juin }, compteActif: true, arretes })).not.toThrow()
+      expect(() => verifierChangementSoldeOuverture({ avant: juin, apres: null, compteActif: true, arretes })).not.toThrow()
+      expect(() => verifierChangementSoldeOuverture({ avant: juin, apres: { centimes: 1, au: '2026-06-01' }, compteActif: true, arretes })).toThrow(/Solde d’ouverture refusé/)
+    })
   })
 
   it('plusieurs arrêtés clôturés couvrent la date : le message les compte et nomme le dernier, seul à pouvoir être déclôturé', () => {
@@ -207,10 +298,11 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
     )
   })
 
-  it('arrêté clôturé antérieur à la date, arrêté en cours : aucun refus (l’arrêté en cours se recalcule)', () => {
-    const arretes = [arrete('2026-04-30', 'Clôturé'), arrete('2026-05-31', 'En cours')]
+  it('arrêté en cours daté du jour du solde d’ouverture ou d’après, sans arrêté clôturé : aucun refus (l’arrêté en cours se recalcule)', () => {
+    const arretes = [arrete('2026-05-31', 'En cours')]
     expect(() => verifierChangementSoldeOuverture({ avant, apres: null, compteActif: true, arretes })).not.toThrow()
     expect(() => verifierChangementSoldeOuverture({ avant: null, apres: avant, compteActif: true, arretes })).not.toThrow()
+    expect(() => verifierChangementSoldeOuverture({ avant, apres: { centimes: 1, au: '2026-05-01' }, compteActif: true, arretes })).not.toThrow()
   })
 })
 
@@ -232,14 +324,22 @@ describe('vue « Comptes bancaires du mandat » avec un solde d’ouverture', ()
   const vue = (comptes: Banque[]) =>
     vueComptesBancaires({ comptes, ecritures, reglagesCabinet: null, choixMandat: null, fondement: 'art. 46 — carence', aujourdhui: AUJOURDHUI })
 
-  it('solde affiché : solde d’ouverture plus les lignes à partir de sa date ; lignes d’avant comptées à part', () => {
+  it('solde affiché : solde d’ouverture plus les lignes datées après son jour ; lignes de ce jour ou d’avant comptées à part', () => {
     const [affiche] = vue([compte({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })]).comptes
     expect(affiche).toMatchObject({ soldeCentimes: 145_000, soldeOuverture: { centimes: 100_000, au: '2026-05-01' }, lignesAvantOuverture: 1 })
+    // Solde d'ouverture daté du jour d'une ligne (10/05) : elle y est déjà, le solde affiché est le solde d'ouverture.
+    const [jourMeme] = vue([compte({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-10' })]).comptes
+    expect(jourMeme).toMatchObject({ soldeCentimes: 100_000, lignesAvantOuverture: 2, soldeOuvertureIllisible: false })
   })
 
   it('sans solde d’ouverture : solde des lignes importées, comme avant ; aucune ligne : solde inconnu', () => {
-    expect(vue([compte({})]).comptes[0]).toMatchObject({ soldeCentimes: 65_000, soldeOuverture: null, lignesAvantOuverture: 0 })
+    expect(vue([compte({})]).comptes[0]).toMatchObject({ soldeCentimes: 65_000, soldeOuverture: null, lignesAvantOuverture: 0, soldeOuvertureIllisible: false })
     expect(vue([compte({ id: 'B2' })]).comptes[0].soldeCentimes).toBeNull()
+  })
+
+  it('solde d’ouverture enregistré sans date ou mal formé (point 8) : hors du solde, comme avant, mais marqué pour être signalé', () => {
+    for (const illisible of [{ soldeOuvertureCentimes: 100_000 }, { soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '01/05/2026' }, { soldeOuvertureAu: '2026-05-01' }])
+      expect(vue([compte(illisible)]).comptes[0]).toMatchObject({ soldeCentimes: 65_000, soldeOuverture: null, lignesAvantOuverture: 0, soldeOuvertureIllisible: true })
   })
 
   it('compte clôturé : son solde d’ouverture reste dans son solde', () => {
@@ -266,24 +366,27 @@ describe('vue « Comptes bancaires du mandat » avec un solde d’ouverture', ()
   })
 })
 
-describe('analyse d’un relevé : lignes datées avant le solde d’ouverture du compte choisi', () => {
+describe('analyse d’un relevé : lignes datées du jour du solde d’ouverture du compte choisi, ou d’avant (point 3)', () => {
   const CSV = ['Date;Libellé;Montant', '28/04/2026;VIR AVRIL;200,00', '30/04/2026;PRLV AVRIL;-50,00', '01/05/2026;VIR MAI;450,00'].join('\n')
   const analyser = (soldeOuverture: { centimes: number; au: string } | null) =>
     analyserReleve({ texte: CSV, compte: { id: 'B1', iban: null, soldeOuverture }, lignesBanque: [], personnes: [] })
 
-  it('avertissement, sans rien écarter : ces lignes n’entreront pas dans le solde du compte', () => {
-    const analyse = analyser({ centimes: 100_000, au: '2026-05-01' })
+  it('avertissement, sans rien écarter : ces lignes n’entreront pas dans le solde du compte ; le jour même compte', () => {
+    const analyse = analyser({ centimes: 100_000, au: '2026-04-30' })
     expect(analyse.retenues).toHaveLength(3)
     expect(analyse.avertissements).toEqual([
-      '2 lignes datées avant le solde d’ouverture du compte (01/05/2026) : tenues pour déjà comprises dans ce solde, elles n’entreront pas dans le solde du compte.',
+      '2 lignes datées au plus tard du 30/04/2026, date du solde d’ouverture du compte : tenues pour déjà comprises dans ce solde, elles n’entreront pas dans le solde du compte.',
     ])
-    expect(analyser({ centimes: 100_000, au: '2026-04-30' }).avertissements).toEqual([
-      '1 ligne datée avant le solde d’ouverture du compte (30/04/2026) : tenue pour déjà comprise dans ce solde, elle n’entrera pas dans le solde du compte.',
+    expect(analyser({ centimes: 100_000, au: '2026-05-01' }).avertissements).toEqual([
+      '3 lignes datées au plus tard du 01/05/2026, date du solde d’ouverture du compte : tenues pour déjà comprises dans ce solde, elles n’entreront pas dans le solde du compte.',
+    ])
+    expect(analyser({ centimes: 100_000, au: '2026-04-28' }).avertissements).toEqual([
+      '1 ligne datée au plus tard du 28/04/2026, date du solde d’ouverture du compte : tenue pour déjà comprise dans ce solde, elle n’entrera pas dans le solde du compte.',
     ])
   })
 
-  it('aucune ligne avant la date, ou compte sans solde d’ouverture : aucun avertissement', () => {
-    expect(analyser({ centimes: 100_000, au: '2026-04-28' }).avertissements).toEqual([])
+  it('toutes les lignes après la date, ou compte sans solde d’ouverture : aucun avertissement', () => {
+    expect(analyser({ centimes: 100_000, au: '2026-04-27' }).avertissements).toEqual([])
     expect(analyser(null).avertissements).toEqual([])
     expect(analyserReleve({ texte: CSV, compte: { id: 'B1', iban: null }, lignesBanque: [], personnes: [] }).avertissements).toEqual([])
   })

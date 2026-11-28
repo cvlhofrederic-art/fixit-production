@@ -17,6 +17,9 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * l'écran signale un refus par un toast, la modale restant ouverte.
  * Décision du 26/11/2026 (PR 799, point 2, choix A) : deux champs facultatifs de plus, « Solde d'ouverture » (montant
  * signé en euros) et « au » (date, jamais après aujourd'hui), transmis tels que saisis ; vides : aucun solde d'ouverture.
+ * Réponses du référent métier du 28/11/2026 (PR 848) : le solde vaut à la fin du jour saisi, l'aide du champ « au » le
+ * dit (point 2, choix B) ; ce champ garde son libellé « au » et porte le nom accessible « Solde d'ouverture au » (point 7,
+ * choix A).
  */
 
 const NATURES = Object.entries(NATURES_COMPTE_BANCAIRE) as [NatureCompteBancaire, { libelle: string }][]
@@ -132,9 +135,10 @@ export function CompteBancaireModal({ compte, onClose, onEnregistrer }: Readonly
               onChange={(evenement) => changer('soldeOuverture', evenement.target.value)}
             />
           </Field>
-          <Field label="au" name="compte-solde-ouverture-au" hint="Solde au début de ce jour, avant ses mouvements.">
+          <Field label="au" name="compte-solde-ouverture-au" hint="Solde à la fin de ce jour, ses mouvements compris.">
             <input
               type="date"
+              aria-label="Solde d’ouverture au"
               max={AUJOURDHUI_ISO}
               value={valeurs.soldeOuvertureAu}
               onChange={(evenement) => changer('soldeOuvertureAu', evenement.target.value)}

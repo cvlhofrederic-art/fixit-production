@@ -50,20 +50,26 @@ export function soldeCompteCentimes(
 
 type EcritureDeSolde = Pick<Ecriture, 'compte' | 'montant' | 'sens' | 'date'>
 
-/** Écritures du sous-compte 512 d'un compte bancaire datées avant son solde d'ouverture (voir soldeCompteBancaireCentimes). */
+/**
+ * Écritures du sous-compte 512 d'un compte bancaire datées du jour de son solde d'ouverture ou d'avant : déjà comprises
+ * dans ce solde, qui vaut à la fin de son jour (voir soldeCompteBancaireCentimes).
+ */
 const avantOuverture = (ecritures: readonly EcritureDeSolde[], banqueId: string, ouverture: SoldeOuverture): EcritureDeSolde[] =>
-  ecritures.filter((ecriture) => ecriture.compte === compteBanque(banqueId) && (dateVersIso(ecriture.date) ?? '') < ouverture.au)
+  ecritures.filter((ecriture) => ecriture.compte === compteBanque(banqueId) && (dateVersIso(ecriture.date) ?? '') <= ouverture.au)
 
 /**
  * Solde d'un compte bancaire, en centimes entiers, avec son solde d'ouverture (décision du 26/11/2026, PR 799, point 2,
  * choix A ; domain/solde-ouverture-compte.ts). Seul calcul du solde d'un compte bancaire : solde par compte, solde compta
  * des arrêtés (ouverture, recalcul, clôture) et formulaire « Nouvel arrêté » passent par lui.
  * - Sans solde d'ouverture, ou à une date `jusquau` antérieure à celui-ci : le solde du sous-compte 512 du compte, comme
- *   avant (soldeCompteCentimes ; null sans aucune écriture : solde inconnu).
- * - Sinon : le solde d'ouverture (solde au début de son jour), plus les écritures du sous-compte datées de ce jour ou
- *   d'après, jusqu'à `jusquau` compris. Les écritures datées avant sont tenues pour déjà comprises dans le solde
- *   d'ouverture : elles n'y entrent pas une seconde fois (lignesAvantOuverture les compte, l'écran les signale). Jamais
- *   null : le solde est connu dès qu'un solde d'ouverture est saisi.
+ *   avant (soldeCompteCentimes ; null sans aucune écriture : solde inconnu). Avec un solde d'ouverture, ce n'est pas le
+ *   solde du compte à cette date, qui n'est pas connu : aucun arrêté n'y est ouvert ni clôturé (réponse du référent
+ *   métier du 28/11/2026, PR 848, point 5 ; refusArreteAvantOuverture).
+ * - Sinon : le solde d'ouverture, solde à la FIN de son jour (même réponse, point 2, choix B), plus les écritures du
+ *   sous-compte datées APRÈS ce jour, jusqu'à `jusquau` compris. Les écritures datées de ce jour ou d'avant sont tenues
+ *   pour déjà comprises dans le solde d'ouverture : elles n'y entrent pas une seconde fois (point 3, choix A ;
+ *   lignesAvantOuverture les compte, l'écran les signale). Jamais null : le solde est connu dès qu'un solde d'ouverture
+ *   est saisi. Le jour même du solde d'ouverture, le solde est ce solde, tel quel.
  */
 export function soldeCompteBancaireCentimes(
   ecritures: readonly EcritureDeSolde[],
@@ -81,6 +87,9 @@ export function soldeCompteBancaireCentimes(
   return ouverture.centimes + (depuis ?? 0)
 }
 
-/** Nombre de lignes du sous-compte 512 d'un compte datées avant son solde d'ouverture : hors de son solde, à signaler. */
+/**
+ * Nombre de lignes du sous-compte 512 d'un compte datées du jour de son solde d'ouverture ou d'avant : hors de son solde,
+ * à signaler.
+ */
 export const lignesAvantOuverture = (ecritures: readonly EcritureDeSolde[], banqueId: string, ouverture: SoldeOuverture | null): number =>
   ouverture === null ? 0 : avantOuverture(ecritures, banqueId, ouverture).length

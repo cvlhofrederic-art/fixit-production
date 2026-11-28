@@ -21,6 +21,10 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  * « Solde d'ouverture » (montant signé) et « au » (date, pas après aujourd'hui). Le solde affiché du compte et le solde
  * compta de ses arrêtés le reprennent à partir de sa date : l'arrêté d'un compte ouvert avant le premier relevé importé
  * se clôture. Base de démonstration (jour figé au 04/06/2026).
+ * Réponses du référent métier du 28/11/2026 (PR 848) : solde de FIN de journée (point 2, choix B) ; lignes datées de son
+ * jour ou d'avant signalées, hors du solde (point 3, choix A) ; solde d'ouverture daté après un arrêté refusé (point 4,
+ * choix A) ; arrêté daté avant lui refusé (point 5, choix A) ; ligne « dont ouverture … » sous le solde et nom
+ * accessible « Solde d'ouverture au » (point 7, choix A) ; bandeau du solde d'ouverture illisible (point 8, choix A).
  */
 
 // IBAN de test publiés (exemples déjà utilisés par les tests D-BANQUE) : clés valides, aucun compte réel.
@@ -102,7 +106,11 @@ describe('Solde d’ouverture : formulaires « Nouveau compte » et « Modifier 
     // Jamais une date après aujourd'hui (jour figé de la démonstration).
     expect(dialogue().getByLabelText('au')).toHaveAttribute('max', '2026-06-04')
     expect(screen.getByRole('dialog').textContent).toContain('Vide : le compte part de zéro ; négatif : découvert.')
-    expect(screen.getByRole('dialog').textContent).toContain('Solde au début de ce jour, avant ses mouvements.')
+    expect(screen.getByRole('dialog').textContent).toContain('Solde à la fin de ce jour, ses mouvements compris.')
+    expect(screen.getByRole('dialog').textContent).not.toContain('Solde au début de ce jour')
+    // Libellé affiché inchangé (« au ») ; nom lu par les lecteurs d'écran : « Solde d'ouverture au » (point 7).
+    expect(dialogue().getByLabelText('au')).toHaveAccessibleName('Solde d’ouverture au')
+    expect(dialogue().getByLabelText('Solde d’ouverture')).toHaveAccessibleName('Solde d’ouverture')
     fireEvent.change(dialogue().getByLabelText('IBAN'), { target: { value: IBAN_A } })
     await enregistrer()
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Compte enregistré' })
@@ -122,8 +130,31 @@ describe('Solde d’ouverture : formulaires « Nouveau compte » et « Modifier 
     expect((await ajDb.banques.toArray())[0]).toMatchObject({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })
     expect(lignesComptes()[0].textContent).toContain(euros(1000))
     expect(panneauComptes().textContent).toContain(
-      'Solde par compte : solde d’ouverture saisi sur le compte, plus les lignes de relevé importées sur son sous-compte 512 à partir de la date de ce solde',
+      'Solde par compte : solde d’ouverture saisi sur le compte, plus les lignes de relevé importées sur son sous-compte 512 datées après le jour de ce solde',
     )
+  })
+
+  it('tableau des comptes (point 7) : ligne grise « dont ouverture … au … » sous le solde, seulement pour un compte au solde d’ouverture', async () => {
+    const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-01' } })
+    await importerReleveSurCompte('C2', id, RELEVE)
+    const autre = await ajouter({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B })
+    await importerReleveSurCompte('C2', autre.id, RELEVE)
+    await ajouter({ nature: 'placement', libelle: 'Livret', iban: null, soldeOuverture: { montant: '-200,50', au: '2026-01-31' } })
+    await rendre()
+    const [principal, fonds, livret] = lignesComptes()
+    /** Ligne grise de la cellule « Solde » (troisième colonne) d'une ligne du tableau. */
+    const partOuverture = (ligne: HTMLElement) => ligne.querySelector<HTMLElement>('td:nth-child(3) .muted')
+    expect(principal.textContent).toContain(euros(1428.5))
+    const part = partOuverture(principal)
+    expect(part?.textContent).toBe(`dont ouverture ${euros(1000)} au 01/05/2026`)
+    // Même cellule que le solde, sur sa propre ligne.
+    expect(part?.closest('td')?.textContent).toContain(euros(1428.5))
+    expect(part).toHaveStyle({ display: 'block' })
+    expect(fonds.textContent).toContain(euros(428.5))
+    expect(fonds.textContent).not.toContain('dont ouverture')
+    expect(partOuverture(fonds)).toBeNull()
+    // Compte sans ligne importée, à découvert : le solde est le solde d'ouverture, la ligne grise le dit aussi.
+    expect(partOuverture(livret)?.textContent).toBe(`dont ouverture ${euros(-200.5)} au 31/01/2026`)
   })
 
   it('« Modifier » : champs préremplis ; découvert accepté ; champs vidés : solde d’ouverture retiré', async () => {
@@ -173,19 +204,70 @@ describe('Solde d’ouverture : solde du compte et avertissements', () => {
     await rendre()
     // 1 000,00 − 120,50 + 99,00.
     expect(lignesComptes()[0].textContent).toContain(euros(978.5))
-    expect(titresAlertes()).toContain('Compte principal : 1 ligne de relevé datée avant le solde d’ouverture du 15/05/2026.')
+    expect(titresAlertes()).toContain('Compte principal : 1 ligne de relevé datée au plus tard du 15/05/2026, date du solde d’ouverture.')
     expect(panneauComptes().textContent).toContain(
       'Tenue pour déjà comprise dans ce solde, elle n’entre pas dans le solde du compte. Si ce n’est pas le cas, corriger la date ou le montant du solde d’ouverture.',
     )
   })
 
-  it('aucune ligne avant le solde d’ouverture, ou compte sans solde d’ouverture : aucun avertissement', async () => {
-    const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-10' } })
+  it('ligne de relevé datée du jour même du solde d’ouverture (fin de journée) : déjà comprise elle aussi, signalée, hors du solde', async () => {
+    const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-20' } })
+    await importerReleveSurCompte('C2', id, RELEVE)
+    await rendre()
+    // 1 000,00 + 99,00 : le virement du 10/05 et le prélèvement du 20/05 sont déjà dans le solde d'ouverture.
+    expect(lignesComptes()[0].textContent).toContain(euros(1099))
+    expect(titresAlertes()).toContain('Compte principal : 2 lignes de relevé datées au plus tard du 20/05/2026, date du solde d’ouverture.')
+    expect(panneauComptes().textContent).toContain('Tenues pour déjà comprises dans ce solde, elles n’entrent pas dans le solde du compte.')
+  })
+
+  it('toutes les lignes après le jour du solde d’ouverture, ou compte sans solde d’ouverture : aucun avertissement', async () => {
+    const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-09' } })
     await importerReleveSurCompte('C2', id, RELEVE)
     const autre = await ajouter({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B })
     await importerReleveSurCompte('C2', autre.id, RELEVE)
     await rendre()
-    expect(titresAlertes().filter((titre) => titre.includes('avant le solde d’ouverture'))).toEqual([])
+    expect(titresAlertes().filter((titre) => titre.includes('solde d’ouverture'))).toEqual([])
+  })
+
+  it('solde d’ouverture écrit hors de l’écran sans date ou mal formé (point 8) : bandeau, il n’entre dans aucun solde', async () => {
+    const { id } = await ajouter()
+    await importerReleveSurCompte('C2', id, RELEVE)
+    const autre = await ajouter({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B, soldeOuverture: { montant: '300', au: '2026-05-01' } })
+    await ajDb.banques.update(id, { soldeOuvertureCentimes: 100_000 })
+    await rendre()
+    expect(titresAlertes()).toContain('1 solde d’ouverture de la base non pris en compte')
+    expect(panneauComptes().textContent).toContain(
+      'Compte principal : sans date ou mal formé, il n’entre ni dans le solde du compte ni dans ses arrêtés. À saisir de nouveau (« Modifier »), ou à reprendre dans la base locale.',
+    )
+    const bandeau = Array.from(panneauComptes().querySelectorAll('.alert')).find((alerte) => alerte.textContent?.includes('non pris en compte'))
+    expect(bandeau).toHaveClass('rust')
+    // Hors du solde, comme avant : lignes importées seulement, sans ligne « dont ouverture ».
+    expect(lignesComptes()[0].textContent).toContain(euros(428.5))
+    expect(lignesComptes()[0].textContent).not.toContain('dont ouverture')
+    // « Modifier » : champs vides ; un solde d'ouverture saisi remplace les champs illisibles, le bandeau disparaît.
+    ouvrirModifier()
+    expect(dialogue().getByLabelText('Solde d’ouverture')).toHaveValue('')
+    expect(dialogue().getByLabelText('au')).toHaveValue('')
+    saisirOuverture('1000', '2026-05-01')
+    await enregistrer()
+    expect(await ajDb.banques.get(id)).toMatchObject({ soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })
+    expect(titresAlertes().filter((titre) => titre.includes('non pris en compte'))).toEqual([])
+
+    cleanup()
+    await ajDb.banques.update(id, { soldeOuvertureAu: '01/05/2026' })
+    await ajDb.banques.update(autre.id, { soldeOuvertureCentimes: null })
+    await rendre()
+    expect(titresAlertes()).toContain('2 soldes d’ouverture de la base non pris en compte')
+    expect(panneauComptes().textContent).toContain(
+      'Compte principal, Fonds de travaux : sans date ou mal formés, ils n’entrent ni dans le solde de ces comptes ni dans leurs arrêtés. À saisir de nouveau (« Modifier »), ou à reprendre dans la base locale.',
+    )
+  })
+
+  it('aucun solde d’ouverture illisible : aucun bandeau', async () => {
+    await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-01' } })
+    await ajouter({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B })
+    await rendre()
+    expect(titresAlertes().filter((titre) => titre.includes('non pris en compte'))).toEqual([])
   })
 
   it('compte repris sans solde d’ouverture : solde inconnu signalé ; avec solde d’ouverture : solde affiché, sans rappel « à solder »', async () => {
@@ -240,7 +322,7 @@ describe('Solde d’ouverture : rapprochement', () => {
     fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-05-31' } })
     expect(screen.getByRole('dialog').textContent).toContain('Solde compta du compte au 31/05/2026 : 1 329,50 €')
     expect(screen.getByRole('dialog').textContent).toContain(
-      'Solde d’ouverture du 01/05/2026 et lignes de relevé importées sur ce compte depuis cette date, jusqu’à celle de l’arrêté',
+      'Solde d’ouverture du 01/05/2026 et lignes de relevé importées sur ce compte datées après ce jour, jusqu’à la date de l’arrêté',
     )
     // Arrêté daté avant le solde d'ouverture : celui-ci n'y entre pas, la phrase d'origine reste.
     fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-04-30' } })
@@ -248,16 +330,33 @@ describe('Solde d’ouverture : rapprochement', () => {
     expect(screen.getByRole('dialog').textContent).toContain('Lignes de relevé importées sur ce compte jusqu’à cette date')
   })
 
-  it('« Nouvel arrêté » daté du jour même du solde d’ouverture : il y entre, avec les lignes de ce jour, et le formulaire le dit', async () => {
+  it('« Nouvel arrêté » daté avant le solde d’ouverture (point 5) : refusé, « solde inconnu avant le JJ/MM/AAAA », formulaire ouvert', async () => {
+    const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-01' } })
+    await importerReleveSurCompte('C2', id, RELEVE)
+    await rendre()
+    fireEvent.click(within(panneauRapprochement()).getByRole('button', { name: /Nouvel arrêté/ }))
+    fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-04-30' } })
+    fireEvent.change(dialogue().getByLabelText('Solde banque'), { target: { value: '0' } })
+    await enregistrer()
+    expect(dernierToast()).toMatchObject({
+      kind: 'warn',
+      title: 'Ouverture refusée',
+      desc: 'Arrêté daté du 30/04/2026 : solde inconnu avant le 01/05/2026, date du solde d’ouverture du compte.',
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(await ajDb.rapprochements.count()).toBe(0)
+  })
+
+  it('« Nouvel arrêté » daté du jour même du solde d’ouverture : il y entre tel quel, les lignes de ce jour y sont déjà, et le formulaire le dit', async () => {
     const { id } = await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-10' } })
     await importerReleveSurCompte('C2', id, RELEVE)
     await rendre()
     fireEvent.click(within(panneauRapprochement()).getByRole('button', { name: /Nouvel arrêté/ }))
     fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-05-10' } })
-    // 1 000,00 au début du 10/05, plus le virement de ce jour.
-    expect(screen.getByRole('dialog').textContent).toContain('Solde compta du compte au 10/05/2026 : 1 450,00 €')
+    // 1 000,00 à la fin du 10/05 : le virement de ce jour y est déjà.
+    expect(screen.getByRole('dialog').textContent).toContain('Solde compta du compte au 10/05/2026 : 1 000,00 €')
     expect(screen.getByRole('dialog').textContent).toContain(
-      'Solde d’ouverture du 10/05/2026 et lignes de relevé importées sur ce compte depuis cette date, jusqu’à celle de l’arrêté',
+      'Solde d’ouverture du 10/05/2026 et lignes de relevé importées sur ce compte datées après ce jour, jusqu’à la date de l’arrêté',
     )
     expect(screen.getByRole('dialog').textContent).not.toContain('sous-compte 512')
     // La veille : le solde d'ouverture n'y entre pas, libellé et phrase d'origine.
@@ -304,5 +403,22 @@ describe('Solde d’ouverture : rapprochement', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(await ajDb.banques.get(id)).toMatchObject({ soldeOuvertureCentimes: 100_000 })
     expect(panneauRapprochement().textContent).toContain('Solde compta 1 329,50 €')
+  })
+
+  it('solde d’ouverture daté après un arrêté du compte (point 4) : « Modifier » le refuse, formulaire ouvert, rien n’est écrit', async () => {
+    const { id } = await ajouter()
+    await importerReleveSurCompte('C2', id, RELEVE)
+    await ouvrirArreteCompte(id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 132_950 })
+    await rendre()
+    ouvrirModifier()
+    saisirOuverture('1329,50', '2026-06-01')
+    await enregistrer()
+    expect(dernierToast()).toMatchObject({
+      kind: 'warn',
+      title: 'Enregistrement impossible',
+      desc: 'Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour.',
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(await ajDb.banques.get(id)).not.toHaveProperty('soldeOuvertureCentimes')
   })
 })

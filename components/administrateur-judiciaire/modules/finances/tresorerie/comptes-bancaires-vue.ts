@@ -22,7 +22,11 @@ import {
   type ObligationFondsTravaux,
   type SaisieObligationFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
-import { soldeOuvertureEnregistre, type SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
+import {
+  soldeOuvertureEnregistre,
+  soldeOuvertureIllisible,
+  type SoldeOuverture,
+} from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 
 /**
  * Vue du panneau « Comptes bancaires du mandat » : ce que rend le domaine (domain/comptes-bancaires.ts,
@@ -37,9 +41,12 @@ import { soldeOuvertureEnregistre, type SoldeOuverture } from '@/lib/administrat
  *   travaux manquant » est donc neutralisé ;
  * - solde de chaque compte : le solde affiché est celui de son sous-compte 512 (db/sous-comptes-banque.ts,
  *   soldeCompteBancaireCentimes). Décision du 26/11/2026 (PR 799, point 2, choix A) : avec le solde d'ouverture saisi
- *   sur le compte, c'est ce solde plus les lignes de relevé importées à partir de sa date (les lignes datées avant,
- *   tenues pour déjà comprises, sont comptées à part et signalées) ; sans lui, la somme des lignes importées, qui n'est
+ *   sur le compte, c'est ce solde plus les lignes de relevé importées datées après son jour (réponse du référent métier
+ *   du 28/11/2026, PR 848, point 2, choix B : solde de fin de journée ; les lignes datées de ce jour ou d'avant, tenues
+ *   pour déjà comprises, sont comptées à part et signalées, point 3) ; sans lui, la somme des lignes importées, qui n'est
  *   pas le solde réel d'un compte ouvert avant le premier relevé importé ; null sans solde d'ouverture ni ligne ;
+ * - solde d'ouverture illisible (même réponse, point 8, choix A) : écrit hors de l'écran sans date ou mal formé, il
+ *   n'entre dans aucun solde ; le compte est marqué, pour que le panneau le signale par un bandeau ;
  * - contrôle « compte repris à solder » : toujours neutralisé (la vue passe au contrôle un solde neutre de 0, lu comme
  *   « soldé »). Il pourrait désormais être lancé pour un compte repris dont le solde d'ouverture est saisi ; ce n'est pas
  *   fait ici, la décision ne le prévoit pas (point à soumettre). Tant qu'il ne tourne pas, tout compte repris actif est
@@ -63,9 +70,11 @@ export interface CompteAffiche {
   tientLeFonds: boolean
   /** Solde du compte, en centimes (voir l'en-tête) ; null : ni solde d'ouverture ni ligne de relevé importée. */
   soldeCentimes: number | null
-  /** Solde d'ouverture saisi sur le compte (solde au début de son jour) ; null : aucun. */
+  /** Solde d'ouverture saisi sur le compte (solde à la fin de son jour) ; null : aucun, ou illisible. */
   soldeOuverture: SoldeOuverture | null
-  /** Lignes de relevé du compte datées avant son solde d'ouverture : hors de son solde, à signaler. */
+  /** Solde d'ouverture enregistré sans date ou mal formé (écrit hors de l'écran) : hors de tout solde, à signaler. */
+  soldeOuvertureIllisible: boolean
+  /** Lignes de relevé du compte datées du jour de son solde d'ouverture ou d'avant : hors de son solde, à signaler. */
   lignesAvantOuverture: number
 }
 
@@ -145,6 +154,7 @@ function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }, ecritur
     tientLeFonds: actif && estCompteDuFondsTravaux({ nature: ligne.nature, tenaitFondsTravaux, reserveAuFondsTravaux }),
     soldeCentimes: soldeCompteBancaireCentimes(ecritures, ligne.id, soldeOuverture),
     soldeOuverture,
+    soldeOuvertureIllisible: soldeOuvertureIllisible(ligne),
     lignesAvantOuverture: lignesAvantOuverture(ecritures, ligne.id, soldeOuverture),
   }
 }

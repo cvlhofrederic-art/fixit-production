@@ -23,6 +23,10 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * daté de son jour ou d'après, et la phrase d'explication le dit alors. Le libellé devient dans ce cas « Solde compta du
  * compte » (relecture du 27/11/2026) : ce montant n'est plus le solde du sous-compte 512 au journal, où le solde
  * d'ouverture n'est pas écrit et où restent les lignes datées avant lui.
+ * Réponse du référent métier du 28/11/2026 (PR 848, point 2, choix B) : solde d'ouverture de fin de journée, seules les
+ * lignes datées après son jour s'y ajoutent, et la phrase d'explication le dit. Un arrêté daté avant lui est refusé à
+ * l'écriture (point 5, « solde inconnu avant le JJ/MM/AAAA ») : le formulaire montre encore, pour cette date, le solde
+ * du sous-compte 512.
  * Aucune règle ici : l'écran contrôle la saisie et l'écriture applique le domaine ; un refus est signalé par un toast,
  * la modale restant ouverte.
  */
@@ -80,7 +84,7 @@ export function NouvelArreteModal({ compte, ecrituresBanque, onClose, onEnregist
         </p>
         <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>
           {ouvertureComptee
-            ? `Solde d’ouverture du ${dateIsoVersFr(ouvertureComptee.au)} et lignes de relevé importées sur ce compte depuis cette date, jusqu’à celle de l’arrêté`
+            ? `Solde d’ouverture du ${dateIsoVersFr(ouvertureComptee.au)} et lignes de relevé importées sur ce compte datées après ce jour, jusqu’à la date de l’arrêté`
             : 'Lignes de relevé importées sur ce compte jusqu’à cette date'}
           {' ; montant recalculé jusqu’à la clôture de l’arrêté, puis figé.'}
         </p>

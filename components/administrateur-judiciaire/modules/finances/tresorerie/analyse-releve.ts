@@ -32,8 +32,10 @@ import type { SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/sold
  * - Import bloqué (`blocage`) : fichier structuré ou non reconnu dont la lecture a rendu une erreur (relevé refusé,
  *   fichier illisible) ; les relevés lus restent montrés. Compte choisi sans IBAN : un relevé structuré ne peut pas lui
  *   être rapproché. Un CSV garde son comportement : lignes non lues signalées, les autres importables.
- * - Solde d'ouverture du compte choisi (décision du 26/11/2026, PR 799, point 2) : une ligne retenue datée avant lui est
- *   gardée, avec un avertissement : elle n'entrera pas dans le solde du compte (db/sous-comptes-banque.ts).
+ * - Solde d'ouverture du compte choisi (décision du 26/11/2026, PR 799, point 2 ; réponses du référent métier du
+ *   28/11/2026, PR 848, points 2 et 3 : solde de fin de journée, lignes déjà comprises gardées) : une ligne retenue datée
+ *   de son jour ou d'avant est gardée, avec un avertissement : elle n'entrera pas dans le solde du compte
+ *   (db/sous-comptes-banque.ts).
  */
 
 /** Pastille de confiance d'un rapprochement proposé (clés = champ confiance de proposerImputations). */
@@ -208,16 +210,16 @@ function avertissementRessemblances(lignes: readonly LigneReleve[], existantes: 
   ]
 }
 
-/** Avertissement des lignes retenues datées avant le solde d'ouverture du compte choisi (gardées : voir l'en-tête). */
+/** Avertissement des lignes retenues datées du jour du solde d'ouverture du compte choisi, ou d'avant (gardées : voir l'en-tête). */
 function avertissementAvantOuverture(lignes: readonly LigneReleve[], ouverture: SoldeOuverture | null | undefined): string[] {
   if (!ouverture) return []
-  const nombre = lignes.filter((ligne) => ligne.date < ouverture.au).length
+  const nombre = lignes.filter((ligne) => ligne.date <= ouverture.au).length
   if (nombre === 0) return []
   const au = dateIsoVersFr(ouverture.au)
   return [
     nombre > 1
-      ? `${nombre} lignes datées avant le solde d’ouverture du compte (${au}) : tenues pour déjà comprises dans ce solde, elles n’entreront pas dans le solde du compte.`
-      : `1 ligne datée avant le solde d’ouverture du compte (${au}) : tenue pour déjà comprise dans ce solde, elle n’entrera pas dans le solde du compte.`,
+      ? `${nombre} lignes datées au plus tard du ${au}, date du solde d’ouverture du compte : tenues pour déjà comprises dans ce solde, elles n’entreront pas dans le solde du compte.`
+      : `1 ligne datée au plus tard du ${au}, date du solde d’ouverture du compte : tenue pour déjà comprise dans ce solde, elle n’entrera pas dans le solde du compte.`,
   ]
 }
 
