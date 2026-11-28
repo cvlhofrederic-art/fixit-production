@@ -20,6 +20,9 @@ const h = vi.hoisted(() => ({
   emailEnvoye: true,
   urlsEmail: [] as string[],
   admin: { createUser: vi.fn(), listUsers: vi.fn(), getUserById: vi.fn(), updateUserById: vi.fn() },
+  // Espace pro (28/11/2026) : mot de passe d'un compte existant vérifié par une connexion, session ouverte après acceptation.
+  verifierMotDePasse: vi.fn(),
+  ouvrirSession: vi.fn(),
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
@@ -56,6 +59,10 @@ vi.mock('@/lib/auth-helpers', () => ({
   resolveCabinetId: vi.fn(async () => EQUIPE_ID),
   resolveCompanyId: vi.fn(async () => EQUIPE_ID),
 }))
+vi.mock('@/lib/equipe/session-invite', () => ({
+  verifierMotDePasseDuCompte: h.verifierMotDePasse,
+  ouvrirSessionInvite: h.ouvrirSession,
+}))
 vi.mock('@/lib/supabase-server', () => ({
   supabaseAdmin: {
     from: (table: string) => clientMemoire(h.base).from(table),
@@ -68,6 +75,8 @@ const AUTRE_EQUIPE = '99999999-8888-4777-8666-555555555555'
 const INVITE_ID = '6f1c2b8e-3a4d-4e5f-8a9b-0c1d2e3f4a5b'
 const NONCE = 'a1'.repeat(24)
 const EMAIL = 'claire@exemple.fr'
+const SESSION = { access_token: 'jeton-acces', refresh_token: 'jeton-renouvellement', expires_in: 3600 }
+const COMPTE_EXISTANT = { data: { users: [{ id: 'compte-existant', email: EMAIL }] }, error: null }
 const DEJA_INSCRIT = { data: { user: null }, error: { message: 'A user with this email address has already been registered' } }
 
 const routes = {
@@ -148,9 +157,12 @@ beforeEach(() => {
   h.emailEnvoye = true
   h.urlsEmail = []
   h.admin.createUser.mockReset().mockResolvedValue({ data: { user: { id: 'compte-neuf' } }, error: null })
-  h.admin.listUsers.mockReset().mockResolvedValue({ data: { users: [{ id: 'compte-existant', email: EMAIL }] }, error: null })
+  // Aucun compte à cette adresse par défaut ; le bloc « compte existant » en pose un.
+  h.admin.listUsers.mockReset().mockResolvedValue({ data: { users: [] }, error: null })
   h.admin.getUserById.mockReset().mockResolvedValue({ data: { user: { id: 'compte-existant', app_metadata: {} } }, error: null })
   h.admin.updateUserById.mockReset().mockResolvedValue({ data: {}, error: null })
+  h.verifierMotDePasse.mockReset().mockResolvedValue('valide')
+  h.ouvrirSession.mockReset().mockResolvedValue(SESSION)
 })
 afterEach(() => {
   if (cleAvant === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -304,7 +316,9 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       h.admin.createUser.mockResolvedValue({ data: { user: null }, error: { message: 'Password is known to be weak', code: 'weak_password', status: 422 } })
       const res = await accepter(await jetonSigne())
       expect(res.status).toBe(500)
-      expect(await res.json()).toEqual({ error: 'Erreur lors de la création du compte' })
+      const corps = await res.json()
+      expect(corps.error).toBe('Erreur lors de la création du compte')
+      expect(corps).not.toHaveProperty('codeAuth')
       expect(misesAJour()).toHaveLength(0)
     })
 
@@ -312,6 +326,7 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       beforeEach(() => {
         h.base.lignes[table] = [ligne()]
         h.admin.createUser.mockResolvedValue(DEJA_INSCRIT)
+        h.admin.listUsers.mockResolvedValue(COMPTE_EXISTANT)
       })
 
       it.each(cas.autresEspaces)("d'un autre espace (%s) : 409, rien n'est modifié", async (_cas, appMetadata) => {
@@ -435,6 +450,169 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       expect(h.admin.getUserById).not.toHaveBeenCalled()
       expect(h.admin.updateUserById).not.toHaveBeenCalled()
     })
+  })
+})
+
+// Espace pro, parcours « comme les grands logiciels » (28/11/2026) : la page sait d'avance si l'adresse a un compte ;
+// un compte existant n'est rattaché qu'avec SON mot de passe (jamais changé par l'invitation) ; l'invité repart avec
+// sa session. Avant, le lien seul rattachait le compte et la page disait « Compte créé » : l'invité tapait ensuite un
+// mot de passe que personne n'avait enregistré.
+describe('invitation pro : compte existant prouvé par son mot de passe, session ouverte', () => {
+  const routesPro = routes.pro
+  const ligne = (modif: Record<string, unknown> = {}) => ({
+    id: INVITE_ID, company_id: EQUIPE_ID, email: EMAIL, full_name: 'Claire Martin', role: 'OUVRIER',
+    invite_token: NONCE, accepted_at: null, created_at: new Date().toISOString(), ...modif,
+  })
+  const jeton = () => jetonDuLien('pro', { id: INVITE_ID, email: EMAIL, invite_token: NONCE, equipe_id: EQUIPE_ID, role: 'OUVRIER' })
+  const lire = async () => routesPro.invite.GET(requete(`https://vitfix.io/api/pro/invite?token=${encodeURIComponent(await jeton())}`))
+  const accepter = async (password: string) => routesPro.invite.POST(requete('https://vitfix.io/api/pro/invite', {
+    method: 'POST', body: { token: await jeton(), password },
+  }))
+  const misesAJour = () => appelsDe(h.base, 'pro_team_members', 'update')
+  const journal = () => appelsDe(h.base, 'pro_team_audit_log', 'insert')
+
+  beforeEach(() => {
+    h.espace = 'pro'
+    h.base.lignes.pro_team_members = [ligne()]
+  })
+
+  describe('GET : état du compte et langue de la société', () => {
+    it.each([
+      ['aucun compte', () => undefined, 'aucun'],
+      ['compte sans rôle', () => { h.admin.listUsers.mockResolvedValue(COMPTE_EXISTANT) }, 'existant'],
+      ['compte client', () => {
+        h.admin.listUsers.mockResolvedValue(COMPTE_EXISTANT)
+        h.admin.getUserById.mockResolvedValue({ data: { user: { id: 'compte-existant', app_metadata: { role: 'client' } } }, error: null })
+      }, 'autre_espace'],
+      ['liste des comptes illisible', () => { h.admin.listUsers.mockResolvedValue({ data: { users: [] }, error: { message: 'panne' } }) }, 'inconnu'],
+    ])('%s : etat_compte « %s »', async (_cas, preparer, attendu) => {
+      preparer()
+      const corps = await (await lire()).json()
+      expect(corps.etat_compte).toBe(attendu)
+      expect(corps.email).toBe('cl***@exemple.fr')
+    })
+
+    it("adresse en majuscules dans Supabase Auth : le compte est reconnu", async () => {
+      h.admin.listUsers.mockResolvedValue({ data: { users: [{ id: 'compte-existant', email: 'Claire@Exemple.FR' }] }, error: null })
+      expect((await (await lire()).json()).etat_compte).toBe('existant')
+    })
+
+    it('langue de la fiche de la société : pt, sinon fr', async () => {
+      h.base.lignes.profiles_artisan = [{ id: 1, user_id: EQUIPE_ID, company_name: 'Société BTP', language: 'pt' }]
+      expect(await (await lire()).json()).toMatchObject({ langue: 'pt', company_name: 'Société BTP' })
+      h.base.lignes.profiles_artisan = [{ id: 1, user_id: EQUIPE_ID, company_name: 'Société BTP', language: null }]
+      expect((await (await lire()).json()).langue).toBe('fr')
+    })
+
+    it.each([
+      ['déjà acceptée', { accepted_at: '2026-11-26T16:23:15Z' }, 409, 'deja_utilisee'],
+      ['désactivée', { is_active: false }, 410, 'desactivee'],
+      ['expirée', { created_at: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString() }, 410, 'expiree'],
+    ])('invitation %s : code « %s » pour la page', async (_cas, modif, statut, code) => {
+      h.base.lignes.pro_team_members = [ligne(modif)]
+      const res = await lire()
+      expect(res.status).toBe(statut)
+      expect((await res.json()).code).toBe(code)
+    })
+  })
+
+  describe('POST, adresse sans compte', () => {
+    it('compte créé, invitation acceptée, session de l’invité renvoyée', async () => {
+      const res = await accepter('MotDePasse1')
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ success: true, session: SESSION })
+      expect(h.ouvrirSession).toHaveBeenCalledWith(EMAIL, 'MotDePasse1')
+      expect(h.verifierMotDePasse).not.toHaveBeenCalled()
+      expect(journal()[0].donnees).toMatchObject({ actor_id: 'compte-neuf', action: 'accept_invite' })
+    })
+
+    it('mot de passe hors règle : 400 avec ses défauts, aucun compte créé', async () => {
+      const res = await accepter('faible')
+      expect(res.status).toBe(400)
+      expect(await res.json()).toMatchObject({ code: 'mot_de_passe_faible', defauts: ['longueur', 'majuscule', 'chiffre'] })
+      expect(h.admin.createUser).not.toHaveBeenCalled()
+      expect(misesAJour()).toHaveLength(0)
+    })
+
+    it('compte apparu entre la lecture et la création : 409 « recharger », rien n’est rattaché', async () => {
+      h.admin.createUser.mockResolvedValue(DEJA_INSCRIT)
+      const res = await accepter('MotDePasse1')
+      expect(res.status).toBe(409)
+      expect((await res.json()).code).toBe('recharger')
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+      expect(misesAJour()).toHaveLength(0)
+    })
+
+    it('session non ouverte après la création : 200 sans session (la page propose « Se connecter »)', async () => {
+      h.ouvrirSession.mockResolvedValue(null)
+      const res = await accepter('MotDePasse1')
+      expect(res.status).toBe(200)
+      expect(await res.json()).not.toHaveProperty('session')
+    })
+
+    it('liste des comptes illisible : 500, rien n’est créé', async () => {
+      h.admin.listUsers.mockResolvedValue({ data: { users: [] }, error: { message: 'panne' } })
+      expect((await accepter('MotDePasse1')).status).toBe(500)
+      expect(h.admin.createUser).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST, adresse qui a déjà un compte', () => {
+    beforeEach(() => { h.admin.listUsers.mockResolvedValue(COMPTE_EXISTANT) })
+
+    it('mot de passe du compte : vérifié, compte rattaché sans changer son mot de passe, session renvoyée', async () => {
+      const res = await accepter('AncienMdp')
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ success: true, compte_existant: true, session: SESSION })
+      expect(h.verifierMotDePasse).toHaveBeenCalledWith(EMAIL, 'AncienMdp')
+      expect(h.admin.createUser).not.toHaveBeenCalled()
+      expect(h.admin.updateUserById).toHaveBeenCalledWith('compte-existant', {
+        app_metadata: { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: EQUIPE_ID },
+      })
+      expect(h.admin.updateUserById.mock.calls[0][1]).not.toHaveProperty('password')
+      expect(misesAJour()[0].donnees).toMatchObject({ user_id: 'compte-existant', invite_token: null })
+      // Session ouverte APRÈS le rattachement : son jeton porte le nouveau rôle.
+      expect(h.ouvrirSession.mock.invocationCallOrder[0]).toBeGreaterThan(h.admin.updateUserById.mock.invocationCallOrder[0])
+      expect(journal()[0].donnees).toMatchObject({ actor_id: 'compte-existant', details: { role: 'OUVRIER', compte_existant: true } })
+    })
+
+    it('ancien mot de passe hors de la règle des comptes neufs : accepté (il prouve le compte, il ne le crée pas)', async () => {
+      expect((await accepter('court')).status).toBe(200)
+      expect(h.verifierMotDePasse).toHaveBeenCalledWith(EMAIL, 'court')
+    })
+
+    it('mauvais mot de passe : 401, rien n’est rattaché ni accepté, aucune session', async () => {
+      h.verifierMotDePasse.mockResolvedValue('refuse')
+      const res = await accepter('Mauvais1')
+      expect(res.status).toBe(401)
+      expect((await res.json()).code).toBe('mot_de_passe_incorrect')
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+      expect(misesAJour()).toHaveLength(0)
+      expect(h.ouvrirSession).not.toHaveBeenCalled()
+      expect(journal()).toHaveLength(0)
+    })
+
+    it('vérification impossible (service en panne) : 503, rien n’est rattaché', async () => {
+      h.verifierMotDePasse.mockResolvedValue('erreur')
+      expect((await accepter('AncienMdp')).status).toBe(503)
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+      expect(misesAJour()).toHaveLength(0)
+    })
+
+    it("compte d'un autre espace : mot de passe vérifié d'abord, puis 409 « autre_espace », rien n'est modifié", async () => {
+      h.admin.getUserById.mockResolvedValue({ data: { user: { id: 'compte-existant', app_metadata: { role: 'artisan' } } }, error: null })
+      const res = await accepter('AncienMdp')
+      expect(res.status).toBe(409)
+      expect((await res.json()).code).toBe('autre_espace')
+      expect(h.verifierMotDePasse).toHaveBeenCalled()
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+    })
+  })
+
+  it("essais bornés par invitation (10 par quart d'heure)", async () => {
+    const { checkRateLimit } = await import('@/lib/rate-limit')
+    await accepter('MotDePasse1')
+    expect(checkRateLimit).toHaveBeenCalledWith(`pro_invite_essais_${INVITE_ID}`, 10, 15 * 60_000)
   })
 })
 
