@@ -88,7 +88,7 @@ export function decomposerAdresse(entree: AdresseChantier, pays: Pays): AdresseD
   if (trouve) {
     const suite = rue.slice(trouve.index + trouve[0].length).replace(/^[\s,]+/, '').trim()
     if (!codePostal) codePostal = trouve[0]
-    if (!ville) ville = suite
+    if (!ville) ville = pays === 'FR' ? villeLisible(suite) : suite
     rue = rue.slice(0, trouve.index).replace(/[\s,]+$/, '').trim()
   }
   if (pays === 'FR') rue = sansSeparateurFinal(rue)
@@ -106,6 +106,15 @@ function sansSeparateurFinal(rue: string): string {
   let fin = rue.length
   while (fin > 0 && !/[\p{L}\d)]/u.test(rue[fin - 1])) fin -= 1
   return rue.slice(0, fin)
+}
+
+/**
+ * Ville écrite après le code postal, en France : sans les séparateurs qui l'entourent ni parenthèse fermante orpheline
+ * (« – 13001 – Marseille », « 13001 (Marseille) », « (13001) » : la ville lue était « ) » ; douzième relecture du 28/11/2026).
+ */
+function villeLisible(suite: string): string {
+  const ville = sansSeparateurFinal(suite.replace(/^[^\p{L}\d]+/u, ''))
+  return ville.endsWith(')') && !ville.includes('(') ? sansSeparateurFinal(ville.slice(0, -1)) : ville
 }
 
 /**
@@ -230,14 +239,20 @@ const QUALIFICATIFS = new Set([
   'superieur', 'superieure', 'inferieur', 'inferieure',
 ])
 /** Ordinal (« 2e », « 1er ») : retiré seulement devant un complément (« 2e étage ») ; « avenue du 1er Mai » garde le sien. */
-const ORDINAL = /^\d{1,3}(?:e|er|ere|eme|nd|nde)$/
+const ORDINAL = /^\d{1,3}(?:e|er|re|ere|eme|ieme|nd|nde)$/
+/** Ordinal sous une seule forme, pour comparer les voies (« 1re », « 1ère » et « 1er » ; « 2e », « 2ème » et « 2ième »). */
+const cleOrdinal = (mot: string) => {
+  const ordinal = ORDINAL.test(mot) ? /^\d+/u.exec(mot)?.[0] : undefined
+  if (ordinal === undefined) return mot
+  return ordinal === '1' ? '1er' : `${ordinal}e`
+}
 /** Désignations sans nom propre : la BAN écrit « Lieu-dit les Granges », « Hameau de Bénazeth ». */
 const DESIGNATIONS: ReadonlyArray<readonly string[]> = [['lieu', 'dit'], ['hameau']]
 
 /** Mots comparables d'une voie : normalisés, abréviations en toutes lettres, sans articles ni parenthèse (« (Bât B) »). */
 function motsVoie(voie: string): string[] {
   return normaliserLieu(voie.split('(')[0]).split(' ').filter(Boolean)
-    .map(mot => ABREVIATIONS_VOIE[mot] ?? mot).filter(mot => !ARTICLES.has(mot))
+    .map(mot => cleOrdinal(ABREVIATIONS_VOIE[mot] ?? mot)).filter(mot => !ARTICLES.has(mot))
 }
 
 /**
@@ -262,7 +277,9 @@ const finitPar = (mots: readonly string[], fin: readonly string[]) =>
 function formesSaisie(voie: string, villes: readonly unknown[]): string[][] {
   const mots = motsVoie(voie)
   const formes = [mots]
-  const complement = mots.findIndex((mot, i) => COMPLEMENT_FINAL.has(mot) || ((DEBUT_COMPLEMENT.has(mot) || ZONES.has(mot)) && i < mots.length - 1))
+  // Le côté d'un étage seulement après un ordinal (« rue Paradis 2e gauche » ; « rue de la Rive Gauche » garde son nom).
+  const complement = mots.findIndex((mot, i) => COMPLEMENT_FINAL.has(mot) || ((DEBUT_COMPLEMENT.has(mot) || ZONES.has(mot)) && i < mots.length - 1)
+    || (COTES.has(mot) && i > 0 && ORDINAL.test(mots[i - 1])))
   if (complement > 0) formes.push(mots.slice(0, complement > 1 && ORDINAL.test(mots[complement - 1]) ? complement - 1 : complement))
   const finales = villes.filter((v): v is string => typeof v === 'string').map(motsVoie).filter(v => v.length > 0)
   for (const forme of [...formes]) {
@@ -411,17 +428,23 @@ const aDesLettres = (texte: string) => /\p{L}{3,}/u.test(texte)
 /**
  * Voie écrite après un numéro : un nom, pas un complément (« 2 étage », « 3 bât. B », « 3 bis », « 12 3e étage »), ni un autre
  * numéro et sa voie (« 12 14 rue X » : le numéro de la voie est le 14, que rend la BAN ; « 1, Résidence Le Parc, 12 rue X » ;
- * dixième relecture du 27/11/2026). Un ordinal ouvre un nom de voie (« 3 1ère Avenue », Gentilly ; onzième relecture).
+ * dixième relecture du 27/11/2026). Un ordinal suivi d'un type de voie ouvre un nom de voie (« 3 1ère Avenue », Gentilly ;
+ * onzième relecture) ; un autre ordinal non (« 12 2ème gauche, 41 rue X » : le 41 ; douzième relecture du 28/11/2026).
  */
 const voieApresNumero = (voie: string) => {
   const mots = voie.split(' ')
-  const tete = mots[0] ?? ''
   return aDesLettres(voie) && !MOTS_COMPLEMENT.has(premierMot(voie, false)) && !zoneNumerotee(mots) && !etageEnTete(mots)
-    && !NUMERO.test(tete) && !PLAGE_NUMEROS.test(tete)
+    && (voieOrdinale(mots) || !/^[-–—/]?\d/u.test(voie))
 }
-/** Étage numéroté en tête (« 3e étage », « 1er étage », « 2e ét. ») : un complément, pas une voie. */
-const etageEnTete = (mots: readonly string[]) =>
-  ORDINAL.test(premierMot(mots[0] ?? '', false)) && (COMPLEMENT_FINAL.has(motComplement(mots[1])) || ETAGES.has(motComplement(mots[1])))
+/** Voie dont le nom commence par un ordinal suivi d'un type de voie (« 1ère Avenue », « 2e Rue »). */
+const voieOrdinale = (mots: readonly string[]) => ORDINAL.test(premierMot(mots[0] ?? '', false)) && TYPES_VOIE.has(premierMot(mots[1] ?? ''))
+/** Côté d'un étage (« 3e droite », « 2e gauche », « 1er fond »). */
+const COTES = new Set(['gauche', 'droite', 'g', 'd', 'dr', 'fond', 'face'])
+/** Étage numéroté en tête (« 3e étage », « 1er étage », « 2e ét. », « 3e droite ») : un complément, pas une voie. */
+const etageEnTete = (mots: readonly string[]) => {
+  const second = motComplement(mots[1])
+  return ORDINAL.test(premierMot(mots[0] ?? '', false)) && (COMPLEMENT_FINAL.has(second) || ETAGES.has(second) || COTES.has(second))
+}
 /** Morceau qui commence par un type de voie (« rue X », « av. Y »). */
 const commenceParUnTypeDeVoie = (mots: readonly string[]) => mots.length > 1 && TYPES_VOIE.has(premierMot(mots[0]))
 /**
@@ -608,9 +631,13 @@ const lecture = (numero: NumeroLu, voie: string, ecrit: string, morceaux: number
   autreVoie: false,
 })
 
-/** Morceaux d'une adresse aux blancs réduits, séparés par une virgule, un point-virgule ou un tiret entre espaces. */
+/**
+ * Morceaux d'une adresse aux blancs réduits, séparés par une virgule, un point-virgule, ou un tiret, une puce ou une barre
+ * entre espaces (en-tête de devis Word : « 12 rue Paradis • Bât B » ; douzième relecture du 28/11/2026). Pas la barre
+ * oblique, qui écrit une plage (« 12 / 14 »).
+ */
 const morceauxAdresse = (rue: string) =>
-  rue.replaceAll(/\s+/g, ' ').split(/[,;]| [-–—] /u).map(morceau => morceau.trim()).filter(Boolean)
+  rue.replaceAll(/\s+/g, ' ').split(/[,;]| [-–—•·|] /u).map(morceau => morceau.trim()).filter(Boolean)
 
 /**
  * Numéro et voie saisis, dans cet ordre de préférence :
@@ -664,7 +691,11 @@ function numeroDevant(morceaux: Morceaux): Lecture | null {
 /**
  * Voie écrite après le numéro dans son morceau. Un étage numéroté collé au numéro est sauté comme après une virgule (« 12 3e
  * étage rue X », « 12 1er étage, rue X » : le 12 ; onzième relecture du 27/11/2026) ; un autre complément garde la règle de
- * voieApresNumero : son numéro n'est pas celui de la rue (« 2 étage rue X », « 3 bât. B rue X »).
+ * voieApresNumero : son numéro n'est pas celui de la rue (« 2 étage rue X », « 3 bât. B rue X »). Après l'étage (douzième
+ * relecture du 28/11/2026) : un numéro écrit devant la voie est le sien (« 5 3e étage 41 rue X » : le 41, lu ailleurs) ; une
+ * voie dans un nom (« Résidence Cours Saint-Louis ») n'est pas la voie, et deux voies possibles ne donnent aucune lecture
+ * (« 12 2e étage rue X, Cours Y » ; « 12 2e étage Résidence Cours Saint-Louis, rue Paradis » était précis au 12 cours
+ * Saint-Louis, à 219 m) ; la seconde recherche porte sur le numéro et la voie, sans l'étage.
  */
 function voieDuMorceau(numero: NumeroLu, morceaux: Morceaux, k: number): Lecture | null {
   const mots = morceaux[k]
@@ -672,11 +703,24 @@ function voieDuMorceau(numero: NumeroLu, morceaux: Morceaux, k: number): Lecture
   if (voieApresNumero(voie)) return lecture(numero, voie, texte(mots), [k])
   const reste = mots.slice(numero.fin)
   if (!etageEnTete(reste)) return null
+  const tete = texte(mots.slice(0, numero.fin))
   for (let p = 1; p < reste.length; p += 1) {
-    if (suiviDUneVoie(reste, p) && !ARTICLES.has(motComplement(reste[p - 1]))) return lecture(numero, texte(reste.slice(p)), texte(mots), [k])
+    if (lireNumero(reste, p) !== null && !precedeParUnComplement(reste, p)) return null
+    if (!ouvreUneVoie(reste, p) || !estUneVoieNommee(reste.slice(p))) continue
+    return morceaux.slice(k + 1).some(estUneVoieNommee) ? null : lecture(numero, texte(reste.slice(p)), `${tete} ${texte(reste.slice(p))}`, [k])
   }
-  return voieDesMorceauxSuivants(numero, morceaux, k)
+  // Pas de plage à travers l'étage (« 5 3e étage, 41 rue X ») ; le morceau réduit à son numéro, pour la seconde recherche.
+  if (lireNumero(morceaux[k + 1] ?? [], 0) !== null) return null
+  return voieDesMorceauxSuivants(numero, morceaux.map((morceau, j) => (j === k ? mots.slice(0, numero.fin) : morceau)), k)
 }
+
+/** Type de voie au mot `p`, ni après un article ni après un début de complément (« Résidence Cours Saint-Louis » : un nom). */
+const ouvreUneVoie = (mots: readonly string[], p: number) =>
+  suiviDUneVoie(mots, p) && !ARTICLES.has(motComplement(mots[p - 1])) && !DEBUT_COMPLEMENT.has(motComplement(mots[p - 1]))
+
+/** Complément qui porte une voie collée (« 2e étage rue X », « Bât B rue X »). */
+const voieColleeAUnComplement = (mots: readonly string[]) =>
+  estUnComplement(mots) && mots.some((_, p) => p > 0 && ouvreUneVoie(mots, p) && estUneVoieNommee(mots.slice(p)))
 
 /** Morceau d'un complément sans voie (« Bât B », « Résidence Les Pins », « 2e étage ») : sauté après un numéro seul. */
 function estUnComplement(mots: readonly string[]): boolean {
@@ -688,7 +732,9 @@ function estUnComplement(mots: readonly string[]): boolean {
 /**
  * Numéro seul dans son morceau : la voie est le morceau suivant, après le second numéro d'une plage (« 10 - 12 rue X »,
  * « 10, 12 rue X ») ; les compléments écrits entre les deux sont sautés (« 12, 2e étage, rue Paradis », « 12, Résidence
- * Les Pins, rue Paradis »), sauf la voie collée à l'un d'eux (« 12, 2e étage rue Saint-Ferréol »).
+ * Les Pins, rue Paradis »), sauf la voie collée à l'un d'eux (« 12, 2e étage rue Saint-Ferréol »). Une voie collée à un
+ * complément et une voie nommée plus loin : aucune lecture (« 12, 2e étage rue Paradis, Cours Saint-Louis » était lu au
+ * 12 cours Saint-Louis, à 219 m ; douzième relecture du 28/11/2026).
  */
 function voieDesMorceauxSuivants(numero: NumeroLu, morceaux: Morceaux, k: number): Lecture | null {
   const suite = morceaux[k + 1] ?? []
@@ -699,7 +745,9 @@ function voieDesMorceauxSuivants(numero: NumeroLu, morceaux: Morceaux, k: number
     return voieApresNumero(voie) ? lecture(plage, voie, `${texte(morceaux[k])} ${texte(suite)}`, [k, k + 1]) : null
   }
   for (let indice = k + 1; indice < morceaux.length; indice += 1) {
-    const voie = voieDuMorceauSuivant(morceaux[indice], morceaux.slice(indice + 1).some(estUneVoieNommee))
+    const enSuite = morceaux.slice(indice + 1).some(estUneVoieNommee)
+    if (enSuite && voieColleeAUnComplement(morceaux[indice])) return null
+    const voie = voieDuMorceauSuivant(morceaux[indice], enSuite)
     if (voie !== null) return voieApresNumero(voie) ? lecture(numero, voie, `${texte(morceaux[k])} ${voie}`, [k, indice]) : null
   }
   return null

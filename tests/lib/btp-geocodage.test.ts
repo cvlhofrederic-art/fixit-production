@@ -842,6 +842,53 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     // Témoin : aucune réponse dans la ville saisie, la première est gardée, comme avant.
     banSelonRecherche['1 place de l\'Église Sainte-Christine'] = { corps: { features: [] } }
     expect(await geocoderAdresse(repere, 'FR')).toEqual({ latitude: 43.78468, longitude: -0.00851, precise: false })
+    // Aucune des deux réponses dans la ville saisie (« 12 rue Paradis – Marseille », ni code postal ni ville : la seconde
+    // recherche rend le 12 rue Paradis de Nice) : la première est gardée (douzième relecture du 28/11/2026).
+    const marseille = { geometry: { coordinates: [5.37639, 43.29416] }, properties: { type: 'housenumber', score: 0.9695, housenumber: '12', name: '12 Rue paradis', street: 'Rue paradis', postcode: '13001', city: 'Marseille' } }
+    const nice = { geometry: { coordinates: [7.26733, 43.69737] }, properties: { type: 'housenumber', score: 0.9742, housenumber: '12', name: '12 Rue Paradis', street: 'Rue Paradis', postcode: '06000', city: 'Nice' } }
+    banSelonRecherche['12 rue Paradis – Marseille'] = { corps: { features: [marseille] } }
+    banSelonRecherche['12 rue Paradis'] = { corps: { features: [nice] } }
+    expect(await geocoderAdresse({ adresse: '12 rue Paradis – Marseille' }, 'FR')).toEqual({ latitude: 43.29416, longitude: 5.37639, precise: false })
+  })
+
+  it('douzième relecture : voie dans un nom de résidence après un étage, numéro devant la voie, ordinaux, étage après la voie', async () => {
+    // « 12 2e étage Résidence Cours Saint-Louis, rue Paradis », 13001 : la boucle de l'étage prenait « Cours Saint-Louis » pour
+    // la voie ; la seconde recherche « 12 Cours Saint-Louis » était précise à 219 m du 12 rue Paradis (relevé du 28/11/2026).
+    const paradis = { geometry: { coordinates: [5.37639, 43.29416] }, properties: { type: 'housenumber', score: 0.9695, housenumber: '12', name: '12 Rue paradis', street: 'Rue paradis', postcode: '13001', city: 'Marseille' } }
+    const coursSaintLouis = { geometry: { coordinates: [5.3779, 43.29579] }, properties: { type: 'housenumber', score: 0.9643, housenumber: '12', name: '12 Cours Saint-Louis', street: 'Cours Saint-Louis', postcode: '13001', city: 'Marseille' } }
+    reponses.ban = ban('housenumber', 0.4199, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    banSelonRecherche['12 rue Paradis 13001 Marseille'] = { corps: { features: [paradis] } }
+    banSelonRecherche['12 Cours Saint-Louis 13001 Marseille'] = { corps: { features: [coursSaintLouis] } }
+    expect(await geocoderAdresse(saisie('12 2e étage Résidence Cours Saint-Louis, rue Paradis'), 'FR')).toEqual({ latitude: 43.29416, longitude: 5.37639, precise: true })
+    expect(appels.map(rechercheBan)).not.toContain('12 Cours Saint-Louis 13001 Marseille')
+    // Le miroir : la voie collée à l'étage et une voie nommée plus loin, aucune lecture ; la réponse numérotée est refusée.
+    reponses.ban = ban('housenumber', 0.6, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('12 2e étage rue Paradis, Cours Saint-Louis'), 'FR'))?.precise).toBe(false)
+    expect((await geocoderAdresse(saisie('12, 2e étage rue Paradis, Cours Saint-Louis'), 'FR'))?.precise).toBe(false)
+    // « 12 1er étage gauche rue Paradis » : la BAN rend le 12 à 0,5762 sur la saisie entière ; la seconde recherche porte sur
+    // le numéro et la voie, sans l'étage (0,969).
+    reponses.ban = ban('housenumber', 0.5762, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('12 1er étage gauche rue Paradis'), 'FR'))?.precise).toBe(true)
+    expect(appels.map(rechercheBan)).toContain('12 rue Paradis 13001 Marseille')
+    // « 3 1re Avenue », Gentilly : la BAN rend « 1ère Avenue » (0,779) ; « 1re » et « 1ère » sont le même ordinal.
+    reponses.ban = ban('housenumber', 0.779, { postcode: '94250', city: 'Gentilly', housenumber: '3', street: '1ère Avenue' })
+    expect((await geocoderAdresse(saisie('3 1re Avenue', '94250', 'Gentilly'), 'FR'))?.precise).toBe(true)
+    // L'étage et son côté écrits après la voie ne la changent pas ; « Rive Gauche » reste un nom.
+    reponses.ban = ban('housenumber', 0.9, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('12 rue Paradis 2e gauche'), 'FR'))?.precise).toBe(true)
+    reponses.ban = ban('housenumber', 0.9, { postcode: '13001', housenumber: '12', street: 'Rue de la Rive Gauche' })
+    expect((await geocoderAdresse(saisie('12 rue de la Rive Gauche'), 'FR'))?.precise).toBe(true)
+    reponses.ban = ban('housenumber', 0.9, { postcode: '13001', housenumber: '12', street: 'Rue de la Rive' })
+    expect((await geocoderAdresse(saisie('12 rue de la Rive Gauche'), 'FR'))?.precise).toBe(false)
+    // Étage suivi d'une virgule : la seconde recherche porte aussi sur le numéro et la voie seuls.
+    appels = []
+    reponses.ban = ban('housenumber', 0.5762, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('12 1er étage gauche, rue Paradis'), 'FR'))?.precise).toBe(true)
+    expect(appels.map(rechercheBan)).toContain('12 rue Paradis 13001 Marseille')
+    // Code postal entre parenthèses, sans ville : la ville n'est plus « ) » ; la voie, seule de ce nom dans le 13001, passe.
+    reponses.ban = ban('housenumber', 0.969, { postcode: '13001', housenumber: '12', street: 'Rue paradis' })
+    banSelonRecherche.paradis = voies(['Rue paradis'])
+    expect((await geocoderAdresse({ adresse: '12 rue Paradis (13001)' }, 'FR'))?.precise).toBe(true)
   })
 
   it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
@@ -1271,6 +1318,10 @@ describe('numeroEtVoieSaisis', () => {
       // numéroté entre le numéro et la voie (son numéro n'est pas celui de la rue).
       'Lots 12 -14, 16 rue Paradis', 'Lots 12 -14 rue Paradis', 'Bât 3 -4 rue Paradis', 'Appt 12 -14 rue Paradis',
       '2 étage rue Paradis', '3 bât. B rue Paradis', '12 3e étage',
+      // Douzième relecture du 28/11/2026 : deux voies possibles, l'une collée à un complément, l'autre plus loin (refus du côté
+      // sûr) ; ordinal sans type de voie ; tiret de tête dans la voie.
+      '12 2e étage rue Paradis, Cours Saint-Louis', '12, 2e étage rue Paradis, Cours Saint-Louis', '12, Bât B rue Paradis, Cours Saint-Louis',
+      '12 1er Mai', '12, -14 rue Paradis', '12 -14 -16 rue Paradis',
     ]) expect(numeroEtVoieSaisis(rue), rue.slice(0, 60)).toBeNull()
     // Témoins : préposition d'un seul numéro, singuliers en s ou x, zones nommées (voies de la BAN), zone numérotée sautée.
     for (const [rue, texte] of <Array<[string, string]>>[
@@ -1303,6 +1354,14 @@ describe('numeroEtVoieSaisis', () => {
       ['12 3e étage gauche, rue Paradis', '12 rue Paradis'], ['1 12-14 rue Paradis', '12-14 rue Paradis'],
       // Un type de voie précédé d'un article est un nom de résidence, pas la voie (« Les Allées du Parc »).
       ['12 3e étage Les Allées du Parc, rue Paradis', '12 rue Paradis'],
+      // Douzième relecture : type de voie dans un nom de résidence ; numéro écrit devant la voie après l'étage ; ordinal suivi
+      // du côté ; ordinaux « 1re » et « 2ième » ; puce et barre entre espaces.
+      ['12 2e étage Résidence Cours Saint-Louis, rue Paradis', '12 rue Paradis'], ['12 2e étage Résidence Villa Saint-Jacques, rue de la Santé', '12 rue de la Santé'],
+      ['12 1er étage Bât A Villa Saint-Jacques, rue de la Santé', '12 rue de la Santé'], ['12 2e étage Allée B, rue Paradis', '12 rue Paradis'],
+      ['5 3e étage 41 rue Paradis', '41 rue Paradis'], ['5 3e étage, 41 rue Paradis', '41 rue Paradis'], ['N° 5 2e étage 41 rue Paradis', '41 rue Paradis'],
+      ['12 1er étage, 3 rue Paradis', '3 rue Paradis'], ['12 2ème gauche, 41 rue Paradis', '41 rue Paradis'], ['12 3e droite rue Paradis', '12 rue Paradis'],
+      ['12 2e gauche, rue Paradis', '12 rue Paradis'], ['3 1re Avenue', '3 1re Avenue'], ['12 2ième étage rue Paradis', '12 rue Paradis'],
+      ['12 rue Paradis • Bât B', '12 rue Paradis'], ['12 rue Paradis | Bât B', '12 rue Paradis'],
     ]) expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe(texte)
     // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
     expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
@@ -1436,6 +1495,12 @@ describe('adresse et carte', () => {
     expect(decomposerAdresse({ adresse: '« 12 rue Paradis »' }, 'FR').rue).toBe('12 rue Paradis')
     expect(decomposerAdresse({ adresse: '12 rue Paradis (Bât B)' }, 'FR').rue).toBe('12 rue Paradis (Bât B)')
     expect(decomposerAdresse({ adresse: 'Rua de Santa Catarina 100 –', ville: 'Porto' }, 'PT').rue).toBe('Rua de Santa Catarina 100 –')
+    // Ville lue après le code postal sans les séparateurs qui l'entourent (douzième relecture du 28/11/2026).
+    expect(decomposerAdresse({ adresse: '12 rue Paradis – 13001 – Marseille' }, 'FR')).toEqual({ rue: '12 rue Paradis', codePostal: '13001', ville: 'Marseille' })
+    expect(decomposerAdresse({ adresse: '12 rue Paradis | 13001 | Marseille' }, 'FR')).toEqual({ rue: '12 rue Paradis', codePostal: '13001', ville: 'Marseille' })
+    expect(decomposerAdresse({ adresse: '12 rue Paradis 13001 (Marseille)' }, 'FR')).toEqual({ rue: '12 rue Paradis', codePostal: '13001', ville: 'Marseille' })
+    expect(decomposerAdresse({ adresse: '12 rue Paradis (13001)' }, 'FR')).toEqual({ rue: '12 rue Paradis', codePostal: '13001', ville: '' })
+    expect(decomposerAdresse({ adresse: 'Rua X 100, 4000-447 Porto)' }, 'PT').ville).toBe('Porto)')
   })
 
   it('noms de lieux comparables : accents, casse, tirets, « St » / « Ste »', () => {
