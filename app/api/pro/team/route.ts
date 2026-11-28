@@ -20,9 +20,10 @@ import { resoudreSocieteDuCompte } from '@/lib/btp/perimetre-compte'
 // Un gérant invité dans la société d'un autre compte (societeDunAutreCompte) gère l'équipe de CETTE société, jamais
 // une « société » à son propre nom : sans ligne d'équipe active, resolveCompanyId retombe sur son identifiant, et
 // ses invitations seraient parties dans une équipe fantôme que personne ne voit.
-// Refus propres au co-gérant : message français, et un code stable que l'écran traduit (components/dashboard/
-// CompteUtilisateursSection.tsx, MESSAGES_EQUIPE).
+// Refus qui portent un code stable que l'écran traduit (components/dashboard/CompteUtilisateursSection.tsx,
+// MESSAGES_EQUIPE) ; `error` reste le message français d'avant.
 const REFUS_EQUIPE = {
+  deja_membre: 'Cet email est déjà membre de votre équipe',
   societe_non_resolue: "Votre compte n'est rattaché à aucune société active. Demandez au gérant titulaire de vérifier votre accès.",
   gerant_reserve: 'Seul le gérant titulaire de la société peut créer, modifier ou retirer un gérant.',
   sa_propre_ligne: 'Vous ne pouvez pas modifier vos propres droits ni votre propre accès.',
@@ -223,9 +224,7 @@ export async function POST(request: NextRequest) {
     .eq('email', emailInvite)
     .maybeSingle()
 
-  if (existing) {
-    return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
-  }
+  if (existing) return refusEquipe('deja_membre', 409)
 
   // Compté après les refus ci-dessus (une demande refusée ne consomme rien) et avant toute écriture.
   if (!(await checkRateLimit(`pro_team_invite_jour_${user.id}`, INVITATIONS_MAX_PAR_JOUR, JOUR_MS))) {
