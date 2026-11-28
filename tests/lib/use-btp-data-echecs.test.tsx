@@ -103,6 +103,46 @@ describe('useBTPData — chargement en échec', () => {
     expect(hook.current.error).toBe('Erreur de chargement')
     expect(messagesErreur()).toEqual([])
   })
+
+  // Alerte météo du téléphone (27/11/2026) : une écriture confirmée sur les chantiers est annoncée sur window, pour
+  // que le composant de l'alerte relise aussitôt (les instances du hook ne se préviennent pas entre elles).
+  it('écriture confirmée sur les chantiers : un événement par ajout, modification, suppression ; refus ou autre table : aucun', async () => {
+    let annonces = 0
+    const ecoute = () => { annonces += 1 }
+    window.addEventListener('vitfix:chantiers-ecrits', ecoute)
+    try {
+      const hook = await monter('pro_societe')
+      await act(async () => { await hook.current.add({ titre: 'Villa' } as never) })
+      await act(async () => { await hook.current.update('c-1', { statut: 'Terminé' } as never) })
+      await act(async () => { await hook.current.remove('c-1') })
+      expect(annonces).toBe(3)
+      ecriture = async () => json({ error: 'Refusé' }, 409)
+      await act(async () => { await hook.current.update('c-1', { statut: 'En cours' } as never) })
+      expect(annonces).toBe(3)
+      ecriture = async () => json({ row: { id: 'e-1', nom: 'Équipe A' } }, 201)
+      montages += 1
+      const autre = renderHook(() => useBTPData({ table: 'equipes', artisanId: 'a1', userId: `u-echecs-${montages}`, autoImport: false }))
+      await waitFor(() => expect(autre.result.current.loading).toBe(false))
+      await act(async () => { await autre.result.current.add({ nom: 'Équipe A' } as never) })
+      expect(annonces).toBe(3)
+    } finally {
+      window.removeEventListener('vitfix:chantiers-ecrits', ecoute)
+    }
+  })
+
+  // Alerte météo du téléphone (26/11/2026) : composant monté sur tous les écrans, qui n'affiche rien.
+  it('composant qui n’affiche rien (annoncerEchecs: false) : aucun message, l’échec reste lisible, refresh rend null', async () => {
+    lecture = coupureReseau
+    montages += 1
+    const userId = `u-echecs-${montages}`
+    const { result } = renderHook(() => useBTPData({ table: 'chantiers', artisanId: 'a1', userId, autoImport: false, annoncerEchecs: false }))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.error).toBe('Erreur de chargement')
+    let relu: unknown = 'pas encore'
+    await act(async () => { relu = await result.current.refresh() })
+    expect(relu).toBeNull()
+    expect(messagesErreur()).toEqual([])
+  })
 })
 
 describe('useBTPSettings — réglages', () => {

@@ -186,8 +186,30 @@ export async function accepterInvitation(
     if (rattachement.statut === 'autre_espace') return { status: 409, corps: { error: MESSAGE_COMPTE_AUTRE_ESPACE } }
     if (rattachement.statut === 'erreur') return { status: 500, corps: { error: 'Erreur lors de la liaison du compte' } }
     if (rattachement.statut === 'rattache') {
-      await marquerAcceptee(rattachement.userId)
-      return { status: 200, corps: { success: true, message: 'Compte lié avec succès. Vous pouvez maintenant vous connecter.' } }
+      const { error: marquageError } = await marquerAcceptee(rattachement.userId)
+      if (marquageError) {
+        // Avant le 28/11/2026, cet échec était ignoré : 200 « rattaché » alors que la ligne d'équipe ne portait pas le
+        // compte (aucun droit), et une invitation de gérant ne pouvait plus être rejouée (compte déjà marqué GERANT).
+        logger.error(`${journal} Update error (compte existant):`, marquageError)
+        return {
+          status: 207,
+          corps: {
+            success: false,
+            message: 'Le compte a été rattaché mais l\'invitation n\'a pas pu être validée. Contactez le support.',
+          },
+        }
+      }
+      // Le compte existant garde SON mot de passe : celui saisi sur la page d'invitation n'est pas enregistré. La page
+      // doit le dire (compte_existant), sinon l'invité essaie le mot de passe qu'il vient de taper et la connexion lui
+      // est refusée (constaté le 27/11/2026).
+      return {
+        status: 200,
+        corps: {
+          success: true,
+          compte_existant: true,
+          message: 'Compte existant rattaché. Connectez-vous avec votre mot de passe habituel : celui saisi ici n\'a pas été enregistré.',
+        },
+      }
     }
     logger.error(`${journal} Auth error:`, authError)
     const codeAuth = typeof authError.code === 'string' && authError.code ? authError.code : undefined
