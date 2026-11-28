@@ -12,8 +12,9 @@ export type LangueDocumentBtp = 'fr' | 'pt'
  * Código Civil), sous un numéro de la série française. Constat de Frédéric du 27/11/2026.
  *
  * Critère : celui de la série de numérotation du serveur (next_doc_number, lib/numerotation-prefixes.ts) et de la
- * langue de l'équipe (app/api/pro/team) — fiche en portugais → portugais, toute autre fiche → français. Un document
- * numéroté FA- est donc toujours en portugais, un document numéroté AC- toujours en français.
+ * langue de l'équipe (app/api/pro/team) — fiche en portugais → portugais, toute autre fiche → français. Un NOUVEAU
+ * document numéroté FA- est donc rédigé en portugais, un nouveau document AC- en français (un document déjà émis garde
+ * le texte enregistré ; sans fiche lue, la langue de l'écran décide, comme avant).
  *
  * Fiche inconnue (pas encore chargée, relecture échouée, identité de repli sans langue) : la langue de l'écran, comme
  * avant. Une fiche lue dont la langue est vide est, elle, celle d'une société française (même règle que le serveur).

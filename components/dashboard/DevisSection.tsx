@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useTranslation, useLocale, traducteurPour } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
@@ -511,6 +511,9 @@ function DevisSectionV5({
   // Documents BTP émis en un clic (facture totale, acompte) : dans la langue de la société, pas dans celle de l'écran
   // (lib/btp/langue-documents.ts). Les messages affichés restent dans celle de l'écran (isPt).
   const langueDocuments = langueDocumentsBtp(artisan, locale)
+  // E-mail au client d'une société BTP : dans la langue de ses documents, comme le devis joint. Artisan : inchangé.
+  const traducteurEmail = (): ((cle: string) => string) =>
+    orgRole === 'pro_societe' && langueDocuments !== locale ? traducteurPour(langueDocuments) : t
   const [search, setSearch] = useState('')
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatutDevis>('tous')
   // « Facturer » (méthode pro 2026, BTP) : choix Facture totale (conversion
@@ -761,9 +764,10 @@ function DevisSectionV5({
                           className="v5-btn v5-btn-sm"
                           title={doc.clientEmail}
                           onClick={() => {
-                            const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                            const tm = traducteurEmail()
+                            const subject = encodeURIComponent(`${tm('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                             const totalHTMail = computeDevisTotalHT(doc)
-                            const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHTMail.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                            const body = encodeURIComponent(`${tm('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${tm('proDash.devis.emailCorps')} ${doc.docNumber} ${tm('proDash.devis.emailMontant')} ${totalHTMail.toFixed(2)} € ${tm('proDash.devis.montantHT')}.\n\n${tm('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                             window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
                             const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')

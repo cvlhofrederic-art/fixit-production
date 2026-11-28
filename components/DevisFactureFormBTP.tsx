@@ -2337,9 +2337,12 @@ export default function DevisFactureFormBTP({
               <input type="text" placeholder={tx('Ex : Nettoyage parc résidence Les Acacias')} value={docTitle} onChange={(e) => setDocTitle(e.target.value)} />
             </div>
 
+            {/* Droit du document : celui de la société (langueDoc), pas celui de l'écran */}
             <div className="dv-alert green">
-              <strong>{tx('CONFORMITÉ LÉGALE FRANÇAISE')}</strong><br />
-              {tx('Ce document respecte les obligations légales françaises (Code de commerce, Code de la consommation). Toutes les mentions obligatoires sont incluses.')}
+              <strong>{langueDoc === 'pt' ? tx('CONFORMITÉ LÉGALE PORTUGAISE') : tx('CONFORMITÉ LÉGALE FRANÇAISE')}</strong><br />
+              {langueDoc === 'pt'
+                ? tx('Ce document respecte les obligations légales portugaises. Toutes les mentions obligatoires sont incluses.')
+                : tx('Ce document respecte les obligations légales françaises (Code de commerce, Code de la consommation). Toutes les mentions obligatoires sont incluses.')}
             </div>
 
             <div className="dv-import-card">
@@ -3709,7 +3712,7 @@ export default function DevisFactureFormBTP({
 
           {/* 14. MENTIONS LÉGALES */}
           <div className="dv-section">
-            <div className="dv-section-t">{langueDoc === 'pt' ? 'MENÇÕES LEGAIS AUTOMÁTICAS' : 'MENTIONS LÉGALES AUTOMATIQUES'}</div>
+            <div className="dv-section-t">{locale === 'pt' ? 'MENÇÕES LEGAIS AUTOMÁTICAS' : 'MENTIONS LÉGALES AUTOMATIQUES'}</div>
             <div className="dv-mentions">
 
               {/* ═══ 1. IDENTIFICATION — statut juridique ═══ */}

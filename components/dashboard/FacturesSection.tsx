@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
-import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useTranslation, useLocale, traducteurPour } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
@@ -900,8 +900,11 @@ function FacturesSectionV5({
                       {doc.clientEmail && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
-                          const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                          const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                          // Société BTP : dans la langue de ses documents, comme la facture jointe. Artisan : inchangé.
+                          const langueMail = langueDocumentsBtp(artisan, locale)
+                          const tm: (cle: string) => string = orgRole === 'pro_societe' && langueMail !== locale ? traducteurPour(langueMail) : t
+                          const subject = encodeURIComponent(`${tm('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                          const body = encodeURIComponent(`${tm('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${tm('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${tm('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                           window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
                           // BTP : un brouillon sans numéro reste un brouillon (il s'émet par « Valider et enregistrer »).
                           if (orgRole === 'pro_societe' && !aNumeroDefinitif({ docNumber: doc.docNumber })) return
