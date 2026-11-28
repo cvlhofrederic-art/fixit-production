@@ -80,17 +80,18 @@ async function importer(push: ReturnType<typeof vi.fn<ToastApi['push']>>) {
 }
 
 const CSV = 'Date;Libellé;Montant\n04/06/2026;VIR SEPA CHARGES T2;1840,00\n05/06/2026;PRLV ELECTRICITE PARTIES COMMUNES;-312,40'
+const MOTIF_SANS_COMPTE = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
 
 describe('Import du relevé : choix du compte bancaire', () => {
-  it('aucun compte actif : liste inactive et motif ; l’analyse reste possible, l’import est bloqué', async () => {
+  it('aucun compte actif : liste inactive, « Aucun compte actif » ; l’analyse reste possible, l’import est bloqué et le motif est dit près du bouton', async () => {
     await rendre()
     expect(choixCompte()).toBeDisabled()
     expect(choixCompte()).toHaveDisplayValue('Aucun compte actif')
+    // Avant l'analyse : la liste dit déjà « Aucun compte actif », aucune phrase dessous (cr-03 B, réponse du 28/11/2026).
+    expect(panneau('Importer un relevé').textContent).not.toContain(MOTIF_SANS_COMPTE)
     analyser(CSV)
     expect(boutonImporter()).toBeDisabled()
-    expect(panneau('Importer un relevé').textContent).toContain(
-      'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».',
-    )
+    expect(panneau('Importer un relevé').textContent).toContain(MOTIF_SANS_COMPTE)
     // Motif annoncé avec le résultat de l'analyse (zone aria-live du panneau).
     expect(panneau('Importer un relevé').querySelector('.sr-only[aria-live="polite"]')?.textContent).toBe(
       'Relevé analysé (CSV) : 2 lignes retenues. Import impossible : Aucun compte bancaire actif : enregistrer d’abord le ' +
@@ -98,14 +99,24 @@ describe('Import du relevé : choix du compte bancaire', () => {
     )
   })
 
-  it('rb-c08 A : sans compte, le motif « Aucun compte bancaire actif… » n’apparaît qu’une fois à l’écran (décision du 26/11/2026)', async () => {
+  it('cr-03 B : sans compte, le motif est près du bouton « Importer N lignes », plus sous la liste des comptes, et n’est dit qu’une fois (réponse du 28/11/2026, rb-c08 du 26/11/2026)', async () => {
     await rendre()
     analyser(CSV)
-    const motif = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
-    expect(panneauImport().getAllByText(motif)).toHaveLength(1)
+    // Dit une seule fois dans le panneau (rb-c08), dans le bandeau « Import impossible » placé juste avant le bouton.
+    expect(panneauImport().getAllByText(MOTIF_SANS_COMPTE)).toHaveLength(1)
+    const bandeau = panneauImport().getByText(MOTIF_SANS_COMPTE).closest('.alert') as HTMLElement
+    expect(bandeau).toHaveTextContent('Import impossible')
+    expect(boutonImporter().parentElement?.previousElementSibling).toBe(bandeau)
+    // Plus sous la liste « Compte bancaire du relevé », qui affiche « Aucun compte actif ».
+    const champ = choixCompte().closest('.field') as HTMLElement
+    expect(champ.querySelector('.field-hint')).toBeNull()
+    expect(champ.textContent).not.toContain(MOTIF_SANS_COMPTE)
+    expect(Array.from(choixCompte().options).map((option) => option.text)).toEqual(['Aucun compte actif'])
     expect(boutonImporter()).toBeDisabled()
     // Annoncé aux lecteurs d'écran avec le résultat de l'analyse (zone aria-live), comme avant.
-    expect(panneau('Importer un relevé').querySelector('.sr-only[aria-live="polite"]')?.textContent).toContain(`Import impossible : ${motif}`)
+    expect(panneau('Importer un relevé').querySelector('.sr-only[aria-live="polite"]')?.textContent).toContain(`Import impossible : ${MOTIF_SANS_COMPTE}`)
+    // « Compte rapproché » du panneau « Rapprochement » garde sa phrase : hors de cette réponse.
+    expect(within(panneau(/^Rapprochement/)).getAllByText(MOTIF_SANS_COMPTE)).toHaveLength(1)
   })
 
   it('compte clôturé : jamais proposé', async () => {

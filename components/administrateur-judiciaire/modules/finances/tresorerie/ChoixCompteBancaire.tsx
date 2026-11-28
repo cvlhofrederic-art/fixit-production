@@ -36,13 +36,28 @@ export interface ChoixCompteBancaireProps {
   choisir: (id: string) => void
   /** Plusieurs comptes : première option « Choisir le compte… » (aucun compte choisi d'office). */
   choixExige?: boolean
+  /**
+   * Phrase affichée sous la liste quand aucun compte n'est actif ; absente : AUCUN_COMPTE_ACTIF ; null : aucune phrase.
+   * « Importer un relevé » passe null (réponse du référent métier du 28/11/2026, corrections de la PR 799, cr-03 B) : sa
+   * liste affiche déjà « Aucun compte actif », et le motif est dit près du bouton « Importer N lignes ».
+   */
+  sansCompteActif?: string | null
 }
 
-export function ChoixCompteBancaire({ label, name, etat, actifs, choisi, choisir, choixExige = false }: Readonly<ChoixCompteBancaireProps>) {
+export function ChoixCompteBancaire({
+  label,
+  name,
+  etat,
+  actifs,
+  choisi,
+  choisir,
+  choixExige = false,
+  sansCompteActif = AUCUN_COMPTE_ACTIF,
+}: Readonly<ChoixCompteBancaireProps>) {
   const indisponible = etat === 'chargement' ? 'Chargement…' : 'Comptes bancaires illisibles'
   return (
     <div className="card-grid cols-2">
-      <Field label={label} name={name} hint={etat === 'lu' && actifs.length === 0 ? AUCUN_COMPTE_ACTIF : undefined}>
+      <Field label={label} name={name} hint={etat === 'lu' && actifs.length === 0 ? sansCompteActif : undefined}>
         <select value={choisi?.id ?? ''} disabled={etat !== 'lu' || actifs.length === 0} onChange={(evenement) => choisir(evenement.target.value)}>
           {etat !== 'lu' && <option value="">{indisponible}</option>}
           {etat === 'lu' && actifs.length === 0 && <option value="">Aucun compte actif</option>}
