@@ -160,6 +160,14 @@ describe('Liste Devis V5 — sélection et téléchargement groupé (BTP)', () =
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith(`3 ${T}.telecharges (archive.zip)`))
   })
 
+  it('salarié invité : l\'archive part sur la fiche de SA société (gabarit, RIB et langue de la société)', async () => {
+    const salarie = { ...ARTISAN, id: 'u-salarie', fiche_societe_id: 'fiche-societe' }
+    render(<DevisSection {...propsDevis()} artisan={salarie as typeof ARTISAN} />)
+    fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (3)` }))
+    await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
+    expect(telechargementAppele()[0][1].artisan?.id).toBe('fiche-societe')
+  })
+
   it('après une recherche, « Tout télécharger » ne prend que les résultats', async () => {
     render(<DevisSection {...propsDevis()} />)
     rechercherDevis('lyon')

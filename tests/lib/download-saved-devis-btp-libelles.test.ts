@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const recu = vi.hoisted(() => ({
   entrees: [] as Array<Record<string, unknown>>,
   fiche: {} as Record<string, unknown>,
+  echec: false,
 }))
 
 vi.mock('@/lib/supabase', async () => {
@@ -18,6 +19,7 @@ vi.mock('@/lib/supabase', async () => {
   chaine.select = (liste: string) => { colonnes = liste.split(',').map((c) => c.trim()); return chaine }
   chaine.eq = () => chaine
   chaine.single = async () => {
+    if (recu.echec) return { data: null, error: { code: 'PGRST000', message: 'réseau' } }
     const absente = colonnes.find((c) => !colonnesProduction.has(c))
     if (absente) return { data: null, error: { code: '42703', message: `column profiles_artisan.${absente} does not exist` } }
     const fiche: Record<string, unknown> = { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche }
@@ -58,7 +60,7 @@ async function telecharger(doc: Record<string, unknown>, locale: 'fr' | 'pt' = '
   return recu.entrees[recu.entrees.length - 1]
 }
 
-beforeEach(() => { recu.entrees.length = 0; recu.fiche = {} })
+beforeEach(() => { recu.entrees.length = 0; recu.fiche = {}; recu.echec = false })
 
 describe('downloadSavedDevis (BTP) — libellés alignés sur le formulaire', () => {
   it("délai en semaines ou en mois : l'unité est gardée", async () => {
@@ -192,5 +194,45 @@ describe('downloadSavedDevis (BTP) — anciens documents d\'une société portug
     expect(await telecharger(document({ companyStatus: 'SAS' }))).toMatchObject({
       insuranceName: '', insuranceNumber: '', insuranceType: 'rc_pro', insuranceCoverage: '', mediatorName: '', mediatorUrl: '',
     })
+  })
+})
+
+// Constat du 27/11/2026 : facture d'acompte AC-2026-030 de SUD TRAVAUX (société française) téléchargée depuis /pt →
+// « FATURA DE ADIANTAMENTO », « EMITENTE », « Sociedade Anónima » pour une SAS, DL 62/2013. Le PDF suit la langue de
+// la fiche relue au téléchargement (lib/btp/langue-documents.ts), avec les libellés de cette langue.
+describe('downloadSavedDevis (BTP) — langue de la société, pas de l\'écran', () => {
+  const ACOMPTE = { docType: 'facture', docNumber: 'AC-2026-030', docTitle: '', factureSubType: 'acompte', clientType: 'professionnel' }
+  const libelles = (e: Record<string, unknown>) => ({
+    locale: e.locale,
+    taxe: (e.localeFormats as { taxLabel: string }).taxLabel,
+    designation: (e.t as (k: string) => string)('devis.designation'),
+    forme: (e.t as (k: string) => string)('devis.statusLabels.sas'),
+    titre: e.docTitle,
+  })
+
+  it('société française téléchargée depuis /pt : PDF français, « SAS » et non « Sociedade Anónima »', async () => {
+    recu.fiche = { language: 'fr', legal_form: 'SAS' }
+    expect(libelles(await telecharger(document(ACOMPTE), 'pt'))).toEqual({
+      locale: 'fr', taxe: 'TVA', designation: 'Désignation', forme: 'SAS', titre: 'Facture AC-2026-030',
+    })
+  })
+
+  it('fiche sans langue (null) : société française, comme la série de numérotation du serveur', async () => {
+    recu.fiche = { language: null }
+    expect(libelles(await telecharger(document(ACOMPTE), 'pt')).locale).toBe('fr')
+  })
+
+  it('société portugaise téléchargée depuis /fr : PDF portugais', async () => {
+    recu.fiche = { language: 'pt' }
+    expect(libelles(await telecharger(document({ ...ACOMPTE, docNumber: 'FA-2026-004' }), 'fr'))).toMatchObject({
+      locale: 'pt', taxe: 'IVA', designation: 'Designação', titre: 'Fatura FA-2026-004',
+    })
+  })
+
+  it('même langue que l\'écran, ou fiche illisible : traductions de l\'écran, comme avant', async () => {
+    recu.fiche = { language: 'pt' }
+    expect(libelles(await telecharger(document(ACOMPTE), 'pt'))).toMatchObject({ locale: 'pt', designation: 'devis.designation' })
+    recu.echec = true
+    expect(libelles(await telecharger(document(ACOMPTE), 'pt'))).toMatchObject({ locale: 'pt', designation: 'devis.designation' })
   })
 })

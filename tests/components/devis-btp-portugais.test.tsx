@@ -7,7 +7,9 @@ import type { ArtisanBasic } from '@/lib/devis-types'
 import { TEXTES_DEVIS_BTP_PT } from '@/lib/devis-btp-traduction'
 
 const langue = vi.hoisted(() => ({ locale: 'pt' as 'fr' | 'pt' }))
-vi.mock('@/lib/i18n/context', () => ({
+vi.mock('@/lib/i18n/context', async (original) => ({
+  // Réel : le PDF d'une société d'une autre langue que l'écran reçoit les libellés de sa langue (lib/btp/langue-documents.ts)
+  traducteurPour: (await original<typeof import('@/lib/i18n/context')>()).traducteurPour,
   useTranslation: () => ({ t: (cle: string) => cle, locale: langue.locale }),
   useLocale: () => langue.locale,
 }))
@@ -290,5 +292,73 @@ describe('anciens documents d\'une société portugaise : état réel du stockag
     monter(emis(3, 'envoye'), FICHE_APRES)
     expect(couvertureAffichee('Portugal continental')).toBe('Portugal')
     expect(screen.getByDisplayValue('Seguradora Exemplo')).toBeInTheDocument()
+  })
+})
+
+// Constat du 27/11/2026 : SUD TRAVAUX, société française, ouverte sur /pt, produisait des documents portugais (droit
+// portugais compris) sous des numéros de la série française. Le DOCUMENT suit la langue de la fiche de la société
+// (lib/btp/langue-documents.ts) — pays de TVA, valeurs par défaut, mentions, PDF — et l'ÉCRAN garde la sienne.
+describe('langue de la société, pas de l\'écran', () => {
+  const SUD_TRAVAUX = {
+    id: 'art-sud', company_name: 'SUD TRAVAUX', email: 'contact@exemple.fr', legal_form: 'SAS', language: 'fr',
+    company_address: '12 rue de l\'Exemple, 13001 Marseille',
+  } as ArtisanBasic
+  const SOCIETE_PT_FICHE = { ...SOCIETE_PT, language: 'pt' } as ArtisanBasic
+  const devisEmis = (tvaRate: number) => ({
+    id: '6f1c2a34-0000-4000-8000-00000000c012', savedAt: '2026-11-20T10:00:00.000Z', sentAt: '2026-11-20T10:00:00.000Z',
+    docNumber: 'DEV-2026-012', status: 'envoye', docType: 'devis', clientName: 'Client Exemple',
+    lines: [{ id: 1, description: 'Façade', qty: 1, unit: 'f', priceHT: 1000, tvaRate, totalHT: 1000 }], materialLines: [], fraisLines: [],
+  })
+  const taux = (nom: string) => screen.queryAllByRole('option', { name: nom }).length
+  async function pdfTelecharge(bouton: string) {
+    fireEvent.click(screen.getByText(bouton))
+    await waitFor(() => expect(pdf.entrees).toHaveLength(1))
+    const e = pdf.entrees[0]
+    return { locale: e.locale, taxe: (e.localeFormats as { taxLabel: string }).taxLabel, designation: (e.t as (k: string) => string)('devis.designation') }
+  }
+
+  it('société française sur /pt : écran portugais, document français (défauts, TVA, mentions)', () => {
+    const { container } = monter(undefined, SUD_TRAVAUX)
+    expect(screen.getByText('Forma jurídica')).toBeInTheDocument()
+    expect(screen.getByDisplayValue("3 × taux d'intérêt légal en vigueur")).toBeInTheDocument()
+    expect(screen.getByDisplayValue('40 € (BtoB uniquement)')).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Main d'œuvre")).toBeInTheDocument()
+    expect(taux('5.5%')).toBeGreaterThan(0)
+    expect(taux('23%')).toBe(0)
+    const mentions = container.querySelector('.dv-mentions')?.textContent || ''
+    expect(mentions).toContain('SAS au capital de')
+    expect(mentions).toContain('Devis gratuit — Conformément à l\'article L. 111-1 du Code de la consommation.')
+    expect(mentions).not.toMatch(/Lei n\.º|Código Civil|Decreto-Lei/)
+    expect(screen.getByText('MENÇÕES LEGAIS AUTOMÁTICAS')).toBeInTheDocument()
+  })
+
+  it('société française sur /pt : PDF du formulaire en français', async () => {
+    monter(devisEmis(10), SUD_TRAVAUX)
+    expect(await pdfTelecharge('Descarregar PDF')).toEqual({ locale: 'fr', taxe: 'TVA', designation: 'Désignation' })
+  })
+
+  it('société portugaise sur /fr : écran français, document portugais, conformité portugaise', () => {
+    langue.locale = 'fr'
+    const { container } = monter(undefined, SOCIETE_PT_FICHE)
+    expect(screen.getByText('Statut juridique')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Taxa de juro legal em vigor')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Mão de obra')).toBeInTheDocument()
+    expect(taux('23%')).toBeGreaterThan(0)
+    expect(taux('5.5%')).toBe(0)
+    expect(container.querySelector('.dv-mentions')?.textContent).toContain('Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96')
+    expect(screen.getByText('CONFORMITÉ LÉGALE PORTUGAISE')).toBeInTheDocument()
+    expect(container.textContent).not.toContain('obligations légales françaises')
+  })
+
+  it('société portugaise sur /fr : PDF du formulaire en portugais', async () => {
+    langue.locale = 'fr'
+    monter(devisEmis(23), SOCIETE_PT_FICHE)
+    expect(await pdfTelecharge('Télécharger PDF')).toEqual({ locale: 'pt', taxe: 'IVA', designation: 'Designação' })
+  })
+
+  it('même langue que l\'écran : traductions de l\'écran passées au PDF, comme avant', async () => {
+    langue.locale = 'fr'
+    monter(devisEmis(10), SUD_TRAVAUX)
+    expect(await pdfTelecharge('Télécharger PDF')).toEqual({ locale: 'fr', taxe: 'TVA', designation: 'devis.designation' })
   })
 })

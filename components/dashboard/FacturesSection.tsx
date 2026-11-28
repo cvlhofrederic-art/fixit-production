@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
-import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useTranslation, useLocale, traducteurPour } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import DocumentCancelModal from '@/components/DocumentCancelModal'
@@ -21,6 +21,7 @@ import { fetchNextDocNumber } from '@/lib/doc-number'
 import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
 import { changerEtatDocumentSociete } from '@/lib/documents/societe-client'
 import { fichePortugaise } from '@/lib/numerotation-prefixes'
+import { langueDocumentsBtp } from '@/lib/btp/langue-documents'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
@@ -899,8 +900,11 @@ function FacturesSectionV5({
                       {doc.clientEmail && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
-                          const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
-                          const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                          // Société BTP : dans la langue de ses documents, comme la facture jointe. Artisan : inchangé.
+                          const langueMail = langueDocumentsBtp(artisan, locale)
+                          const tm: (cle: string) => string = orgRole === 'pro_societe' && langueMail !== locale ? traducteurPour(langueMail) : t
+                          const subject = encodeURIComponent(`${tm('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                          const body = encodeURIComponent(`${tm('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${tm('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${tm('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                           window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
                           // BTP : un brouillon sans numéro reste un brouillon (il s'émet par « Valider et enregistrer »).
                           if (orgRole === 'pro_societe' && !aNumeroDefinitif({ docNumber: doc.docNumber })) return
@@ -1017,9 +1021,10 @@ function FacturesSectionV5({
             // les lignes (TVA conservées), puis l'acompte est émis en un clic —
             // numéro AC- définitif, statut émis, persistance + sync DB, modèle V3.
             const parent = acompteParent
-            // BTP : une ligne par taux de TVA. Artisan : lignes de la facture au pourcentage, inchangé.
+            // BTP : une ligne par taux de TVA, dans la langue de la société et non dans celle de l'écran
+            // (lib/btp/langue-documents.ts). Artisan : lignes de la facture au pourcentage, inchangé.
             const prefilled = orgRole === 'pro_societe'
-              ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: locale === 'pt' ? 'pt' : 'fr' })
+              ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: langueDocumentsBtp(artisan, locale) })
               : buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
             setAcompteParent(null)
             const estBtp = orgRole === 'pro_societe'
