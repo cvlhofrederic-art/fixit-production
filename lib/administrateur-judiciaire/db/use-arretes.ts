@@ -17,7 +17,7 @@ import type { ArreteAbandonne, ArreteRapprochement } from '@/lib/administrateur-
  * Réponse du référent métier du 28/11/2026 (corrections de la PR 799, cr-01 A) : les arrêtés abandonnés sont remontés à
  * part (`abandonnes`), pour être affichés dans « Arrêtés du compte » et rien d'autre. La lecture dit aussi si l'arrêté en
  * cours a déjà été clôturé une fois (`enCoursDejaCloture`, journal d'activité), pour la confirmation de l'abandon : les
- * arrêtés sont remontés d'abord, comme avant, ce passé juste après, sans retarder leur affichage.
+ * arrêtés sont remontés d'abord, comme avant, ce passé juste après, sans retarder leur affichage ; un journal illisible ne touche pas les arrêtés déjà remontés, il est seulement signalé.
  */
 
 /** Lecteurs montés, à relancer ensemble (voir l'en-tête). */
@@ -75,7 +75,18 @@ export function useArretesRapprochement(banqueId: string | null, signalerErreur:
         dejaClotureId: enCours && precedente?.banqueId === banqueId && precedente.dejaClotureId === enCours.id ? enCours.id : null,
         erreur: null,
       }))
-      if (!enCours || !(await arreteDejaCloture(enCours.id)) || abandonnee) return
+      if (!enCours) return
+      // Le journal ne sert qu'au texte de la confirmation d'abandon : s'il est illisible, les arrêtés déjà remontés
+      // restent affichés, la confirmation garde son texte habituel et l'échec est signalé une fois.
+      let dejaCloture: boolean
+      try {
+        dejaCloture = await arreteDejaCloture(enCours.id)
+      } catch (erreur: unknown) {
+        if (abandonnee) return
+        refSignaler.current?.(erreur instanceof Error ? erreur.message : String(erreur))
+        return
+      }
+      if (!dejaCloture || abandonnee) return
       setLecture((precedente) => precedente && { ...precedente, dejaClotureId: enCours.id })
     }
     lire().catch((erreur: unknown) => {
