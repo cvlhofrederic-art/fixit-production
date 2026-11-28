@@ -68,6 +68,7 @@ import {
 import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale, traducteurPour } from '@/lib/i18n/context'
 import { langueDocumentsBtp } from '@/lib/btp/langue-documents'
+import { ChantierSelect } from '@/components/dashboard/btp/ChantierSelect'
 import { phrasePhotosAnnexePt, traducteurDevisBtp } from '@/lib/devis-btp-traduction'
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
@@ -273,6 +274,15 @@ export default function DevisFactureFormBTP({
   // `fetchDocNumber()`. Évite : doublons localStorage entre devices, trous dans
   // la séquence (art. 242 nonies A I 2° CGI), préfixes mélangés DEV/FACT.
   const [docNumber, setDocNumber] = useState<string>(initialData?.docNumber || '')
+  /**
+   * Chantier auquel ce document est rattaché (colonne `chantier_id`, migration 060).
+   *
+   * Jusqu'au 26/11/2026 ce formulaire ignorait entièrement ce champ. Or `buildPayload` est une liste explicite :
+   * tout champ absent est perdu à l'enregistrement, et l'upsert de `/api/devis/sync` écrit la ligne ENTIÈRE. Un
+   * devis rattaché depuis l'écran Chantiers était donc DÉLIÉ en silence à la première retouche — et le CA par
+   * chantier de l'écran Rentabilité, qui n'impute que les documents rattachés, restait à 0 €.
+   */
+  const [chantierId, setChantierId] = useState<string>((initialData as { chantierId?: string } | undefined)?.chantierId || '')
   const docNumberRef = React.useRef<string>(initialData?.docNumber || '')
   // Identité stable de la ligne (UUID). initialData.id prime (doc existant, ou
   // adopté depuis le cloud au hydrate) ; sinon nouvel UUID = nouveau document.
@@ -1496,9 +1506,16 @@ export default function DevisFactureFormBTP({
       bic: profileBic,
       // Notes
       notes,
+      // Rattachement au chantier. Sans cette ligne, l'enregistrement effaçait la liaison : voir l'état plus haut.
+      //
+      // La valeur part TELLE QUELLE, chaîne vide comprise : `|| undefined` la ferait disparaître du corps JSON
+      // (JSON.stringify omet `undefined`), la route ne toucherait donc pas la colonne, et « Sélectionner un
+      // chantier… » ne délierait RIEN. Aucun autre écran ne sait délier, et la clé étrangère sans ON DELETE
+      // rendrait même le chantier impossible à supprimer : un mauvais rattachement serait définitif.
+      chantierId,
     }
   }, [
-    initialData, docNumber, docType, docTitle, docDate, docValidity, executionDelayDays, executionDelayType, prestationDate,
+    initialData, docNumber, docType, docTitle, docDate, docValidity, executionDelayDays, executionDelayType, prestationDate, chantierId,
     statutJuridique, companyName, companySiret, companyAddress, companyRCS, companyCapital, companyPhone, companyEmail,
     tvaEnabled, tvaNumber, companyAPE,
     insuranceType, insuranceName, insuranceNumber, insuranceCoverage, mediatorName, mediatorUrl,
@@ -2335,6 +2352,29 @@ export default function DevisFactureFormBTP({
             <div className="dv-fg" style={{ marginBottom: '.75rem' }}>
               <label>{tx('Titre / Objet')}{' '}<span style={{ fontWeight: 400, color: '#999' }}>{tx('(ex : Nettoyage parc, Rénovation cuisine…)')}</span></label>
               <input type="text" placeholder={tx('Ex : Nettoyage parc résidence Les Acacias')} value={docTitle} onChange={(e) => setDocTitle(e.target.value)} />
+            </div>
+
+            {/*
+              Rattachement au chantier. Le sélecteur existe déjà (components/dashboard/btp/ChantierSelect.tsx) et
+              trois écrans BTP l'emploient : rien à écrire, il suffit de le poser. `className=""` — la chaîne vide
+              n'est pas nullish, elle court-circuite donc le défaut `v5-fi` du composant et laisse la règle
+              `.dv-fg select` de ce formulaire donner le style.
+
+              C'est ce champ qui alimente le CA par chantier de l'écran Rentabilité : il n'impute un document qu'à
+              un seul chantier, par ce rattachement, ou à aucun.
+            */}
+            <div className="dv-fg" style={{ marginBottom: '.75rem' }}>
+              <label>{tx('Chantier')}{' '}<span style={{ fontWeight: 400, color: '#999' }}>{tx('(facultatif — pour suivre la rentabilité du chantier)')}</span></label>
+              <ChantierSelect
+                className=""
+                autoImport={false}
+                annoncerEchecs={false}
+                ariaLabel={tx('Chantier')}
+                userId={artisan?.id || ''}
+                authUserId={artisan?.user_id || artisan?.id || ''}
+                value={chantierId}
+                onChange={(id) => setChantierId(id)}
+              />
             </div>
 
             {/* Droit du document : celui de la société (langueDoc), pas celui de l'écran */}
