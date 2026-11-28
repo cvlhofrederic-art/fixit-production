@@ -37,6 +37,9 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * Arrêté abandonné (décision du 26/11/2026, rb-01 A) : la ligne reste en base avec ses montants, statut « Abandonné »,
  * l'écriture étant tracée au journal d'activité comme les autres (repository). Elle est lue à part (`abandonnes`) :
  * aucune règle ne la reçoit, elle ne compte ni comme arrêté en cours, ni comme dernier arrêté, ni dans un solde.
+ * Réponse du référent métier du 28/11/2026 (corrections de la PR 799, cr-01 A) : l'écran affiche les arrêtés abandonnés
+ * dans « Arrêtés du compte », statut « Abandonné », sans rien en calculer ; un arrêté clôturé puis déclôturé s'abandonne
+ * comme tout arrêté en cours, et la confirmation le dit (arreteDejaCloture, lu dans le journal d'activité).
  * Aucun élément n'est encore rattaché à l'arrêté (côté compta indépendant du relevé non branché) : `elements` reste vide.
  * Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : refuserImportSurPeriodeArretee, appelée par l'import d'un
  * relevé dans sa transaction d'écriture, refuse le relevé dont une ligne est datée au plus tard du dernier arrêté clôturé
@@ -87,6 +90,21 @@ export async function listerArretes(banqueId: string): Promise<ArretesLus> {
     abandonnes: lus.filter(estAbandonne).sort(parDate),
     illisibles: lignes.length - lus.length,
   }
+}
+
+/** Statut porté par un état du journal d'activité (ligne d'arrêté avant ou après une écriture) ; null : aucun. */
+const statutJournalise = (etat: unknown): unknown => (typeof etat === 'object' && etat !== null && 'statut' in etat ? etat.statut : null)
+
+/**
+ * Vrai si l'arrêté a déjà été clôturé une fois (réponse du référent métier du 28/11/2026, corrections de la PR 799,
+ * cr-01 A). Un arrêté déclôturé redevient « En cours » : sa ligne ne dit plus qu'il a été clôturé. Le journal d'activité,
+ * lui, garde chaque écriture de la ligne avec son état après (repository, entité « rapprochements ») : c'est lui qui est
+ * lu, sans rien ajouter à la ligne ni à la base. Lecture seule, pour la confirmation de l'abandon, qui dit alors que
+ * l'arrêté perd sa période arrêtée ; aucune règle n'en dépend. Arrêté inconnu, ou jamais clôturé : faux.
+ */
+export async function arreteDejaCloture(id: string): Promise<boolean> {
+  const entrees = await ajDb.activityLog.where('entiteId').equals(id).toArray()
+  return entrees.some((entree) => entree.entite === 'rapprochements' && statutJournalise(entree.apres) === 'Clôturé')
 }
 
 /**

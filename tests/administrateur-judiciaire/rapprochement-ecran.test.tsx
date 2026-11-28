@@ -276,10 +276,12 @@ describe('Rapprochement : « Abandonner l’arrêté » (rb-01 A, décision du 2
     expect(screen.queryByRole('dialog')).toBeNull()
     // Gardé en base, jamais effacé.
     expect(await ajDb.rapprochements.get(errone.id)).toMatchObject({ statut: 'Abandonné', soldeBanqueCentimes: 40_000 })
-    // Plus d'arrêté en cours : le panneau revient à « aucun arrêté », l'arrêté abandonné n'est pas affiché.
+    // Plus d'arrêté en cours : le panneau revient à « aucun arrêté » ; l'arrêté abandonné reste affiché dans « Arrêtés du
+    // compte », statut « Abandonné » (réponse du référent métier du 28/11/2026, cr-01 A).
     expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement bancaire' })).toBeInTheDocument()
     expect(dansPanneau().getByText('Aucun arrêté pour ce compte.')).toBeInTheDocument()
-    expect(panneau().textContent).not.toContain('Abandonné')
+    const abandonnes = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row').slice(1)
+    expect(abandonnes.map((ligne) => within(ligne).getAllByRole('cell').at(-1)?.textContent)).toEqual(['Abandonné'])
     expect(dansPanneau().queryByRole('button', { name: /Abandonner/ })).toBeNull()
 
     // Un nouvel arrêté, juste, à la même date.
@@ -292,7 +294,7 @@ describe('Rapprochement : « Abandonner l’arrêté » (rb-01 A, décision du 2
     expect(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' })).toBeEnabled()
   })
 
-  it('arrêté clôturé : aucun bouton « Abandonner » ; arrêté abandonné : ni affiché, ni compté dans « Arrêtés du compte »', async () => {
+  it('arrêté clôturé : aucun bouton « Abandonner » ; arrêté abandonné : jamais l’arrêté affiché, listé « Abandonné » dans « Arrêtés du compte »', async () => {
     const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
     await cloturerArreteCompte(premier.id)
     const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
@@ -300,13 +302,19 @@ describe('Rapprochement : « Abandonner l’arrêté » (rb-01 A, décision du 2
     await rendre()
     // L'arrêté affiché est le dernier arrêté clôturé, pas l'arrêté abandonné (pourtant plus récent).
     expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 30/04/2026' })).toBeInTheDocument()
-    expect(dansPanneau().getByText('Clôturé')).toBeInTheDocument()
+    expect(panneau().querySelector('.pill')?.textContent).toBe('Clôturé')
     expect(dansPanneau().queryByRole('button', { name: /Abandonner/ })).toBeNull()
     expect(dansPanneau().getByRole('button', { name: 'Déclôturer l’arrêté du 30/04/2026' })).toBeEnabled()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
-    // Un seul arrêté compte : la liste (montrée à partir de deux) reste absente.
-    expect(dansPanneau().queryByRole('table', { name: 'Arrêtés du compte' })).toBeNull()
-    expect(panneau().textContent).not.toContain('Abandonné')
+    // Réponse du référent métier du 28/11/2026 (cr-01 A) : l'arrêté abandonné est listé à sa date, statut « Abandonné »,
+    // sans action ; la liste est montrée dès qu'un arrêté abandonné existe.
+    const liste = dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })
+    const lignes = within(liste).getAllByRole('row').slice(1)
+    expect(lignes.map((ligne) => `${ligne.textContent?.slice(0, 10)} ${within(ligne).getAllByRole('cell').at(-1)?.textContent}`)).toEqual([
+      '31/05/2026 Abandonné',
+      '30/04/2026 Clôturé',
+    ])
+    expect(within(liste).queryByRole('button')).toBeNull()
   })
 
   it('refus de l’écriture (arrêté clôturé entre-temps) : toast, confirmation ouverte, rien n’est écrit', async () => {

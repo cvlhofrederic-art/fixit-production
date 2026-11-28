@@ -6,17 +6,21 @@ import { cloturerCompteBancaire, enregistrerCompteBancaire } from '@/lib/adminis
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import {
   abandonnerArreteCompte,
+  arreteDejaCloture,
   avecSoldeComptaCourant,
   cloturerArreteCompte,
   decloturerArreteCompte,
   listerArretes,
   ouvrirArreteCompte,
+  refuserImportSurPeriodeArretee,
 } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
 import { repoEcritures } from '@/lib/administrateur-judiciaire/db/repositories'
+import { journaliserActivite } from '@/lib/administrateur-judiciaire/db/repository'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
+import { dateDerniereCloture } from '@/lib/administrateur-judiciaire/domain/periode-arretee'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 
@@ -30,6 +34,9 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
  *   il ne compte plus dans aucune règle, et un nouvel arrêté s'ouvre sur le compte. Jamais un arrêté clôturé.
  * - rb-01 C et rb-03 A : le solde compta n'est plus figé à l'ouverture ; il est recalculé à la clôture (écritures
  *   connues à ce moment, à la date de l'arrêté), puis figé dans l'arrêté clôturé.
+ * Réponse du référent métier du 28/11/2026 (corrections de la PR 799, cr-01, choix A) : un arrêté clôturé puis déclôturé
+ * s'abandonne comme tout arrêté en cours ; sa période n'est plus arrêtée ; l'arrêté abandonné, lu à part, est affiché
+ * dans « Arrêtés du compte » (rapprochement-arretes-abandonnes-ecran.test.tsx) et reste hors de tout calcul.
  */
 
 // IBAN de test publiés (exemples déjà utilisés par les tests D-BANQUE) : clés valides, aucun compte réel.
@@ -368,17 +375,55 @@ describe('message de clôture refusée (écart en euros)', () => {
   })
 })
 
-describe('arrêté clôturé, déclôturé, puis abandonné', () => {
-  // comportement soumis au référent métier (question du 26/11/2026) : à adapter selon sa réponse
-  it('la période n’est plus arrêtée et l’arrêté abandonné n’apparaît pas dans la liste des arrêtés (comportement actuel)', async () => {
+describe('arrêté clôturé, déclôturé, puis abandonné (réponse du référent métier du 28/11/2026, cr-01 A)', () => {
+  it('accepté : sa période n’est plus arrêtée ; l’arrêté abandonné est lu à part, avec ses montants, hors de tout calcul', async () => {
     const arrete = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
     await cloturerArreteCompte(arrete.id)
+    // Clôturé : sa période est arrêtée, un relevé daté dedans est refusé (rb-04 A).
+    await expect(refuserImportSurPeriodeArretee(banqueId, ['2026-05-15'])).rejects.toThrow(/^Import refusé : 1 ligne est datée au plus tard du 31\/05\/2026/)
     await decloturerArreteCompte(arrete.id)
     await abandonnerArreteCompte(arrete.id)
     expect((await ajDb.rapprochements.get(arrete.id))?.statut).toBe('Abandonné')
     const { arretes, abandonnes } = await listerArretes(banqueId)
+    // Lu à part, avec ses montants : l'écran l'affiche dans « Arrêtés du compte », statut « Abandonné ».
+    expect(abandonnes).toEqual([{ ...arrete, statut: 'Abandonné' }])
+    // Hors de tout calcul : ni arrêté affiché, ni dernier arrêté, ni période arrêtée.
     expect(arretes).toEqual([])
-    expect(abandonnes.map((a) => a.id)).toEqual([arrete.id])
     expect(arreteCourant(arretes)).toBeNull()
+    expect(dateDerniereCloture(arretes, banqueId)).toBeNull()
+    await expect(refuserImportSurPeriodeArretee(banqueId, ['2026-05-15'])).resolves.toBeUndefined()
+    // Un relevé daté dans l'ancienne période s'importe ; un nouvel arrêté s'ouvre à la même date, sur le solde recalculé.
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-15', libelle: 'VIR CHARGES', montant: 450 }])
+    const nouveau = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
+    expect(nouveau.soldeComptaCentimes).toBe(45_000)
+    expect((await cloturerArreteCompte(nouveau.id)).statut).toBe('Clôturé')
+    const apres = await listerArretes(banqueId)
+    expect(apres.arretes.map((a) => a.id)).toEqual([nouveau.id])
+    expect(apres.abandonnes).toEqual([{ ...arrete, statut: 'Abandonné' }])
+  })
+
+  it('arreteDejaCloture : vrai dès la première clôture, d’après le journal d’activité, et encore après la déclôture ; faux sinon ; rien n’est écrit', async () => {
+    const arrete = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    expect(await arreteDejaCloture(arrete.id)).toBe(false)
+    await cloturerArreteCompte(arrete.id)
+    expect(await arreteDejaCloture(arrete.id)).toBe(true)
+    await decloturerArreteCompte(arrete.id)
+    // De nouveau « En cours » : la ligne ne le dit plus, le journal d'activité si.
+    expect((await ajDb.rapprochements.get(arrete.id))?.statut).toBe('En cours')
+    expect(await arreteDejaCloture(arrete.id)).toBe(true)
+    await abandonnerArreteCompte(arrete.id)
+    expect(await arreteDejaCloture(arrete.id)).toBe(true)
+    // Arrêté jamais clôturé, ouvert à la même date après l'abandon ; arrêté inconnu.
+    const jamais = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 100 })
+    expect(await arreteDejaCloture(jamais.id)).toBe(false)
+    expect(await arreteDejaCloture('inconnu')).toBe(false)
+    // Une entrée du journal d'une autre table, de même identifiant, ne compte pas.
+    await journaliserActivite({ entite: 'banques', entiteId: jamais.id, action: 'update', qui: null, avant: null, apres: { statut: 'Clôturé' } })
+    expect(await arreteDejaCloture(jamais.id)).toBe(false)
+    const lignes = await ajDb.rapprochements.toArray()
+    const journal = await ajDb.activityLog.count()
+    await arreteDejaCloture(arrete.id)
+    expect(await ajDb.rapprochements.toArray()).toEqual(lignes)
+    expect(await ajDb.activityLog.count()).toBe(journal)
   })
 })
