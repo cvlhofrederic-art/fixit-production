@@ -216,6 +216,7 @@ export function HonorairesTaxationModule() {
         title="Relevé des diligences"
         sub="Base de l'état de frais soumis au juge taxateur"
         icon="clipboard"
+        controlesALaLigne
         right={
           <button
             className="btn"
