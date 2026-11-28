@@ -10,6 +10,7 @@ import {
   decloturerArrete,
   ouvrirArrete,
   STATUT_ARRETE_ABANDONNE,
+  verifierClotureCompteBancaire,
   type ArreteAbandonne,
   type ArreteRapprochement,
   type StatutArrete,
@@ -186,4 +187,15 @@ export async function abandonnerArreteCompte(id: string, options: OptionsEcritur
     await repoRapprochements.update(id, { statut: abandonne.statut }, { actor: options.actor ?? null })
     return abandonne
   })
+}
+
+/**
+ * Contrôle de la clôture d'un compte bancaire, sans rien écrire (réponse du référent métier du 28/11/2026, PR 857,
+ * point 1, choix A) : refusée tant qu'un arrêté est en cours sur le compte (verifierClotureCompteBancaire : le clôturer
+ * ou l'abandonner d'abord), ou qu'un arrêté illisible pourrait en cacher un (arretesSurs). L'écran l'appelle avant
+ * d'ouvrir sa confirmation, pour dire le refus dès le clic ; la clôture du compte (db/comptes-bancaires.ts) le refait
+ * dans sa transaction.
+ */
+export async function controlerClotureCompteBancaire(banqueId: string): Promise<void> {
+  verifierClotureCompteBancaire(banqueId, await arretesSurs(banqueId))
 }

@@ -5,6 +5,7 @@ import {
   decloturerArrete,
   etatArrete,
   ouvrirArrete,
+  verifierClotureCompteBancaire,
   type ArreteRapprochement,
   type ElementRapprochement,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
@@ -121,5 +122,25 @@ describe('rapprochement — ouverture, clôture, déclôture', () => {
     expect(() => decloturerArrete(arretes, 'a-0')).toThrow(/dernier/i)
     expect(() => decloturerArrete([...arretes, arrete({ id: 'a-2', dateArrete: '2026-10-30' })], 'a-1')).toThrow(/en cours/i)
     expect(() => decloturerArrete(arretes, 'a-9')).toThrow(/introuvable/i)
+  })
+})
+
+describe('rapprochement — clôture du compte bancaire (réponse du référent métier du 28/11/2026, point #857 · 1, choix A)', () => {
+  const cloture = (id: string, dateArrete: string) => arrete({ id, dateArrete, statut: 'Clôturé' })
+
+  it('refusée tant qu’un arrêté du compte est en cours : le message dit quoi faire (le clôturer ou l’abandonner d’abord)', () => {
+    const arretes = [cloture('a-0', '2026-10-10'), arrete({ id: 'a-1', dateArrete: '2026-10-20' })]
+    expect(() => verifierClotureCompteBancaire('b-courant', arretes)).toThrow(
+      'Un arrêté est en cours sur ce compte : le clôturer ou l’abandonner d’abord.',
+    )
+  })
+
+  it('acceptée sans arrêté, ou quand tous les arrêtés du compte sont clôturés', () => {
+    expect(() => verifierClotureCompteBancaire('b-courant', [])).not.toThrow()
+    expect(() => verifierClotureCompteBancaire('b-courant', [cloture('a-0', '2026-10-10'), cloture('a-1', '2026-10-20')])).not.toThrow()
+  })
+
+  it('l’arrêté en cours d’un autre compte ne bloque pas', () => {
+    expect(() => verifierClotureCompteBancaire('b-fonds', [arrete({ id: 'a-1' }), cloture('a-2', '2026-10-10')])).not.toThrow()
   })
 })

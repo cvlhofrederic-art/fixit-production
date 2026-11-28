@@ -11,6 +11,12 @@ import {
   type SaisieCompteBancaire,
 } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
+import {
+  abandonnerArreteCompte,
+  cloturerArreteCompte,
+  controlerClotureCompteBancaire,
+  ouvrirArreteCompte,
+} from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import { estCompteDuFondsTravaux, resoudreModeComptes } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
@@ -100,6 +106,73 @@ describe('Comptes bancaires — création, modification, clôture', () => {
 
   it('clôture d’un compte inconnu : refusée', async () => {
     await expect(cloturerCompteBancaire('inconnu')).rejects.toThrow(/introuvable/)
+  })
+
+  // Réponse du référent métier du 28/11/2026, point #857 · 1, choix A : pas de clôture du compte tant qu'un arrêté est en cours.
+  it('clôture refusée tant qu’un arrêté est en cours sur le compte : message qui dit quoi faire, compte toujours actif, rien au journal', async () => {
+    const cree = await enregistrerCompteBancaire(coproprieteId, saisie())
+    const clos = await ouvrirArreteCompte(cree.id, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(clos.id)
+    await ouvrirArreteCompte(cree.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    const journalAvant = await ajDb.activityLog.count()
+    await expect(cloturerCompteBancaire(cree.id)).rejects.toThrow(
+      'Un arrêté est en cours sur ce compte : le clôturer ou l’abandonner d’abord.',
+    )
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(true)
+    expect(await ajDb.activityLog.count()).toBe(journalAvant)
+  })
+
+  it('contrôle avant la confirmation de l’écran : même refus que la clôture, sans rien écrire ; rien à dire sans arrêté en cours', async () => {
+    const cree = await enregistrerCompteBancaire(coproprieteId, saisie())
+    await expect(controlerClotureCompteBancaire(cree.id)).resolves.toBeUndefined()
+    const arrete = await ouvrirArreteCompte(cree.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    const journalAvant = await ajDb.activityLog.count()
+    await expect(controlerClotureCompteBancaire(cree.id)).rejects.toThrow(
+      'Un arrêté est en cours sur ce compte : le clôturer ou l’abandonner d’abord.',
+    )
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(true)
+    expect(await ajDb.activityLog.count()).toBe(journalAvant)
+    await abandonnerArreteCompte(arrete.id)
+    await expect(controlerClotureCompteBancaire(cree.id)).resolves.toBeUndefined()
+  })
+
+  it('clôture acceptée une fois l’arrêté en cours clôturé', async () => {
+    const cree = await enregistrerCompteBancaire(coproprieteId, saisie())
+    const arrete = await ouvrirArreteCompte(cree.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    await expect(cloturerCompteBancaire(cree.id)).rejects.toThrow(/Un arrêté est en cours sur ce compte/)
+    await cloturerArreteCompte(arrete.id)
+    expect((await cloturerCompteBancaire(cree.id)).actif).toBe(false)
+  })
+
+  it('clôture acceptée une fois l’arrêté en cours abandonné', async () => {
+    const cree = await enregistrerCompteBancaire(coproprieteId, saisie())
+    const arrete = await ouvrirArreteCompte(cree.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 12_300 })
+    await expect(cloturerCompteBancaire(cree.id)).rejects.toThrow(/Un arrêté est en cours sur ce compte/)
+    await abandonnerArreteCompte(arrete.id)
+    expect((await cloturerCompteBancaire(cree.id)).actif).toBe(false)
+  })
+
+  it('l’arrêté en cours d’un autre compte ne bloque pas la clôture', async () => {
+    const cree = await enregistrerCompteBancaire(coproprieteId, saisie())
+    const autre = await enregistrerCompteBancaire(coproprieteId, saisie({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B }))
+    await ouvrirArreteCompte(autre.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    expect((await cloturerCompteBancaire(cree.id)).actif).toBe(false)
+    expect((await ajDb.banques.get(autre.id))?.actif).toBe(true)
+  })
+
+  it('arrêté illisible sur le compte (écrit hors de l’écran) : clôture refusée, il pourrait cacher un arrêté en cours', async () => {
+    const cree = await enregistrerCompteBancaire(coproprieteId, saisie())
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: cree.id,
+      statut: 'En cours',
+    })
+    await expect(cloturerCompteBancaire(cree.id)).rejects.toThrow(/1 arrêté illisible sur ce compte/)
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(true)
   })
 
   it('IBAN invalide (clé fausse ou format) : refusé, rien n’est écrit', async () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
+import { controlerClotureCompteBancaire } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { repoBanques, repoCabinets, repoCoproprietes, repoMandats } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
 import { ajDb, type Banque, type Cabinet, type Mandat } from '@/lib/administrateur-judiciaire/db/schema'
@@ -103,9 +104,20 @@ export async function enregistrerCompteBancaire(
     : repoBanques.create({ ...champs, coproprieteId, actif: true }, ecriture)
 }
 
-/** Clôture un compte : il reste en base, inactif, et ne compte plus dans les contrôles du mandat. */
+/**
+ * Clôture un compte : il reste en base, inactif, et ne compte plus dans les contrôles du mandat.
+ * Réponse du référent métier du 28/11/2026 (PR 857, point 1, choix A) : refusée, sans écriture, tant qu'un arrêté de
+ * rapprochement est en cours sur le compte, ou qu'un arrêté illisible pourrait en cacher un
+ * (controlerClotureCompteBancaire, db/rapprochements.ts : le clôturer ou l'abandonner d'abord). Les arrêtés sont relus
+ * dans la transaction de l'écriture : une ouverture ou une déclôture d'arrêté qui se chevauche passe avant ou après,
+ * jamais entre le contrôle et la clôture.
+ */
 export async function cloturerCompteBancaire(id: string, options: OptionsEcriture = {}): Promise<Banque> {
-  return repoBanques.update(id, { actif: false }, { actor: options.actor ?? null })
+  return ajDb.transaction('rw', [ajDb.banques, ajDb.rapprochements, ajDb.activityLog], async () => {
+    await controlerClotureCompteBancaire(id)
+    // Compte disparu : l'erreur « introuvable » est celle du repository, à l'écriture.
+    return repoBanques.update(id, { actif: false }, { actor: options.actor ?? null })
+  })
 }
 
 /** Ligne du cabinet : la plus ancienne de la table (une seule est écrite par cet écran) ; null si la table est vide. */

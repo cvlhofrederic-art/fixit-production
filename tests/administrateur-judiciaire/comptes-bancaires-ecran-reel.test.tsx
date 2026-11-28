@@ -28,6 +28,8 @@ let useSelectionDossier: typeof import('@/lib/administrateur-judiciaire/selectio
 let ajDb: typeof import('@/lib/administrateur-judiciaire/db/schema').ajDb
 let viderBaseLocale: () => Promise<void>
 let comptesDb: typeof import('@/lib/administrateur-judiciaire/db/comptes-bancaires')
+let rapprochementsDb: typeof import('@/lib/administrateur-judiciaire/db/rapprochements')
+let relevesDb: typeof import('@/lib/administrateur-judiciaire/db/releves-bancaires')
 
 beforeAll(async () => {
   localStorage.setItem(CLE_STOCKAGE_MODE, 'reel')
@@ -39,6 +41,8 @@ beforeAll(async () => {
   ;({ ajDb } = await import('@/lib/administrateur-judiciaire/db/schema'))
   ;({ viderBaseLocale } = await import('@/lib/administrateur-judiciaire/db/reset'))
   comptesDb = await import('@/lib/administrateur-judiciaire/db/comptes-bancaires')
+  rapprochementsDb = await import('@/lib/administrateur-judiciaire/db/rapprochements')
+  relevesDb = await import('@/lib/administrateur-judiciaire/db/releves-bancaires')
   const { MODE_ACTIF } = await import('@/lib/administrateur-judiciaire/mode')
   expect(MODE_ACTIF).toBe('reel')
 })
@@ -132,6 +136,17 @@ async function enregistrer() {
   // Écriture finie quand son toast est émis (sans délai fixe : la base froide peut dépasser 30 ms), puis relecture.
   await waitFor(() => expect(pushCourant?.mock.calls.length ?? 0).toBeGreaterThan(toasts))
   await patienter()
+}
+
+/**
+ * Clique « Clôturer » sur une ligne et attend la confirmation : elle ne s'ouvre qu'après le contrôle des arrêtés du
+ * compte, lus dans la base (réponse du référent métier du 28/11/2026, point #857 · 1, choix A).
+ */
+async function demanderCloture(bouton: HTMLElement) {
+  await act(async () => {
+    fireEvent.click(bouton)
+  })
+  await screen.findByRole('dialog')
 }
 
 /** Comptes écrits directement par le module d'écriture (avant le rendu). */
@@ -374,7 +389,7 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
     const cree = await ajouter({ iban: IBAN_A })
     const { push } = await rendre()
     expect(titresAlertes()).toContain('Comptes conformes au mode appliqué.')
-    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
     await act(async () => {
       fireEvent.click(dialogue().getByRole('button', { name: 'Clôturer le compte' }))
     })
@@ -394,7 +409,7 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
     await rendre()
     const ligneFonds = () => lignesComptes().find((ligne) => ligne.textContent?.includes('Compte séparé du fonds de travaux')) as HTMLElement
     expect(within(ligneFonds()).getByText('Tient le fonds de travaux')).toBeInTheDocument()
-    fireEvent.click(within(ligneFonds()).getByRole('button', { name: /^Clôturer/ }))
+    await demanderCloture(within(ligneFonds()).getByRole('button', { name: /^Clôturer/ }))
     await act(async () => {
       fireEvent.click(dialogue().getByRole('button', { name: 'Clôturer le compte' }))
     })
@@ -406,7 +421,7 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
   it('confirmation « Clôturer » : dit qu’il n’y a pas de retour depuis cet écran, et aucune action ne rouvre le compte', async () => {
     await ajouter({ iban: IBAN_A })
     await rendre()
-    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
     // Décision du 19/11 (#758, point 2) : la confirmation le dit avant le clic.
     expect(screen.getByRole('dialog').textContent).toContain('Sans retour depuis cet écran.')
     await act(async () => {
@@ -417,10 +432,132 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
     expect(dansPanneau().queryByRole('button', { name: /Rouvrir/ })).toBeNull()
   })
 
+  /** Clique « Clôturer le compte » dans la confirmation et attend le toast qui confirme ou refuse l'écriture. */
+  async function confirmerCloture() {
+    const toasts = pushCourant?.mock.calls.length ?? 0
+    await act(async () => {
+      fireEvent.click(dialogue().getByRole('button', { name: 'Clôturer le compte' }))
+    })
+    await waitFor(() => expect(pushCourant?.mock.calls.length ?? 0).toBeGreaterThan(toasts))
+    await patienter()
+  }
+
+  // Réponse du référent métier du 28/11/2026, point #857 · 1, choix A.
+  it('« Clôturer » un compte dont un arrêté est en cours : refus dès le clic, par un toast qui dit quoi faire, sans confirmation ; compte toujours actif', async () => {
+    const cree = await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    const arrete = await rapprochementsDb.ouvrirArreteCompte(cree.id, { dateArrete: '2026-10-31', soldeBanqueCentimes: 0 })
+    const { push } = await rendre()
+    const toasts = push.mock.calls.length
+    await act(async () => {
+      fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    })
+    await waitFor(() => expect(push.mock.calls.length).toBeGreaterThan(toasts))
+    expect(dernierToast(push)).toEqual({
+      kind: 'warn',
+      title: 'Clôture impossible',
+      desc: 'Un arrêté est en cours sur ce compte : le clôturer ou l’abandonner d’abord.',
+    })
+    // Aucune confirmation : le message reste lisible, rien n'est à confirmer.
+    await patienter()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(true)
+    expect(within(lignesComptes()[0]).queryByText('Clôturé')).toBeNull()
+
+    // L'arrêté abandonné (ou clôturé), « Clôturer » ouvre la confirmation et le compte se clôture.
+    await rapprochementsDb.abandonnerArreteCompte(arrete.id)
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    await confirmerCloture()
+    expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Compte clôturé' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(false)
+  })
+
+  it('arrêté ouvert pendant que la confirmation est affichée : l’écriture refuse encore, compte toujours actif', async () => {
+    const cree = await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    const { push } = await rendre()
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    await rapprochementsDb.ouvrirArreteCompte(cree.id, { dateArrete: '2026-10-31', soldeBanqueCentimes: 0 })
+    await confirmerCloture()
+    expect(dernierToast(push)).toEqual({
+      kind: 'warn',
+      title: 'Clôture impossible',
+      desc: 'Un arrêté est en cours sur ce compte : le clôturer ou l’abandonner d’abord.',
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(true)
+  })
+
+  it('arrêté illisible sur le compte (écrit hors de l’écran) : refus dès le clic, sans confirmation', async () => {
+    const cree = await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: cree.id,
+      statut: 'En cours',
+    })
+    const { push } = await rendre()
+    const toasts = push.mock.calls.length
+    await act(async () => {
+      fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    })
+    await waitFor(() => expect(push.mock.calls.some((appel, rang) => rang >= toasts && appel[0].title === 'Clôture impossible')).toBe(true))
+    const refus = push.mock.calls.map((appel) => appel[0]).find((toast) => toast.title === 'Clôture impossible')
+    expect(String(refus?.desc)).toMatch(/1 arrêté illisible sur ce compte/)
+    await patienter()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(true)
+  })
+
+  // Réponse du référent métier du 28/11/2026, point #857 · 5, choix A.
+  it('confirmation « Clôturer » d’un compte au solde non nul : avertissement qui donne le solde du tableau, sans bloquer la clôture', async () => {
+    const cree = await ajouter({ libelle: 'Ancien compte', iban: IBAN_A })
+    await relevesDb.importerReleveSurCompte(copro.id, cree.id, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    const { push } = await rendre()
+    // Solde du tableau des comptes (comptes-bancaires-vue.ts) : le même montant dans la confirmation.
+    expect(lignesComptes()[0].textContent).toContain('450,00\u00a0€')
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    const alerte = screen.getByRole('dialog').querySelector('.alert.warn') as HTMLElement
+    expect(alerte.querySelector('b')?.textContent).toBe('Solde du compte non nul : 450,00\u00a0€')
+    expect(alerte.textContent).toContain('Avertissement, sans blocage : la clôture reste possible. Vérifier qu’aucun relevé ne manque.')
+    expect(dialogue().getByRole('button', { name: 'Clôturer le compte' })).toBeEnabled()
+    await confirmerCloture()
+    expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Compte clôturé' })
+    expect((await ajDb.banques.get(cree.id))?.actif).toBe(false)
+    expect(within(lignesComptes()[0]).getByText('Clôturé')).toBeInTheDocument()
+  })
+
+  it('confirmation « Clôturer » d’un compte à découvert : avertissement avec le solde négatif', async () => {
+    const cree = await ajouter({ libelle: 'Ancien compte', iban: IBAN_A })
+    await relevesDb.importerReleveSurCompte(copro.id, cree.id, [{ date: '2026-05-20', libelle: 'PRLV EAU', montant: -120.5 }])
+    await rendre()
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    expect(screen.getByRole('dialog').querySelector('.alert.warn b')?.textContent).toBe('Solde du compte non nul : -120,50\u00a0€')
+  })
+
+  it('confirmation « Clôturer » : aucun avertissement de solde pour un solde nul, ni pour un solde inconnu (aucune ligne importée)', async () => {
+    const solde = await ajouter({ libelle: 'Compte soldé', iban: IBAN_A })
+    await relevesDb.importerReleveSurCompte(copro.id, solde.id, [
+      { date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 },
+      { date: '2026-05-20', libelle: 'VIR VERS NOUVEAU COMPTE', montant: -450 },
+    ])
+    await ajouter({ nature: 'fonds_travaux', libelle: 'Sans ligne', iban: IBAN_B })
+    await rendre()
+    for (const nom of ['Clôturer Compte soldé', 'Clôturer Sans ligne']) {
+      await demanderCloture(dansPanneau().getByRole('button', { name: nom }))
+      expect(screen.getByRole('dialog').textContent).toContain('Sans retour depuis cet écran.')
+      expect(screen.getByRole('dialog').querySelector('.alert')).toBeNull()
+      expect(screen.getByRole('dialog').textContent).not.toContain('Solde du compte non nul')
+      fireEvent.click(dialogue().getByRole('button', { name: 'Annuler' }))
+    }
+  })
+
   it('« Clôturer » puis « Annuler » : rien ne change', async () => {
     const cree = await ajouter({ iban: IBAN_A })
     await rendre()
-    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    await demanderCloture(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
     fireEvent.click(dialogue().getByRole('button', { name: 'Annuler' }))
     await patienter()
     expect(screen.queryByRole('dialog')).toBeNull()

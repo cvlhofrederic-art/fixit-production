@@ -27,6 +27,7 @@ import {
   type SaisieCompteBancaire,
 } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
+import { controlerClotureCompteBancaire } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import type { ComptesBancairesLus } from '@/lib/administrateur-judiciaire/db/use-comptes-bancaires'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import {
@@ -230,6 +231,21 @@ function useEcrituresComptes(copro: CoproprieteVue | undefined, relire: () => vo
         return false
       }
     },
+    /**
+     * « Clôturer » d'une ligne (réponse du référent métier du 28/11/2026, PR 857, point 1, choix A) : la clôture d'un
+     * compte est refusée tant qu'un arrêté de rapprochement y est en cours. Le contrôle (db/rapprochements.ts) est fait
+     * avant la confirmation : refus dit dès le clic par un toast, avec ce qu'il faut faire, sans confirmation à valider
+     * pour rien (un toast émis sous une fenêtre ouverte se lit mal) ; sinon `confirmer` ouvre la confirmation, qui
+     * avertit si le solde n'est pas nul (point 5, CompteBancaireModal.tsx). L'écriture contrôle encore.
+     */
+    demanderCloture: async (compte: CompteAffiche, confirmer: () => void) => {
+      try {
+        await controlerClotureCompteBancaire(compte.id)
+        confirmer()
+      } catch (erreur) {
+        refuser('Clôture impossible', erreur)
+      }
+    },
     cloturer: async (compte: CompteAffiche): Promise<boolean> => {
       try {
         await cloturerCompteBancaire(compte.id)
@@ -283,6 +299,11 @@ export function ComptesBancairesPanel({ copro, lus, ecrituresBanque }: Readonly<
   const [edition, setEdition] = useState<Edition>(null)
   const mandat = useDonneesStore((etat) => etat.mandats.find((candidat) => candidat.id === copro?.mandatId))
   const ecritures = useEcrituresComptes(copro, lus.relire, () => setEdition(null))
+  // « Clôturer » : la confirmation ne s'ouvre qu'une fois la clôture contrôlée (arrêté en cours : refus par toast).
+  const ouvrir = (demande: Edition) => {
+    if (demande?.type === 'cloturer') void ecritures.demanderCloture(demande.compte, () => setEdition(demande))
+    else setEdition(demande)
+  }
   const vue = vueComptesBancaires({
     comptes: lus.comptes,
     ecritures: ecrituresBanque,
@@ -389,7 +410,7 @@ export function ComptesBancairesPanel({ copro, lus, ecrituresBanque }: Readonly<
                 {/* Comptes affichés même quand le mode ne se résout pas : un compte créé reste visible. */}
                 {vue.comptes.length > 0 && (
                   <>
-                    <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />
+                    <TableauComptes comptes={vue.comptes} ouvrir={ouvrir} />
                     <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
                       Solde par compte : solde de son sous-compte 512, somme des lignes de relevé importées sur ce compte
                       (sans le solde d’avant le premier relevé importé) ; « — » : aucune ligne importée.

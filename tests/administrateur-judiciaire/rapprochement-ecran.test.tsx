@@ -553,10 +553,13 @@ describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la
     expect(panneau().textContent).not.toContain('Ni ouverture')
   })
 
-  it('compte clôturé avec un arrêté en cours (relevé par la relecture) : affiché, en lecture seule, ni clôture ni abandon', async () => {
+  it('compte clôturé avant le 28/11/2026 avec un arrêté en cours (relevé par la relecture) : affiché, en lecture seule, ni clôture ni abandon', async () => {
     const ferme = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Ancien compte', iban: IBAN_B, bic: null, etablissement: null })
     await ouvrirArreteCompte(ferme.id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
-    await cloturerCompteBancaire(ferme.id)
+    // Réponse du référent métier du 28/11/2026 (point #857 · 1, choix A) : la clôture d'un tel compte est désormais
+    // refusée ; ce cas ne vient plus que d'un compte clôturé avant cette règle, écrit ici directement dans la base.
+    await expect(cloturerCompteBancaire(ferme.id)).rejects.toThrow(/Un arrêté est en cours sur ce compte/)
+    await ajDb.banques.update(ferme.id, { actif: false })
     await rendre()
     fireEvent.change(dansPanneau().getByLabelText('Compte rapproché'), { target: { value: ferme.id } })
     await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/05/2026' })).toBeInTheDocument())

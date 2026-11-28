@@ -116,7 +116,10 @@ describe('compte clôturé : arrêtés en lecture seule (PR de suite de la 799, 
     const clos = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
     await cloturerArreteCompte(clos.id)
     const enCours = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
-    await cloturerCompteBancaire(banqueId)
+    // Réponse du référent métier du 28/11/2026 (point #857 · 1, choix A) : un compte ne se clôture plus avec un arrêté
+    // en cours. Ce cas ne vient donc plus que d'un compte clôturé avant cette règle, écrit ici directement dans la base.
+    await expect(cloturerCompteBancaire(banqueId)).rejects.toThrow(/Un arrêté est en cours sur ce compte/)
+    await ajDb.banques.update(banqueId, { actif: false })
     const avant = await ajDb.rapprochements.toArray()
     const refus = /Compte bancaire clôturé : aucune écriture d’arrêté/
     await expect(cloturerArreteCompte(enCours.id)).rejects.toThrow(refus)
