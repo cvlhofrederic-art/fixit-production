@@ -15,6 +15,7 @@ import {
   lirePerimetreBtp, peutEcrireTable, projeter, visibiliteListe, type PerimetreBtp, type Visibilite,
 } from '@/lib/btp/perimetre-compte'
 import { figerJoursPasses, lireEquipeParJour } from '@/lib/btp/equipe-par-jour'
+import { jourOuvreDans, paysDuCodePostal } from '@/lib/btp/jours-feries'
 import {
   FUSEAU_PAR_DEFAUT, chantiersAffectes, heureLocale, membreDuCompte,
   type ChantierBtp, type EquipeBtp, type MembreBtp, type ResolutionMembre,
@@ -428,6 +429,9 @@ async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne): P
     ancienneEquipe: Array.isArray(enBase.membres_ids) ? enBase.membres_ids.map(String) : [],
     nouvelleEquipe: Array.isArray(ligne.membres_ids) ? ligne.membres_ids.map(String) : [],
     equipeParJour: actuelle,
+    // Mêmes jours chômés que l'écran : week-end et fériés nationaux du pays de l'obra (d'après son code postal ; s'il
+    // ne le dit pas, fériés des deux pays : un jour douteux n'est jamais figé comme travaillé).
+    ouvre: jourOuvreDans(paysDuCodePostal(enBase.code_postal)),
   })
   if ('equipe_par_jour' in ligne || JSON.stringify(figee) !== JSON.stringify(actuelle)) ligne.equipe_par_jour = figee
 }

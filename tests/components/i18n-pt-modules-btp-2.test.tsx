@@ -693,10 +693,13 @@ describe('modules BTP (vague 2) du tableau de bord pro en portugais (pt-PT)', ()
     // Rentabilité hors IVA, détail du calcul et équipe jour par jour (28/11/2026).
     expect(textes.lista).toMatch(/Moradia Gaia: \+[\d\s]+ € s\/ IVA/)
     expect(textes.lista).toContain('Materiais 6750 € (estimativa 15%)')
-    expect(textes.lista).toMatch(/Mão de obra \d+ € \(29 dias de trabalho\)/)
+    // 29 jours ouvrés du 01/10 au 10/11, moins le 5 octobre (Implantação da República, férié national) : 28.
+    expect(textes.lista).toMatch(/Mão de obra \d+ € \(28 dias de trabalho\)/)
     expect(textes.editar).toContain('Equipa por dia')
-    expect(textes.editar).toContain('Materiais comprados (s/ IVA)')
-    expect(textes.nova).toContain('Materiais comprados: crie a obra e depois abra-a')
+    expect(textes.editar).toContain('Despesas da obra (s/ IVA)')
+    expect(textes.nova).toContain('Despesas da obra: crie a obra e depois abra-a')
+    // Feriado nacional na obra (5 de outubro, Implantação da República) : chômé et nommé.
+    expect(textes.editar).toContain('Feriado: Implantação da República')
     expect(textes.prolongar).toContain('Prolongar por 2 dias')
     expect(textes.eliminar).toContain('Tem a certeza de que pretende eliminar esta obra?')
     expect(textes.nova).toContain('Selecionar um orçamento...')

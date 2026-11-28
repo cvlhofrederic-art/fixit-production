@@ -156,7 +156,7 @@ describe('Obras — achats de matériaux et rentabilité hors TVA', () => {
   it('achat payé TTC : enregistré hors TVA comme dépense de l’obra, montant payé gardé dans la note', async () => {
     await monter()
     await ouvrirFiche()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Description de l’achat' }), { target: { value: 'Ciment' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Description de la dépense' }), { target: { value: 'Ciment' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Montant payé (€)' }), { target: { value: '1 200,00' } })
     expect(screen.getByText(/Compte 1\s000,00 € HT \(les 200,00 € de TVA ne comptent pas\)/)).toBeTruthy()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Ajouter/ })) })
@@ -199,14 +199,55 @@ describe('Obras — achats de matériaux et rentabilité hors TVA', () => {
     etat.tables.depenses = [{ id: 'd1', chantier_id: 'c-villa', category: 'materiaux', amount: 1000, date: '2026-11-30', label: 'Ciment' }]
     await monter()
     await ouvrirFiche()
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Supprimer l’achat Ciment' })) })
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Supprimer l’achat « Ciment »'))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Supprimer la dépense Ciment' })) })
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Supprimer la dépense « Ciment »'))
     expect(etat.retraits).toEqual([{ table: 'depenses', id: 'd1' }])
+  })
+
+  it('autre dépense (location de matériel) : enregistrée dans sa catégorie, déduite du résultat sans toucher aux matériaux', async () => {
+    await monter()
+    await ouvrirFiche()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Type de dépense' }), { target: { value: 'location' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Montant payé (€)' }), { target: { value: '240' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Ajouter/ })) })
+    expect(etat.ajouts[0].objet).toMatchObject({ label: 'Location de matériel', category: 'location', amount: 200 })
+  })
+
+  it('rentabilité : autres dépenses déduites ; jour passé pointé compté sur les heures réelles', async () => {
+    etat.tables.depenses = [
+      { id: 'd1', chantier_id: 'c-villa', category: 'materiaux', amount: 1000, date: '2026-11-30', label: 'Ciment' },
+      { id: 'd2', chantier_id: 'c-villa', category: 'location', amount: 300, date: '2026-11-30', label: 'Mini-pelle' },
+    ]
+    // Mardi 01/12 (passé) : seul Paul a pointé, 4 h (coût horaire 20 × 1,5 = 30 €) ; Jean n'est pas venu.
+    etat.tables.pointages = [{ id: 'p1', chantier_id: 'c-villa', membre_id: 'm-paul', employe: 'Paul Durand', date: '2026-12-01', heures_travaillees: 4 }]
+    await monter()
+    const ligne = screen.getByText(/Villa Lilas: \+/).closest('div')?.parentElement as HTMLElement
+    expect(ligne.textContent).toMatch(/Autres dépenses 300 €/)
+    // Lundi 525 + mardi pointé 120 + mercredi à vendredi 3 × 525 = 2 220 €.
+    expect(ligne.textContent).toMatch(/Main-d’œuvre 2\s220 € \(5 jours travaillés, dont 1 pointés\)/)
+    // 10 000 − 1 000 − 300 − 2 220 = 6 480 € HT
+    expect(ligne.textContent).toMatch(/Villa Lilas: \+6\s480 € HT/)
+    await ouvrirFiche()
+    const mardi = within(screen.getByRole('list', { name: /Équipe par jour/ })).getAllByRole('listitem')[1]
+    expect(mardi.textContent).toContain('Paul D. 4 h')
+    expect(mardi.textContent).toContain('pointage (se corrige dans Pointage)')
+    expect(within(mardi).queryByRole('button', { name: /Modifier l’équipe/ })).toBeNull()
+  })
+
+  it('jour férié (France : 11 novembre) : chômé par l’équipe habituelle, nommé, modifiable', async () => {
+    etat.tables.chantiers = [{ ...OBRA, dateDebut: '2026-11-09', dateFin: '2026-11-13', statut: 'Terminé' }]
+    await monter()
+    const ligne = screen.getByText(/Villa Lilas: \+/).closest('div')?.parentElement as HTMLElement
+    expect(ligne.textContent).toMatch(/Main-d’œuvre 2\s100 € \(4 jours travaillés\)/)
+    await ouvrirFiche()
+    const mercredi = within(screen.getByRole('list', { name: /Équipe par jour/ })).getAllByRole('listitem')[2]
+    expect(mercredi.textContent).toContain('Férié : Armistice')
+    expect(mercredi.textContent).toContain('Personne')
   })
 
   it('sans le droit sur la comptabilité : pas de saisie d’achats dans la fiche', async () => {
     await monter({ gestionMateriaux: false })
     await ouvrirFiche()
-    expect(screen.queryByText('Matériaux achetés (HT)')).toBeNull()
+    expect(screen.queryByText('Dépenses du chantier (HT)')).toBeNull()
   })
 })

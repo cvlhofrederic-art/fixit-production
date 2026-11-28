@@ -10,8 +10,10 @@ import {
   JOURS_MAX_PAR_CHANTIER, MEMBRES_MAX_PAR_JOUR,
 } from '@/lib/btp/equipe-par-jour'
 import {
-  achatsMateriaux, dateFinProlongee, montantHorsIva, rentabiliteObra, totalMateriauxHT, type EntreeRentabiliteObra,
+  achatsMateriaux, dateFinProlongee, montantHorsIva, pointagesDeLObra, rentabiliteObra, totalAutresDepensesHT,
+  totalMateriauxHT, type EntreeRentabiliteObra,
 } from '@/lib/btp/rentabilite-obra'
+import { estFerie, jourOuvreDans, nomFerie, paques, paysDuCodePostal } from '@/lib/btp/jours-feries'
 
 // Lundi 30/11/2026 → dimanche 06/12/2026.
 const LUN = '2026-11-30', MAR = '2026-12-01', MER = '2026-12-02', VEN = '2026-12-04', SAM = '2026-12-05', DIM = '2026-12-06'
@@ -236,5 +238,110 @@ describe('rentabilité d’une obra, hors IVA, équipe jour par jour', () => {
     expect(dateFinProlongee(VEN, 2, MER)).toBe('2026-12-06')
     expect(dateFinProlongee(VEN, 2, '2026-12-10')).toBe('2026-12-12')
     expect(dateFinProlongee('2026-12-31', 1, MER)).toBe('2027-01-01')
+  })
+})
+
+// Méthode « pro » (décision de Frédéric du 28/11/2026 : « Fait au mieux méthode pro ») : jours fériés nationaux,
+// pointage réel des jours passés, autres dépenses de l'obra.
+describe('jours fériés nationaux', () => {
+  it('Pâques (Meeus) : 2026 → 5 avril, 2027 → 28 mars, 2025 → 20 avril', () => {
+    expect(paques(2026)).toBe('2026-04-05')
+    expect(paques(2027)).toBe('2027-03-28')
+    expect(paques(2025)).toBe('2025-04-20')
+  })
+
+  it('Portugal 2026 (Código do Trabalho, art. 234.º) : fixes et mobiles ; pas le Carnaval', () => {
+    const feries = ['2026-01-01', '2026-04-03', '2026-04-05', '2026-04-25', '2026-05-01', '2026-06-04', '2026-06-10',
+      '2026-08-15', '2026-10-05', '2026-11-01', '2026-12-01', '2026-12-08', '2026-12-25']
+    for (const jour of feries) expect(estFerie(jour, 'PT')).toBe(true)
+    expect(estFerie('2026-02-17', 'PT')).toBe(false) // Carnaval, facultatif
+    expect(estFerie('2026-07-14', 'PT')).toBe(false)
+    expect(nomFerie('2026-06-04', 'PT', true)).toBe('Corpo de Deus')
+    expect(nomFerie('2026-12-01', 'PT', true)).toBe('Restauração da Independência')
+  })
+
+  it('France 2026 (Code du travail, L3133-1) : lundi de Pâques, Ascension, Pentecôte, 14 juillet, 11 novembre…', () => {
+    const feries = ['2026-01-01', '2026-04-06', '2026-05-01', '2026-05-08', '2026-05-14', '2026-05-25', '2026-07-14',
+      '2026-08-15', '2026-11-01', '2026-11-11', '2026-12-25']
+    for (const jour of feries) expect(estFerie(jour, 'FR')).toBe(true)
+    expect(estFerie('2026-12-01', 'FR')).toBe(false)
+    expect(nomFerie('2026-05-14', 'FR', false)).toBe('Ascension')
+  })
+
+  it('pays d’une obra d’après son code postal ; jours travaillés hors week-end et fériés', () => {
+    expect(paysDuCodePostal('4050-262')).toBe('PT')
+    expect(paysDuCodePostal(' 13008 ')).toBe('FR')
+    expect(paysDuCodePostal('')).toBeNull()
+    expect(jourOuvreDans('PT')(MAR)).toBe(false) // 1er décembre, férié au Portugal
+    expect(jourOuvreDans('FR')(MAR)).toBe(true)
+    expect(jourOuvreDans(null)(MAR)).toBe(false) // pays inconnu : fériés des deux pays
+    expect(jourOuvreDans('PT')(SAM)).toBe(false)
+  })
+
+  it('rentabilité : l’équipe habituelle ne travaille pas un jour férié (sauf jour retouché)', () => {
+    const entree = {
+      valeurHT: 5000, dateDebut: LUN, dateFin: DIM, statut: 'En cours', membresIds: ['a'], equipeParJour: {},
+      coutJourParMembre: new Map([['a', 100]]), coutJourParDefaut: 200, nbEmployesSansEquipe: 1, materiauxHT: 0, aujourdhui: LUN,
+    }
+    expect(rentabiliteObra({ ...entree, ouvre: jourOuvreDans('PT') })!.coutMOPrevu).toBe(400)
+    expect(rentabiliteObra({ ...entree, ouvre: jourOuvreDans('FR') })!.coutMOPrevu).toBe(500)
+    expect(rentabiliteObra({ ...entree, ouvre: jourOuvreDans('PT'), equipeParJour: { [MAR]: ['a'] } })!.coutMOPrevu).toBe(500)
+  })
+})
+
+describe('pointage réel et autres dépenses', () => {
+  const base: EntreeRentabiliteObra = {
+    valeurHT: 5000, dateDebut: LUN, dateFin: DIM, statut: 'En cours',
+    membresIds: ['a', 'b'], equipeParJour: {},
+    coutJourParMembre: new Map([['a', 100], ['b', 150]]), coutHeureParMembre: new Map([['a', 12.5], ['b', 20]]),
+    coutJourParDefaut: 200, nbEmployesSansEquipe: 1, materiauxHT: 1000, aujourdhui: MER,
+  }
+
+  it('jour passé pointé : heures × coût horaire de chacun, à la place de l’équipe prévue ; deux pointages s’additionnent', () => {
+    const pointages = pointagesDeLObra([
+      { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: '4' },
+      { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 3.5 },
+      { chantier_id: 'c1', membre_id: 'c', date: MAR, heures_travaillees: 8 },
+      { chantier_id: 'autre', membre_id: 'b', date: MAR, heures_travaillees: 8 },
+    ], 'c1')
+    const r = rentabiliteObra({ ...base, pointages })!
+    const mardi = r.jours.find(j => j.jour === MAR)!
+    expect(mardi.source).toBe('pointage')
+    expect(mardi.heures).toEqual({ a: 7.5, c: 8 })
+    // a : 7,5 h × 12,5 = 93,75 ; c (sans fiche connue) : 8 h × 200 ÷ 7.
+    expect(mardi.cout).toBeCloseTo(93.75 + 8 * 200 / 7, 1)
+    expect(r.joursPointes).toBe(1)
+    expect(r.coutsParDefaut).toBe(true)
+  })
+
+  it('pointage sans heures (départ non enregistré) : une journée ; pointage d’aujourd’hui ou à venir : ignoré', () => {
+    const pointages = pointagesDeLObra([
+      { chantierId: 'c1', membreId: 'b', date: LUN, heures_travaillees: null },
+      { chantierId: 'c1', membreId: 'a', date: MER, heures_travaillees: 2 },
+    ], 'c1')
+    const r = rentabiliteObra({ ...base, pointages })!
+    expect(r.jours.find(j => j.jour === LUN)).toMatchObject({ source: 'pointage', cout: 150 })
+    expect(r.jours.find(j => j.jour === MER)).toMatchObject({ source: 'prevu', cout: 250 })
+  })
+
+  it('pointage au nom seul (sans fiche) : compté au coût par défaut, sous son nom', () => {
+    const pointages = pointagesDeLObra([{ chantier_id: 'c1', membre_id: null, employe: 'Rui', date: LUN, heures_travaillees: 7 }], 'c1')
+    const lundi = rentabiliteObra({ ...base, pointages })!.jours.find(j => j.jour === LUN)!
+    expect(lundi.membres).toEqual(['nom:rui'])
+    expect(lundi.cout).toBe(200)
+  })
+
+  it('autres dépenses de l’obra (location, carburant…) déduites du résultat, hors matériaux', () => {
+    const depenses = [
+      { chantier_id: 'c1', category: 'materiaux', amount: 1000 },
+      { chantier_id: 'c1', category: 'location', amount: '300' },
+      { chantier_id: 'c1', category: 'carburant', amount: 45.5 },
+      { chantier_id: 'c2', category: 'transport', amount: 999 },
+    ]
+    expect(totalAutresDepensesHT(depenses, 'c1')).toBe(345.5)
+    const r = rentabiliteObra({ ...base, autresDepensesHT: totalAutresDepensesHT(depenses, 'c1') })!
+    expect(r.autresDepensesHT).toBe(346)
+    // 5 000 − 1 000 (matériaux) − 345,50 (autres) − 1 250 (cinq jours de l'équipe) = 2 404,50
+    expect(r.beneficePrevu).toBe(2405)
   })
 })

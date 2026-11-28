@@ -21,10 +21,12 @@ import {
 } from '@/lib/btp/equipe-par-jour'
 import { jourLocal } from '@/lib/btp/accueil'
 import {
-  TAUX_MATERIAUX_ESTIME_PCT, achatsMateriaux, dateFinProlongee, rentabiliteObra, totalMateriauxHT, type DepenseObra,
+  TAUX_MATERIAUX_ESTIME_PCT, dateFinProlongee, depensesDeLObra, pointagesDeLObra, pointagesParJour, rentabiliteObra, totalAutresDepensesHT,
+  totalMateriauxHT, type DepenseObra,
 } from '@/lib/btp/rentabilite-obra'
+import { jourOuvreDans, nomFerie, paysDuCodePostal, type PaysObra } from '@/lib/btp/jours-feries'
 import { EquipeParJourEditeur } from '@/components/dashboard/btp/EquipeParJourEditeur'
-import { MateriauxObraEditeur } from '@/components/dashboard/btp/MateriauxObraEditeur'
+import { DepensesObraEditeur } from '@/components/dashboard/btp/DepensesObraEditeur'
 import { toast } from 'sonner'
 import {
   PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
@@ -95,6 +97,8 @@ const COLONNES_DEVIS_IMPORT = 'id, numero, client_name, total_ht_cents, items, c
 interface MembreSummary {
   id: string; prenom: string; nom: string; role: string
   daily_cost: number; actif: boolean
+  /** Coût horaire chargé (moteur de paie), pour les heures pointées. */
+  cout_heure: number
 }
 
 type DocLie = { id: string; type: 'devis' | 'facture'; numero: string; client_name: string; total_ht: number | null; status: string }
@@ -255,6 +259,13 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     userId: artisan?.user_id || '',
     autoImport: false,
   })
+  // Pointages de la société (les plus récents) : un jour passé pointé sur une obra compte ses heures réelles.
+  const { items: pointages } = useBTPData<Record<string, unknown>>({
+    table: 'pointages',
+    artisanId: artisan?.id || '',
+    userId: artisan?.user_id || '',
+    autoImport: false,
+  })
 
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
@@ -328,6 +339,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
         const mapped: MembreSummary[] = membres.map((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; poste?: string; salaire_net_mensuel?: number; salaire_net?: number; heures_hebdo?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number; prime_mensuelle?: number; charges_salariales_pct?: number; charges_patronales_pct?: number; cout_horaire?: number; id: string }) => {
           const netSalary = m.salaire_net_mensuel || m.salaire_net || 0
           let dailyCost = 0
+          let coutHeure = 0
           if (netSalary > 0) {
             const b = calculateEmployeeCost({
               country, company_type: companyType, net_salary: netSalary,
@@ -341,15 +353,18 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
               },
             })
             dailyCost = b.cost_per_day
+            coutHeure = b.cost_per_hour
           } else {
             const ch = m.cout_horaire || settings.cout_horaire_ouvrier || 15
             const cp = (m.charges_patronales_pct || settings.charges_patronales_pct || 45) / 100
             dailyCost = ch * (1 + cp) * 7
+            coutHeure = ch * (1 + cp)
           }
           return {
             id: m.id, prenom: m.prenom || '', nom: m.nom || '',
             role: m.role || m.poste || 'Ouvrier',
             daily_cost: Math.round(dailyCost * 100) / 100,
+            cout_heure: Math.round(coutHeure * 100) / 100,
             actif: m.actif !== false,
           }
         })
@@ -534,7 +549,10 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     const ids = form.membres_ids || []
     const nouveaux = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
     const equipeParJour = editId
-      ? figerJoursPasses({ debut: form.dateDebut, aujourdhui: aujourdhuiLocal(), ancienneEquipe: ids, nouvelleEquipe: nouveaux, equipeParJour: form.equipe_par_jour ?? {} })
+      ? figerJoursPasses({
+        debut: form.dateDebut, aujourdhui: aujourdhuiLocal(), ancienneEquipe: ids, nouvelleEquipe: nouveaux,
+        equipeParJour: form.equipe_par_jour ?? {}, ouvre: jourOuvreDans(paysObra(form.codePostal)),
+      })
       : form.equipe_par_jour ?? {}
     setForm({ ...form, membres_ids: nouveaux, equipe_par_jour: equipeParJour })
   }
@@ -551,7 +569,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
       fiche = { ...form, ...SANS_POSITION }
     }
     // Seuls les jours qui diffèrent de l'équipe habituelle s'enregistrent (une retouche redevenue identique disparaît).
-    fiche = { ...fiche, equipe_par_jour: simplifierEquipeParJour(fiche.equipe_par_jour ?? {}, fiche.membres_ids ?? [], aujourdhuiLocal()) }
+    fiche = { ...fiche, equipe_par_jour: simplifierEquipeParJour(fiche.equipe_par_jour ?? {}, fiche.membres_ids ?? [], aujourdhuiLocal(), jourOuvreDans(paysObra(fiche.codePostal))) }
     setSaving(true)
     // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
     let enregistre: boolean
@@ -581,7 +599,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
       alerteMeteo: c.alerteMeteo === true,
       // Sous la forme où l'enregistrement la renvoie : rouvrir puis enregistrer sans rien toucher n'envoie rien.
-      equipe_par_jour: simplifierEquipeParJour(lireEquipeParJour(c.equipe_par_jour), c.membres_ids || [], aujourdhuiLocal()),
+      equipe_par_jour: simplifierEquipeParJour(lireEquipeParJour(c.equipe_par_jour), c.membres_ids || [], aujourdhuiLocal(), jourOuvreDans(paysObra(c.codePostal))),
     }
     ficheOuverteRef.current = fiche
     setForm(fiche)
@@ -614,6 +632,13 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     () => (membresTous.length > 0 ? new Set(membresList.map(m => m.id.toLowerCase())) : undefined),
     [membresTous, membresList],
   )
+  const coutHeureParMembre = useMemo(
+    () => new Map(membresTous.filter(m => m.cout_heure > 0).map(m => [m.id.toLowerCase(), m.cout_heure])),
+    [membresTous],
+  )
+  /** Pays de l'obra : son code postal le dit (4050-262, 13008), sinon celui de la société. */
+  const paysSociete: PaysObra = settings.country === 'PT' ? 'PT' : 'FR'
+  const paysObra = useCallback((codePostal: unknown): PaysObra => paysDuCodePostal(codePostal) ?? paysSociete, [paysSociete])
   /** Coût d'une journée d'ouvrier par défaut (réglages), celui de l'ancien calcul. */
   const coutJourParDefaut = (settings.cout_horaire_ouvrier || 15) * (1 + (settings.charges_patronales_pct || 45) / 100) * 7
   const getRenta = useCallback((c: ChantierForm & { id: string; statut?: string }, dateFin?: string) => rentabiliteObra({
@@ -627,9 +652,13 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     coutJourParDefaut,
     nbEmployesSansEquipe: Number(c.equipe) || 1,
     materiauxHT: totalMateriauxHT(depenses, c.id),
+    autresDepensesHT: totalAutresDepensesHT(depenses, c.id),
+    pointages: pointagesDeLObra(pointages, c.id),
+    coutHeureParMembre,
+    ouvre: jourOuvreDans(paysObra(c.codePostal)),
     actifs,
     aujourdhui: aujourdhuiLocal(),
-  }), [coutJourParMembre, coutJourParDefaut, depenses, actifs])
+  }), [coutJourParMembre, coutHeureParMembre, coutJourParDefaut, depenses, pointages, paysObra, actifs])
 
   // ── Charger membres au mount ──
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
@@ -993,12 +1022,14 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
                       <span style={{ color: '#666' }}>
                         ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevuePct.toLocaleString(dl)}{isPt ? '%' : ' %'})
                       </span>
-                      {/* Détail du calcul, tout hors IVA : valeur − matériaux − main-d'œuvre. */}
+                      {/* Détail du calcul, tout hors IVA : valeur − matériaux − autres dépenses − main-d'œuvre. */}
                       <span style={{ color: '#666' }}>
                         {isPt ? 'Valor' : 'Budget'} {fmt(renta.valeurHT, dl)} €
                         {' · '}{isPt ? 'Materiais' : 'Matériaux'} {fmt(renta.materiauxHT, dl)} €
                         {renta.materiauxEstimes && (isPt ? ` (estimativa ${TAUX_MATERIAUX_ESTIME_PCT}%)` : ` (estimation ${TAUX_MATERIAUX_ESTIME_PCT} %)`)}
+                        {renta.autresDepensesHT > 0 && <>{' · '}{isPt ? 'Outras despesas' : 'Autres dépenses'} {fmt(renta.autresDepensesHT, dl)} €</>}
                         {' · '}{isPt ? 'Mão de obra' : 'Main-d’œuvre'} {fmt(renta.coutMOPrevu, dl)} € ({renta.joursTravailles} {isPt ? 'dias de trabalho' : 'jours travaillés'}
+                        {renta.joursPointes > 0 && (isPt ? `, dos quais ${renta.joursPointes} com registo de ponto` : `, dont ${renta.joursPointes} pointés`)}
                         {renta.equipeEstimee && (isPt ? ', equipa estimada' : ', équipe estimée')}
                         {renta.coutsParDefaut && (isPt ? ', custo por defeito' : ', coût par défaut')})
                       </span>
@@ -1338,9 +1369,13 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
               {/* ── Équipe jour par jour (28/11/2026) : l'équipe habituelle ci-dessus, retouchée un jour donné ── */}
               {(() => {
                 const { debut, fin } = periodeDeLaFiche(form)
+                const pays = paysObra(form.codePostal)
+                const pointes = new Map([...pointagesParJour(editId ? pointagesDeLObra(pointages, editId) : [], aujourdhuiLocal())]
+                  .map(([jour, presences]) => [jour, [...presences].map(([id, heures]) => ({ id, heures }))]))
                 return (
                   <EquipeParJourEditeur
                     jours={joursEntre(debut, fin)} tronque={periodeTronquee(debut, fin)} aujourdhui={jourLocal(new Date())}
+                    ouvre={jourOuvreDans(pays)} ferie={jour => nomFerie(jour, pays, isPt)} pointes={pointes}
                     membres={membresList} membresTous={membresTous}
                     membresIds={form.membres_ids || []} equipeParJour={form.equipe_par_jour ?? {}}
                     onChange={equipeParJour => setForm(f => ({ ...f, equipe_par_jour: equipeParJour }))}
@@ -1349,19 +1384,19 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
                 )
               })()}
 
-              {/* ── Achats de matériaux, hors IVA (28/11/2026) : enregistrés tout de suite comme dépenses de l'obra ── */}
+              {/* ── Dépenses de l'obra, hors IVA (28/11/2026) : enregistrées tout de suite comme dépenses de l'obra ── */}
               {gestionMateriaux && (editId ? (
-                <MateriauxObraEditeur
-                  achats={achatsMateriaux(depenses, editId)}
-                  onAjouter={async achat => (await ajouterDepense({ ...achat, chantierId: editId })) !== null}
+                <DepensesObraEditeur
+                  depenses={depensesDeLObra(depenses, editId)}
+                  onAjouter={async depense => (await ajouterDepense({ ...depense, chantierId: editId })) !== null}
                   onRetirer={retirerDepense}
                   isPt={isPt} isV5={isV5} dl={dl}
                 />
               ) : (
                 <div className={isV5 ? "v5-fg" : "v22-form-group"} style={{ fontSize: 11, color: '#999' }}>
                   {isPt
-                    ? 'Materiais comprados: crie a obra e depois abra-a para registar as compras (valores s/ IVA).'
-                    : 'Matériaux achetés : créez le chantier, puis rouvrez-le pour saisir les achats (montants HT).'}
+                    ? 'Despesas da obra: crie a obra e depois abra-a para registar materiais e outras despesas (valores s/ IVA).'
+                    : 'Dépenses du chantier : créez le chantier, puis rouvrez-le pour saisir matériaux et autres dépenses (montants HT).'}
                 </div>
               ))}
 

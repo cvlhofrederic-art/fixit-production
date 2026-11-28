@@ -230,7 +230,8 @@ describe('POST /api/btp — équipe habituelle changée : le passé ne bouge pas
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-12-02T10:00:00Z') })
     h.etat.colonneAbsente = false
-    h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours', date_debut: '2026-11-30', membres_ids: [M1], equipe_par_jour: {} }]
+    // Obra en France (13008) : le 1er décembre n'y est pas férié.
+    h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours', date_debut: '2026-11-30', code_postal: '13008', membres_ids: [M1], equipe_par_jour: {} }]
   })
   afterEach(() => { vi.useRealTimers() })
 
@@ -238,6 +239,13 @@ describe('POST /api/btp — équipe habituelle changée : le passé ne bouge pas
     const res = await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } })
     expect(res.status).toBe(200)
     expect(h.etat.envois[0].valeur).toMatchObject({ membres_ids: [M1, M2], equipe_par_jour: { '2026-11-30': [M1], '2026-12-01': [M1] } })
+  })
+
+  it('obra au Portugal (code postal 4050-262) : le 1er décembre, férié, n’est pas figé comme travaillé', async () => {
+    h.etat.chantiers = [{ ...h.etat.chantiers[0], code_postal: '4050-262' }]
+    const res = await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } })
+    expect(res.status).toBe(200)
+    expect(h.etat.envois[0].valeur.equipe_par_jour).toEqual({ '2026-11-30': [M1] })
   })
 
   it('jours déjà inscrits envoyés par la fiche : gardés tels quels, les autres jours passés figés', async () => {

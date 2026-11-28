@@ -61,6 +61,12 @@ export function estJourOuvre(jour: string): boolean {
 }
 
 /**
+ * Calendrier des jours travaillés par l'équipe habituelle. Par défaut du lundi au vendredi ; l'écran et la route y
+ * retirent les fériés nationaux de l'obra (jourOuvreDans, lib/btp/jours-feries.ts).
+ */
+export type JourOuvre = (jour: string) => boolean
+
+/**
  * Jours de `debut` à `fin`, les deux inclus, au plus JOURS_MAX_PAR_CHANTIER. Liste vide si une des dates manque, est
  * invalide, ou si la fin précède le début.
  */
@@ -115,9 +121,9 @@ export function formeEquipeParJourValide(valeur: unknown, formatId: RegExp): boo
     && membres.every(id => typeof id === 'string' && formatId.test(id)))
 }
 
-/** Équipe habituelle d'un jour : celle de la fiche les jours ouvrés, personne le week-end. */
-export function equipeHabituelleDuJour(jour: string, membresIds: readonly string[]): string[] {
-  return estJourOuvre(jour) ? identifiants(membresIds) : []
+/** Équipe habituelle d'un jour : celle de la fiche les jours travaillés, personne le week-end (ni un jour férié). */
+export function equipeHabituelleDuJour(jour: string, membresIds: readonly string[], ouvre: JourOuvre = estJourOuvre): string[] {
+  return ouvre(jour) ? identifiants(membresIds) : []
 }
 
 /** Le jour a une liste à lui (retouchée, ou figée par un changement de l'équipe habituelle). */
@@ -126,8 +132,10 @@ export function jourInscrit(equipeParJour: EquipeParJour, jour: string): boolean
 }
 
 /** Employés présents ce jour-là : la liste du jour s'il en a une, sinon l'équipe habituelle du jour. */
-export function equipeDuJour(jour: string, membresIds: readonly string[], equipeParJour: EquipeParJour): string[] {
-  return jourInscrit(equipeParJour, jour) ? identifiants(equipeParJour[jour]) : equipeHabituelleDuJour(jour, membresIds)
+export function equipeDuJour(
+  jour: string, membresIds: readonly string[], equipeParJour: EquipeParJour, ouvre: JourOuvre = estJourOuvre,
+): string[] {
+  return jourInscrit(equipeParJour, jour) ? identifiants(equipeParJour[jour]) : equipeHabituelleDuJour(jour, membresIds, ouvre)
 }
 
 function memeEnsemble(a: readonly string[], b: readonly string[]): boolean {
@@ -137,8 +145,10 @@ function memeEnsemble(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /** Le jour a été retouché (sa liste diffère de l'équipe habituelle de ce jour). */
-export function jourRetouche(jour: string, membresIds: readonly string[], equipeParJour: EquipeParJour): boolean {
-  return jourInscrit(equipeParJour, jour) && !memeEnsemble(equipeParJour[jour], equipeHabituelleDuJour(jour, membresIds))
+export function jourRetouche(
+  jour: string, membresIds: readonly string[], equipeParJour: EquipeParJour, ouvre: JourOuvre = estJourOuvre,
+): boolean {
+  return jourInscrit(equipeParJour, jour) && !memeEnsemble(equipeParJour[jour], equipeHabituelleDuJour(jour, membresIds, ouvre))
 }
 
 /**
@@ -148,22 +158,23 @@ export function jourRetouche(jour: string, membresIds: readonly string[], equipe
  * encore changer (relecture adverse du 28/11/2026). Sans `aujourdhui`, tous les jours sont traités comme à venir.
  */
 export function simplifierEquipeParJour(
-  equipeParJour: EquipeParJour, membresIds: readonly string[], aujourdhui?: string,
+  equipeParJour: EquipeParJour, membresIds: readonly string[], aujourdhui?: string, ouvre: JourOuvre = estJourOuvre,
 ): EquipeParJour {
   const simplifiee: EquipeParJour = {}
   for (const jour of Object.keys(equipeParJour).filter(jourValide).sort(parDate)) {
     const membres = identifiants(equipeParJour[jour])
     const passe = aujourdhui !== undefined && jour < aujourdhui
-    if (passe || !memeEnsemble(membres, equipeHabituelleDuJour(jour, membresIds))) simplifiee[jour] = membres
+    if (passe || !memeEnsemble(membres, equipeHabituelleDuJour(jour, membresIds, ouvre))) simplifiee[jour] = membres
   }
   return simplifiee
 }
 
 /** Retouche d'un jour : la liste donnée devient l'équipe de ce jour (puis simplifiée). */
 export function retoucherJour(
-  equipeParJour: EquipeParJour, membresIds: readonly string[], jour: string, membres: readonly string[], aujourdhui?: string,
+  equipeParJour: EquipeParJour, membresIds: readonly string[], jour: string, membres: readonly string[],
+  aujourdhui?: string, ouvre: JourOuvre = estJourOuvre,
 ): EquipeParJour {
-  return simplifierEquipeParJour({ ...equipeParJour, [jour]: identifiants(membres) }, membresIds, aujourdhui)
+  return simplifierEquipeParJour({ ...equipeParJour, [jour]: identifiants(membres) }, membresIds, aujourdhui, ouvre)
 }
 
 /** Le jour reprend l'équipe habituelle. */
@@ -186,13 +197,15 @@ export function figerJoursPasses(p: {
   ancienneEquipe: readonly string[]
   nouvelleEquipe: readonly string[]
   equipeParJour: EquipeParJour
+  ouvre?: JourOuvre
 }): EquipeParJour {
+  const ouvre = p.ouvre ?? estJourOuvre
   const resultat: EquipeParJour = { ...p.equipeParJour }
   if (!jourValide(p.aujourdhui) || memeEnsemble(p.ancienneEquipe, p.nouvelleEquipe)) return resultat
   for (const jour of joursEntre(p.debut, jourPrecedent(p.aujourdhui))) {
     if (jourInscrit(resultat, jour)) continue
-    const avant = equipeHabituelleDuJour(jour, p.ancienneEquipe)
-    if (!memeEnsemble(avant, equipeHabituelleDuJour(jour, p.nouvelleEquipe))) resultat[jour] = avant
+    const avant = equipeHabituelleDuJour(jour, p.ancienneEquipe, ouvre)
+    if (!memeEnsemble(avant, equipeHabituelleDuJour(jour, p.nouvelleEquipe, ouvre))) resultat[jour] = avant
   }
   return Object.fromEntries(Object.entries(resultat).sort(([a], [b]) => parDate(a, b)))
 }
