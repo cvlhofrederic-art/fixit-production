@@ -1,9 +1,16 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData, type OptionsModification } from '@/lib/hooks/use-btp-data'
+import { supabase } from '@/lib/supabase'
+import { lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
+import { MESSAGES_REFUS_DOCUMENTS, messageRefusDocuments } from '@/lib/documents/messages-refus'
+import {
+  MESSAGES_PERIODE, devisDeLObra, erreurPeriode, finDeTache, horaireAffiche, joursAffiches, memeLigne,
+  type DevisDeLObra, type LigneDevisPlanifiable, type RefLigneDevis,
+} from '@/lib/btp/gantt-taches-devis'
 
 interface ChantierItem {
   id: string; titre: string; client: string; dateDebut: string
@@ -14,10 +21,51 @@ interface ChantierItem {
 /** Délai de regroupement des écritures : un curseur qu'on fait glisser change de valeur à chaque pas. */
 const DELAI_ENREGISTREMENT_MS = 600
 
-interface SousTache {
+/**
+ * Sous-tâche du Gantt (colonne chantiers_btp.sous_taches). Depuis le 28/11/2026, une nouvelle tâche correspond à une
+ * ligne d'un devis de l'obra (RefLigneDevis) et porte son horaire, valable chaque jour (heureDebut, heureFin : HH:MM).
+ * Les sous-tâches d'avant n'ont ni l'un ni l'autre.
+ */
+interface SousTache extends RefLigneDevis {
   id: string; nom: string; chantierId: string; responsable: string
   debut: string; fin: string; avancement: number; couleur: string
+  heureDebut?: string; heureFin?: string
 }
+
+/** Devis de l'obra choisie dans le formulaire « Nova tarefa ». `message` : refus du serveur, dans la langue de l'écran. */
+type EtatDevisObra =
+  | { chantierId: string; etat: 'chargement' }
+  | { chantierId: string; etat: 'ok'; devis: DevisDeLObra[] }
+  | { chantierId: string; etat: 'aucun_droit' }
+  | { chantierId: string; etat: 'erreur'; message?: string }
+
+/** Colonnes des devis lus pour le formulaire : les lignes (items) et le chantier rattaché. */
+const COLONNES_DEVIS_GANTT = 'id, numero, items, chantier_id, created_at'
+
+/** Titulaire de la société : devis de l'obra lus depuis le navigateur, sous RLS. */
+async function lireDevisTitulaire(ficheId: string, chantierId: string): Promise<EtatDevisObra> {
+  const { data, error } = await supabase.from('devis').select(COLONNES_DEVIS_GANTT)
+    .eq('artisan_id', ficheId).eq('chantier_id', chantierId).is('deleted_at', null).order('created_at', { ascending: false })
+  if (error) {
+    console.error('[Gantt] devis de l’obra illisibles :', error.message)
+    return { chantierId, etat: 'erreur' }
+  }
+  return { chantierId, etat: 'ok', devis: devisDeLObra((data ?? []) as unknown as Record<string, unknown>[], chantierId) }
+}
+
+/** Compte invité : devis de la société lus par le serveur (une lecture pour tout l'écran), ceux de l'obra gardés. */
+async function lireDevisInvite(lecture: ReturnType<typeof lireDocumentsDesChantiers>, chantierId: string, isPt: boolean): Promise<EtatDevisObra> {
+  const lu = await lecture
+  if (lu.ok) return { chantierId, etat: 'ok', devis: devisDeLObra(lu.valeur.devis, chantierId) }
+  console.error('[Gantt] devis de la société illisibles :', lu.message)
+  if (lu.code === 'aucun_droit') return { chantierId, etat: 'aucun_droit' }
+  const connu = !!lu.code && lu.code in MESSAGES_REFUS_DOCUMENTS
+  return { chantierId, etat: 'erreur', message: connu ? messageRefusDocuments(lu, isPt) : undefined }
+}
+
+const FORM_VIDE = { chantierId: '', ligne: '', responsable: '', debut: '', fin: '', heureDebut: '08:00', heureFin: '17:00', couleur: '#3B82F6' }
+
+const S_LABEL = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' } as const
 
 /**
  * Listes de sous-tâches dont l'écriture n'est pas encore revenue (envoi puis relecture), par compte et par chantier
@@ -31,6 +79,8 @@ type GanttRow = {
   debut: string; fin: string; avancement: number
   statut: 'planifié' | 'en_cours' | 'terminé' | 'en_retard'
   couleur: string; isChantier: boolean
+  /** Sous-tâche : horaire de chaque jour et devis de sa ligne (absents pour une sous-tâche d'avant le 28/11/2026). */
+  heureDebut?: string; heureFin?: string; devisNumero?: string
 }
 
 function mapChantierStatut(statut: string, dateFin: string): GanttRow['statut'] {
@@ -61,8 +111,11 @@ function getSegment(rowStart: number, rowEnd: number, mStart: number, mEnd: numb
 }
 
 // userId : fiche société (clés du navigateur, dont gantt_subtasks_) ; authUserId : compte, clé de cache commune aux
-// écrans BTP (constat donnees-btp-15).
-export function GanttSection({ userId, authUserId, orgRole }: { userId: string; authUserId?: string; orgRole?: string }) {
+// écrans BTP (constat donnees-btp-15). devisParLeServeur : compte invité dans la société, dont la RLS ne rend aucun
+// devis de l'entreprise (lus par /api/pro/documents/chantiers, comme la Météo et l'écran Obras).
+export function GanttSection({ userId, authUserId, orgRole, devisParLeServeur = false }: {
+  userId: string; authUserId?: string; orgRole?: string; devisParLeServeur?: boolean
+}) {
   const { t } = useTranslation()
   const locale = useLocale()
   void orgRole
@@ -157,14 +210,111 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
     minuterie.current = setTimeout(() => enregistrerEnAttente(), DELAI_ENREGISTREMENT_MS)
   }
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })
+  const [form, setForm] = useState(FORM_VIDE)
 
-  // Un chantier est exigé : sans lui, la sous-tâche n'apparaissait nulle part (ni dans le Gantt ni en base).
-  const addSousTache = () => {
-    if (!form.nom || !form.chantierId || !form.debut || !form.fin) return
-    saveST([...sousTaches, { ...form, id: Date.now().toString(), avancement: 0 }])
+  // ── Devis de l'obra choisie : chaque tâche correspond à une de leurs lignes ──
+  // Lus au choix de l'obra et gardés pour la durée de l'écran ; une réponse dépassée (autre obra choisie entre-temps)
+  // est ignorée. Titulaire : lecture directe sous RLS, obra par obra. Compte invité : le serveur rend tous les devis de
+  // la société, lus une fois pour l'écran (la route est limitée à 30 lectures par minute, partagées avec Obras et Météo).
+  const [devisObra, setDevisObra] = useState<EtatDevisObra | null>(null)
+  const demandeDevisRef = useRef(0)
+  const devisLusRef = useRef(new Map<string, DevisDeLObra[]>())
+  const lectureSocieteRef = useRef<ReturnType<typeof lireDocumentsDesChantiers> | null>(null)
+
+  const chargerDevisObra = useCallback(async (chantierId: string, relire = false) => {
+    const demande = ++demandeDevisRef.current
+    const dejaLus = relire ? undefined : devisLusRef.current.get(chantierId)
+    if (dejaLus) { setDevisObra({ chantierId, etat: 'ok', devis: dejaLus }); return }
+    setDevisObra({ chantierId, etat: 'chargement' })
+    let resultat: EtatDevisObra
+    try {
+      if (devisParLeServeur) {
+        if (relire || !lectureSocieteRef.current) lectureSocieteRef.current = lireDocumentsDesChantiers()
+        const lecture = lectureSocieteRef.current
+        resultat = await lireDevisInvite(lecture, chantierId, isPt)
+        // Une lecture en échec n'est pas gardée : le choix suivant réessaie.
+        if (resultat.etat !== 'ok' && lectureSocieteRef.current === lecture) lectureSocieteRef.current = null
+      } else {
+        resultat = await lireDevisTitulaire(userId, chantierId)
+      }
+    } catch (e) {
+      console.error('[Gantt] lecture des devis de l’obra :', e)
+      lectureSocieteRef.current = null
+      resultat = { chantierId, etat: 'erreur' }
+    }
+    if (demande !== demandeDevisRef.current) return
+    if (resultat.etat === 'ok') devisLusRef.current.set(chantierId, resultat.devis)
+    setDevisObra(resultat)
+  }, [devisParLeServeur, userId, isPt])
+
+  const choisirObra = (chantierId: string) => {
+    setForm(f => ({ ...f, chantierId, ligne: '' }))
+    if (chantierId) void chargerDevisObra(chantierId)
+    else { demandeDevisRef.current += 1; setDevisObra(null) }
+  }
+
+  const devisDeLObraChoisie = devisObra?.chantierId === form.chantierId && devisObra.etat === 'ok' ? devisObra.devis : []
+  const lignesObra: LigneDevisPlanifiable[] = devisDeLObraChoisie.flatMap(d => d.lignes)
+  const ligneChoisie = lignesObra.find(l => l.cle === form.ligne) ?? null
+  const erreurForm = erreurPeriode(form)
+  // Jours non encore saisis : le bouton grisé suffit. Les autres incohérences se disent.
+  const messagePeriode = erreurForm && erreurForm !== 'jours_manquants' ? MESSAGES_PERIODE[erreurForm][isPt ? 'pt' : 'fr'] : ''
+  const peutAjouter = !!form.chantierId && !!ligneChoisie && erreurForm === null
+  const idForm = useId()
+
+  /** Première option de la liste des lignes : ce qu'il faut faire avant de pouvoir choisir. */
+  const texteChoixLigne = (): string => {
+    if (!form.chantierId) return isPt ? 'Escolha primeiro a obra' : 'Choisissez d’abord le chantier'
+    if (devisObra?.etat === 'chargement') return isPt ? 'A carregar os orçamentos...' : 'Chargement des devis...'
+    if (lignesObra.length > 0) return isPt ? 'Selecionar...' : 'Sélectionner...'
+    return isPt ? 'Nenhuma linha disponível' : 'Aucune ligne disponible'
+  }
+
+  /** Pourquoi la liste des lignes est vide, une fois la lecture des devis de l'obra revenue. */
+  const messageDevis = (): string => {
+    if (!form.chantierId || !devisObra || devisObra.chantierId !== form.chantierId) return ''
+    if (devisObra.etat === 'erreur') {
+      return devisObra.message ?? (isPt ? 'Não foi possível ler os orçamentos desta obra.' : 'Les devis de ce chantier n’ont pas pu être lus.')
+    }
+    if (devisObra.etat === 'aucun_droit') {
+      return isPt
+        ? 'A sua função na empresa não dá acesso aos orçamentos: peça ao gerente para planear esta tarefa.'
+        : 'Votre rôle dans l’entreprise ne donne pas accès aux devis : demandez au gérant de planifier cette tâche.'
+    }
+    if (devisObra.etat !== 'ok' || lignesObra.length > 0) return ''
+    if (devisObra.devis.length > 0) return isPt ? 'Os orçamentos desta obra não têm linhas.' : 'Les devis de ce chantier n’ont aucune ligne.'
+    return isPt
+      ? 'Esta obra não tem orçamento associado. Associe um orçamento a esta obra no módulo Obras para planear as suas linhas.'
+      : 'Ce chantier n’a aucun devis lié. Liez un devis à ce chantier dans l’onglet Chantiers pour planifier ses lignes.'
+  }
+  const messageLignes = messageDevis()
+
+  /** Désignation de la ligne (coupée à 100 caractères), sa quantité, et si elle est déjà planifiée sur cette obra. */
+  const libelleLigne = (l: LigneDevisPlanifiable) => {
+    const nom = l.description.length > 100 ? `${l.description.slice(0, 99)}…` : l.description
+    const planifiee = sousTaches.some(st => st.chantierId === form.chantierId && memeLigne(st, l))
+    return `${nom}${l.quantite ? ` (${l.quantite})` : ''}${planifiee ? (isPt ? ' · já planeada' : ' · déjà planifiée') : ''}`
+  }
+
+  const fermerFormulaire = () => {
     setShowForm(false)
-    setForm({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })
+    setForm(FORM_VIDE)
+    demandeDevisRef.current += 1
+    setDevisObra(null)
+  }
+
+  // Une obra et une ligne de l'un de ses devis sont exigées (sans obra, la tâche n'apparaissait nulle part), avec les
+  // jours et l'horaire. Le nom de la tâche est la désignation de la ligne.
+  const addSousTache = () => {
+    if (!peutAjouter || !ligneChoisie) return
+    saveST([...sousTaches, {
+      id: Date.now().toString(), nom: ligneChoisie.description, chantierId: form.chantierId,
+      responsable: form.responsable.trim(), debut: form.debut, fin: form.fin,
+      heureDebut: form.heureDebut, heureFin: form.heureFin, avancement: 0, couleur: form.couleur,
+      devisId: ligneChoisie.devisId, devisNumero: ligneChoisie.devisNumero,
+      ligneId: ligneChoisie.ligneId, ligneIndex: ligneChoisie.ligneIndex,
+    }])
+    fermerFormulaire()
   }
   const updateAvancement = (id: string, val: number) => saveST(sousTaches.map(st => st.id === id ? { ...st, avancement: val } : st))
   const deleteSousTache = (id: string) => saveST(sousTaches.filter(st => st.id !== id))
@@ -179,12 +329,14 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
       statut: mapChantierStatut(c.statut, c.dateFin), couleur: getChantierColor(idx), isChantier: true,
     })
     sousTaches.filter(st => st.chantierId === c.id).forEach(st => {
-      const overdue = st.avancement < 100 && new Date(st.fin) < new Date()
+      // Avec un horaire, en retard après l'heure de fin du dernier jour (et non dès le matin de ce jour).
+      const overdue = st.avancement < 100 && finDeTache(st) < new Date()
       rows.push({
         id: st.id, nom: st.nom, chantierId: c.id, responsable: st.responsable,
         debut: st.debut, fin: st.fin, avancement: st.avancement,
         statut: st.avancement >= 100 ? 'terminé' : overdue ? 'en_retard' : st.avancement > 0 ? 'en_cours' : 'planifié',
         couleur: st.couleur, isChantier: false,
+        heureDebut: st.heureDebut, heureFin: st.heureFin, devisNumero: st.devisNumero,
       })
     })
   })
@@ -237,6 +389,12 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
 
   const subTasks = rows.filter(r => !r.isChantier)
 
+  /** Devis de la ligne planifiée, jours et horaire d'une tâche (vides pour une sous-tâche d'avant le 28/11/2026). */
+  const refDevis = (row: GanttRow) => (row.devisNumero ? `${isPt ? 'Orçamento' : 'Devis'} ${row.devisNumero}` : '')
+  const horaireTache = (row: GanttRow) => horaireAffiche(row.heureDebut, row.heureFin, isPt)
+  const infoTache = (row: GanttRow) =>
+    [row.nom, refDevis(row), [joursAffiches(row.debut, row.fin), horaireTache(row)].filter(Boolean).join(', ')].filter(Boolean).join('\n')
+
   // CSS-in-JS matching HTML mockup exactly
   const S = {
     gantt: { overflowX: 'auto' as const, border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff' },
@@ -272,36 +430,69 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
           <div className="v5-st">{isPt ? 'Nova tarefa' : 'Nouvelle sous-tâche'}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: '.75rem' }}>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Obra' : 'Chantier'}</label>
-              <select className="v5-fi" value={form.chantierId} onChange={e => setForm({...form, chantierId: e.target.value})}>
+              <label htmlFor={`${idForm}-obra`} style={S_LABEL}>{isPt ? 'Obra' : 'Chantier'}</label>
+              <select id={`${idForm}-obra`} className="v5-fi" value={form.chantierId} onChange={e => choisirObra(e.target.value)}>
                 <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
                 {active.map(c => <option key={c.id} value={c.id}>{c.titre}</option>)}
               </select>
             </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Nome' : 'Nom'}</label>
-              <input className="v5-fi" value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={isPt ? 'Ex: Demolição' : 'Ex: Démolition'} />
+            <div style={{ gridColumn: 'span 2', minWidth: 0 }}>
+              <label htmlFor={`${idForm}-ligne`} style={S_LABEL}>{isPt ? 'Linha do orçamento' : 'Ligne du devis'}</label>
+              <select
+                id={`${idForm}-ligne`} className="v5-fi" style={{ width: '100%' }} value={form.ligne}
+                disabled={lignesObra.length === 0} onChange={e => setForm({ ...form, ligne: e.target.value })}
+              >
+                <option value="">{texteChoixLigne()}</option>
+                {devisDeLObraChoisie.filter(d => d.lignes.length > 0).map(d => (
+                  <optgroup key={d.id} label={`${isPt ? 'Orçamento' : 'Devis'} ${d.numero || (isPt ? 'sem número' : 'sans numéro')}`}>
+                    {d.lignes.map(l => <option key={l.cle} value={l.cle}>{libelleLigne(l)}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+              {messageLignes && (
+                <div role="status" style={{ fontSize: 11, color: devisObra?.etat === 'erreur' ? '#C62828' : '#666', marginTop: 4 }}>
+                  {messageLignes}
+                  {devisObra?.etat === 'erreur' && (
+                    <button type="button" onClick={() => { void chargerDevisObra(form.chantierId, true) }}
+                      style={{ marginLeft: 6, background: 'none', border: 'none', padding: 0, color: '#1565C0', textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
+                      {isPt ? 'Tentar de novo' : 'Réessayer'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Responsável' : 'Responsable'}</label>
-              <input className="v5-fi" value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} />
+              <label htmlFor={`${idForm}-debut`} style={S_LABEL}>{isPt ? 'Dia de início' : 'Jour de début'}</label>
+              <input id={`${idForm}-debut`} type="date" className="v5-fi" value={form.debut} onChange={e => setForm({ ...form, debut: e.target.value })} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Início' : 'Début'}</label>
-              <input type="date" className="v5-fi" value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} />
+              <label htmlFor={`${idForm}-fin`} style={S_LABEL}>{isPt ? 'Dia de fim' : 'Jour de fin'}</label>
+              <input id={`${idForm}-fin`} type="date" className="v5-fi" min={form.debut || undefined} value={form.fin} onChange={e => setForm({ ...form, fin: e.target.value })} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Fim' : 'Fin'}</label>
-              <input type="date" className="v5-fi" value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
+              <label htmlFor={`${idForm}-responsable`} style={S_LABEL}>{isPt ? 'Responsável' : 'Responsable'}</label>
+              <input id={`${idForm}-responsable`} className="v5-fi" value={form.responsable} onChange={e => setForm({ ...form, responsable: e.target.value })} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Cor' : 'Couleur'}</label>
-              <input type="color" className="v5-fi" style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
+              <label htmlFor={`${idForm}-heure-debut`} style={S_LABEL}>{isPt ? 'Hora de início' : 'Heure de début'}</label>
+              <input id={`${idForm}-heure-debut`} type="time" className="v5-fi" value={form.heureDebut} onChange={e => setForm({ ...form, heureDebut: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor={`${idForm}-heure-fin`} style={S_LABEL}>{isPt ? 'Hora de fim' : 'Heure de fin'}</label>
+              <input id={`${idForm}-heure-fin`} type="time" className="v5-fi" value={form.heureFin} onChange={e => setForm({ ...form, heureFin: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor={`${idForm}-couleur`} style={S_LABEL}>{isPt ? 'Cor' : 'Couleur'}</label>
+              <input id={`${idForm}-couleur`} type="color" className="v5-fi" style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({ ...form, couleur: e.target.value })} />
             </div>
           </div>
+          <div style={{ fontSize: 11, color: '#666', marginBottom: '.5rem' }}>
+            {isPt ? 'As horas aplicam-se a cada dia, do dia de início ao dia de fim.' : 'Les heures valent pour chaque jour, du jour de début au jour de fin.'}
+          </div>
+          {messagePeriode && <div role="alert" style={{ fontSize: 11, color: '#C62828', marginBottom: '.5rem' }}>{messagePeriode}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="v5-btn v5-btn-p" onClick={addSousTache} disabled={!form.nom || !form.chantierId || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
-            <button className="v5-btn" style={{ background: 'none', border: '1px solid #E8E8E8' }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+            <button className="v5-btn v5-btn-p" onClick={addSousTache} disabled={!peutAjouter}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
+            <button className="v5-btn" style={{ background: 'none', border: '1px solid #E8E8E8' }} onClick={fermerFormulaire}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           </div>
         </div>
       )}
@@ -346,7 +537,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
                 return (
                   <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={S.row}>
                     {/* Name */}
-                    <div style={{
+                    <div title={row.isChantier ? undefined : infoTache(row)} style={{
                       ...S.nameCell,
                       ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
                       ...(isRetard ? { color: '#C62828' } : {}),
@@ -415,7 +606,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    {[isPt ? 'Tarefa' : 'Tâche', isPt ? 'Obra' : 'Chantier', isPt ? 'Estado' : 'Statut', isPt ? 'Avanço' : 'Avancement'].map((h, i) => (
+                    {[isPt ? 'Tarefa' : 'Tâche', isPt ? 'Obra' : 'Chantier', isPt ? 'Dias e horário' : 'Jours et horaire', isPt ? 'Estado' : 'Statut', isPt ? 'Avanço' : 'Avancement'].map((h, i) => (
                       <th key={i} style={{ textAlign: 'left', padding: '6px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{h}</th>
                     ))}
                   </tr>
@@ -427,9 +618,14 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
                       <tr key={row.id}>
                         <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 }}>
                           {row.nom}
+                          {row.devisNumero && <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{refDevis(row)}</div>}
                           {row.responsable && <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{row.responsable}</div>}
                         </td>
                         <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>{ch?.titre || '—'}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, whiteSpace: 'nowrap' }}>
+                          {joursAffiches(row.debut, row.fin) || '—'}
+                          {horaireTache(row) && <div style={{ fontSize: 10, color: '#666' }}>{horaireTache(row)}</div>}
+                        </td>
                         <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>
                           <span style={{
                             display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600,

@@ -1414,7 +1414,7 @@ function DashboardPage() {
           {activePage === 'gantt' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no planeamento Gantt' : 'Erreur dans le planning Gantt'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <GanttSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
+              <GanttSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} devisParLeServeur={estSousCompteSociete(artisan)} />
             </div>
             </FiletSocieteBtp>
           )}

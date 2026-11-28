@@ -460,6 +460,19 @@ const SCENARIOS: Record<string, Scenario> = {
     etape('grafico', c)
     cliquer(c.querySelector('.v5-pg-t .v5-btn-p')); await pause()
     etape('formulario', c)
+    // Tarefa = linha de um orçamento da obra, com dias e horário (28/11/2026).
+    etat.supa = { devis: ORCAMENTOS }
+    const [obra, linha] = c.querySelectorAll('select')
+    fireEvent.change(obra, { target: { value: 'c1' } }); await pause()
+    fireEvent.change(linha, { target: { value: 'd1::0' } })
+    const [diaInicio, diaFim] = c.querySelectorAll('input[type="date"]')
+    fireEvent.change(diaInicio, { target: { value: '2026-11-23' } })
+    fireEvent.change(diaFim, { target: { value: '2026-11-27' } })
+    fireEvent.change(c.querySelectorAll('input[type="time"]')[1], { target: { value: '07:00' } }); await pause()
+    etape('formulario-linhas', c)
+    fireEvent.change(c.querySelectorAll('input[type="time"]')[1], { target: { value: '17:00' } }); await pause()
+    cliquer([...c.querySelectorAll('button')].find(b => b.textContent === (langue === 'pt' ? 'Adicionar' : 'Ajouter'))); await pause()
+    etape('tarefa-criada', c)
   },
 
   async ganttVazio(langue, etape) {
@@ -771,6 +784,14 @@ describe('modules BTP (vague 2) du tableau de bord pro en portugais (pt-PT)', ()
     expect(textes.grafico).toMatch(/Vista geral das obras: SET → MAR 2027/)
     expect(textes.grafico).toContain('Linha vermelha = avanço real da obra')
     expect(textes.grafico).toContain('Losango = marco principal')
+    expect(textes.formulario).toContain('Escolha primeiro a obra')
+    expect(textes.formulario).toContain('As horas aplicam-se a cada dia, do dia de início ao dia de fim.')
+    expect(textes['formulario-linhas']).toContain('Linha do orçamento')
+    expect(textes['formulario-linhas']).toContain('Remodelação da cozinha')
+    expect(textes['formulario-linhas']).toContain('A hora de fim tem de ser posterior à hora de início.')
+    expect(textes['tarefa-criada']).toContain('Orçamento ORC-2026-014')
+    expect(textes['tarefa-criada']).toContain('23/11/2026 → 27/11/2026')
+    expect(textes['tarefa-criada']).toContain('das 08:00 às 17:00')
     const vazio = await jouerEnPortugais('ganttVazio')
     expect(vazio.ecarts).toEqual([])
     expect(vazio.textes.vazio).toContain('Crie obras com datas no módulo Obras')
@@ -949,7 +970,11 @@ describe('les mêmes modules en français : textes inchangés', () => {
     expect(equipes.textes['membro-financas']).toContain('Coût/heure (total) :')
     // Entreprise française (réglage « pays » FR) : l'alerte du SMIC reste affichée.
     expect(equipes.textes['membro-avisos']).toContain('Salaire en dessous du SMIC brut 2025 (1 747€)')
-    expect((await jouerEnFrancais('gantt')).textes.grafico).toContain('Vue d\'ensemble des chantiers — SEPT → MARS 2027')
+    const gantt = await jouerEnFrancais('gantt')
+    expect(gantt.textes.grafico).toContain('Vue d\'ensemble des chantiers — SEPT → MARS 2027')
+    expect(gantt.textes['formulario-linhas']).toContain('L’heure de fin doit suivre l’heure de début.')
+    expect(gantt.textes['tarefa-criada']).toContain('Devis ORC-2026-014')
+    expect(gantt.textes['tarefa-criada']).toContain('de 08:00 à 17:00')
   })
 
   it('Pointage, Situations, Retenues, sélecteur de chantier', async () => {
