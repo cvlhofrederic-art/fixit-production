@@ -26,6 +26,11 @@ vi.mock('@/lib/fetch-authentifie', () => ({ fetchAuthentifie: h.fetchAuthentifie
 vi.mock('sonner', () => ({ toast: { error: h.toastErreur, success: vi.fn(), loading: vi.fn(() => 'tid'), dismiss: vi.fn() } }))
 vi.mock('@/lib/document-sync', () => ({ syncDocumentSafe: vi.fn() }))
 vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: () => null }))
+// Le sélecteur de chantier (posé dans le formulaire le 26/11/2026) charge la liste par `useBTPData`, donc par un
+// `fetch` relatif que jsdom ne sait pas résoudre : l'échec déclenche le toast « chargement impossible » de
+// use-btp-data, et les cas « sans toast » de ce fichier rougissaient pour une raison étrangère à leur sujet.
+// Ce banc porte sur le sélecteur de CLIENTS : on neutralise celui des chantiers, couvert par son propre banc.
+vi.mock('@/components/dashboard/btp/ChantierSelect', () => ({ ChantierSelect: () => null }))
 
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 

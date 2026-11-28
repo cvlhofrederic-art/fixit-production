@@ -12,7 +12,13 @@ const mockCompanyProfiles = vi.fn()
 // FR-V1 : status lookup avant upsert pour valider transition.
 //   .from('devis').select('status').eq('numero',...).eq('artisan_user_id',...).maybeSingle()
 const mockStatusLookup = vi.fn()
+// chantiers_btp : contrôle d'appartenance du chantier désigné (route.ts, `rattachementChantier`).
+//   .from('chantiers_btp').select('id').eq('id', x).eq('owner_id', y).maybeSingle()
+const mockChantierLookup = vi.fn()
 const mockFrom = vi.fn().mockImplementation((table: string) => {
+  if (table === 'chantiers_btp') {
+    return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => mockChantierLookup() }) }) }) }
+  }
   if (table === 'profiles_artisan') {
     return {
       select: () => ({
@@ -550,5 +556,76 @@ describe('POST /api/devis/sync', () => {
     expect(payload.numero).toBe('FACT-2026-017')
     expect(payload.id).toBe('00000000-0000-4000-8000-0000000000cc')
     expect(opts).toMatchObject({ onConflict: 'id' })
+  })
+
+  // ── Rattachement à un chantier (colonne chantier_id, migration 060) ─────────────────────────────────────
+  describe('rattachement au chantier', () => {
+    beforeEach(() => {
+      mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
+      mockCheckRateLimit.mockResolvedValue(true)
+      mockUpsert.mockResolvedValue({ data: { id: 'x' }, error: null })
+      mockChantierLookup.mockReset()
+    })
+
+    const corps = (doc: Record<string, unknown>) => ({ docType: 'devis', artisanId: ARTISAN_ID, doc })
+
+    const payloadEcrit = () => (mockUpsert.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>
+
+    it('un document qui ne parle PAS de chantier ne touche pas la colonne', async () => {
+      // LE DÉFAUT CENTRAL, et il vivait en production. L'upsert écrit la ligne ENTIÈRE : poser
+      // `chantier_id: doc.chantierId || null` sans condition effaçait toute liaison dès qu'un formulaire qui
+      // ignore ce champ réenregistrait le document. C'était le cas de DevisFactureFormBTP, dont le buildPayload
+      // est une liste explicite : un devis rattaché depuis l'écran Chantiers était délié SILENCIEUSEMENT.
+      const { POST } = await import('@/app/api/devis/sync/route')
+      await POST(makeRequest(corps({ ...validDoc })) as never)
+      expect('chantier_id' in payloadEcrit()).toBe(false)
+      expect(mockChantierLookup).not.toHaveBeenCalled()
+    })
+
+    it('un chantier de la société est écrit', async () => {
+      mockChantierLookup.mockResolvedValue({ data: { id: '00000000-0000-4000-8000-00000000000c' }, error: null })
+      const { POST } = await import('@/app/api/devis/sync/route')
+      await POST(makeRequest(corps({ ...validDoc, chantierId: '00000000-0000-4000-8000-00000000000c' })) as never)
+      expect(payloadEcrit().chantier_id).toBe('00000000-0000-4000-8000-00000000000c')
+    })
+
+    it('un chantier d\'une AUTRE société est refusé, sans faire perdre le document', async () => {
+      // La clé étrangère de la migration 060 accepte n'importe quel chantiers_btp.id et Zod n'exige qu'un UUID :
+      // rien ne vérifiait l'appartenance. Le refus pose `null` plutôt qu'un 400 — rendre 400 ferait perdre
+      // l'enregistrement du document ENTIER pour un simple lien, alors que la saisie du devis est valide.
+      mockChantierLookup.mockResolvedValue({ data: null, error: null })
+      const { POST } = await import('@/app/api/devis/sync/route')
+      const res = await POST(makeRequest(corps({ ...validDoc, chantierId: '00000000-0000-4000-8000-00000000000d' })) as never)
+      expect(res.status).toBe(200)
+      // La colonne reste INTACTE : un rattachement refusé ne doit pas non plus détruire celui qui existait.
+      expect('chantier_id' in payloadEcrit()).toBe(false)
+    })
+
+    it('null NE délie PAS : la lecture du cloud le pose sur tout document', async () => {
+      // `fetchDocumentsFromSupabase` normalise ce champ à `null` pour TOUT document relu (document-sync.ts) :
+      // sa présence ne dit donc rien de l'intention. Sans cette règle, la rafale de resynchronisation du
+      // démarrage (Providers.tsx) effaçait des liaisons posées depuis un autre poste.
+      const { POST } = await import('@/app/api/devis/sync/route')
+      await POST(makeRequest(corps({ ...validDoc, chantierId: null })) as never)
+      expect('chantier_id' in payloadEcrit()).toBe(false)
+      expect(mockChantierLookup).not.toHaveBeenCalled()
+    })
+
+    it('un échec de lecture n\'écrit rien : « non vérifiable » n\'est pas « refusé »', async () => {
+      // La sauvegarde automatique du brouillon part 1,5 s après la dernière frappe : un seul incident réseau
+      // aurait sinon délié un document correctement rattaché, sans aucun signe à l'écran.
+      mockChantierLookup.mockResolvedValue({ data: null, error: { message: 'réseau' } })
+      const { POST } = await import('@/app/api/devis/sync/route')
+      const res = await POST(makeRequest(corps({ ...validDoc, chantierId: '00000000-0000-4000-8000-00000000000c' })) as never)
+      expect(res.status).toBe(200)
+      expect('chantier_id' in payloadEcrit()).toBe(false)
+    })
+
+    it('une chaîne vide délie explicitement', async () => {
+      const { POST } = await import('@/app/api/devis/sync/route')
+      await POST(makeRequest(corps({ ...validDoc, chantierId: '' })) as never)
+      expect(payloadEcrit().chantier_id).toBeNull()
+      expect(mockChantierLookup).not.toHaveBeenCalled()
+    })
   })
 })
