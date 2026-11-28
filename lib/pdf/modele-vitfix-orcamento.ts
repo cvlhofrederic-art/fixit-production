@@ -1224,7 +1224,8 @@ class DocumentVitfix extends MiseEnPageGabarit {
         r.siteAddress ? `local: ${textePdf(r.siteAddress)}` : '',
       ].filter(Boolean).join(' · ')
       itens.push([
-        { texte: insecables(`Relatório de intervenção n.º ${textePdf(r.rapportNumber)}`), gras: true, couleur: COR.texte },
+        // Relatório de la société Vitfix : son PDF s'intitule « Relatório Técnico » (lib/pdf/modele-vitfix-relatorio.ts).
+        { texte: insecables(`Relatório técnico n.º ${textePdf(r.rapportNumber)}`), gras: true, couleur: COR.texte },
         { texte: insecables(` anexo a este orçamento${detalhe ? ` (${detalhe})` : ''}.`) },
       ])
     }

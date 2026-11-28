@@ -11,13 +11,14 @@
  *    (RT-AAAA-NNN pour les rapports créés depuis, RAP-… pour les plus anciens, inchangés) ;
  *  - Emitente : nom, NIPC, morada, contacto, et l'assurance quand le rapport en a une ; Destinatário : nom, NIF,
  *    morada, contacto ; Local da intervenção : morada de l'obra, à défaut celle du client (comme le formulaire),
- *    tipologia ; NIF et tipologia, absents du module, restent en pointillés à remplir à la main (règle 2) ;
- *  - bande : Data da visita (date de l'intervention), Horário (début, fin, durée), orçamento ou fatura associé, Estado
+ *    tipologia, horário (début, fin, durée) ; NIF et tipologia, absents du module, restent en pointillés à remplir à
+ *    la main (règle 2) ;
+ *  - bande du gabarit : Data da visita (date de l'intervention), Data de emissão, orçamento ou fatura associé, Estado
  *    (à la place de « Seguradora · processo », que le module n'a pas) ;
  *  - sections numérotées : Objeto (motivo), Observações no local, Trabalhos realizados, Materiais e produtos
  *    (désignation et quantité lue dans « Nome (2 un.) »), Conclusões e recomendações (recomendações) ;
- *  - assinatura : localité du code postal de la société et date d'émission (création du rapport, jamais avant la
- *    visite : la même à chaque téléchargement) ; signataire en pointillés ;
+ *  - date d'émission (bande et signature) : création du rapport à l'heure de Lisbonne, jamais avant la visite ni dans
+ *    le futur (dataEmissaoRelatorio) ; assinatura : localité du code postal de la société ; signataire en pointillés ;
  *  - Anexo fotográfico : photos liées au rapport, recadrées en 4:3 (object-fit: cover), légende = libellé et date ;
  *  - pied légal du gabarit, mot pour mot ;
  *  - tirets longs remplacés ligne par ligne (règle typographique), sans jamais fusionner deux lignes.
@@ -494,8 +495,16 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
       (LARGEUR - 6.75) / 2,
     )
     this.y += 6.75
-    // Tipologia : absente du module, en pointillés comme le NIF.
-    this.caixasPartes([{ titulo: 'Local da intervenção', linhas: [{ rotulo: 'Morada', valor: this.moradaObra() }, { rotulo: 'Tipologia', valor: '' }] }], LARGEUR)
+    // Tipologia : absente du module, en pointillés comme le NIF. Horário de l'intervention (début, fin, durée) : ici,
+    // la bande gardant les cases du gabarit (Data da visita, Data de emissão).
+    this.caixasPartes([{
+      titulo: 'Local da intervenção',
+      linhas: [
+        { rotulo: 'Morada', valor: this.moradaObra() },
+        { rotulo: 'Tipologia', valor: '' },
+        { rotulo: 'Horário', valor: horarioRelatorio(this.r.startTime, this.r.endTime) },
+      ],
+    }], LARGEUR)
     this.finBloc(6.75)
   }
 
@@ -506,7 +515,7 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
     const ref = textePdf(r.refDevisFact).trim()
     const casas: Array<[string, string]> = [
       ['Data da visita', datePt(r.interventionDate)],
-      ['Horário', horarioRelatorio(r.startTime, r.endTime)],
+      ['Data de emissão', this.dataEmissao],
       [rotuloDocumentoAssociado(ref), ref],
       ['Estado', estadoRelatorio(r.status)],
     ]
@@ -808,19 +817,25 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
 
 // ─── Entrée ───────────────────────────────────────────────────────────────────
 
-const jourLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+/** Jour (aaaa-mm-jj) d'un instant à l'heure de Lisbonne : le même quel que soit le fuseau de l'appareil. */
+const JOUR_LISBONNE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' })
+const jourLisbonne = (d: Date) => JOUR_LISBONNE.format(d)
 
 /**
- * Date d'émission du relatório (« Local e data » de la signature), en jj/mm/aaaa : le jour de création du rapport, à
- * l'heure de l'appareil, et jamais avant la visite (un rapport préparé à l'avance est émis le jour de la visite). Elle
- * ne change donc plus d'un téléchargement à l'autre pour un même numéro. Sans date de création (rapport ancien
- * illisible), le jour de la génération, comme l'ancien PDF.
+ * Date d'émission du relatório (« Data de emissão » et « Local e data »), en jj/mm/aaaa : le jour de création du
+ * rapport, à l'heure de Lisbonne (le gabarit est portugais), jamais avant la visite (un rapport préparé à l'avance est
+ * émis le jour de la visite) ni après le jour du téléchargement. Une fois la visite passée, elle ne change plus d'un
+ * téléchargement à l'autre pour un même numéro. Sans date de création lisible, le jour du téléchargement.
  */
 export function dataEmissaoRelatorio(criadoEm: string | null | undefined, dataVisita: string | null | undefined, hoje = new Date()): string {
+  const aujourdhui = jourLisbonne(hoje)
   const criacao = criadoEm ? new Date(criadoEm) : null
-  let jour = criacao && !Number.isNaN(criacao.getTime()) ? jourLocal(criacao) : jourLocal(hoje)
+  let jour = criacao && !Number.isNaN(criacao.getTime()) ? jourLisbonne(criacao) : aujourdhui
   const visita = /^\d{4}-\d{2}-\d{2}$/.test(dataVisita ?? '') ? (dataVisita as string) : ''
-  if (visita > jour) jour = visita
+  // Comparaison de chaînes aaaa-mm-jj : max(création, min(visite, aujourd'hui)).
+  const plancher = visita && visita < aujourdhui ? visita : aujourdhui
+  if (visita && plancher > jour) jour = plancher
+  if (jour > aujourdhui) jour = aujourdhui
   return datePt(jour)
 }
 

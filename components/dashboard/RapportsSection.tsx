@@ -1352,6 +1352,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     artisanId={artisan?.id}
                     documentsParId={documentsParId}
                     orgRole={orgRole}
+                    relatorioTecnico={modeleRapport === 'vitfix-relatorio'}
                     dateFmtLocale={dateFmtLocale}
                     onEdit={openEdit}
                     onDelete={deleteRapport}
