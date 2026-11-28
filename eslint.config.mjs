@@ -22,6 +22,14 @@ const eslintConfig = defineConfig([
     "**/.next/**",
     // Vendored/minified third-party bundles — not source code
     "public/**",
+    // Sorties générées (build OpenNext, couverture, Playwright, copies Capacitor) : le plafond
+    // --max-warnings est un compte exact, une mesure locale ne doit pas dépendre d'un build passé.
+    ".open-next/**",
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**",
+    "android/app/src/main/assets/public/**",
+    "ios/App/App/public/**",
   ]),
   // Relax rules for existing codebase
   {
