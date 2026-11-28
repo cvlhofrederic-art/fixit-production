@@ -66,7 +66,8 @@ import {
   type TvaRegime,
 } from '@/lib/tva-calculator'
 import * as Sentry from '@sentry/nextjs'
-import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useTranslation, useLocale, traducteurPour } from '@/lib/i18n/context'
+import { langueDocumentsBtp } from '@/lib/btp/langue-documents'
 import { ChantierSelect } from '@/components/dashboard/btp/ChantierSelect'
 import { phrasePhotosAnnexePt, traducteurDevisBtp } from '@/lib/devis-btp-traduction'
 import { supabase } from '@/lib/supabase'
@@ -251,9 +252,15 @@ export default function DevisFactureFormBTP({
   // Les valeurs enregistrées (mode et délai de paiement, escompte, déclencheur d'acompte…) restent en français :
   // les PDF et le calcul de l'échéance les lisent ainsi.
   const tx = useMemo(() => traducteurDevisBtp(locale), [locale])
-  // Taux de TVA du pays (lib/tva-calculator.ts) : une ligne neuve part à 23 % sur /pt et propose 23, 13, 6 et 0 % ;
-  // en France, 20 % et 20, 10, 5,5 et 0 % comme avant. Une ligne enregistrée garde son taux.
-  const paysTva = localeTva(locale)
+  // Langue du DOCUMENT : celle de la fiche de la société, pas celle de l'écran (lib/btp/langue-documents.ts). Pays de
+  // TVA, valeurs par défaut, mentions légales et PDF la suivent ; libellés, aides et messages restent dans la langue de
+  // l'écran (tx, locale). Une société française ouverte sur /pt garde des devis et factures français (constat du
+  // 27/11/2026), une société portugaise ouverte sur /fr des orçamentos et faturas portugais.
+  const langueDoc = langueDocumentsBtp(artisan, locale)
+  const txDoc = useMemo(() => traducteurDevisBtp(langueDoc), [langueDoc])
+  // Taux de TVA du pays (lib/tva-calculator.ts) : une ligne neuve part à 23 % pour une société portugaise et propose
+  // 23, 13, 6 et 0 % ; en France, 20 % et 20, 10, 5,5 et 0 % comme avant. Une ligne enregistrée garde son taux.
+  const paysTva = localeTva(langueDoc)
   const tauxTvaDefaut = tauxTvaParDefaut(paysTva)
   // Première ligne d'une table ajoutée : 10 % en France (comportement antérieur), le taux normal au Portugal.
   const tauxTvaTableAjoutee = paysTva === 'pt' ? tauxTvaDefaut : 10
@@ -396,7 +403,7 @@ export default function DevisFactureFormBTP({
       const last = [...docs, ...drafts].find((d: { insuranceCoverage?: string }) => couverture(d.insuranceCoverage))
       if (last?.insuranceCoverage) return last.insuranceCoverage
     } catch { /* ignore */ }
-    return locale === 'pt' || statutPortugais(artisan?.legal_form) ? 'Portugal continental' : 'France métropolitaine'
+    return langueDoc === 'pt' || statutPortugais(artisan?.legal_form) ? 'Portugal continental' : 'France métropolitaine'
   })
   const [mediatorName, setMediatorName] = useState(() => {
     if (initialData?.mediatorName) return initialData.mediatorName
@@ -462,7 +469,7 @@ export default function DevisFactureFormBTP({
   const [clientApartmentNumber, setClientApartmentNumber] = useState((initialData as Record<string, unknown>)?.clientApartmentNumber as string || '')
   const [clientPostalCode, setClientPostalCode] = useState((initialData as Record<string, unknown>)?.clientPostalCode as string || '')
   const [clientCity, setClientCity] = useState((initialData as Record<string, unknown>)?.clientCity as string || '')
-  const [clientCountry, setClientCountry] = useState((initialData as Record<string, unknown>)?.clientCountry as string || (locale === 'pt' ? 'Portugal' : 'France'))
+  const [clientCountry, setClientCountry] = useState((initialData as Record<string, unknown>)?.clientCountry as string || (langueDoc === 'pt' ? 'Portugal' : 'France'))
 
   // BTP — composer clientName à partir de prénom+nom (B2C uniquement)
   // Le PDF V3 utilise clientName ; les champs détaillés sont aussi persistés à part pour la base clients
@@ -631,9 +638,9 @@ export default function DevisFactureFormBTP({
   // L'artisan peut renommer un titre, masquer Matériaux/Frais (la 1ère reste obligatoire),
   // ou créer ses propres sections (corps d'état, sous-traitants, etc.).
   const _initialTables = initialData as Record<string, unknown> | undefined
-  const [linesName, setLinesName] = useState<string>((_initialTables?.linesName as string) || (locale === 'pt' ? 'Mão de obra' : "Main d'œuvre"))
-  const [materialLinesName, setMaterialLinesName] = useState<string>((_initialTables?.materialLinesName as string) || (locale === 'pt' ? 'Materiais' : 'Matériaux'))
-  const [fraisLinesName, setFraisLinesName] = useState<string>((_initialTables?.fraisLinesName as string) || (locale === 'pt' ? 'Despesas acessórias' : 'Frais annexes'))
+  const [linesName, setLinesName] = useState<string>((_initialTables?.linesName as string) || (langueDoc === 'pt' ? 'Mão de obra' : "Main d'œuvre"))
+  const [materialLinesName, setMaterialLinesName] = useState<string>((_initialTables?.materialLinesName as string) || (langueDoc === 'pt' ? 'Materiais' : 'Matériaux'))
+  const [fraisLinesName, setFraisLinesName] = useState<string>((_initialTables?.fraisLinesName as string) || (langueDoc === 'pt' ? 'Despesas acessórias' : 'Frais annexes'))
   const [materialLinesEnabled, setMaterialLinesEnabled] = useState<boolean>(
     typeof _initialTables?.materialLinesEnabled === 'boolean' ? (_initialTables.materialLinesEnabled as boolean) : true
   )
@@ -687,17 +694,17 @@ export default function DevisFactureFormBTP({
   // Modalités paiement
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || 'Virement bancaire')
   const [paymentDelay, setPaymentDelay] = useState((initialData as { paymentDelay?: string })?.paymentDelay || 'Comptant à réception')
-  const [penaltyRate, setPenaltyRate] = useState((initialData as { penaltyRate?: string })?.penaltyRate || (locale === 'pt' ? 'Taxa de juro legal em vigor' : "3 × taux d'intérêt légal en vigueur"))
-  const [recoveryFee, setRecoveryFee] = useState((initialData as { recoveryFee?: string })?.recoveryFee || (locale === 'pt' ? '40 € (apenas B2B)' : '40 € (BtoB uniquement)'))
+  const [penaltyRate, setPenaltyRate] = useState((initialData as { penaltyRate?: string })?.penaltyRate || (langueDoc === 'pt' ? 'Taxa de juro legal em vigor' : "3 × taux d'intérêt légal en vigueur"))
+  const [recoveryFee, setRecoveryFee] = useState((initialData as { recoveryFee?: string })?.recoveryFee || (langueDoc === 'pt' ? '40 € (apenas B2B)' : '40 € (BtoB uniquement)'))
   const [escompte, setEscompte] = useState((initialData as { escompte?: string })?.escompte || ESCOMPTES[0])
-  // Remise commerciale sur le total (lib/remise-commerciale.ts), en % ou en € HT. Saisie en
-  // France seulement (le Portugal relève d'un autre droit, hors de ce lot) ; une remise posée en
+  // Remise commerciale sur le total (lib/remise-commerciale.ts), en % ou en € HT. Saisie pour une
+  // société française seulement (le Portugal relève d'un autre droit, hors de ce lot) ; une remise posée en
   // français reste appliquée, affichée et enregistrée si le document est rouvert en portugais.
-  const remiseDisponible = locale !== 'pt'
+  const remiseDisponible = langueDoc !== 'pt'
   const [remiseGlobale, setRemiseGlobale] = useState<Remise | undefined>(
     () => lireRemise((initialData as { remiseGlobale?: unknown } | undefined)?.remiseGlobale) ?? undefined,
   )
-  const langueRemise = locale === 'pt' ? 'pt' : 'fr'
+  const langueRemise = langueDoc
 
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '')
@@ -731,8 +738,8 @@ export default function DevisFactureFormBTP({
       unite: init.unite || 'm³',
       installationNom: init.installationNom || '',
       installationAdresse: init.installationAdresse || '',
-      modalitesTri: init.modalitesTri || (locale === 'pt' ? 'Triagem seletiva em obra (perigosos separados dos inertes e dos não perigosos)' : 'Tri sélectif sur chantier (dangereux séparés des inertes et non dangereux)'),
-      coutGestion: init.coutGestion || (locale === 'pt' ? 'Incluído na prestação' : 'Inclus dans la prestation'),
+      modalitesTri: init.modalitesTri || (langueDoc === 'pt' ? 'Triagem seletiva em obra (perigosos separados dos inertes e dos não perigosos)' : 'Tri sélectif sur chantier (dangereux séparés des inertes et non dangereux)'),
+      coutGestion: init.coutGestion || (langueDoc === 'pt' ? 'Incluído na prestação' : 'Inclus dans la prestation'),
     }
   })
   const [dechetsExpanded, setDechetsExpanded] = useState<boolean>(false)
@@ -1001,7 +1008,7 @@ export default function DevisFactureFormBTP({
   const conformite = useMemo(() => {
     return {
       // Sur /pt, le champ s'appelle NIF (9 chiffres) : accepté, comme le SIRET d'une société française (14)
-      siret: locale === 'pt' ? [9, 14].includes(companySiret.replace(/\s/g, '').length) : companySiret.replace(/\s/g, '').length === 14,
+      siret: langueDoc === 'pt' ? [9, 14].includes(companySiret.replace(/\s/g, '').length) : companySiret.replace(/\s/g, '').length === 14,
       rcs: companyRCS.trim().length > 0,
       assurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
       mediateur: mediatorName.trim().length > 0 && mediatorUrl.trim().length > 0,
@@ -1015,7 +1022,7 @@ export default function DevisFactureFormBTP({
       penalites: true, // mention auto dans bloc légal
       escompte: true,  // mention auto dans bloc légal
     }
-  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines, fraisLines, locale])
+  }, [companySiret, companyRCS, insuranceName, insuranceNumber, mediatorName, mediatorUrl, clientName, lines, materialLines, fraisLines, langueDoc])
 
   /* ──────── Handlers tableau prestations ──────── */
 
@@ -1333,7 +1340,7 @@ export default function DevisFactureFormBTP({
     setClientApartmentNumber((cAny.apartmentNumber as string) || '')
     setClientPostalCode((cAny.postalCode as string) || '')
     setClientCity((cAny.city as string) || '')
-    setClientCountry((cAny.country as string) || (locale === 'pt' ? 'Portugal' : 'France'))
+    setClientCountry((cAny.country as string) || (langueDoc === 'pt' ? 'Portugal' : 'France'))
     // Charger la liste des lieux d'intervention enregistrés pour ce client
     setSelectedClientInterventionAddresses(c.interventionAddresses || [])
     // Réinitialiser les champs lieu d'intervention (l'artisan choisira dans le dropdown)
@@ -1935,7 +1942,7 @@ export default function DevisFactureFormBTP({
       // forcément pro (hotfix audit 04/05/2026 : avant, un faux "12345678901234"
       // forçait pro et supprimait la rétractation 14 jours, art. L.221-18 C. conso.).
       const champs = champsDocumentBtp({
-        locale, docType, docNumber, docTitle, factureSubType,
+        locale: langueDoc, docType, docNumber, docTitle, factureSubType,
         executionDelayDays, executionDelayType, clientType, clientSiret,
       })
       const validLabor = lines.filter(l => (l.description || '').trim())
@@ -1980,7 +1987,7 @@ export default function DevisFactureFormBTP({
       const totalNet = totaux.totalHT
       const totalTTCcalc = totaux.totalTTC
       const currencyFormat = (n: number) => {
-        const formatted = n.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const formatted = n.toLocaleString(langueDoc === 'pt' ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         // Replace narrow no-break space (\u202F) and no-break space (\u00A0)
         // with regular space — jsPDF's helvetica font renders them as '/'
         return formatted.replace(/[\u202F\u00A0]/g, ' ') + ' €'
@@ -1991,9 +1998,10 @@ export default function DevisFactureFormBTP({
 
       await generateDevisPdfV3({
         action,
-        locale: locale as 'fr' | 'pt' | 'en',
-        localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
-        t,
+        // Langue de la société (langueDoc), et les libellés du PDF avec elle : jamais ceux de l'écran.
+        locale: langueDoc,
+        localeFormats: { currencyFormat, taxLabel: langueDoc === 'pt' ? 'IVA' : 'TVA' },
+        t: langueDoc === locale ? t : traducteurPour(langueDoc),
         docType, docNumber, docTitle: champs.docTitle, docDate, docValidity,
         // Date de prestation : utilise la valeur saisie par l'utilisateur, ou
         // chaîne vide si non renseignée → le PDF affichera "À convenir" (cf.
@@ -2368,9 +2376,12 @@ export default function DevisFactureFormBTP({
               />
             </div>
 
+            {/* Droit du document : celui de la société (langueDoc), pas celui de l'écran */}
             <div className="dv-alert green">
-              <strong>{tx('CONFORMITÉ LÉGALE FRANÇAISE')}</strong><br />
-              {tx('Ce document respecte les obligations légales françaises (Code de commerce, Code de la consommation). Toutes les mentions obligatoires sont incluses.')}
+              <strong>{langueDoc === 'pt' ? tx('CONFORMITÉ LÉGALE PORTUGAISE') : tx('CONFORMITÉ LÉGALE FRANÇAISE')}</strong><br />
+              {langueDoc === 'pt'
+                ? tx('Ce document respecte les obligations légales portugaises. Toutes les mentions obligatoires sont incluses.')
+                : tx('Ce document respecte les obligations légales françaises (Code de commerce, Code de la consommation). Toutes les mentions obligatoires sont incluses.')}
             </div>
 
             <div className="dv-import-card">
@@ -3513,7 +3524,7 @@ export default function DevisFactureFormBTP({
                       ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
                     )
                     // Portugal : les garanties des mentions légales portugaises plus bas (Código Civil), pas le droit français
-                    if (locale === 'pt') {
+                    if (langueDoc === 'pt') {
                       if (elig === 'never') return 'Prestação de serviços fora do âmbito do art. 1225.º do Código Civil. Responsabilidade contratual de direito comum (art. 798.º) · Garantia de vícios ocultos (art. 913.º).'
                       if (elig === 'conditional') return 'Garantia de defeitos de construção (art. 1225.º, 5 anos) aplicável apenas em caso de execução de obra. Para prestações de manutenção: responsabilidade contratual de direito comum (art. 798.º).'
                       return 'Garantia de defeitos de construção (5 anos, art. 1225.º do Código Civil Português) · Garantia legal de conformidade (Lei n.º 24/96) · Garantia de vícios ocultos (art. 913.º do Código Civil).'
@@ -3744,7 +3755,7 @@ export default function DevisFactureFormBTP({
             <div className="dv-mentions">
 
               {/* ═══ 1. IDENTIFICATION — statut juridique ═══ */}
-              {locale === 'pt' ? (
+              {langueDoc === 'pt' ? (
                 // Toute société lit sa forme, son capital et sa sede (avant : « Empresário em Nome Individual (ENI) »)
                 <>{mentionIdentificationBtp({ statut: statutJuridique, capital: companyCapital, registre: companyRCS, adresse: companyAddress, langue: 'pt' })}<br /></>
               ) : (
@@ -3772,37 +3783,37 @@ export default function DevisFactureFormBTP({
               )}
 
               {/* ═══ 2. TVA / IVA ═══ */}
-              {!tvaEnabled && locale !== 'pt' && (
+              {!tvaEnabled && langueDoc !== 'pt' && (
                 <>TVA non applicable, article 293 B du CGI (franchise en base de TVA).<br /></>
               )}
-              {!tvaEnabled && locale === 'pt' && (
+              {!tvaEnabled && langueDoc === 'pt' && (
                 <>IVA não aplicável, artigo 53.º do CIVA (regime de isenção).<br /></>
               )}
               {tvaEnabled && tvaNumber && (
-                <>{locale === 'pt' ? 'NIF intracomunitário' : 'N° TVA intracommunautaire'} : {tvaNumber}.<br /></>
+                <>{langueDoc === 'pt' ? 'NIF intracomunitário' : 'N° TVA intracommunautaire'} : {tvaNumber}.<br /></>
               )}
 
               {/* TVA taux réduit — remplace le CERFA supprimé en fév. 2025 (loi de finances 2025, art. 41) */}
-              {tvaEnabled && locale !== 'pt' && totaux.tvaEntries.some(([taux]) => taux === 5.5) && (
+              {tvaEnabled && langueDoc !== 'pt' && totaux.tvaEntries.some(([taux]) => taux === 5.5) && (
                 <>Travaux de rénovation énergétique sur un logement achevé depuis plus de 2 ans, éligibles au taux réduit de 5,5 % (art. 278-0 bis A du CGI). Attestation remplacée par la présente mention (loi de finances 2025, art. 41).<br /></>
               )}
-              {tvaEnabled && locale !== 'pt' && totaux.tvaEntries.some(([taux]) => taux === 10) && (
+              {tvaEnabled && langueDoc !== 'pt' && totaux.tvaEntries.some(([taux]) => taux === 10) && (
                 <>Travaux d&apos;amélioration, transformation, aménagement ou entretien sur un logement achevé depuis plus de 2 ans, éligibles au taux réduit de 10 % (art. 279-0 bis du CGI). Attestation remplacée par la présente mention (loi de finances 2025, art. 41).<br /></>
               )}
 
               {/* ═══ 3. ASSURANCE — obligatoire BTP ═══ */}
               {insuranceName && insuranceNumber && (
                 <>
-                  {locale === 'pt' ? 'Seguro' : 'Assurance'}{' '}
-                  {insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? (locale === 'pt' ? 'Decenal' : 'Décennale') : (locale === 'pt' ? 'RC Pro + Decenal' : 'RC Pro + Décennale')}{' '}
-                  : {insuranceName}, {locale === 'pt' ? 'apólice' : 'contrat'} n° {insuranceNumber}, {locale === 'pt' ? 'cobertura' : 'couverture'} {insuranceCoverage || (locale === 'pt' ? 'Portugal continental' : 'France métropolitaine')}.<br />
+                  {langueDoc === 'pt' ? 'Seguro' : 'Assurance'}{' '}
+                  {insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? (langueDoc === 'pt' ? 'Decenal' : 'Décennale') : (langueDoc === 'pt' ? 'RC Pro + Decenal' : 'RC Pro + Décennale')}{' '}
+                  : {insuranceName}, {langueDoc === 'pt' ? 'apólice' : 'contrat'} n° {insuranceNumber}, {langueDoc === 'pt' ? 'cobertura' : 'couverture'} {insuranceCoverage || (langueDoc === 'pt' ? 'Portugal continental' : 'France métropolitaine')}.<br />
                 </>
               )}
 
               {/* ═══ 4. MENTIONS DEVIS ═══ */}
               {docType === 'devis' && (
                 <>
-                  {locale === 'pt' ? (
+                  {langueDoc === 'pt' ? (
                     <>
                       Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96 (Defesa do Consumidor).<br />
                       Este orçamento é válido por {docValidity} dias a partir da data de emissão.<br />
@@ -3827,12 +3838,12 @@ export default function DevisFactureFormBTP({
               {/* ═══ 5. MENTIONS FACTURE ═══ */}
               {docType === 'facture' && (
                 <>
-                  {locale === 'pt' ? (
+                  {langueDoc === 'pt' ? (
                     <>
-                      Condições de pagamento : {tx(paymentDelay)}.<br />
+                      Condições de pagamento : {txDoc(paymentDelay)}.<br />
                       Penalidades por atraso : taxa de juro legal em vigor (Decreto-Lei n.º 62/2013).<br />
                       Indemnização de cobrança : 40 € (apenas B2B, Decreto-Lei n.º 62/2013).<br />
-                      {escompte && <>{tx(escompte)}.<br /></>}
+                      {escompte && <>{txDoc(escompte)}.<br /></>}
                     </>
                   ) : (
                     <>
@@ -3848,7 +3859,7 @@ export default function DevisFactureFormBTP({
               {/* ═══ 6. ACCEPTATION ═══ */}
               {docType === 'devis' && (
                 <>
-                  {locale === 'pt' ? (
+                  {langueDoc === 'pt' ? (
                     <>ACEITAÇÃO : O PDF gerado inclui zona de assinatura do cliente e do prestador. Assinatura eletrónica conforme eIDAS igualmente proposta no envio.<br /><br /></>
                   ) : (
                     <>ACCEPTATION : Le PDF généré inclut une zone signature client + prestataire. La mention manuscrite « Bon pour accord » est recommandée mais non obligatoire (Cass. 1re civ., 30 oct. 2008). Signature électronique conforme eIDAS également proposée à l&apos;envoi.<br /><br /></>
@@ -3858,7 +3869,7 @@ export default function DevisFactureFormBTP({
 
               {/* ═══ 7. DROIT DE RÉTRACTATION — FR uniquement, client particulier, contrat hors établissement ═══ */}
               {/* Au Portugal, le droit de rétractation NE S'APPLIQUE PAS à la construction (DL 24/2014, art. 4.º, n.º 1, al. f) */}
-              {docType === 'devis' && locale !== 'pt' && clientSiret.trim().length === 0 && (
+              {docType === 'devis' && langueDoc !== 'pt' && clientSiret.trim().length === 0 && (
                 <>
                   DROIT DE RÉTRACTATION (contrat hors établissement) : Conformément à l&apos;article L. 221-18 du Code de la consommation, le client consommateur dispose d&apos;un délai de 14 jours calendaires à compter de la signature pour exercer son droit de rétractation, sans motif ni pénalité. Un formulaire-type de rétractation est joint au PDF (annexe art. R. 221-1 C. conso.).<br /><br />
                   Aucun paiement ne peut être exigé avant l&apos;expiration d&apos;un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux d&apos;entretien ou réparation demandés en urgence (plafond 200 € TTC pour pièces et fournitures).<br /><br />
@@ -3870,7 +3881,7 @@ export default function DevisFactureFormBTP({
                 const elig = getDecennaleEligibility(
                   ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
                 )
-                if (locale === 'pt') {
+                if (langueDoc === 'pt') {
                   if (elig === 'never') {
                     return <>GARANTIAS : prestação de serviços fora do âmbito do art. 1225.º do Código Civil. Responsabilidade contratual de direito comum (art. 798.º) · Garantia de vícios ocultos (art. 913.º).<br /><br /></>
                   }
@@ -3889,7 +3900,7 @@ export default function DevisFactureFormBTP({
               })()}
 
               {/* ═══ 9. GESTION DES DÉCHETS — obligatoire BTP France depuis 01/07/2021 (loi AGEC) ═══ */}
-              {locale !== 'pt' && docType === 'devis' && (
+              {langueDoc !== 'pt' && docType === 'devis' && (
                 <>
                   DÉCHETS DE CHANTIER (Décret n°2020-1817 du 29/12/2020, loi AGEC) : une estimation des quantités de déchets générés, les modalités de tri sur chantier, les points de collecte identifiés et les coûts associés à leur gestion sont détaillés dans le descriptif des prestations ou en annexe.<br /><br />
                 </>
@@ -3898,7 +3909,7 @@ export default function DevisFactureFormBTP({
               {/* ═══ 10. MÉDIATION / ENTIDADE RAL ═══ */}
               {clientSiret.trim().length === 0 && (
                 <>
-                  {locale === 'pt' ? (
+                  {langueDoc === 'pt' ? (
                     <>
                       Resolução alternativa de litígios (Lei n.º 144/2015) : em caso de litígio, o cliente pode recorrer gratuitamente a uma entidade de resolução alternativa de litígios.
                       {mediatorName && <> Entidade RAL : {mediatorName}{mediatorUrl ? ` — ${mediatorUrl}` : ''}.</>}
