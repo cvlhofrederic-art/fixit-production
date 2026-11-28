@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
-// Seuls champs renvoyés au client : la réponse est publique et mise en cache.
+// Seuls champs renvoyés au client : la réponse est publique, sans authentification, et mise en cache.
+// Ni e-mail (celui de la connexion) ni téléphone : décision de Frédéric du 28/11/2026.
 const CHAMPS_PUBLICS = [
-  'id', 'user_id', 'company_name', 'first_name', 'last_name', 'email', 'phone',
+  'id', 'user_id', 'company_name', 'first_name', 'last_name',
   'company_city', 'naf_code', 'naf_label', 'verified', 'kyc_status', 'categories',
 ] as const
 
@@ -66,6 +67,9 @@ export async function GET(req: NextRequest) {
     .select('*')
     .in('user_id', userIds)
     .eq('kyc_status', 'approved')
+    // Fiches actives seulement, comme la recherche publique (app/fr/recherche) et /api/artisans/nearby :
+    // la lecture en service role ignore la politique de lecture publique (active = true, migration 041).
+    .eq('active', true)
 
   if (city) {
     artisanQuery = artisanQuery.ilike('company_city', `%${city}%`)

@@ -5,7 +5,9 @@
 //   - profils lus avec select('*') : une colonne absente du schéma de prod (first_name, last_name,
 //     naf_label…) ne fait plus échouer la recherche (500 « Search failed » avant le correctif) ;
 //   - seuls les champs publics sortent (réponse publique et mise en cache), colonne absente = null ;
-//   - KYC approuvé seulement, verified_source lu dans profile_specialties, filtres verified_source et city.
+//     ni e-mail ni téléphone (décision de Frédéric du 28/11/2026) ;
+//   - KYC approuvé et fiche active seulement, verified_source lu dans profile_specialties, filtres
+//     verified_source et city.
 // Supabase en mémoire.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -21,7 +23,7 @@ const { GET } = await import('@/app/api/companies/search/route')
 const chercher = (query: string) => GET(new NextRequest(`https://vitfix.io/api/companies/search${query}`))
 
 const CHAMPS_PUBLICS = [
-  'id', 'user_id', 'company_name', 'first_name', 'last_name', 'email', 'phone',
+  'id', 'user_id', 'company_name', 'first_name', 'last_name',
   'company_city', 'naf_code', 'naf_label', 'verified', 'kyc_status', 'categories',
   'verified_source', 'profile_type',
 ]
@@ -31,7 +33,7 @@ const CHAMPS_PUBLICS = [
 const profil = (id: string, extra: Record<string, unknown> = {}) => ({
   id: `art-${id}`, user_id: `user-${id}`, company_name: `Entreprise ${id}`, email: `${id}@exemple.fr`,
   phone: '0600000000', company_city: 'Marseille', naf_code: '4322A', verified: true, kyc_status: 'approved',
-  categories: ['plomberie'], siret: '12345678900011', bio: 'Bio interne', kyc_market: 'fr_artisan',
+  active: true, categories: ['plomberie'], siret: '12345678900011', bio: 'Bio interne', kyc_market: 'fr_artisan',
   company_address: '1 rue du Port', ...extra,
 })
 
@@ -46,11 +48,13 @@ beforeEach(() => {
     { specialty_id: 'spec-plomberie', user_id: 'user-1', verified_source: 'kbis' },
     { specialty_id: 'spec-plomberie', user_id: 'user-2', verified_source: 'self_declared' },
     { specialty_id: 'spec-plomberie', user_id: 'user-3', verified_source: 'kbis' },
+    { specialty_id: 'spec-plomberie', user_id: 'user-4', verified_source: 'kbis' },
   ]
   h.base.lignes.profiles_artisan = [
     profil('1'),
     profil('2', { company_city: 'Aix-en-Provence', verified: false }),
     profil('3', { kyc_status: 'pending' }),
+    profil('4', { active: false }),
   ]
 })
 
@@ -97,13 +101,26 @@ describe('GET /api/companies/search', () => {
     expect(premier).not.toHaveProperty('company_address')
   })
 
-  // email (celui de la connexion, saisi à l'inscription) et phone sont dans le select depuis la création de
-  // la route (13dd04a2, 01/04/2026). La prod répond 500 (constaté le 23/10) : elle ne les sert donc pas
-  // aujourd'hui, et ce correctif les rendra publics. Les garder ou les retirer revient à Frédéric : ce test
-  // décrit le choix actuel, il ne le valide pas.
-  it('renvoie email et phone des profils (exposition publique à trancher par Frédéric)', async () => {
+  // email (celui de la connexion, saisi à l'inscription) et phone étaient dans le select depuis la création de
+  // la route (13dd04a2, 01/04/2026) ; la prod répondait 500 et ne les servait donc pas. Décision de Frédéric
+  // du 28/11/2026 : la réponse publique, sans authentification, ne les expose pas.
+  it("ne renvoie ni l'e-mail ni le téléphone des profils", async () => {
+    const res = await chercher('?specialty=plomberie')
+    const corps = await res.text()
+    const json = JSON.parse(corps)
+    expect(json.results).toHaveLength(2)
+    for (const r of json.results) {
+      expect(r).not.toHaveProperty('email')
+      expect(r).not.toHaveProperty('phone')
+    }
+    expect(corps).not.toContain('@exemple.fr')
+    expect(corps).not.toContain('0600000000')
+  })
+
+  it('exclut les fiches inactives, même au KYC approuvé', async () => {
     const json = await (await chercher('?specialty=plomberie')).json()
-    expect(json.results[0]).toMatchObject({ email: '1@exemple.fr', phone: '0600000000' })
+    expect(json.results.map((r: { id: string }) => r.id)).not.toContain('art-4')
+    expect(appelsDe(h.base, 'profiles_artisan', 'select')[0].eq).toContainEqual(['active', true])
   })
 
   it('renvoie first_name, last_name et naf_label quand les colonnes existent', async () => {
