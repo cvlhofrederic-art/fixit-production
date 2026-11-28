@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
 
-const h = vi.hoisted(() => ({ chantiers: [] as unknown[] }))
+const h = vi.hoisted(() => ({ chantiers: [] as unknown[], appels: [] as Record<string, unknown>[] }))
 
 vi.mock('@/lib/i18n/context', () => ({
   useTranslation: () => ({ t: (key: string) => key, locale: 'fr' }),
@@ -31,11 +31,10 @@ vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: ()
 // La liste des chantiers vient de la base. On simule le hook plutôt que le réseau : `ChantierSelect`, lui, est
 // le VRAI composant — c'est tout l'intérêt, puisqu'on veut prouver que le formulaire le pose et le lit.
 vi.mock('@/lib/hooks/use-btp-data', () => ({
-  useBTPData: ({ table }: { table: string }) => ({
-    items: table === 'chantiers' ? h.chantiers : [],
-    loading: false,
-    error: null,
-  }),
+  useBTPData: (options: { table: string }) => {
+    h.appels.push(options as Record<string, unknown>)
+    return { items: options.table === 'chantiers' ? h.chantiers : [], loading: false, error: null }
+  },
   signalerPlafondsAtteints: () => {},
   signalerChargementImpossible: () => {},
 }))
@@ -69,6 +68,7 @@ const selecteur = () => screen.getByRole('combobox', { name: 'Chantier' }) as HT
 
 beforeEach(() => {
   h.chantiers = [CH_A, CH_B]
+  h.appels = []
   localStorage.clear()
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -88,6 +88,25 @@ describe('formulaire BTP — rattachement à un chantier', () => {
       'Ravalement Les Acacias — SCI Les Tilleuls',
       'Toiture Les Lilas — SCI Les Tilleuls',
     ])
+  })
+
+  it('ce champ ne doit ni écrire en base ni alerter au milieu d\'une saisie', () => {
+    // Deux options passées au hook, pour deux raisons distinctes.
+    //
+    // `autoImport: false` : par défaut, `useBTPData` peut envoyer un POST d'import des anciens chantiers du
+    // navigateur vers la base. Un formulaire de document ne doit que LIRE.
+    //
+    // `annoncerEchecs: false` : par défaut, un échec de chargement affiche un toast rouge « les données n'ont
+    // pas pu être chargées ». Au milieu de la saisie d'un devis, l'utilisateur le lit « mon devis ne s'est pas
+    // chargé » et risque de recommencer une saisie qui n'a rien perdu. Les écrans dont les chantiers SONT le
+    // sujet gardent l'alerte. L'option vient de la PR #850 ; ce champ est le premier à en avoir besoin.
+    monter()
+    const chantiers = h.appels.filter((a) => a.table === 'chantiers')
+    expect(chantiers.length).toBeGreaterThan(0)
+    for (const appel of chantiers) {
+      expect(appel.autoImport).toBe(false)
+      expect(appel.annoncerEchecs).toBe(false)
+    }
   })
 
   it('un document déjà rattaché rouvre sur SON chantier', () => {

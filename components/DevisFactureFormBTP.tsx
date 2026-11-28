@@ -2368,6 +2368,7 @@ export default function DevisFactureFormBTP({
               <ChantierSelect
                 className=""
                 autoImport={false}
+                annoncerEchecs={false}
                 ariaLabel={tx('Chantier')}
                 userId={artisan?.id || ''}
                 authUserId={artisan?.user_id || artisan?.id || ''}

@@ -28,14 +28,24 @@ interface ChantierSelectProps {
    * qui créerait des chantiers en base au simple fait d'être ouvert.
    */
   autoImport?: boolean
+  /**
+   * Faux pour un écran où une liste de chantiers n'est qu'un champ accessoire. `useBTPData` annonce sinon un
+   * échec de chargement par un toast rouge, ce qui, au milieu de la saisie d'un devis, se lit « mon devis ne
+   * s'est pas chargé » — et pousse à recommencer une saisie qui n'a rien perdu. Les écrans dont les chantiers
+   * SONT le sujet gardent l'alerte, qui y est utile.
+   */
+  annoncerEchecs?: boolean
 }
 
-export function ChantierSelect({ userId, authUserId, orgRole, value, onChange, className, ariaLabel, autoImport }: ChantierSelectProps) {
+export function ChantierSelect({
+  userId, authUserId, orgRole, value, onChange, className, ariaLabel, autoImport, annoncerEchecs,
+}: ChantierSelectProps) {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isPt = useLocale() === 'pt'
   const { items: chantiers } = useBTPData<Chantier>({
     table: 'chantiers', artisanId: userId, userId: authUserId || userId,
     ...(autoImport === undefined ? {} : { autoImport }),
+    ...(annoncerEchecs === undefined ? {} : { annoncerEchecs }),
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
