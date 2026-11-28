@@ -2,7 +2,8 @@
 // communes aux tests des routes /api/btp/pointage et /api/btp/pointage/evenement.
 //
 // Filtres eq / is / gte, tri, limite, insertion, upsert, modification, index « un pointage ouvert par employé » de la
-// migration 20261116, table absente, panne passagère d'une table (`etat.pannes`). Usage dans un test :
+// migration 20261116, table absente, colonne absente à l'écriture (`etat.colonnesAbsentes`), panne passagère d'une
+// table (`etat.pannes`). Usage dans un test :
 //   vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/base-memoire-pointage')).supabaseMemoire }))
 // Comptes et données fictifs.
 
@@ -16,6 +17,11 @@ export const etat = {
   liaisons: [] as Array<{ equipe_id: string; membre_id: string }>,
   indexUnique: true,
   tablesAbsentes: new Set<string>(),
+  /**
+   * Colonnes « table.colonne » que la base n'a pas encore (migration non appliquée) : une insertion ou une modification
+   * qui en écrit une échoue comme avec PostgREST (PGRST204). Vidé par donnees().
+   */
+  colonnesAbsentes: new Set<string>(),
   /**
    * Panne d'une table : table → nombre de requêtes, lectures comme écritures, qui échouent encore (délai dépassé,
    * code 57014) ; la table répond ensuite de nouveau. Vidé par donnees().
@@ -87,6 +93,10 @@ export function requete(table: string) {
   const executer = (): { data: unknown; error: unknown } => {
     if (etat.tablesAbsentes.has(table)) {
       return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` } }
+    }
+    const colonneAbsente = op !== 'select' && op !== 'delete' ? Object.keys(valeur).find(c => etat.colonnesAbsentes.has(`${table}.${c}`)) : undefined
+    if (colonneAbsente) {
+      return { data: null, error: { code: 'PGRST204', message: `Could not find the '${colonneAbsente}' column of '${table}' in the schema cache` } }
     }
     const pannesRestantes = etat.pannes.get(table) ?? 0
     if (pannesRestantes > 0) {
@@ -182,6 +192,7 @@ export const HEURE = 3_600_000
 /** Remet la base dans son état de départ : société A complète, un homonyme dans la société B. */
 export function donnees() {
   etat.pannes.clear()
+  etat.colonnesAbsentes.clear()
   etat.tables = {
     pro_team_members: [
       { id: randomUUID(), company_id: SOC_A, user_id: U_PAUL, email: 'paul@a.example', role: 'OUVRIER', is_active: true },

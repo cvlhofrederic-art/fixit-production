@@ -3,26 +3,32 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  LIMITES_OUTIL, type ContexteOutillage, type EtatOutil, type OutilEcran, type OutilSaisi, type TypeOutil,
-  type VerificationEcran,
+  CATEGORIES_OUTIL, LIMITES_OUTIL, ORDRE_GROUPES, correspondRecherche, groupeDe, parGroupe,
+  type CategorieOutil, type ContexteOutillage, type EtatOutil, type GroupeOutil, type OutilEcran, type OutilSaisi,
+  type TypeOutil, type VerificationEcran,
 } from '@/lib/btp/outillage-regles'
 import type { EnvoyerOutillage } from './useOutillage'
-import { iconeType, jourEtDate, libelleType, messageErreurOutillage } from './textes'
+import { iconeGroupe, jourEtDate, libelleGroupe, libelleType, messageErreurOutillage } from './textes'
 
-// Onglet « Répertoire » (gestion) : les outils et véhicules de la société, où ils sont (un chantier ou le dépôt), leur
-// état, et ce qu'en dit la dernière vérification du vendredi. Ajout, modification (déplacement compris) et retrait :
-// un élément retiré quitte la liste mais reste cité par les vérifications passées.
+// Onglet « Répertoire » (gestion) : les outils et véhicules de la société, rangés par catégorie (ferramentas de mão,
+// andaimes…, puis les véhicules), où ils sont (un chantier ou le dépôt), leur état, et ce qu'en dit la dernière
+// vérification du vendredi. Recherche par nom (sans tenir compte des accents), filtre par catégorie et par lieu.
+// Ajout, modification (déplacement compris) et retrait : un élément retiré quitte la liste mais reste cité par les
+// vérifications passées.
 
 const GRIS = '#555'
 const STATUTS_FERMES = new Set(['Terminé', 'Annulé'])
 
-interface Brouillon { type: TypeOutil; nom: string; reference: string; quantite: string; chantierId: string; etat: EtatOutil; notes: string }
+interface Brouillon {
+  type: TypeOutil; categorie: CategorieOutil | null; nom: string; reference: string; quantite: string; chantierId: string
+  etat: EtatOutil; notes: string
+}
 
-const VIDE: Brouillon = { type: 'outil', nom: '', reference: '', quantite: '1', chantierId: '', etat: 'ok', notes: '' }
+const VIDE: Brouillon = { type: 'outil', categorie: null, nom: '', reference: '', quantite: '1', chantierId: '', etat: 'ok', notes: '' }
 
 const versBrouillon = (o: OutilEcran): Brouillon => ({
-  type: o.type, nom: o.nom, reference: o.reference ?? '', quantite: String(o.quantite), chantierId: o.chantierId ?? '',
-  etat: o.etat, notes: o.notes ?? '',
+  type: o.type, categorie: o.categorie, nom: o.nom, reference: o.reference ?? '', quantite: String(o.quantite),
+  chantierId: o.chantierId ?? '', etat: o.etat, notes: o.notes ?? '',
 })
 
 /** Brouillon prêt à envoyer, ou null si le nom ou la quantité ne vont pas. */
@@ -30,9 +36,17 @@ function versSaisie(b: Brouillon): OutilSaisi | null {
   const quantite = Number(b.quantite)
   if (!b.nom.trim() || !Number.isInteger(quantite) || quantite < 1 || quantite > LIMITES_OUTIL.quantiteMax) return null
   return {
-    type: b.type, nom: b.nom.trim(), reference: b.reference.trim() || null, quantite,
-    chantierId: b.chantierId || null, etat: b.etat, notes: b.notes.trim() || null,
+    type: b.type, categorie: b.type === 'vehicule' ? null : b.categorie, nom: b.nom.trim(), reference: b.reference.trim() || null,
+    quantite, chantierId: b.chantierId || null, etat: b.etat, notes: b.notes.trim() || null,
   }
+}
+
+/** Nouvel élément : dans la catégorie et sur le chantier que montre le filtre, s'il y en a un. */
+function nouveauBrouillon(filtreGroupe: '' | GroupeOutil, filtreLieu: string): Brouillon {
+  const chantierId = filtreLieu && filtreLieu !== 'depot' ? filtreLieu : ''
+  if (filtreGroupe === 'vehicule') return { ...VIDE, type: 'vehicule', chantierId }
+  const categorie = (CATEGORIES_OUTIL as readonly string[]).includes(filtreGroupe) ? filtreGroupe as CategorieOutil : null
+  return { ...VIDE, categorie, chantierId }
 }
 
 /** Ce que dit de cet outil la vérification la plus récente qui le cite (les vérifications arrivent de la plus récente). */
@@ -55,7 +69,7 @@ interface Props {
 
 export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonly<Props>) {
   const [recherche, setRecherche] = useState('')
-  const [filtreType, setFiltreType] = useState<'' | TypeOutil>('')
+  const [filtreGroupe, setFiltreGroupe] = useState<'' | GroupeOutil>('')
   const [filtreLieu, setFiltreLieu] = useState('')
   const [edition, setEdition] = useState<{ id: string | null; brouillon: Brouillon } | null>(null)
   const [aRetirer, setARetirer] = useState<string | null>(null)
@@ -69,17 +83,23 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
   // Où envoyer un outil : le dépôt et les chantiers ni terminés ni annulés, plus son chantier actuel quel qu'il soit.
   const destinations = (actuel: string) => contexte.lieux.filter(l => !STATUTS_FERMES.has(l.statut) || l.id === actuel)
 
-  const affiches = useMemo(() => {
-    const texte = recherche.trim().toLowerCase()
-    return contexte.outils
-      .filter(o => !filtreType || o.type === filtreType)
-      .filter(o => !filtreLieu || (filtreLieu === 'depot' ? !o.chantierId : o.chantierId === filtreLieu))
-      .filter(o => !texte || `${o.nom} ${o.reference ?? ''} ${o.notes ?? ''}`.toLowerCase().includes(texte))
-      .sort((a, b) => (a.type === b.type ? a.nom.localeCompare(b.nom, 'pt') : a.type === 'outil' ? -1 : 1))
-  }, [contexte.outils, filtreType, filtreLieu, recherche])
+  // Lieu et recherche d'abord (le nombre de chaque catégorie en dépend), puis la catégorie choisie.
+  const trouves = useMemo(() => contexte.outils
+    .filter(o => !filtreLieu || (filtreLieu === 'depot' ? !o.chantierId : o.chantierId === filtreLieu))
+    .filter(o => correspondRecherche(recherche, [o.nom, o.reference, o.notes, libelleGroupe(groupeDe(o), isPt)])),
+  [contexte.outils, filtreLieu, recherche, isPt])
+  const groupes = useMemo(() => parGroupe(trouves.filter(o => !filtreGroupe || groupeDe(o) === filtreGroupe)), [trouves, filtreGroupe])
+  const affiches = groupes.reduce((n, g) => n + g.outils.length, 0)
+  // Boutons de catégorie : celles qui ont au moins un élément au répertoire (et celle choisie, pour pouvoir la quitter).
+  const groupesDuRepertoire = ORDRE_GROUPES.filter(g => g === filtreGroupe || contexte.outils.some(o => groupeDe(o) === g))
+  const nombreDans = (g: GroupeOutil) => trouves.filter(o => groupeDe(o) === g).length
 
   async function enregistrer() {
     if (!edition || envoi) return
+    if (edition.brouillon.type === 'outil' && !edition.brouillon.categorie) {
+      toast.error(isPt ? 'Escolha a categoria da ferramenta.' : 'Choisissez la catégorie de l’outil.')
+      return
+    }
     const outil = versSaisie(edition.brouillon)
     if (!outil) {
       toast.error(isPt ? 'Indique um nome e uma quantidade entre 1 e 999.' : 'Indiquez un nom et une quantité entre 1 et 999.')
@@ -113,38 +133,59 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
 
   const b = edition?.brouillon
   const modifier = (valeur: Partial<Brouillon>) => setEdition(e => (e ? { ...e, brouillon: { ...e.brouillon, ...valeur } } : e))
+  // Une seule liste : les catégories d'outils, puis « Viatura » (le type suit le choix).
+  const choisirCategorie = (valeur: string) => {
+    if (valeur === 'vehicule') modifier({ type: 'vehicule', categorie: null })
+    else if ((CATEGORIES_OUTIL as readonly string[]).includes(valeur)) modifier({ type: 'outil', categorie: valeur as CategorieOutil })
+  }
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="search" className="v5-fi" style={{ flex: '1 1 180px' }} value={recherche} onChange={e => setRecherche(e.target.value)}
-          placeholder={isPt ? 'Procurar (nome, referência, matrícula)' : 'Rechercher (nom, référence, immatriculation)'}
+          placeholder={isPt ? 'Procurar (nome, categoria, referência, matrícula)' : 'Rechercher (nom, catégorie, référence, immatriculation)'}
           aria-label={isPt ? 'Procurar no inventário' : 'Rechercher dans le répertoire'}
         />
-        <select className="v5-filter-sel" value={filtreType} onChange={e => setFiltreType(e.target.value as '' | TypeOutil)} aria-label={isPt ? 'Filtrar por tipo' : 'Filtrer par type'}>
-          <option value="">{isPt ? 'Ferramentas e viaturas' : 'Outils et véhicules'}</option>
-          <option value="outil">{libelleType('outil', isPt, true)}</option>
-          <option value="vehicule">{libelleType('vehicule', isPt, true)}</option>
-        </select>
         <select className="v5-filter-sel" value={filtreLieu} onChange={e => setFiltreLieu(e.target.value)} aria-label={isPt ? 'Filtrar por localização' : 'Filtrer par emplacement'}>
           <option value="">{isPt ? 'Todas as localizações' : 'Tous les emplacements'}</option>
           <option value="depot">{isPt ? 'Armazém' : 'Dépôt'}</option>
           {contexte.lieux.map(l => <option key={l.id} value={l.id}>{l.titre || '—'}</option>)}
         </select>
-        <button type="button" className="v5-btn v5-btn-p" disabled={edition !== null} onClick={() => setEdition({ id: null, brouillon: { ...VIDE, chantierId: filtreLieu && filtreLieu !== 'depot' ? filtreLieu : '' } })}>
+        <button type="button" className="v5-btn v5-btn-p" disabled={edition !== null} onClick={() => setEdition({ id: null, brouillon: nouveauBrouillon(filtreGroupe, filtreLieu) })}>
           {isPt ? '+ Adicionar' : '+ Ajouter'}
         </button>
       </div>
+
+      {contexte.outils.length > 0 && (
+        <div role="group" aria-label={isPt ? 'Filtrar por categoria' : 'Filtrer par catégorie'} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button type="button" className={`v5-btn v5-btn-sm${filtreGroupe === '' ? ' v5-btn-p' : ''}`} aria-pressed={filtreGroupe === ''} onClick={() => setFiltreGroupe('')}>
+            {isPt ? `Tudo (${trouves.length})` : `Tout (${trouves.length})`}
+          </button>
+          {groupesDuRepertoire.map(g => (
+            <button
+              key={g} type="button" className={`v5-btn v5-btn-sm${filtreGroupe === g ? ' v5-btn-p' : ''}`} aria-pressed={filtreGroupe === g}
+              onClick={() => setFiltreGroupe(filtreGroupe === g ? '' : g)}
+            >
+              <span aria-hidden="true">{iconeGroupe(g)} </span>{`${libelleGroupe(g, isPt)} (${nombreDans(g)})`}
+            </button>
+          ))}
+        </div>
+      )}
 
       {edition && b && (
         <div className="v5-card">
           <div className="v5-st">{edition.id ? (isPt ? 'Editar' : 'Modifier') : (isPt ? 'Novo elemento' : 'Nouvel élément')}</div>
           <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-            <label className="v5-fl">{isPt ? 'Tipo' : 'Type'}
-              <select className="v5-fi" value={b.type} onChange={e => modifier({ type: e.target.value as TypeOutil })}>
-                <option value="outil">{libelleType('outil', isPt)}</option>
-                <option value="vehicule">{libelleType('vehicule', isPt)}</option>
+            <label className="v5-fl">{isPt ? 'Categoria' : 'Catégorie'} *
+              <select className="v5-fi" value={b.type === 'vehicule' ? 'vehicule' : b.categorie ?? ''} onChange={e => choisirCategorie(e.target.value)}>
+                {b.type === 'outil' && !b.categorie && <option value="" disabled>{isPt ? 'Escolher a categoria' : 'Choisir la catégorie'}</option>}
+                <optgroup label={libelleType('outil', isPt, true)}>
+                  {CATEGORIES_OUTIL.map(c => <option key={c} value={c}>{libelleGroupe(c, isPt)}</option>)}
+                </optgroup>
+                <optgroup label={libelleType('vehicule', isPt, true)}>
+                  <option value="vehicule">{libelleType('vehicule', isPt)}</option>
+                </optgroup>
               </select>
             </label>
             <label className="v5-fl">{isPt ? 'Nome' : 'Nom'} *
@@ -188,7 +229,7 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
         </div>
       )}
 
-      {affiches.length > 0 && (
+      {affiches > 0 && (
         <div className="v5-card" style={{ overflowX: 'auto', padding: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -200,52 +241,65 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
                 <th style={{ padding: 8 }}><span className="sr-only">{isPt ? 'Ações' : 'Actions'}</span></th>
               </tr>
             </thead>
-            <tbody>
-              {affiches.map(o => {
-                const mention = derniereMention(o.id, contexte.verifications)
-                return (
-                  <tr key={o.id} style={{ borderBottom: '1px solid #f3f3f3' }}>
-                    <td style={{ padding: 8 }}>
-                      <div style={{ fontWeight: 600 }}><span aria-hidden="true">{iconeType(o.type)} </span>{o.nom}</div>
-                      <div style={{ fontSize: 12, color: GRIS }}>
-                        {libelleType(o.type, isPt)}{o.reference ? ` · ${o.reference}` : ''}
-                        {o.etat === 'en_panne' && <span className="v5-badge v5-badge-red" style={{ marginLeft: 6 }}>{isPt ? 'Avariada' : 'En panne'}</span>}
-                      </div>
-                      {o.notes && <div style={{ fontSize: 12, color: GRIS }}>{o.notes}</div>}
-                    </td>
-                    <td style={{ padding: 8 }}>{o.quantite}</td>
-                    <td style={{ padding: 8 }}>{nomDuLieu(o.chantierId)}</td>
-                    <td style={{ padding: 8 }}>
-                      {mention === null && <span style={{ color: GRIS }}>—</span>}
-                      {mention && (
-                        <span className={`v5-badge v5-badge-${mention.manque ? 'red' : mention.enPanne ? 'orange' : 'green'}`}>
-                          {mention.manque ? `${isPt ? 'Em falta' : 'Manquant'}${mention.compte}` : mention.enPanne ? (isPt ? 'Avariada' : 'En panne') : (isPt ? 'Presente' : 'Présent')}
-                          {` · ${jourEtDate(mention.vendredi, isPt)}`}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
-                      {aRetirer === o.id ? (
-                        <>
-                          <span style={{ marginRight: 6 }}>{isPt ? 'Retirar?' : 'Retirer ?'}</span>
-                          <button type="button" className="v5-btn v5-btn-sm v5-btn-d" disabled={envoi} onClick={() => { void retirer(o) }}>{isPt ? 'Sim' : 'Oui'}</button>{' '}
-                          <button type="button" className="v5-btn v5-btn-sm" disabled={envoi} onClick={() => setARetirer(null)}>{isPt ? 'Não' : 'Non'}</button>
-                        </>
-                      ) : (
-                        <>
-                          <button type="button" className="v5-btn v5-btn-sm" disabled={edition !== null} onClick={() => setEdition({ id: o.id, brouillon: versBrouillon(o) })}>{isPt ? 'Editar' : 'Modifier'}</button>{' '}
-                          <button type="button" className="v5-btn v5-btn-sm" onClick={() => setARetirer(o.id)}>{isPt ? 'Retirar' : 'Retirer'}</button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
+            {groupes.map(g => (
+              <tbody key={g.groupe}>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #eee' }}>
+                  <th colSpan={5} scope="colgroup" style={{ padding: '6px 8px', textAlign: 'left', fontSize: 12 }}>
+                    <span aria-hidden="true">{iconeGroupe(g.groupe)} </span>{libelleGroupe(g.groupe, isPt)}
+                    <span style={{ color: GRIS, fontWeight: 400 }}>
+                      {` (${g.outils.length})`}
+                      {g.groupe === 'sans' && (isPt ? ' · Edite cada uma para lhe escolher uma categoria.' : ' · Modifiez chacun pour lui choisir une catégorie.')}
+                    </span>
+                  </th>
+                </tr>
+                {g.outils.map(o => {
+                  const mention = derniereMention(o.id, contexte.verifications)
+                  return (
+                    <tr key={o.id} style={{ borderBottom: '1px solid #f3f3f3' }}>
+                      <td style={{ padding: 8 }}>
+                        <div style={{ fontWeight: 600 }}><span aria-hidden="true">{iconeGroupe(g.groupe)} </span>{o.nom}</div>
+                        {(o.reference || o.etat === 'en_panne') && (
+                          <div style={{ fontSize: 12, color: GRIS }}>
+                            {o.reference}
+                            {o.etat === 'en_panne' && <span className="v5-badge v5-badge-red" style={{ marginLeft: o.reference ? 6 : 0 }}>{isPt ? 'Avariada' : 'En panne'}</span>}
+                          </div>
+                        )}
+                        {o.notes && <div style={{ fontSize: 12, color: GRIS }}>{o.notes}</div>}
+                      </td>
+                      <td style={{ padding: 8 }}>{o.quantite}</td>
+                      <td style={{ padding: 8 }}>{nomDuLieu(o.chantierId)}</td>
+                      <td style={{ padding: 8 }}>
+                        {mention === null && <span style={{ color: GRIS }}>—</span>}
+                        {mention && (
+                          <span className={`v5-badge v5-badge-${mention.manque ? 'red' : mention.enPanne ? 'orange' : 'green'}`}>
+                            {mention.manque ? `${isPt ? 'Em falta' : 'Manquant'}${mention.compte}` : mention.enPanne ? (isPt ? 'Avariada' : 'En panne') : (isPt ? 'Presente' : 'Présent')}
+                            {` · ${jourEtDate(mention.vendredi, isPt)}`}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                        {aRetirer === o.id ? (
+                          <>
+                            <span style={{ marginRight: 6 }}>{isPt ? 'Retirar?' : 'Retirer ?'}</span>
+                            <button type="button" className="v5-btn v5-btn-sm v5-btn-d" disabled={envoi} onClick={() => { void retirer(o) }}>{isPt ? 'Sim' : 'Oui'}</button>{' '}
+                            <button type="button" className="v5-btn v5-btn-sm" disabled={envoi} onClick={() => setARetirer(null)}>{isPt ? 'Não' : 'Non'}</button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" className="v5-btn v5-btn-sm" disabled={edition !== null} onClick={() => setEdition({ id: o.id, brouillon: versBrouillon(o) })}>{isPt ? 'Editar' : 'Modifier'}</button>{' '}
+                            <button type="button" className="v5-btn v5-btn-sm" onClick={() => setARetirer(o.id)}>{isPt ? 'Retirar' : 'Retirer'}</button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            ))}
           </table>
         </div>
       )}
-      {contexte.outils.length > 0 && affiches.length === 0 && (
+      {contexte.outils.length > 0 && affiches === 0 && (
         <div className="v5-card" style={{ fontSize: 13, color: GRIS }}>{isPt ? 'Nenhum elemento corresponde à pesquisa.' : 'Aucun élément ne correspond à la recherche.'}</div>
       )}
     </div>

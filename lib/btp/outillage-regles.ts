@@ -18,6 +18,19 @@ export type TypeOutil = typeof TYPES_OUTIL[number]
 export const ETATS_OUTIL = ['ok', 'en_panne'] as const
 export type EtatOutil = typeof ETATS_OUTIL[number]
 
+/**
+ * Catégories d'un outil (demande de Frédéric du 28/11/2026 : « ferramentas de mão, andaimes, etc., qu'on s'y retrouve
+ * plus facilement »), dans l'ordre d'affichage. Un véhicule n'en a pas : les véhicules forment leur propre groupe.
+ * Colonne `categorie` de la migration 20261128d ; la base n'en contrôle que la forme, la liste est ici (une catégorie
+ * de plus ne demande pas de migration). Une valeur inconnue lue en base vaut « sans catégorie ».
+ */
+export const CATEGORIES_OUTIL = ['main', 'electroportatif', 'echafaudage', 'coffrage', 'machines', 'mesure', 'securite', 'autre'] as const
+export type CategorieOutil = typeof CATEGORIES_OUTIL[number]
+
+/** Groupe d'affichage : la catégorie d'un outil, `vehicule` pour un véhicule, `sans` pour un outil pas encore classé. */
+export type GroupeOutil = CategorieOutil | 'vehicule' | 'sans'
+export const ORDRE_GROUPES: readonly GroupeOutil[] = [...CATEGORIES_OUTIL, 'vehicule', 'sans']
+
 /** Bornes reprises des contraintes de la migration 20261126 : la route refuse ce que la base refuserait. */
 export const LIMITES_OUTIL = { nom: 120, reference: 80, notes: 500, quantiteMax: 999 } as const
 export const LIMITES_VERIFICATION = { observations: 1000, remarque: 200, lignes: 500 } as const
@@ -32,6 +45,11 @@ const texteFacultatif = (max: number) => z.string().trim().max(max).nullish().tr
 
 export const outilSchema = z.object({
   type: z.enum(TYPES_OUTIL),
+  /**
+   * Catégorie d'un outil ; ignorée pour un véhicule (enregistrée vide). Absente (écran ouvert avant le 28/11/2026) :
+   * inchangée à la modification, vide à la création.
+   */
+  categorie: z.enum(CATEGORIES_OUTIL).nullable().optional(),
   nom: z.string().trim().min(1).max(LIMITES_OUTIL.nom),
   reference: texteFacultatif(LIMITES_OUTIL.reference),
   quantite: z.number().int().min(1).max(LIMITES_OUTIL.quantiteMax),
@@ -63,6 +81,8 @@ export const verificationSchema = z.object({
 export interface OutilEcran {
   id: string
   type: TypeOutil
+  /** Catégorie d'un outil ; toujours null pour un véhicule, et pour un outil pas encore classé. */
+  categorie: CategorieOutil | null
   nom: string
   reference: string | null
   quantite: number
@@ -221,9 +241,11 @@ export function outilPourEcran(ligne: Record<string, unknown>): OutilEcran | nul
   const { id, type, nom, quantite } = ligne
   if (typeof id !== 'string' || typeof nom !== 'string') return null
   if (!(TYPES_OUTIL as readonly unknown[]).includes(type)) return null
+  const categorie = type === 'outil' && (CATEGORIES_OUTIL as readonly unknown[]).includes(ligne.categorie) ? ligne.categorie as CategorieOutil : null
   return {
     id,
     type: type as TypeOutil,
+    categorie,
     nom,
     reference: typeof ligne.reference === 'string' && ligne.reference ? ligne.reference : null,
     quantite: typeof quantite === 'number' && quantite >= 1 ? quantite : 1,
@@ -232,6 +254,29 @@ export function outilPourEcran(ligne: Record<string, unknown>): OutilEcran | nul
     notes: typeof ligne.notes === 'string' && ligne.notes ? ligne.notes : null,
     surPlaceDepuis: dateDuJour(ligne.chantier_depuis) ?? dateDuJour(ligne.created_at) ?? '1970-01-01',
   }
+}
+
+// ── Catégories et recherche (écran) ─────────────────────────────────────────
+
+export const groupeDe = (o: Pick<OutilEcran, 'type' | 'categorie'>): GroupeOutil =>
+  (o.type === 'vehicule' ? 'vehicule' : o.categorie ?? 'sans')
+
+/** Outils rangés par groupe (ordre de ORDRE_GROUPES, groupes vides omis), par nom dans chaque groupe. */
+export function parGroupe<T extends Pick<OutilEcran, 'type' | 'categorie' | 'nom'>>(outils: readonly T[]): Array<{ groupe: GroupeOutil; outils: T[] }> {
+  return ORDRE_GROUPES
+    .map(groupe => ({ groupe, outils: outils.filter(o => groupeDe(o) === groupe).sort((a, b) => a.nom.localeCompare(b.nom, 'pt')) }))
+    .filter(g => g.outils.length > 0)
+}
+
+/** Texte sans accents ni majuscules : « maquina » trouve « Máquina », « cofragem » trouve « COFRAGEM ». */
+export const sansAccents = (texte: string): string => texte.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+/** Chaque mot de la recherche se trouve dans l'un des textes donnés (nom, référence, notes, catégorie…). */
+export function correspondRecherche(recherche: string, textes: ReadonlyArray<string | null | undefined>): boolean {
+  const mots = sansAccents(recherche).split(/\s+/).filter(Boolean)
+  if (mots.length === 0) return true
+  const dans = sansAccents(textes.filter(Boolean).join(' '))
+  return mots.every(m => dans.includes(m))
 }
 
 function lignesFigees(brut: unknown): LigneVerifiee[] {

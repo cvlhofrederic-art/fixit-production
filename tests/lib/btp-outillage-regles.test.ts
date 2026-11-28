@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  decalerDate, etatVerification, lignesAEnregistrer, outilPourEcran, outilSchema, vendrediDeReference,
-  verificationPourEcran, verificationSchema, type OutilEcran,
+  CATEGORIES_OUTIL, correspondRecherche, decalerDate, etatVerification, groupeDe, lignesAEnregistrer, outilPourEcran, outilSchema,
+  parGroupe, sansAccents, vendrediDeReference, verificationPourEcran, verificationSchema, type OutilEcran,
 } from '@/lib/btp/outillage-regles'
 
 const ID_A = '5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c01'
@@ -13,7 +13,7 @@ const ID_B = '5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c02'
 const CHANTIER = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a01'
 
 const outil = (id: string, quantite = 1, valeurs: Partial<OutilEcran> = {}): OutilEcran => ({
-  id, type: 'outil', nom: `Outil ${id.slice(-2)}`, reference: null, quantite, chantierId: CHANTIER, etat: 'ok', notes: null,
+  id, type: 'outil', categorie: null, nom: `Outil ${id.slice(-2)}`, reference: null, quantite, chantierId: CHANTIER, etat: 'ok', notes: null,
   surPlaceDepuis: '2026-11-02', ...valeurs,
 })
 
@@ -134,6 +134,17 @@ describe('formulaires reçus', () => {
     }
   })
 
+  it('catégorie : un code de la liste ou null ; absente = non transmise (écran d’avant le 28/11) ; inconnue = refusée', () => {
+    const outilDeMain = { ...base, type: 'outil', nom: 'Martelo' }
+    expect(outilSchema.parse({ ...outilDeMain, categorie: 'main' }).categorie).toBe('main')
+    expect(outilSchema.parse({ ...outilDeMain, categorie: null }).categorie).toBeNull()
+    expect('categorie' in outilSchema.parse(outilDeMain)).toBe(false)
+    expect(outilSchema.safeParse({ ...outilDeMain, categorie: 'grua' }).success).toBe(false)
+    expect(outilSchema.safeParse({ ...outilDeMain, categorie: 'Ferramentas de mão' }).success).toBe(false)
+    // La base n'accepte que des codes en minuscules et _ (contrainte de la migration 20261128d).
+    for (const c of CATEGORIES_OUTIL) expect(c).toMatch(/^[a-z_]{1,40}$/)
+  })
+
   it('la vérification : observations bornées à 1000 caractères, nombres entiers et positifs', () => {
     const v = { chantierId: CHANTIER, lignes: [{ outilId: ID_A, presents: 0, enPanne: false, remarque: '' }], observations: '' }
     expect(verificationSchema.parse(v)).toEqual({ chantierId: CHANTIER, lignes: [{ outilId: ID_A, presents: 0, enPanne: false, remarque: null }], observations: null })
@@ -145,11 +156,18 @@ describe('formulaires reçus', () => {
 describe('lignes de la base vers l’écran', () => {
   it('outil : valeurs absentes ramenées à des valeurs sûres, type inconnu écarté', () => {
     expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'Escadote', quantite: 3, chantier_id: CHANTIER, etat: 'en_panne', created_at: '2026-11-26T10:00:00Z' }))
-      .toEqual({ id: ID_A, type: 'outil', nom: 'Escadote', reference: null, quantite: 3, chantierId: CHANTIER, etat: 'en_panne', notes: null, surPlaceDepuis: '2026-11-26' })
+      .toEqual({ id: ID_A, type: 'outil', categorie: null, nom: 'Escadote', reference: null, quantite: 3, chantierId: CHANTIER, etat: 'en_panne', notes: null, surPlaceDepuis: '2026-11-26' })
     // L'arrivée sur le chantier (chantier_depuis) prime sur l'entrée au répertoire.
     expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'X', created_at: '2026-11-02T10:00:00Z', chantier_depuis: '2026-12-02T08:00:00Z' })?.surPlaceDepuis).toBe('2026-12-02')
     expect(outilPourEcran({ id: ID_A, type: 'grue', nom: 'X' })).toBeNull()
     expect(outilPourEcran({ id: ID_A, type: 'outil' })).toBeNull()
+  })
+
+  it('catégorie (28/11/2026) : relue pour un outil, jamais pour un véhicule ; un code inconnu vaut « sans catégorie »', () => {
+    expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'Andaime', categorie: 'echafaudage' })?.categorie).toBe('echafaudage')
+    expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'X', categorie: 'grua' })?.categorie).toBeNull()
+    expect(outilPourEcran({ id: ID_A, type: 'outil', nom: 'X' })?.categorie).toBeNull() // migration 20261128d pas encore appliquée
+    expect(outilPourEcran({ id: ID_A, type: 'vehicule', nom: 'Carrinha', categorie: 'machines' })?.categorie).toBeNull()
   })
 
   it('vérification : liste figée relue telle quelle, lignes illisibles écartées', () => {
@@ -161,5 +179,42 @@ describe('lignes de la base vers l’écran', () => {
     expect(v).toMatchObject({ chantierTitre: 'Moradia', par: 'Paulo', manquants: 1, observations: null })
     expect(v?.lignes).toEqual([{ outilId: ID_B, nom: 'Betoneira', type: 'outil', reference: null, attendus: 1, presents: 0, enPanne: false, remarque: null }])
     expect(verificationPourEcran({ id: ID_A })).toBeNull()
+  })
+})
+
+describe('catégories et recherche à l’écran (28/11/2026)', () => {
+  it('groupe : la catégorie d’un outil, « vehicule » pour un véhicule, « sans » pour un outil pas encore classé', () => {
+    expect(groupeDe({ type: 'outil', categorie: 'main' })).toBe('main')
+    expect(groupeDe({ type: 'outil', categorie: null })).toBe('sans')
+    expect(groupeDe({ type: 'vehicule', categorie: null })).toBe('vehicule')
+  })
+
+  it('parGroupe : ordre fixe des catégories, puis véhicules, puis non classés ; par nom dans chaque groupe', () => {
+    const liste = [
+      outil(ID_A, 1, { nom: 'Rebarbadora', categorie: 'electroportatif' }),
+      outil(ID_B, 1, { nom: 'Carrinha', type: 'vehicule' }),
+      outil('5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c03', 1, { nom: 'Velha', categorie: null }),
+      outil('5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c04', 1, { nom: 'Martelo', categorie: 'main' }),
+      outil('5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c05', 1, { nom: 'Alicate', categorie: 'main' }),
+      outil('5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c06', 1, { nom: 'Andaime', categorie: 'echafaudage' }),
+    ]
+    expect(parGroupe(liste).map(g => [g.groupe, g.outils.map(o => o.nom)])).toEqual([
+      ['main', ['Alicate', 'Martelo']],
+      ['electroportatif', ['Rebarbadora']],
+      ['echafaudage', ['Andaime']],
+      ['vehicule', ['Carrinha']],
+      ['sans', ['Velha']],
+    ])
+    expect(parGroupe([])).toEqual([])
+  })
+
+  it('recherche : sans accents ni majuscules, chaque mot doit se trouver quelque part', () => {
+    expect(sansAccents('Máquina de Cofragem Ç')).toBe('maquina de cofragem c')
+    expect(correspondRecherche('maquina', ['Máquina de corte'])).toBe(true)
+    expect(correspondRecherche('  ', ['Martelo'])).toBe(true)
+    expect(correspondRecherche('martelo hilti', ['Martelo perfurador', 'HILTI-TE30'])).toBe(true)
+    expect(correspondRecherche('martelo makita', ['Martelo perfurador', 'HILTI-TE30'])).toBe(false)
+    expect(correspondRecherche('andaime', ['Torre 2 m', null, 'Andaimes e escadas'])).toBe(true)
+    expect(correspondRecherche('aa-00', [null, 'AA-00-BB', undefined])).toBe(true)
   })
 })
