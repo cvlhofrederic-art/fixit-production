@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { AbandonArreteModal } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/AbandonArreteModal'
 import { arreteCourant, controlerSaisieArrete, eurosArrete, type ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import {
+  AUCUN_COMPTE_ACTIF_NOUVEL_ARRETE,
   ChoixCompteBancaire,
   comptesActifs,
   comptesClotures,
@@ -47,10 +48,14 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * - Décision du 26/11/2026 (PR 799, point 18) : les comptes clôturés sont proposés après les actifs, marqués
  *   « (clôturé) » ; leurs arrêtés (panneau et « Arrêtés du compte ») s'affichent en lecture seule, sans « Nouvel
  *   arrêté », « Clôturer », « Déclôturer » ni « Abandonner », avec une phrase qui le dit. L'écriture les refuse aussi
- *   (db/rapprochements.ts). Un arrêté encore en cours sur un compte clôturé s'affiche de même, sans action possible. POINT À SOUMETTRE au référent métier : la clôture d'un compte
- *   n'est pas refusée s'il a un arrêté en cours (cloturerCompteBancaire) ; cet arrêté reste « En cours » pour toujours (clôture, abandon et
- *   réactivation impossibles) et son écart reste recalculé à l'écran. Option a : refuser la clôture du compte ; option b : proposer l'abandon
- *   de l'arrêté à ce moment. Rien n'est codé tant qu'il n'y a pas de décision.
+ *   (db/rapprochements.ts). Un arrêté encore en cours sur un compte clôturé s'affiche de même, sans action possible.
+ * - Réponse du référent métier du 28/11/2026 (PR 857, point 1, choix A) : la clôture d'un compte est refusée tant qu'un
+ *   arrêté y est en cours (cloturerCompteBancaire : le clôturer ou l'abandonner d'abord). Un arrêté « En cours » sur un
+ *   compte clôturé ne peut donc plus venir que d'un compte clôturé avant cette règle ; il reste affiché en lecture seule,
+ *   son écart recalculé à l'écran.
+ * - Réponse du référent métier du 28/11/2026 (PR 857, point 2, choix A) : sans compte actif, la phrase sous « Compte
+ *   rapproché » dit qu'elle vaut pour un nouvel arrêté (AUCUN_COMPTE_ACTIF_NOUVEL_ARRETE) : un compte clôturé peut être
+ *   affiché juste au-dessus.
  * - Aucun élément à pointer : les écritures du compte viennent toutes du relevé importé, le côté compta indépendant
  *   (règlements, remises) n'est pas branché ; les cases « Auto / Pointé / En suspens » de la maquette n'ont donc rien à
  *   montrer, et le panneau le dit. Décision du 26/11/2026 (rb-13 B) : les taux « Rapproché auto » et « manuel », toujours
@@ -375,7 +380,16 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
       icon="check"
       right={boutonEntete}
     >
-      <ChoixCompteBancaire label="Compte rapproché" name="rapprochement-compte" etat={etatComptes} actifs={actifs} clotures={clotures} choisi={compte} choisir={setChoix} />
+      <ChoixCompteBancaire
+        label="Compte rapproché"
+        name="rapprochement-compte"
+        etat={etatComptes}
+        actifs={actifs}
+        clotures={clotures}
+        choisi={compte}
+        choisir={setChoix}
+        sansCompteActif={AUCUN_COMPTE_ACTIF_NOUVEL_ARRETE}
+      />
       {compte && (
         <ContenuArretes
           lus={lus}

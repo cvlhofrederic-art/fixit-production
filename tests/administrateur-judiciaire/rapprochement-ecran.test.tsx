@@ -83,6 +83,12 @@ function verifierRolesTableau(tableau: HTMLElement) {
   expect(within(tableau).getAllByRole('row')).toHaveLength(3)
 }
 const dialogue = () => within(screen.getByRole('dialog'))
+
+// Réponse du référent métier du 28/11/2026 (point #857 · 2, choix A) : sous « Compte rapproché » seulement, la phrase dit
+// qu'elle vaut pour un nouvel arrêté ; celle de « Importer un relevé » ne change pas.
+const AUCUN_COMPTE_ACTIF_RAPPROCHEMENT = 'Aucun compte bancaire actif : pour un nouvel arrêté, enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
+const AUCUN_COMPTE_ACTIF_IMPORT = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
+const dansImport = () => within(screen.getByRole('heading', { level: 3, name: 'Importer un relevé' }).closest('.panel') as HTMLElement)
 const dernierToast = () => pushCourant.mock.calls.at(-1)?.[0]
 
 /** Clique et attend le toast qui confirme ou refuse l'écriture, puis la relecture. */
@@ -162,11 +168,19 @@ describe('Rapprochement : panneau et « Nouvel arrêté »', () => {
     expect(await ajDb.rapprochements.count()).toBe(1)
   })
 
-  it('aucun compte actif : message, « Nouvel arrêté » inactif', async () => {
+  it('aucun compte actif : message nuancé pour un nouvel arrêté (#857 · 2), « Nouvel arrêté » inactif ; la phrase de l’import ne change pas', async () => {
     await ajDb.banques.clear()
     await rendre()
-    expect(dansPanneau().getByText('Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».')).toBeInTheDocument()
+    expect(dansPanneau().getByText(AUCUN_COMPTE_ACTIF_RAPPROCHEMENT)).toBeInTheDocument()
+    expect(dansPanneau().queryByText(AUCUN_COMPTE_ACTIF_IMPORT)).toBeNull()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeDisabled()
+    expect(dansImport().getByText(AUCUN_COMPTE_ACTIF_IMPORT)).toBeInTheDocument()
+    expect(dansImport().queryByText(AUCUN_COMPTE_ACTIF_RAPPROCHEMENT)).toBeNull()
+  })
+
+  it('un compte actif : aucune des deux phrases « Aucun compte bancaire actif »', async () => {
+    await rendre()
+    expect(screen.queryByText(/^Aucun compte bancaire actif/)).toBeNull()
   })
 
   it('arrêté illisible écrit hors de l’écran : bandeau, et ni « Nouvel arrêté » ni « Clôturer » (refusés tant qu’il reste)', async () => {
@@ -531,8 +545,11 @@ describe('Rapprochement : comptes clôturés en lecture seule (PR de suite de la
     expect(dansPanneau().getByLabelText('Compte rapproché')).toHaveDisplayValue('Ancien compte · …2606 (clôturé)')
     expect(dansPanneau().getByText(PHRASE)).toBeInTheDocument()
     expect(dansPanneau().queryByRole('button', { name: /Nouvel arrêté/ })).toBeNull()
-    // Texte conservé (relecture, à valider par le référent métier) : l'indication vaut pour un nouvel arrêté.
-    expect(dansPanneau().getByText('Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».')).toBeInTheDocument()
+    // Réponse du référent métier du 28/11/2026 (point #857 · 2, choix A) : la phrase dit qu'elle vaut pour un nouvel
+    // arrêté ; elle ne semble plus dire que le compte affiché n'existe pas. Celle de l'import ne change pas.
+    expect(dansPanneau().getByText(AUCUN_COMPTE_ACTIF_RAPPROCHEMENT)).toBeInTheDocument()
+    expect(dansPanneau().queryByText(AUCUN_COMPTE_ACTIF_IMPORT)).toBeNull()
+    expect(dansImport().getByText(AUCUN_COMPTE_ACTIF_IMPORT)).toBeInTheDocument()
   })
 
   it('compte clôturé avec un arrêté illisible : l’alerte ne promet pas de reprise des actions (refusées pour toujours)', async () => {

@@ -10,12 +10,19 @@ import { Field } from '@/components/administrateur-judiciaire/ui/Field'
  * « Importer un relevé ». « Rapprochement » propose aussi, après les actifs, les comptes clôturés marqués « (clôturé) »
  * (décision du 26/11/2026, PR 799 point 18) : leurs arrêtés se consultent en lecture seule. Dans une
  * grille de deux colonnes (card-grid cols-2) : demi-largeur sur ordinateur, pleine largeur sur téléphone.
+ * Réponse du référent métier du 28/11/2026 (PR 857, point 2, choix A) : sans compte actif, « Rapprochement » dit que la
+ * phrase vaut pour un nouvel arrêté (AUCUN_COMPTE_ACTIF_NOUVEL_ARRETE, passée par `sansCompteActif`), un compte clôturé
+ * pouvant être affiché au-dessus ; la phrase de « Importer un relevé » (AUCUN_COMPTE_ACTIF) ne change pas.
  */
 
 /** Lecture des comptes bancaires par l'écran. */
 export type EtatComptes = 'chargement' | 'erreur' | 'lu'
 
 export const AUCUN_COMPTE_ACTIF = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
+
+/** Sous « Compte rapproché » seulement (réponse du référent métier du 28/11/2026, PR 857, point 2, choix A). */
+export const AUCUN_COMPTE_ACTIF_NOUVEL_ARRETE =
+  'Aucun compte bancaire actif : pour un nouvel arrêté, enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
 
 /**
  * Libellé court d'un compte dans la liste (décision du 26/11/2026, PR 799, rb-c05 A) : son nom et la fin de son IBAN
@@ -44,14 +51,26 @@ export interface ChoixCompteBancaireProps {
   choisir: (id: string) => void
   /** Plusieurs comptes : première option « Choisir le compte… » (aucun compte choisi d'office). */
   choixExige?: boolean
+  /** Phrase affichée sous la liste quand aucun compte n'est actif ; absente : AUCUN_COMPTE_ACTIF. */
+  sansCompteActif?: string
 }
 
-export function ChoixCompteBancaire({ label, name, etat, actifs, clotures = [], choisi, choisir, choixExige = false }: Readonly<ChoixCompteBancaireProps>) {
+export function ChoixCompteBancaire({
+  label,
+  name,
+  etat,
+  actifs,
+  clotures = [],
+  choisi,
+  choisir,
+  choixExige = false,
+  sansCompteActif = AUCUN_COMPTE_ACTIF,
+}: Readonly<ChoixCompteBancaireProps>) {
   const aucun = actifs.length === 0 && clotures.length === 0
   const indisponible = etat === 'chargement' ? 'Chargement…' : 'Comptes bancaires illisibles'
   return (
     <div className="card-grid cols-2">
-      <Field label={label} name={name} hint={etat === 'lu' && actifs.length === 0 ? AUCUN_COMPTE_ACTIF : undefined}>
+      <Field label={label} name={name} hint={etat === 'lu' && actifs.length === 0 ? sansCompteActif : undefined}>
         <select value={choisi?.id ?? ''} disabled={etat !== 'lu' || aucun} onChange={(evenement) => choisir(evenement.target.value)}>
           {etat !== 'lu' && <option value="">{indisponible}</option>}
           {etat === 'lu' && aucun && <option value="">Aucun compte actif</option>}
