@@ -17,6 +17,8 @@ export interface AppelSupabase {
   /** Filtres ilike (motif SQL : % et _, sans tenir compte de la casse). */
   ilike: Array<[string, string]>
   colonnes?: string
+  /** Valeur passée à .limit() (sans effet sur les lignes renvoyées). */
+  limite?: number
 }
 
 const correspondIlike = (valeur: unknown, motif: string) =>
@@ -68,7 +70,8 @@ export function clientMemoire(base: BaseMemoire) {
     }
     const q: Record<string, unknown> = {}
     q.select = vi.fn((colonnes?: string) => { if (appel.op === 'select') appel.colonnes = colonnes; return q })
-    for (const m of ['limit', 'is', 'neq']) q[m] = vi.fn(() => q)
+    for (const m of ['is', 'neq']) q[m] = vi.fn(() => q)
+    q.limit = vi.fn((n: number) => { appel.limite = n; return q })
     q.order = vi.fn((col: string, opts?: { ascending?: boolean }) => { tri = { col, asc: opts?.ascending !== false }; return q })
     q.eq = vi.fn((c: string, v: unknown) => { appel.eq.push([c, v]); return q })
     q.in = vi.fn((c: string, vs: unknown[]) => { appel.in.push([c, vs]); return q })
