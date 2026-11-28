@@ -157,7 +157,7 @@ export function templateSignalementQr({
     langue: 'fr',
     titreHtml: `${urgent ? 'Signalement urgent' : 'Nouveau signalement'} — ${e(copropriete.nom)}`,
     corpsHtml: corps,
-    piedHtml: 'Signalement déposé par QR code sur Vitfix Signal — VITFIX. Cet e-mail a été envoyé automatiquement.',
+    piedHtml: 'Signalement déposé par QR code sur Vitfix Signal. Cet e-mail a été envoyé automatiquement.',
   })
   return { subject: sujetSignalementQr(s, copropriete.nom), html }
 }
@@ -315,7 +315,7 @@ export function templateConfirmationAdresseQr({ nomCourt, cabinet, lien }: Param
     langue: 'fr',
     titreHtml: 'Confirmez votre adresse',
     corpsHtml: corps,
-    piedHtml: 'Vitfix Signal — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+    piedHtml: 'Vitfix Signal. Cet e-mail a été envoyé automatiquement.',
   })
   return { subject: `Vitfix Signal — ${cabinet} : confirmez votre adresse`, html }
 }
@@ -351,7 +351,7 @@ export function templateAccesGestionnaireQr({ nomCourt, cabinet, lien }: Paramet
     langue: 'fr',
     titreHtml: 'Votre accès à Vitfix Signal',
     corpsHtml: corps,
-    piedHtml: 'Vitfix Signal — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+    piedHtml: 'Vitfix Signal. Cet e-mail a été envoyé automatiquement.',
   })
   return { subject: `Vitfix Signal — ${cabinet} : ouvrez votre accès`, html }
 }
@@ -427,7 +427,7 @@ export function templateAlerteAdministrateurQr(p: { objet: string; texte: string
           </p>`
   const html = cadreEmailQr({
     langue: 'fr', titreHtml: 'Alerte', corpsHtml: corps,
-    piedHtml: 'Vitfix Signal — VITFIX. Cet e-mail a été envoyé automatiquement.',
+    piedHtml: 'Vitfix Signal. Cet e-mail a été envoyé automatiquement.',
   })
   return { subject: p.objet, html }
 }
@@ -600,8 +600,8 @@ export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmat
     pt: 'Se não foi o autor desta ocorrência, ignore esta mensagem.',
   },
   piedDePage: {
-    fr: 'Vitfix Signal — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
-    pt: 'Vitfix Signal — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
+    fr: 'Vitfix Signal. Cet e-mail a été envoyé automatiquement.',
+    pt: 'Vitfix Signal. Este e-mail foi enviado automaticamente.',
   },
   // Droit § 5.4, « Dans l'accusé de réception (a) — pas de bouton, mais ces deux phrases » : texte exact, à ne changer
   // qu'après relecture de la note (structure figée par tests/api/vitfixsignal-signalements.test.ts).
@@ -1160,8 +1160,8 @@ export const TEXTES_COPIE_DIFFUSION_QR: Record<LangueSignalementQr, TextesCopieD
     pt: 'Recebe esta cópia porque o envio de informações a quem comunicou ocorrências está ativado para a sua administração. Não contém o endereço das pessoas destinatárias.',
   },
   piedDePage: {
-    fr: 'Vitfix Signal — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
-    pt: 'Vitfix Signal — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
+    fr: 'Vitfix Signal. Cet e-mail a été envoyé automatiquement.',
+    pt: 'Vitfix Signal. Este e-mail foi enviado automaticamente.',
   },
   deuxPoints: { fr: ' : ', pt: ': ' },
 })

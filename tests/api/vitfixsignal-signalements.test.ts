@@ -812,7 +812,7 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
   ]
   const AUTOMATIQUE = ['Message automatique : ne répondez pas à cet e-mail.', 'Si vous n’êtes pas à l’origine de ce signalement, ignorez ce message.']
   const INFORMATION = ['Vos coordonnées sont traitées par Cabinet Exemple : Politique de confidentialité']
-  const PIED = ['Vitfix Signal — un service VITFIX. Cet e-mail a été envoyé automatiquement.']
+  const PIED = ['Vitfix Signal. Cet e-mail a été envoyé automatiquement.']
   const POLITIQUE = { cabinet: 'Cabinet Exemple', url: 'https://cabinet-exemple.test/confidentialite' }
 
   it.each([

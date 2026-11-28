@@ -227,7 +227,7 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
       pt: 'Este bloco não consta da lista do condomínio: recarregue a página, escolha o seu bloco na lista e tente novamente.',
     },
   }),
-  piedDePage: { fr: 'Vitfix Signal — un service VITFIX', pt: 'Vitfix Signal — um serviço VITFIX' },
+  piedDePage: { fr: 'Vitfix Signal', pt: 'Vitfix Signal' },
   informationTraitement: {
     fr: 'Vos coordonnées sont traitées par {cabinet} pour traiter votre signalement.',
     pt: 'Os seus dados são tratados por {cabinet} para tratar a sua ocorrência.',

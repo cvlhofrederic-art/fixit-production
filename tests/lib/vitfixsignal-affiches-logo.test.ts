@@ -251,7 +251,7 @@ describe('sans logo : affiche identique à celle d’avant (même suite d’appe
         ],
         [
           "text",
-          "Vitfix Signal - un service VITFIX",
+          "Vitfix Signal",
           105,
           284,
           {
@@ -464,7 +464,7 @@ describe('sans logo : affiche identique à celle d’avant (même suite d’appe
         ],
         [
           "text",
-          "Vitfix Signal - un service VITFIX",
+          "Vitfix Signal",
           105,
           284,
           {
@@ -635,7 +635,7 @@ describe('sans logo : affiche identique à celle d’avant (même suite d’appe
         ],
         [
           "text",
-          "Vitfix Signal - un service VITFIX",
+          "Vitfix Signal",
           105,
           284,
           {

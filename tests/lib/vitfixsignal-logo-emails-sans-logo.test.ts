@@ -67,18 +67,18 @@ describe('accusé de réception sans logo : HTML d’avant le logo', () => {
     expect(sorties).toMatchInlineSnapshot(`
       [
         {
-          "html": "64f997e406cf16f91059b74fabf64660a98c76f2fee2f035c71d30a6342aeab6",
-          "longueur": 4544,
+          "html": "2d8238161e197353437ec4098799c06cb869c28fe8fd7073e1da09a23d76aadd",
+          "longueur": 4524,
           "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",
         },
         {
-          "html": "8f6ba6206a770a526b1d63f69c46b36e88b6b6e624923450853f280fe1e2ab83",
-          "longueur": 5143,
+          "html": "f966300a5a03ec8091fea762918272b06bc7ed691ea17e83cb363d635e3c4298",
+          "longueur": 5123,
           "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",
         },
         {
-          "html": "b84ba268ed3a4f282ac14e3611d929efe61a8050cde0ba02631d02d58a2f5272",
-          "longueur": 4933,
+          "html": "d5dc3f5a03fea1dee2a957a24ecd2cc4d9d5eedce0e261542b42e60030a87333",
+          "longueur": 4913,
           "subject": "A sua ocorrência n.º 5F2C9A1E foi registada — Résidence Exemple",
         },
       ]
@@ -92,7 +92,7 @@ describe('accusé de réception sans logo : HTML d’avant le logo', () => {
     expect(Object.keys(charge).sort()).toEqual(['html', 'subject', 'tags', 'to'])
     expect({ ...charge, html: empreinte(sansConsigne(String(charge.html), signalement())) }).toMatchInlineSnapshot(`
       {
-        "html": "64f997e406cf16f91059b74fabf64660a98c76f2fee2f035c71d30a6342aeab6",
+        "html": "2d8238161e197353437ec4098799c06cb869c28fe8fd7073e1da09a23d76aadd",
         "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",
         "tags": [
           {
@@ -125,20 +125,20 @@ describe('e-mails de signalement aux destinataires : HTML d’avant le logo (un 
       [
         {
           "destinataire": "administrateur",
-          "html": "70c52883a3b2bf75eb6574f01a49cdba4fca6710d6fc0676bab5919adefd28eb",
-          "longueur": 5246,
+          "html": "72e79ee3423cb02d8d88e332827494eb5557f0c887958bc9498f529c762be19d",
+          "longueur": 5237,
           "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
         },
         {
           "destinataire": "gestionnaire",
-          "html": "a5ac82e0eead54b8a6327ba6f2ec9e590bcf4c3f3aece87a2ea62c0aa25958e7",
-          "longueur": 5233,
+          "html": "b62f1433eb59bb7da54661a66643fd4945b3294495cef07329575a6b6fd2ea09",
+          "longueur": 5224,
           "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
         },
         {
           "destinataire": "saisi",
-          "html": "58359f91139b7779d45733b4b21e2acbfeb7be622e18f62e037c294574c9e8bc",
-          "longueur": 4942,
+          "html": "f23d0aa91de60b20232afb16790dba596fc3ed09c119c05ff3445f66916daf39",
+          "longueur": 4933,
           "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
         },
       ]
@@ -157,7 +157,7 @@ describe('e-mails de signalement aux destinataires : HTML d’avant le logo (un 
     expect(lot.map((m) => ({ ...m, html: empreinte(String(m.html)) }))).toMatchInlineSnapshot(`
       [
         {
-          "html": "66a88ac5d61470602b9b5d96e8b207dad336099656da8d01b04bf040add8a722",
+          "html": "fbabc346c1856eee622fd6774d706b5b81cbf8e49d5b3f07dba4de9d042ba437",
           "replyTo": "declarant@exemple.test",
           "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
           "tags": [
@@ -169,7 +169,7 @@ describe('e-mails de signalement aux destinataires : HTML d’avant le logo (un 
           "to": "admin@exemple.test",
         },
         {
-          "html": "043e3d544a247b5b8fb5f58eb01cdf8a4ab6bd8d4c427bb046a88467bf2fd959",
+          "html": "f4d4feb5dc72e35364c9335352815da631f1e519cf7166dfa5e0e4426d37fa5a",
           "replyTo": "declarant@exemple.test",
           "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
           "tags": [
@@ -181,7 +181,7 @@ describe('e-mails de signalement aux destinataires : HTML d’avant le logo (un 
           "to": "gestion@exemple.test",
         },
         {
-          "html": "c8ff331995ed2fd1f9cae604901f547934b5e095e73063cae690a53de676ef0a",
+          "html": "8c91a5dcc4161e08ac7a369c323085203bc4b84cb59c9f37d4f1922cca31aa5a",
           "replyTo": "declarant@exemple.test",
           "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
           "tags": [

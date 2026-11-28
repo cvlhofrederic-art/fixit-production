@@ -202,5 +202,5 @@ function dessinerAfficheQr(pdf: DocumentPdf, affiche: AfficheQr, logo: LogoAffic
   pdf.setTextColor(74, 94, 120)
   pdf.text(affiche.url, centre, 272, { align: 'center' })
   pdf.setFontSize(9)
-  pdf.text('Vitfix Signal - un service VITFIX', centre, 284, { align: 'center' })
+  pdf.text('Vitfix Signal', centre, 284, { align: 'center' })
 }
