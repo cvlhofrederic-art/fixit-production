@@ -111,9 +111,10 @@
  * d'un refus affiché pendant qu'une fenêtre reste ouverte (« Enregistrement impossible » d'un compte bancaire, IBAN
  * invalide, « Ouverture refusée » d'un arrêté…) était flou et assombri sur ordinateur, caché par la fenêtre sur téléphone.
  * 1001 : juste au-dessus du voile des fenêtres, donc aussi de la palette ⌘K (--z-cmdk : 600) et des infobulles
- * (--z-tooltip : 700) ; sous le lien d'évitement (9999). Rien d'autre ne change : place, taille et aspect des messages.
- * Sur téléphone, le message (pleine largeur, à 74 px du bas) couvre le bas de la fenêtre le temps de son affichage (4 à
- * 6 s, × pour fermer).
+ * (--z-tooltip : 700) ; sous le lien d'évitement (9999). Rien d'autre ne change : cette règle ne déclare que le z-index,
+ * la place, la taille et l'aspect des messages restent ceux du correctif ci-dessus (messages sur le bouton Fixy), à
+ * chaque largeur. Sur téléphone, le message (pleine largeur, à 74 px du bas) couvre le bas de la fenêtre le temps de son
+ * affichage (4 à 6 s, × pour fermer).
  */
 #aj-root .vfx-toast-viewport{z-index:1001}
 

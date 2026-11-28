@@ -426,6 +426,17 @@ describe('messages (toasts) sur le bouton Fixy', () => {
 describe('messages (toasts) au-dessus des fenêtres du module', () => {
   const z = (selecteur: string) => Number(style(selecteur).zIndex)
   const variable = (nom: string) => Number(style('#aj-root').getPropertyValue(nom).trim())
+  /**
+   * Propriétés que déclare la règle du correctif, celle qui donne ce z-index aux messages. La place des messages est
+   * l'affaire du correctif « messages (toasts) sur le bouton Fixy » (bloc ci-dessus), qui la vérifie largeur par largeur :
+   * ce bloc n'en répète aucun chiffre, pour ne pas le contredire quand ce correctif-là change.
+   */
+  const proprietesDeLaRegle = (zIndex: string): string[][] =>
+    Array.from(document.styleSheets)
+      .flatMap((feuille) => Array.from(feuille.cssRules))
+      .filter((regle): regle is CSSStyleRule => regle instanceof CSSStyleRule)
+      .filter((regle) => regle.selectorText === '#aj-root .vfx-toast-viewport' && regle.style.getPropertyValue('z-index') === zIndex)
+      .map((regle) => Array.from(regle.style))
 
   it('sans le correctif, les messages passent sous le voile des fenêtres (constat du 27/11/2026)', () => {
     feuillesALargeur(1440, SANS_CORRECTIF)
@@ -445,9 +456,10 @@ describe('messages (toasts) au-dessus des fenêtres du module', () => {
       expect(z('.vfx-toast-viewport')).toBe(1001)
       expect(messages).toBeGreaterThan(variable('--z-cmdk'))
       expect(messages).toBeGreaterThan(variable('--z-tooltip'))
-      // Rien d'autre ne change : le bandeau du mode reste sous les voiles, les messages gardent leur place.
+      // Rien d'autre ne change : le bandeau du mode reste sous les voiles ; une seule règle, qui ne déclare que le z-index
+      // (ni place ni taille : les messages gardent celles du correctif « sur le bouton Fixy », à toutes les largeurs).
       expect(z('.vfx-demo-banner')).toBe(101)
-      expect(parseFloat(style('.vfx-toast-viewport').bottom)).toBe(largeur <= 768 ? 74 : 24)
+      expect(proprietesDeLaRegle('1001')).toEqual([['z-index']])
     })
 })
 
