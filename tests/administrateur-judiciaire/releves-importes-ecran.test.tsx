@@ -35,6 +35,10 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  * la fiche est dite ; un relevé nouveau sans ligne à écrire s'enregistre (« Enregistrer le relevé ») ; un relevé de même
  * identifiant mais de contenu différent a son propre bandeau et sa propre pastille ; le bandeau des lignes sans relevé
  * gardé dit si elles sont de ce compte ou non rattachées à un compte.
+ * Réponses du référent métier du 28/11/2026 : point #858 · 2 A, le bandeau « Relevé non repris, à vérifier » dit la marche
+ * à suivre, et un relevé CFONB 120 de même compte et de même période qu'un relevé gardé, mais de soldes différents, y
+ * figure aussi ; point #858 · 6 A, le bandeau « Lignes enregistrées sans relevé gardé » ne s'affiche que si une de ces
+ * lignes est datée dans la période d'un relevé analysé.
  * Base de démonstration (Le Clos des Vignes, C2 ; date figée au 04/06/2026), fichiers fictifs.
  */
 
@@ -338,6 +342,9 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     expect(bandeau.textContent).toContain(
       'même identifiant « RELEVE-2026-10-05-A » qu’un relevé importé sur ce compte le 04/06/2026, mais période, soldes ou totaux différents ; relevé non repris, à vérifier.',
     )
+    // Réponse du 28/11/2026, point #858 · 2 A : le bandeau dit quoi faire, une fois.
+    expect(bandeau.textContent).toContain('Marche à suivre : demander à la banque un relevé sous un nouvel identifiant.')
+    expect(bandeau.textContent?.match(/Marche à suivre/g)).toHaveLength(1)
     // Ce relevé n'est pas enregistré : le bandeau ne dit pas que tout l'est.
     expect(bandeau.textContent).not.toContain('Rien à importer')
     expect(etatsRelevesLus()).toEqual(['Non repris, à vérifier'])
@@ -346,6 +353,33 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     expect(annonce()).toBe(
       'Relevé analysé (camt.053 (ISO 20022)) : 0 ligne retenue. Relevé non repris, à vérifier : même identifiant qu’un relevé déjà importé, contenu différent.',
     )
+  })
+
+  it('CFONB 120, même période qu’un relevé gardé mais autre solde (réponse du 28/11/2026, point #858 · 2 A) : bandeau « à vérifier » et marche à suivre du CFONB', async () => {
+    await importerHorsEcran(CFONB_UN_COMPTE)
+    // Relevé gardé de la période du 30/09 au 05/10/2026 avec un autre nouveau solde (comme un relevé corrigé depuis par la banque).
+    await ajDb.relevesImportes.filter((garde) => garde.rang === 1).modify({ soldeClotureMineur: 1 })
+    await rendre()
+    analyser(CFONB_UN_COMPTE)
+    expect(titresAlertes()).toEqual(['Relevé déjà importé', 'Relevé non repris, à vérifier'])
+    const bandeau = alerte('Relevé non repris, à vérifier') as HTMLElement
+    expect(bandeau).toHaveClass('rust')
+    expect(bandeau.textContent).toContain(
+      'Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026) : même période qu’un relevé importé sur ce compte le 04/06/2026, mais soldes ou totaux différents ; relevé non repris, à vérifier.',
+    )
+    expect(bandeau.textContent).toContain('Marche à suivre : demander à la banque un relevé sur une autre période (un relevé CFONB 120 n’a pas d’identifiant).')
+    expect(bandeau.textContent).not.toContain('nouvel identifiant')
+    expect(etatsRelevesLus()).toEqual(['Non repris, à vérifier', 'Déjà importé'])
+    expect(alerte('Relevé déjà importé')?.textContent).not.toContain('Rien à importer')
+    expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
+    expect(boutonImporter()).toBeDisabled()
+    expect(annonce()).toBe(
+      'Relevé analysé (CFONB 120) : 0 ligne retenue. Relevé déjà importé : ses mouvements ne sont pas repris. ' +
+        'Relevé non repris, à vérifier : même période qu’un relevé déjà importé, soldes ou totaux différents.',
+    )
+    // Rien n'est écrit : les 5 lignes du premier import, les 2 relevés gardés.
+    expect(await lignesDuCompte()).toHaveLength(5)
+    expect(await listerRelevesImportes('C2')).toHaveLength(2)
   })
 
   it('fichier d’un relevé déjà importé et d’un relevé à vérifier : deux bandeaux, et aucun ne dit que tout est déjà enregistré', async () => {
@@ -371,8 +405,8 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
   })
 
   it('lignes non rattachées à un compte seulement (compte neuf) : le bandeau ne les attribue pas à ce compte', async () => {
-    // Ligne « 512 » seule, importée avant le choix du compte.
-    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    // Ligne « 512 » seule, importée avant le choix du compte, datée dans la période du relevé analysé.
+    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-10-02', libelle: 'VIR CHARGES', montant: 450 }])
     await rendre()
     analyser(CAMT_UN_RELEVE)
     expect(titresAlertes()).toEqual(['Lignes enregistrées sans relevé gardé'])
@@ -385,8 +419,8 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
   })
 
   it('lignes de ce compte et lignes non rattachées sans relevé gardé : le bandeau dit les deux', async () => {
-    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
-    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-11', libelle: 'VIR TRAVAUX', montant: 120 }])
+    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-10-02', libelle: 'VIR CHARGES', montant: 450 }])
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-10-03', libelle: 'VIR TRAVAUX', montant: 120 }])
     await rendre()
     analyser(CAMT_UN_RELEVE)
     expect(alerte('Lignes enregistrées sans relevé gardé')?.textContent).toContain(
@@ -395,7 +429,7 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
   })
 
   it('compte qui porte des lignes sans relevé gardé (CSV, import antérieur) : limite dite ; compte sans ligne : aucun bandeau', async () => {
-    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-10-02', libelle: 'VIR CHARGES', montant: 450 }])
     await rendre()
     analyser(CAMT_UN_RELEVE)
     expect(titresAlertes()).toEqual(['Lignes enregistrées sans relevé gardé'])
@@ -405,9 +439,30 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     )
     expect(boutonImporter()).toBeEnabled()
     // CSV : pas de relevé, pas de limite à dire (son dédoublonnage par date, montant et libellé est inchangé).
-    analyser('Date;Libellé;Montant\n10/05/2026;VIR CHARGES;450,00\n05/10/2026;VIR SEPA;350,00')
+    analyser('Date;Libellé;Montant\n02/10/2026;VIR CHARGES;450,00\n05/10/2026;VIR SEPA;350,00')
     expect(titresAlertes()).toEqual(['1 doublon déjà importé, écarté'])
     expect(boutonImporter()).toHaveTextContent('Importer 1 ligne')
+  })
+
+  it('lignes sans relevé gardé datées hors de la période du relevé analysé (réponse du 28/11/2026, point #858 · 6 A) : aucun bandeau', async () => {
+    // Lignes du 10/05 et du 11/05/2026 ; relevé analysé du 30/09/2026 au 05/10/2026.
+    await useDonneesStore.getState().importerReleve('C2', [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-11', libelle: 'VIR TRAVAUX', montant: 120 }])
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    expect(titresAlertes()).toEqual([])
+    expect(boutonImporter()).toHaveTextContent('Importer 4 lignes')
+    expect(boutonImporter()).toBeEnabled()
+    // Le même relevé daté de mai (du 30/04/2026 au 05/05/2026) : ses dates ne recouvrent pas non plus le 10/05 ni le 11/05.
+    analyser(CAMT_MAI)
+    expect(titresAlertes()).toEqual([])
+  })
+
+  it('ligne sans relevé gardé datée du dernier jour de la période (borne comprise) : le bandeau s’affiche', async () => {
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-10-05', libelle: 'VIR TRAVAUX', montant: 120 }])
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    expect(titresAlertes()).toEqual(['Lignes enregistrées sans relevé gardé'])
   })
 })
 

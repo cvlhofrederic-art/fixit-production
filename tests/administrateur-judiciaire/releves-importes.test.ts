@@ -171,6 +171,16 @@ describe('relevé ou mouvement déjà importé, relu de ce qui est gardé', () =
     expect(reconnaitreReleve({ ...empreinteReleve(premier), soldeClotureMineur: 1 }, connus)).toEqual({ connu: connus[0], comparaison: 'identifiant' })
     expect(reconnaitreReleve(empreinteReleve(second), connus)).toBeNull()
   })
+
+  it('reconnaitreReleve, relevé sans identifiant (CFONB 120) : même période qu’un relevé gardé, autre solde (réponse du 28/11/2026, point #858 · 2 A)', () => {
+    const [premier, suivant] = relevesCfonb(),
+      connus = [garde(premier, 'R1')]
+    expect(reconnaitreReleve(empreinteReleve(premier), connus)).toEqual({ connu: connus[0], comparaison: 'identique' })
+    expect(reconnaitreReleve({ ...empreinteReleve(premier), soldeClotureMineur: 1 }, connus)).toEqual({ connu: connus[0], comparaison: 'periode' })
+    expect(reconnaitreReleve({ ...empreinteReleve(premier), soldeOuvertureMineur: 1 }, connus)).toEqual({ connu: connus[0], comparaison: 'periode' })
+    // Relevé de la période suivante : inconnu, il sera repris.
+    expect(reconnaitreReleve(empreinteReleve(suivant), connus)).toBeNull()
+  })
 })
 
 describe('solde banque proposé à « Nouvel arrêté » : solde de clôture du dernier relevé importé du compte à la date', () => {

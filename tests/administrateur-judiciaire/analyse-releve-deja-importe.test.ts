@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { analyserReleve, type EntreeAnalyseReleve } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/analyse-releve'
+import {
+  MARCHES_A_SUIVRE_RELEVE_A_VERIFIER,
+  analyserReleve,
+  type EntreeAnalyseReleve,
+} from '@/components/administrateur-judiciaire/modules/finances/tresorerie/analyse-releve'
 import { lireReleve } from '@/lib/administrateur-judiciaire/domain/import/lecture-releve'
 import type { ReleveCompte } from '@/lib/administrateur-judiciaire/domain/import/releve-compte'
 import { origineDuMouvement, releveImporte, type ReleveImporte } from '@/lib/administrateur-judiciaire/domain/import/releves-importes'
@@ -17,6 +21,10 @@ import { origineDuMouvement, releveImporte, type ReleveImporte } from '@/lib/adm
  * compterait deux fois ses mouvements) ; un relevé de même identifiant mais de contenu différent n'est pas dit « déjà
  * importé » (relevesAVerifier, état « a_verifier ») ; la limite des lignes sans relevé gardé dit si elles sont du compte
  * choisi, non rattachées à un compte, ou les deux.
+ * Réponses du référent métier du 28/11/2026 : point #858 · 2 A, un relevé non repris dit sa marche à suivre, et un relevé
+ * sans identifiant (CFONB 120) de même compte et de même période qu'un relevé gardé, mais de soldes différents, est
+ * traité de même ; point #858 · 6 A, la limite des lignes sans relevé gardé n'est dite que si une de ces lignes est
+ * datée dans la période d'un relevé analysé.
  */
 
 const dossier = join(__dirname, 'fixtures', 'releves')
@@ -113,13 +121,87 @@ describe('relevé déjà importé sur le compte lors d’un import précédent',
     ])
     // Dit une seule fois : pas répété dans les avertissements.
     expect(analyse.avertissements).toEqual([])
+    // Réponse du 28/11/2026, point #858 · 2 A : l'écran dit quoi faire.
+    expect(analyse.motifsAVerifier).toEqual(['identifiant'])
   })
 
-  it('fichier sans relevé à vérifier : la liste des relevés à vérifier est vide', () => {
+  it('fichier sans relevé à vérifier : la liste des relevés à vérifier est vide, aucune marche à suivre', () => {
     const [premier] = lireReleve(CAMT_UN_RELEVE).releves
-    expect(analyserReleve(entree(CAMT_UN_RELEVE)).relevesAVerifier).toEqual([])
-    expect(analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(premier, 'R1')] })).relevesAVerifier).toEqual([])
-    expect(analyserReleve(entree('Date;Libellé;Montant\n05/10/2026;VIR SEPA;350,00')).relevesAVerifier).toEqual([])
+    for (const analyse of [
+      analyserReleve(entree(CAMT_UN_RELEVE)),
+      analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(premier, 'R1')] })),
+      analyserReleve(entree('Date;Libellé;Montant\n05/10/2026;VIR SEPA;350,00')),
+    ]) {
+      expect(analyse.relevesAVerifier).toEqual([])
+      expect(analyse.motifsAVerifier).toEqual([])
+    }
+  })
+
+  it('marche à suivre de chaque motif (réponse du 28/11/2026, point #858 · 2 A) : nouvel identifiant en camt.053, autre période sans identifiant', () => {
+    expect(MARCHES_A_SUIVRE_RELEVE_A_VERIFIER).toEqual({
+      identifiant: 'Marche à suivre : demander à la banque un relevé sous un nouvel identifiant.',
+      periode: 'Marche à suivre : demander à la banque un relevé sur une autre période (un relevé CFONB 120 n’a pas d’identifiant).',
+    })
+  })
+
+  it('CFONB 120, même compte et même période qu’un relevé gardé, nouveau solde différent : non repris, à vérifier, jamais dit « déjà importé »', () => {
+    const [premier] = lireReleve(CFONB_UN_COMPTE).releves
+    const analyse = analyserReleve(entree(CFONB_UN_COMPTE, { relevesImportes: [{ ...garde(premier, 'R1'), soldeClotureMineur: premier.soldeClotureMineur + 100 }] }))
+    // Le relevé suivant du fichier (du 05/10 au 06/10/2026) reste importable.
+    expect(analyse.releves.map((releve) => [releve.rang, releve.etat])).toEqual([
+      [1, 'a_verifier'],
+      [2, 'nouveau'],
+    ])
+    expect(analyse.retenues.map((ligne) => ligne.montant)).toEqual([-600])
+    expect(analyse.relevesAImporter.map((aGarder) => aGarder.releve.rang)).toEqual([2])
+    expect(analyse.relevesDejaImportes).toEqual([])
+    expect(analyse.relevesAVerifier).toEqual([
+      'Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026) : même période qu’un relevé importé sur ce compte le 20/11/2026, mais soldes ou totaux différents ; relevé non repris, à vérifier.',
+    ])
+    expect(analyse.motifsAVerifier).toEqual(['periode'])
+    // Dit une seule fois : pas répété dans les avertissements.
+    expect(analyse.avertissements).toEqual([])
+    expect(analyse.blocage).toBeNull()
+  })
+
+  it('CFONB 120, ancien solde différent sur la même période, relevé gardé sur une autre fiche : à vérifier, la fiche est dite', () => {
+    const [premier] = lireReleve(CFONB_UN_COMPTE).releves
+    const analyse = analyserReleve(
+      entree(CFONB_UN_COMPTE, {
+        comptes: [{ id: 'B2', libelle: 'Ancien compte · …7849', cloture: true }],
+        relevesImportes: [{ ...garde(premier, 'R1', 'B2'), soldeOuvertureMineur: premier.soldeOuvertureMineur + 100 }],
+      }),
+    )
+    expect(analyse.relevesAVerifier).toEqual([
+      'Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026) : même période qu’un relevé importé le 20/11/2026 sur un autre compte de la copropriété (« Ancien compte · …7849 », clôturé), mais soldes ou totaux différents ; relevé non repris, à vérifier.',
+    ])
+  })
+
+  it('CFONB 120, même compte, autre période qu’un relevé gardé : relevé nouveau, repris', () => {
+    const [premier] = lireReleve(CFONB_UN_COMPTE).releves
+    const analyse = analyserReleve(entree(CFONB_UN_COMPTE, { relevesImportes: [{ ...garde(premier, 'R1'), dateOuverture: '2026-09-29', soldeClotureMineur: 1 }] }))
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['nouveau', 'nouveau'])
+    expect(analyse.relevesAVerifier).toEqual([])
+    expect(analyse.retenues).toHaveLength(5)
+  })
+
+  it('fichier d’un relevé de même identifiant et d’un relevé de même période : les deux motifs, dans l’ordre « identifiant », « période »', () => {
+    // Second relevé du fichier camt.053 ramené sur le même compte (« RELEVE-2026-10-05-B », sans mouvement).
+    const deuxReleves = CAMT.replace('FR7612345000100008765432121', 'FR7612345000100001234567849'),
+      [premier, second] = lireReleve(deuxReleves).releves
+    const analyse = analyserReleve(
+      entree(deuxReleves, {
+        relevesImportes: [
+          // Gardé sans identifiant (comme lu d'un CFONB 120), même période, autre solde.
+          { ...garde(premier, 'R1'), identifiant: null, numeroSequence: null, soldeClotureMineur: 1 },
+          { ...garde(second, 'R2'), soldeClotureMineur: 1 },
+        ],
+      }),
+    )
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['a_verifier', 'a_verifier'])
+    expect(analyse.relevesAVerifier.map((message) => message.includes('même période'))).toEqual([true, false])
+    expect(analyse.relevesAVerifier.map((message) => message.includes('même identifiant « RELEVE-2026-10-05-B »'))).toEqual([false, true])
+    expect(analyse.motifsAVerifier).toEqual(['identifiant', 'periode'])
   })
 
   it('relevé gardé d’un autre compte en banque (autre IBAN) : il n’est pas un relevé déjà importé', () => {
@@ -229,7 +311,9 @@ describe('mouvement déjà importé d’un autre relevé, reconnu par la référ
 })
 
 describe('lignes sans relevé gardé : importées d’un CSV ou avant que les relevés soient gardés', () => {
-  const ancienne = { compte: '512-B1', date: new Date(2026, 8, 15), libelle: 'VIR ANCIEN', montant: 10, sens: 'debit' } as const
+  // Ligne du 02/10/2026 : dans la période du relevé analysé (du 30/09/2026 au 05/10/2026).
+  const ancienne = { compte: '512-B1', date: new Date(2026, 9, 2), libelle: 'VIR ANCIEN', montant: 10, sens: 'debit' } as const
+  const datee = (annee: number, mois: number, jour: number) => ({ ...ancienne, date: new Date(annee, mois - 1, jour) })
 
   it('compte qui porte de telles lignes : la limite est dite (un relevé qui les contient n’est pas reconnu)', () => {
     expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [ancienne] })).limiteEmpreintes).toBe('compte')
@@ -242,6 +326,45 @@ describe('lignes sans relevé gardé : importées d’un CSV ou avant que les re
     // Compte neuf, sans aucune ligne : seules d'anciennes lignes non rattachées de la copropriété existent.
     expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [nonRattachee] })).limiteEmpreintes).toBe('non_rattachees')
     expect(analyserReleve(entree(CAMT_UN_RELEVE, { lignesBanque: [ancienne, nonRattachee] })).limiteEmpreintes).toBe('compte_et_non_rattachees')
+  })
+
+  describe('réponse du référent métier du 28/11/2026, point #858 · 6 A : seulement si la période du relevé analysé recouvre la date de ces lignes', () => {
+    const limite = (texte: string, lignesBanque: EntreeAnalyseReleve['lignesBanque']) => analyserReleve(entree(texte, { lignesBanque })).limiteEmpreintes
+
+    it('lignes datées hors de la période du relevé (avant ou après) : la limite n’est pas dite', () => {
+      expect(limite(CAMT_UN_RELEVE, [datee(2026, 9, 15)])).toBeNull()
+      expect(limite(CAMT_UN_RELEVE, [datee(2026, 9, 29), datee(2026, 10, 6), datee(2026, 5, 10)])).toBeNull()
+    })
+
+    it('bornes comprises : ligne datée du premier ou du dernier jour de la période', () => {
+      expect(limite(CAMT_UN_RELEVE, [datee(2026, 9, 30)])).toBe('compte')
+      expect(limite(CAMT_UN_RELEVE, [datee(2026, 10, 5)])).toBe('compte')
+    })
+
+    it('une seule ligne dans la période suffit, parmi des lignes hors période', () => {
+      expect(limite(CAMT_UN_RELEVE, [datee(2026, 5, 10), datee(2026, 10, 1), datee(2026, 11, 2)])).toBe('compte')
+    })
+
+    it('la variante dite ne compte que les lignes de la période : du compte, non rattachées, ou les deux', () => {
+      const horsPeriode = datee(2026, 5, 10),
+        nonRattachee = { ...ancienne, compte: '512' }
+      expect(limite(CAMT_UN_RELEVE, [horsPeriode, nonRattachee])).toBe('non_rattachees')
+      expect(limite(CAMT_UN_RELEVE, [ancienne, { ...horsPeriode, compte: '512' }])).toBe('compte')
+      expect(limite(CAMT_UN_RELEVE, [horsPeriode, { ...horsPeriode, compte: '512' }])).toBeNull()
+    })
+
+    it('fichier de plusieurs relevés : la période de chacun compte', () => {
+      // Relevés du 30/09 au 05/10/2026 et du 05/10 au 06/10/2026.
+      expect(limite(CFONB_UN_COMPTE, [datee(2026, 10, 6)])).toBe('compte')
+      expect(limite(CFONB_UN_COMPTE, [datee(2026, 10, 7)])).toBeNull()
+    })
+
+    it('ligne venue d’un relevé gardé, dans la période : elle a son relevé, la limite n’est pas dite pour elle', () => {
+      const [premier] = lireReleve(CAMT_UN_RELEVE).releves,
+        ancien: ReleveCompte = { ...premier, identifiant: 'RELEVE-2026-10-01-A', dateCloture: '2026-10-01', mouvements: [premier.mouvements[0]] }
+      const analyse = analyserReleve(entree(CAMT_UN_RELEVE, { relevesImportes: [garde(ancien, 'R0')], lignesBanque: lignesDe(ancien, 'R0') }))
+      expect(analyse.limiteEmpreintes).toBeNull()
+    })
   })
 
   it('l’avertissement des mouvements semblables reste, pour un relevé structuré comme avant', () => {
@@ -257,7 +380,7 @@ describe('lignes sans relevé gardé : importées d’un CSV ou avant que les re
   })
 
   it('CSV : aucun relevé à garder, dédoublonnage par date, montant et libellé inchangé, aucune limite dite', () => {
-    const csv = 'Date;Libellé;Montant\n15/09/2026;VIR ANCIEN;10,00\n05/10/2026;VIR SEPA;350,00'
+    const csv = 'Date;Libellé;Montant\n02/10/2026;VIR ANCIEN;10,00\n05/10/2026;VIR SEPA;350,00'
     const analyse = analyserReleve(entree(csv, { lignesBanque: [ancienne], relevesImportes: [garde(lireReleve(CAMT_UN_RELEVE).releves[0], 'R1')] }))
     expect(analyse.format).toBe('csv')
     expect(analyse.doublons.map((ligne) => ligne.libelle)).toEqual(['VIR ANCIEN'])

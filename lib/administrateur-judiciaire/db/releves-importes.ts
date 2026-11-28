@@ -20,7 +20,8 @@ import {
  * - Écriture : dans la transaction des lignes du relevé seulement (importerReleve du store), jamais seule. Tout est écrit
  *   ou rien : un relevé gardé sans ses lignes ferait refuser son import, des lignes sans leur relevé seraient comptées
  *   deux fois à l'import suivant.
- * - Un relevé déjà gardé (même relevé, ou même identifiant avec un autre contenu : reconnaitreReleve) est refusé à
+ * - Un relevé déjà gardé (même relevé, même identifiant avec un autre contenu, ou, sans identifiant commun, même
+ *   période avec d'autres soldes — réponse du 28/11/2026, point #858 · 2 A : reconnaitreReleve) est refusé à
  *   l'écriture, sans rien écrire : l'analyse de l'écran l'écarte déjà, ce contrôle couvre une analyse périmée (import
  *   fait entre-temps dans un autre onglet, double clic). Retour de la relecture du 27/11/2026 : il est comparé à tous
  *   les relevés gardés de la copropriété, et non à ceux de la seule fiche de compte. Deux fiches peuvent porter le même

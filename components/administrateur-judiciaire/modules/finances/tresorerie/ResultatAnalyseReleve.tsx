@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import {
   LIBELLES_FORMAT_RELEVE,
+  MARCHES_A_SUIVRE_RELEVE_A_VERIFIER,
   PILL_CONFIANCE_RAPPROCHEMENT,
   textePourEcran,
   texteBlocage,
@@ -31,6 +32,10 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
  * copropriété peut porter le même IBAN) ; un relevé de même identifiant qu'un relevé gardé, mais de contenu différent, a
  * son bandeau (« Relevé non repris, à vérifier ») et sa pastille : ce n'est pas un relevé déjà importé ; le bandeau des
  * lignes sans relevé gardé dit si elles sont de ce compte, non rattachées à un compte, ou les deux.
+ * Réponses du référent métier du 28/11/2026 : point #858 · 2 A, le bandeau « Relevé non repris, à vérifier » dit quoi faire
+ * après ses messages (une marche à suivre par motif : même identifiant, ou même période pour un relevé sans identifiant
+ * commun, comme un CFONB 120) ; point #858 · 6 A, le bandeau des lignes sans relevé gardé ne s'affiche que si une de ces
+ * lignes est datée dans la période d'un relevé analysé (analyse-releve.ts, `limiteEmpreintes`).
  */
 
 const STYLE_DISCRET = { fontSize: 11, color: 'var(--navy-300)' } as const
@@ -84,6 +89,7 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
       {analyse.relevesAVerifier.length > 0 && (
         <Alert kind="rust" icon="alert" title={titreAVerifier(analyse.relevesAVerifier.length)}>
           {enLignes(analyse.relevesAVerifier)}
+          {enLignes(analyse.motifsAVerifier.map((motif) => MARCHES_A_SUIVRE_RELEVE_A_VERIFIER[motif]))}
         </Alert>
       )}
       {!structure && analyse.erreurs.length > 0 && (

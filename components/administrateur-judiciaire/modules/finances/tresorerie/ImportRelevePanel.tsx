@@ -9,6 +9,7 @@ import {
   LIBELLES_FORMAT_RELEVE,
   refusTailleReleve,
   type AnalyseReleve,
+  type MotifAVerifier,
   type SelectionsImputation,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/analyse-releve'
 import {
@@ -164,11 +165,22 @@ function annonceDejaImportes(nombre: number): string | null {
   return nombre > 1 ? `${nombre} relevés déjà importés : leurs mouvements ne sont pas repris.` : 'Relevé déjà importé : ses mouvements ne sont pas repris.'
 }
 
-/** Relevés non repris pour leur identifiant (celui d'un relevé gardé d'un autre contenu), annoncés de même ; null : aucun. */
-function annonceAVerifier(nombre: number): string | null {
+/** Ce qui fait écarter les relevés à vérifier, tel que l'annonce le dit : un motif, ou les deux. */
+function motifAnnonce(motifs: readonly MotifAVerifier[]): string {
+  if (motifs.length > 1) return 'même identifiant ou même période qu’un relevé déjà importé, contenu différent'
+  return motifs[0] === 'periode'
+    ? 'même période qu’un relevé déjà importé, soldes ou totaux différents'
+    : 'même identifiant qu’un relevé déjà importé, contenu différent'
+}
+
+/**
+ * Relevés non repris pour leur identifiant (celui d'un relevé gardé d'un autre contenu) ou, sans identifiant commun, pour
+ * leur période (réponse du 28/11/2026, point #858 · 2 A), annoncés de même ; null : aucun.
+ */
+function annonceAVerifier(nombre: number, motifs: readonly MotifAVerifier[]): string | null {
   if (nombre === 0) return null
   const sujet = nombre > 1 ? `${nombre} relevés non repris` : 'Relevé non repris'
-  return `${sujet}, à vérifier : même identifiant qu’un relevé déjà importé, contenu différent.`
+  return `${sujet}, à vérifier : ${motifAnnonce(motifs)}.`
 }
 
 /**
@@ -179,7 +191,7 @@ function annonceAnalyse(analyse: AnalyseReleve | null, motifCompte: string | nul
   if (!analyse) return ''
   const lignes = `Relevé analysé (${LIBELLES_FORMAT_RELEVE[analyse.format]}) : ${accord(analyse.retenues.length, 'ligne retenue', 'lignes retenues')}.`
   const motif = motifCompte ? `Import impossible : ${motifCompte}` : null
-  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), annonceAVerifier(analyse.relevesAVerifier.length), analyse.blocage, motif]
+  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), annonceAVerifier(analyse.relevesAVerifier.length, analyse.motifsAVerifier), analyse.blocage, motif]
     .filter((texte): texte is string => texte !== null)
     .join(' ')
 }
