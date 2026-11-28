@@ -279,6 +279,19 @@ function splitAddress(addr: string): { street: string; city: string | null } {
   return { street, city }
 }
 
+/**
+ * Registo d'une société portugaise pour le pied légal, saisi dans le champ « RCS / RM » :
+ * « CRC do Porto, matrícula n.º … » → « Registo comercial : CRC do Porto, matrícula n.º … » ;
+ * un texte qui porte déjà son libellé (Alvará…, Registo…, Conservatória…, Matrícula…) reste tel quel ;
+ * un alvará sans libellé (n.º IMPIC) devient « Alvará : … ».
+ */
+export function mentionRegistoPt(registo: string): string {
+  const texte = registo.trim().replace(/\.+$/, '')
+  if (/^(alvar[aá]|registo|conservat[oó]ria|matr[ií]cula)/i.test(texte)) return `${texte}.`
+  if (/alvar[aá]|impic/i.test(texte)) return `Alvará : ${texte}.`
+  return `Registo comercial : ${texte}.`
+}
+
 // ─── Main generator ──────────────────────────────────────
 
 export async function generateDevisPdfV3(
@@ -711,25 +724,40 @@ export async function generateDevisPdfV3(
   const boxPadX = ptToMm(11)  // ~3.88mm padding intérieur
   const boxPadTop = ptToMm(12)  // ~4.23mm padding top (plus aéré)
 
-  // ── Mesure hauteur émetteur ──
+  // ── Lignes de l'émetteur ──
+  // Comme pour le destinataire, les mêmes lignes servent à mesurer l'encadré et à
+  // le remplir. Avant, une adresse trop longue était rétrécie jusqu'à 8 pt puis
+  // sortait de l'encadré sur la colonne du destinataire : elle va désormais à la
+  // ligne, en 10 pt. Le nom n'était compté que sur 2 lignes (un 3e débordait).
   let ey = boxStartY + boxPadTop
   const emTx = boxX_em + boxPadX
   const emMaxW = emBoxW - boxPadX * 2
 
-  ey += ptToMm(18)  // label ÉMETTEUR
-  ey += ptToMm(14) * 2 + 1.5  // nom entreprise (peut wraper) + espace après nom
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold')
+  const nameLines = pdf.splitTextToSize(`${companyName} (${getStatusLabel(companyStatus, t)})`, emMaxW) as string[]
+  pdf.setFont('helvetica', 'normal')
+  const lignesAdresseEm: string[][] = []
   if (companyAddress) {
-    const sp = splitAddress(companyAddress)
-    ey += ptToMm(14)                 // Adresse
-    if (sp.city) ey += ptToMm(14)    // Ville
+    const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
+    const sp = splitAddress(addrNorm)
+    lignesAdresseEm.push(pdf.splitTextToSize(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`, emMaxW) as string[])
+    if (sp.city) lignesAdresseEm.push(pdf.splitTextToSize(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, emMaxW) as string[])
   }
+  // Document portugais : registo (conservatória, matrícula) et capital social sont
+  // imprimés dans le pied légal (art. 171.º CSC), pas répétés dans l'encadré.
+  const registoDansEncadre = !!companyRCS && locale !== 'pt'
+  const capitalDansEncadre = !!companyCapital && locale !== 'pt'
+
+  ey += ptToMm(18)  // label ÉMETTEUR
+  ey += ptToMm(14) * Math.max(2, nameLines.length) + 1.5  // nom entreprise + espace après nom
+  for (const lignes of lignesAdresseEm) ey += lignes.length * ptToMm(14)  // Adresse, Ville
   if (companyPhone) ey += ptToMm(14)
   if (companyEmail) ey += ptToMm(14)
   if (companySiret) ey += ptToMm(14)
-  if (companyRCS) ey += ptToMm(14)
+  if (registoDansEncadre) ey += ptToMm(14)
   if (tvaEnabled && tvaNumber) ey += ptToMm(14)
   if (companyAPE) ey += ptToMm(14)
-  if (companyCapital) ey += ptToMm(14)
+  if (capitalDansEncadre) ey += ptToMm(14)
 
   // ── Lignes du destinataire ──
   // La même liste sert à mesurer l'encadré et à le remplir. Avant, la mesure
@@ -797,25 +825,12 @@ export async function generateDevisPdfV3(
   pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey2)
   ey2 += ptToMm(18)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const companyNameWithStatus = `${companyName} (${getStatusLabel(companyStatus, t)})`
-  const nameLines = pdf.splitTextToSize(companyNameWithStatus, emMaxW)
   pdf.text(nameLines, emTx, ey2)
   ey2 += nameLines.length * ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
   // Ordre : Adresse → Ville → Tél → Email → SIRET → RCS → TVA → APE → Capital
-  if (companyAddress) {
-    const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
-    const sp = splitAddress(addrNorm)
-    const addrText = `${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`
-    let addrFs = 10
-    pdf.setFontSize(addrFs)
-    if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 9; pdf.setFontSize(addrFs) }
-    if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 8; pdf.setFontSize(addrFs) }
-    pdf.text(addrText, emTx, ey2); ey2 += ptToMm(14)
-    pdf.setFontSize(10)
-    if (sp.city) {
-      pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, emTx, ey2); ey2 += ptToMm(14)
-    }
+  for (const lignes of lignesAdresseEm) {
+    pdf.text(lignes.length > 1 ? lignes : lignes[0], emTx, ey2); ey2 += lignes.length * ptToMm(14)
   }
   // Helper : rendu d'une ligne d'identité avec ramping fontSize 10→9→8 si débordement
   // (évite que SIRET/RCS/TVA/APE/Email longs débordent à droite hors de l'encadré).
@@ -831,7 +846,7 @@ export async function generateDevisPdfV3(
   if (companyPhone) { drawEmitterLine(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`) }
   if (companyEmail) { drawEmitterLine(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${companyEmail}`) }
   if (companySiret) { drawEmitterLine(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${companySiret}`) }
-  if (companyRCS) {
+  if (registoDansEncadre) {
     // Auto-détection RCS vs RM (mutuellement exclusifs en droit français) :
     //   - RCS (Registre du Commerce et des Sociétés) → SAS, SARL, EURL, SASU,
     //     SCI, SCP, SA, SNC, EI commerciale
@@ -862,7 +877,7 @@ export async function generateDevisPdfV3(
   }
   if (tvaEnabled && tvaNumber) { drawEmitterLine(`${locale === 'pt' ? 'NIF intracom.' : 'TVA Intra.'} : ${tvaNumber}`) }
   if (companyAPE) { drawEmitterLine(`${locale === 'pt' ? 'CAE' : 'APE / NAF'} : ${companyAPE}`) }
-  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} ${locale === 'pt' ? '€' : 'EUR'}`) }
+  if (capitalDansEncadre) { drawEmitterLine(`Capital : ${companyCapital} EUR`) }
 
   // Destinataire
   let dy3 = boxStartY + boxPadTop
@@ -1741,8 +1756,11 @@ export async function generateDevisPdfV3(
   const statusLabel = getStatusLabel(companyStatus, t)
   let legal1 = `${companyName} (${statusLabel}).`
   if (companyStatus === 'ei' && locale !== 'pt') legal1 += ' Loi n° 2022-172 du 14 février 2022.'
-  if (companySiret) legal1 += ` SIRET : ${companySiret}.`
-  if (companyAPE) legal1 += ` APE : ${companyAPE}.`
+  if (companySiret) legal1 += locale === 'pt' ? ` NIF : ${companySiret}.` : ` SIRET : ${companySiret}.`
+  if (companyAPE) legal1 += locale === 'pt' ? ` CAE : ${companyAPE}.` : ` APE : ${companyAPE}.`
+  // Conservatória et n.º de matrícula (art. 171.º CSC) : sur un document portugais,
+  // ici seulement (plus dans l'encadré émetteur).
+  if (locale === 'pt' && companyRCS.trim()) legal1 += ` ${mentionRegistoPt(companyRCS)}`
 
   // 2. Mention TVA / IVA — pilotée par le régime effectif et locale-aware
   // (source unique : lib/tva-calculator.ts/getMentionLegale). La mention est
