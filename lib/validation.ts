@@ -1724,13 +1724,11 @@ export const proTeamInviteSchema = z.object({
 })
 
 // ── Pro Team Invite Accept schema ──────────────────────────────────────────
+// Le mot de passe est soit celui d'un compte existant (aucune règle : choisi avant celle-ci), soit celui d'un compte à
+// créer : la règle de lib/equipe/mot-de-passe-invitation.ts s'applique alors côté serveur, une fois l'état du compte connu.
 export const proInviteAcceptSchema = z.object({
   token: z.string().min(1).max(200),
-  password: z.string()
-    .min(8, 'Minimum 8 caractères')
-    .max(200)
-    .regex(/[A-Z]/, 'Au moins 1 majuscule')
-    .regex(/[0-9]/, 'Au moins 1 chiffre'),
+  password: z.string().min(1).max(200),
 })
 
 // ── Pro Team Permissions Update schema ─────────────────────────────────────
