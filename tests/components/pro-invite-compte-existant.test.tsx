@@ -233,6 +233,19 @@ describe('autres cas', () => {
     expect(envois).toEqual([{ token: 'lien-signe', password: 'ancien' }])
   })
 
+  it('état inconnu, mot de passe neuf refusé par le serveur (400 « mot_de_passe_faible ») : ses défauts sont affichés', async () => {
+    simulerServeur({ etat_compte: 'inconnu' }, { statut: 400, corps: { code: 'mot_de_passe_faible', defauts: ['longueur', 'chiffre', 'inconnu'] } })
+    render(<ProInvitePage />)
+    await screen.findByText(/Si vous avez déjà un compte Vitfix avec cette adresse, entrez le sien/)
+    remplir('invite-mot-de-passe', 'faible')
+    remplir('invite-confirmation', 'faible')
+    fireEvent.click(screen.getByRole('button', { name: "Créer mon compte et rejoindre l'équipe" }))
+    const alerte = await screen.findByRole('alert')
+    expect(alerte.textContent).toMatch(/Minimum 8 caractères/)
+    expect(alerte.textContent).toMatch(/Au moins 1 chiffre/)
+    expect(alerte.textContent).not.toMatch(/majuscule/)
+  })
+
   it('compte devenu « autre espace » au moment de l’envoi (409) : écran « Adresse déjà utilisée ailleurs »', async () => {
     simulerServeur({ etat_compte: 'existant' }, { statut: 409, corps: { code: 'autre_espace' } })
     render(<ProInvitePage />)
@@ -261,23 +274,20 @@ describe('autres cas', () => {
     expect(screen.queryByText('Invitation invalide')).toBeNull()
   })
 
-  it('code de lien refusé avec un statut qui n’est pas un refus de lien (400) : erreur dans le formulaire', async () => {
-    simulerServeur({ etat_compte: 'existant' }, { statut: 400, corps: { code: 'invalide' } })
+  it.each([
+    ['code de lien refusé avec un statut qui n’est pas un refus de lien (400)', 400, 'invalide', /Une erreur est survenue/, null],
+    ['lien refusé au moment de l’envoi (410 « expiree »)', 410, 'expiree', null, 'Invitation expirée'],
+  ])('%s', async (_cas, statut, code, messageFormulaire, titreEcran) => {
+    simulerServeur({ etat_compte: 'existant' }, { statut, corps: { code } })
     render(<ProInvitePage />)
     await screen.findByLabelText('Mot de passe de votre compte Vitfix')
     remplir('invite-mot-de-passe', 'ancien')
     fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Une erreur est survenue/)
-    expect(screen.queryByText('Invitation invalide')).toBeNull()
-  })
-
-  it('lien refusé au moment de l’envoi (410 « expiree ») : écran « Invitation expirée »', async () => {
-    simulerServeur({ etat_compte: 'existant' }, { statut: 410, corps: { code: 'expiree' } })
-    render(<ProInvitePage />)
-    await screen.findByLabelText('Mot de passe de votre compte Vitfix')
-    remplir('invite-mot-de-passe', 'ancien')
-    fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
-    expect(await screen.findByText('Invitation expirée')).toBeTruthy()
+    if (titreEcran) expect(await screen.findByText(titreEcran)).toBeTruthy()
+    if (messageFormulaire) {
+      expect((await screen.findByRole('alert')).textContent).toMatch(messageFormulaire)
+      expect(screen.queryByText('Invitation invalide')).toBeNull()
+    }
   })
 
   it('session refusée par le navigateur : écran « Bienvenue » avec « Se connecter », aucune navigation', async () => {

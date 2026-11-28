@@ -20,7 +20,7 @@ import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
 import { estAppMobile } from '@/lib/app-mobile'
 import { ROLE_LABELS, type ProTeamRole } from '@/lib/permissions'
 import { defautsMotDePasseNeuf } from '@/lib/equipe/mot-de-passe-invitation'
-import { TEXTES, type LangueInvitation, type MotifRefus, type ErreurFormulaire } from './textes'
+import { textesInvitation, type LangueInvitation, type MotifRefus, type ErreurFormulaire } from './textes'
 
 type EtatCompte = 'aucun' | 'existant' | 'autre_espace' | 'inconnu'
 
@@ -39,14 +39,23 @@ interface SessionRecue {
 
 type Etape = 'chargement' | 'formulaire' | 'autre_espace' | 'refus' | 'ouverture' | 'succes'
 
-const MOTIFS_REFUS: readonly MotifRefus[] = ['invalide', 'deja_utilisee', 'desactivee', 'expiree']
-const ERREURS_SERVEUR: readonly ErreurFormulaire[] = ['mot_de_passe_incorrect', 'non_confirme', 'recharger', 'non_validee', 'erreur']
+const MOTIFS_REFUS: ReadonlySet<string> = new Set<MotifRefus>(['invalide', 'deja_utilisee', 'desactivee', 'expiree'])
+const ERREURS_SERVEUR: ReadonlySet<string> = new Set<ErreurFormulaire>(['mot_de_passe_incorrect', 'non_confirme', 'recharger', 'non_validee', 'erreur'])
 /** Statuts d'un lien refusé par le serveur (404 invalide, 409 déjà acceptée, 410 expirée ou désactivée). */
-const STATUTS_REFUS: readonly number[] = [404, 409, 410]
-const ETATS_COMPTE: readonly EtatCompte[] = ['aucun', 'existant', 'autre_espace', 'inconnu']
+const STATUTS_REFUS: ReadonlySet<number> = new Set([404, 409, 410])
+const ETATS_COMPTE: ReadonlySet<string> = new Set<EtatCompte>(['aucun', 'existant', 'autre_espace', 'inconnu'])
+
+/** Réponse de POST /api/pro/invite (champs lus par la page). */
+interface ReponseAcceptation {
+  success?: boolean
+  compte_existant?: boolean
+  session?: SessionRecue
+  code?: string
+  defauts?: unknown
+}
 
 function motifRefus(code: unknown): MotifRefus {
-  return MOTIFS_REFUS.includes(code as MotifRefus) ? (code as MotifRefus) : 'invalide'
+  return typeof code === 'string' && MOTIFS_REFUS.has(code) ? (code as MotifRefus) : 'invalide'
 }
 
 /** Panne passagère (trop de demandes, serveur) : jamais présentée comme une invitation invalide. */
@@ -107,7 +116,7 @@ function InvitePageContent() {
   const [envoi, setEnvoi] = useState(false)
   // Compte existant rattaché (réponse du serveur), pour le texte de l'écran de fin quand la session n'a pas été ouverte.
   const [rattache, setRattache] = useState(false)
-  const t = TEXTES[langue]
+  const t = textesInvitation(langue)
 
   useEffect(() => {
     if (!token) {
@@ -123,7 +132,7 @@ function InvitePageContent() {
         if (data.langue === 'pt' || data.langue === 'fr') setLangue(data.langue)
 
         if (res.ok && data.valid) {
-          const etat: EtatCompte = ETATS_COMPTE.includes(data.etat_compte) ? data.etat_compte : 'inconnu'
+          const etat: EtatCompte = ETATS_COMPTE.has(data.etat_compte) ? data.etat_compte : 'inconnu'
           setInvitation({ ...data, etat_compte: etat })
           setEtape(etat === 'autre_espace' ? 'autre_espace' : 'formulaire')
         } else {
@@ -150,6 +159,36 @@ function InvitePageContent() {
     return messages
   }
 
+  /** Invitation acceptée : session posée et entrée dans l'espace, sinon écran « Bienvenue » avec « Se connecter ». */
+  const entrerApresAcceptation = async (data: ReponseAcceptation) => {
+    const rattacheIci = data.compte_existant === true
+    setRattache(rattacheIci)
+    const destination = data.session ? await poserSession(data.session, langue) : null
+    if (destination) {
+      setEtape('ouverture')
+      window.location.assign(destination)
+      return
+    }
+    if (rattacheIci) await renouvelerSessionOuverte()
+    setEtape('succes')
+  }
+
+  /** Refus du serveur : écran dédié (autre espace, lien refusé) ou message sous le formulaire. */
+  const afficherRefus = (statut: number, data: ReponseAcceptation) => {
+    const code = typeof data.code === 'string' ? data.code : ''
+    if (statut === 429) return setErreurs([t.erreurs.trop])
+    if (code === 'autre_espace') return setEtape('autre_espace')
+    if (STATUTS_REFUS.has(statut) && MOTIFS_REFUS.has(code)) {
+      setRefus(code as MotifRefus)
+      return setEtape('refus')
+    }
+    if (code === 'mot_de_passe_faible' && Array.isArray(data.defauts)) {
+      const defauts = (data.defauts as unknown[]).filter((d): d is keyof typeof t.defauts => typeof d === 'string' && d in t.defauts)
+      return setErreurs(defauts.map(d => t.defauts[d]))
+    }
+    setErreurs([t.erreurs[ERREURS_SERVEUR.has(code) ? (code as ErreurFormulaire) : 'erreur']])
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const avantEnvoi = controlerAvantEnvoi()
@@ -166,33 +205,9 @@ function InvitePageContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),
       })
-      const data = await res.json()
-
-      if (res.ok && data.success) {
-        setRattache(data.compte_existant === true)
-        if (data.session) {
-          const destination = await poserSession(data.session, langue)
-          if (destination) {
-            setEtape('ouverture')
-            window.location.assign(destination)
-            return
-          }
-        }
-        if (data.compte_existant === true) await renouvelerSessionOuverte()
-        setEtape('succes')
-        return
-      }
-
-      if (res.status === 429) setErreurs([t.erreurs.trop])
-      else if (data.code === 'autre_espace') setEtape('autre_espace')
-      else if (STATUTS_REFUS.includes(res.status) && MOTIFS_REFUS.includes(data.code)) {
-        setRefus(data.code)
-        setEtape('refus')
-      } else if (data.code === 'mot_de_passe_faible' && Array.isArray(data.defauts)) {
-        setErreurs((data.defauts as string[]).filter(d => d in t.defauts).map(d => t.defauts[d as keyof typeof t.defauts]))
-      } else {
-        setErreurs([t.erreurs[ERREURS_SERVEUR.includes(data.code) ? (data.code as ErreurFormulaire) : 'erreur']])
-      }
+      const data: ReponseAcceptation = await res.json()
+      if (res.ok && data.success) await entrerApresAcceptation(data)
+      else afficherRefus(res.status, data)
     } catch {
       setErreurs([t.erreurs.reseau])
     } finally {
