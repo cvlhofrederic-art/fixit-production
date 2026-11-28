@@ -499,6 +499,9 @@ export function Shell() {
   const [favoris, setFavoris] = useState<string[]>(() => lireJsonStocke<string[]>(CLE_FAVORIS, '[]', []))
   const [recents, setRecents] = useState<string[]>(() => lireJsonStocke<string[]>(CLE_RECENTS, '[]', []))
   const notificationsRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLElement>(null)
+  const boutonMenuRef = useRef<HTMLButtonElement>(null)
+  const menuEtaitOuvertRef = useRef(false)
   const boutonNotificationsRef = useRef<HTMLButtonElement>(null)
   /** Ouverture de la palette, lue par l'écouteur clavier global (installé une seule fois). */
   const paletteOuverteRef = useRef(false)
@@ -576,6 +579,15 @@ export function Shell() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMenuMobileOuvert(false)
   }, [route])
+
+  useEffect(() => {
+    // Menu refermé avec le focus dedans : le menu fermé est masqué (visibility:hidden, aj-correctifs.css) et le focus
+    // tomberait sur le document ; il revient au bouton ☰. Déclaré après l'effet de la palette : si elle se referme en
+    // même temps, le focus qu'elle vient de rendre à un élément du menu est repris ici. Pas de déplacement à l'ouverture.
+    const etaitOuvert = menuEtaitOuvertRef.current
+    menuEtaitOuvertRef.current = menuMobileOuvert
+    if (etaitOuvert && !menuMobileOuvert && menuRef.current?.contains(document.activeElement)) boutonMenuRef.current?.focus()
+  }, [menuMobileOuvert])
 
   useEffect(() => {
     if (!menuMobileOuvert) return
@@ -724,7 +736,7 @@ export function Shell() {
       <DemoBanner />
       <FixyLauncher route={route} fixy={fixy} />
       <div className="app">
-        <aside className={`sidebar ${menuMobileOuvert ? 'is-open' : ''}`} aria-label="Navigation principale">
+        <aside ref={menuRef} className={`sidebar ${menuMobileOuvert ? 'is-open' : ''}`} aria-label="Navigation principale">
           <div className="brand">
             <div className="mark">V</div>
             <div>
@@ -854,6 +866,7 @@ export function Shell() {
         <main id="main" tabIndex={-1} aria-label="Contenu principal">
           <div className="topbar" role="banner">
             <button
+              ref={boutonMenuRef}
               className="hamburger"
               aria-label="Ouvrir le menu"
               aria-expanded={menuMobileOuvert}
