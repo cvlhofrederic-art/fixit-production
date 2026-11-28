@@ -14,6 +14,7 @@ import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invit
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
 import { texteSurUneLigne } from '@/lib/sanitize'
 import { normaliserCategorie, LONGUEUR_MAX_CATEGORIE } from '@/lib/equipe/categorie-professionnelle'
+import { resoudreSocieteDuCompte } from '@/lib/btp/perimetre-compte'
 
 // ── Co-gérant (25/11/2026) ───────────────────────────────────────────────────
 // Un gérant invité dans la société d'un autre compte (societeDunAutreCompte) gère l'équipe de CETTE société, jamais
@@ -83,7 +84,14 @@ export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`pro_team_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
-  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  const resolution = await resoudreSocieteDuCompte(user, supabaseAdmin)
+  // Ligne d'équipe du compte illisible (panne) : erreur. Une équipe vide se serait donnée pour vraie, et l'écran
+  // Comptes utilisateurs la garde 30 s (signalement du 27/11/2026).
+  if (resolution.etat === 'illisible') {
+    logger.error('[PRO_TEAM] GET : ligne d’équipe du compte illisible')
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+  const companyId = resolution.etat === 'resolue' ? resolution.societeId : user.id
 
   // Self-healing : si le gérant n'apparaît pas comme membre (cas des sociétés
   // inscrites avant l'auto-init au signup), on l'ajoute idempotamment ici.
