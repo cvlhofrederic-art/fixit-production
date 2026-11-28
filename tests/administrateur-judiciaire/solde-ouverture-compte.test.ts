@@ -262,10 +262,27 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
     })
 
     it('plusieurs arrêtés : le refus nomme le premier arrêté du compte ; tous les arrêtés clôturés couvriraient la nouvelle date', () => {
-      const arretes = [arrete('2026-05-31', 'En cours'), arrete('2026-04-30', 'Clôturé'), arrete('2026-03-31', 'Clôturé')]
-      // L'arrêté en cours n'est pas le premier : l'abandonner ne suffirait pas, le refus ne le propose pas.
-      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(
+      const clotures = [arrete('2026-04-30', 'Clôturé'), arrete('2026-03-31', 'Clôturé')]
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes: clotures })).toThrow(
         refusEntier('31/03/2026, clôturé', 'Le dater au plus tard du 31/03/2026, après avoir déclôturé les arrêtés clôturés du compte.'),
+      )
+      // L'arrêté en cours n'est pas le premier : l'abandonner ne suffit pas, mais c'est un préalable (voir le cas suivant).
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes: [arrete('2026-05-31', 'En cours'), ...clotures] })).toThrow(
+        refusEntier(
+          '31/03/2026, clôturé',
+          'Le dater au plus tard du 31/03/2026, après avoir abandonné l’arrêté en cours du 31/05/2026, puis déclôturé les arrêtés clôturés du compte.',
+        ),
+      )
+    })
+
+    it('premier arrêté clôturé et arrêté en cours sur le compte : le refus dit d’abandonner l’arrêté en cours avant de déclôturer (la déclôture est refusée tant qu’il existe)', () => {
+      // Retour de relecture du 28/11/2026 : sans cet abandon, « Déclôturer » répond « Déclôture refusée : un arrêté est en cours sur ce compte. »
+      const arretes = [arrete('2026-04-30', 'Clôturé'), arrete('2026-06-03', 'En cours')]
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(
+        refusEntier(
+          '30/04/2026, clôturé',
+          'Le dater au plus tard du 30/04/2026, après avoir abandonné l’arrêté en cours du 03/06/2026, puis déclôturé celui du 30/04/2026.',
+        ),
       )
     })
 

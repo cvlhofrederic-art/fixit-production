@@ -60,8 +60,10 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  *   de ce jour a pour solde compta le solde d'ouverture lui-même. La réponse ne nommait que l'arrêté clôturé : l'arrêté
  *   en cours est traité de même, faute de quoi il resterait un arrêté en cours daté avant le solde d'ouverture, que sa
  *   clôture refuserait (choix à soumettre au référent métier). Le refus du solde d'ouverture dit la marche à suivre,
- *   comme le refus voisin (retour de relecture du 28/11/2026, texte à valider par le référent métier) : le dater au plus
- *   tard du jour du premier arrêté ; ou, quand ce premier arrêté est en cours, l'abandonner d'abord ;
+ *   comme le refus voisin (retours de relecture du 28/11/2026, textes à valider par le référent métier) : le dater au
+ *   plus tard du jour du premier arrêté ; ou, quand ce premier arrêté est en cours, l'abandonner d'abord. Quand ce
+ *   premier arrêté est clôturé, cette date n'est admise qu'après avoir déclôturé les arrêtés clôturés du compte, et la
+ *   déclôture qu'après avoir abandonné l'arrêté en cours s'il y en a un : le refus dit l'un et l'autre ;
  * - solde d'ouverture illisible (même réponse, point 8, choix A) : des champs enregistrés hors de l'écran, sans date ou
  *   mal formés, n'entrent toujours dans aucun solde, mais soldeOuvertureIllisible les reconnaît, pour que l'écran les
  *   signale par un bandeau au lieu de les ignorer en silence.
@@ -164,13 +166,20 @@ const REGLE_PREMIER_ARRETE = 'Un solde d’ouverture se date avant le premier ar
  *   est alors admise, l'arrêté se recalcule ; l'abandonner est l'autre issue, le clôturer ne changerait rien.
  * - Premier arrêté clôturé : à la date conseillée, chaque arrêté clôturé du compte couvre le solde d'ouverture, et le
  *   refus voisin demande de les déclôturer d'abord ; le refus l'annonce, pour ne pas conseiller une date refusée à son
- *   tour sans le dire. Abandonner l'arrêté en cours, s'il y en a un, ne suffirait pas : il n'est pas proposé ici.
+ *   tour sans le dire. Abandonner l'arrêté en cours, s'il y en a un, ne suffit pas, mais c'est un préalable : tant
+ *   qu'il existe, la déclôture est refusée (domain/rapprochement-bancaire.ts, decloturerArrete). Le refus le dit donc
+ *   lui aussi, comme le refus voisin, et nomme alors l'arrêté à déclôturer par sa date, « cet arrêté » pouvant se lire
+ *   de l'arrêté en cours (retour de relecture du 28/11/2026, texte à valider par le référent métier).
  */
 function marcheApresPremierArrete(premier: ArreteDuCompte, arretes: readonly ArreteDuCompte[]): string {
-  const dater = `Le dater au plus tard du ${dateIsoVersFr(premier.dateArrete)}`
+  const jour = dateIsoVersFr(premier.dateArrete)
+  const dater = `Le dater au plus tard du ${jour}`
   if (premier.statut === 'En cours') return `${dater}, ou abandonner d’abord cet arrêté en cours.`
   const plusieurs = arretes.filter((arrete) => arrete.statut === 'Clôturé').length > 1
-  return `${dater}, après avoir déclôturé ${plusieurs ? 'les arrêtés clôturés du compte' : 'cet arrêté'}.`
+  const enCours = arretes.find((arrete) => arrete.statut === 'En cours')
+  if (!enCours) return `${dater}, après avoir déclôturé ${plusieurs ? 'les arrêtés clôturés du compte' : 'cet arrêté'}.`
+  const declotures = plusieurs ? 'les arrêtés clôturés du compte' : `celui du ${jour}`
+  return `${dater}, après avoir abandonné l’arrêté en cours du ${dateIsoVersFr(enCours.dateArrete)}, puis déclôturé ${declotures}.`
 }
 
 /**
@@ -210,8 +219,10 @@ export function refusArreteAvantOuverture(dateArrete: string, ouverture: SoldeOu
  * Refuse aussi, et d'abord, un solde d'ouverture daté APRÈS un arrêté du compte, clôturé ou en cours (réponse du
  * référent métier du 28/11/2026, PR 848, point 4, choix A ; voir l'en-tête) : la date elle-même est refusée, déclôturer
  * n'y changerait rien. Le refus nomme le premier arrêté du compte et dit lui aussi la marche à suivre : dater le solde
- * d'ouverture au plus tard de ce jour, ou abandonner d'abord cet arrêté quand il est en cours. Le même jour n'est pas
- * « après ». Retirer le solde d'ouverture, ou le laisser tel quel, n'est jamais refusé par cette règle.
+ * d'ouverture au plus tard de ce jour, ou abandonner d'abord cet arrêté quand il est en cours ; quand il est clôturé,
+ * le dater ainsi après avoir déclôturé les arrêtés clôturés du compte, l'arrêté en cours abandonné d'abord s'il y en a
+ * un. Le même jour n'est pas « après ». Retirer le solde d'ouverture, ou le laisser tel quel, n'est jamais refusé par
+ * cette règle.
  */
 export function verifierChangementSoldeOuverture({ avant, apres, compteActif, arretes }: ChangementSoldeOuverture): void {
   if (memeSoldeOuverture(avant, apres)) return
