@@ -146,7 +146,10 @@ describe('Solde d’ouverture : formulaires « Nouveau compte » et « Modifier 
     const partOuverture = (ligne: HTMLElement) => ligne.querySelector<HTMLElement>('td:nth-child(3) .muted')
     expect(principal.textContent).toContain(euros(1428.5))
     const part = partOuverture(principal)
-    expect(part?.textContent).toBe(`dont ouverture ${euros(1000)} au 01/05/2026`)
+    // Séparateur des milliers visible : espace insécable ordinaire, comme les montants des arrêtés (décision du
+    // 26/11/2026, rb-c02 A) ; l'espace fine du format français ne s'affiche pas dans la police du texte.
+    expect(part?.textContent).toBe('dont ouverture 1 000,00 € au 01/05/2026')
+    expect(part?.textContent).not.toContain(' ')
     // Même cellule que le solde, sur sa propre ligne.
     expect(part?.closest('td')?.textContent).toContain(euros(1428.5))
     expect(part).toHaveStyle({ display: 'block' })

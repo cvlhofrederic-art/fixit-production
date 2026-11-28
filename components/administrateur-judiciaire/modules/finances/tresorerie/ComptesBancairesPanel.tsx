@@ -6,6 +6,7 @@ import {
   CompteBancaireModal,
   nomDuCompte,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
+import { eurosArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import {
   ibanGroupe,
   vueComptesBancaires,
@@ -129,7 +130,8 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
                 <span className="mono">{compte.soldeCentimes === null ? '—' : formatEurosCentimes(compte.soldeCentimes / 100)}</span>
                 {compte.soldeOuverture && (
                   <span className="muted" style={STYLE_SECONDAIRE}>
-                    {`dont ouverture ${formatEurosCentimes(compte.soldeOuverture.centimes / 100)} au ${dateIsoVersFr(compte.soldeOuverture.au)}`}
+                    {/* Séparateur des milliers visible dans la police du texte, comme les montants des arrêtés (rb-c02 A). */}
+                    {`dont ouverture ${eurosArrete(compte.soldeOuverture.centimes)} au ${dateIsoVersFr(compte.soldeOuverture.au)}`}
                   </span>
                 )}
               </td>
