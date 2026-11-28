@@ -16,8 +16,12 @@ export interface SessionInvite {
   expires_in: number
 }
 
-/** Verdict sur le mot de passe d'un compte existant : « erreur » = le service n'a pas pu répondre (ni oui ni non). */
-export type VerdictMotDePasse = 'valide' | 'refuse' | 'erreur'
+/**
+ * Verdict sur le mot de passe d'un compte existant : « refuse » = identifiants refusés ; « non_confirme » = adresse jamais
+ * confirmée (la connexion est refusée même avec le bon mot de passe) ; « erreur » = le service n'a pas pu répondre, ou un
+ * autre refus (compte bloqué…) : la page ne dit alors jamais « mot de passe incorrect ».
+ */
+export type VerdictMotDePasse = 'valide' | 'refuse' | 'non_confirme' | 'erreur'
 
 function clientAnonyme(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
@@ -25,9 +29,13 @@ function clientAnonyme(): SupabaseClient {
   })
 }
 
-/** Erreur d'identifiants (mauvais mot de passe, adresse non confirmée) : statut 400 de Supabase Auth. */
-function refusDIdentifiants(erreur: { status?: number }): boolean {
-  return erreur.status === 400
+/** Refus de Supabase Auth lu à son code (auth-js : invalid_credentials, email_not_confirmed) ; null = autre cas. */
+function verdictDuRefus(erreur: { status?: number; code?: string; message?: string }): VerdictMotDePasse | null {
+  if (erreur.code === 'email_not_confirmed') return 'non_confirme'
+  if (erreur.code === 'invalid_credentials') return 'refuse'
+  // Serveur Auth plus ancien, sans code : seul le message « Invalid login credentials » vaut refus.
+  if (!erreur.code && erreur.status === 400 && /invalid login credentials/i.test(erreur.message ?? '')) return 'refuse'
+  return null
 }
 
 /**
@@ -39,7 +47,8 @@ export async function verifierMotDePasseDuCompte(email: string, motDePasse: stri
     const client = clientAnonyme()
     const { data, error } = await client.auth.signInWithPassword({ email, password: motDePasse })
     if (error) {
-      if (refusDIdentifiants(error)) return 'refuse'
+      const verdict = verdictDuRefus(error)
+      if (verdict) return verdict
       logger.error('[PRO_INVITE] vérification du mot de passe impossible', { status: error.status, code: error.code })
       return 'erreur'
     }

@@ -15,6 +15,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useLocale } from '@/lib/i18n/context'
 import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
 import { estAppMobile } from '@/lib/app-mobile'
 import { ROLE_LABELS, type ProTeamRole } from '@/lib/permissions'
@@ -39,15 +40,18 @@ interface SessionRecue {
 type Etape = 'chargement' | 'formulaire' | 'autre_espace' | 'refus' | 'ouverture' | 'succes'
 
 const MOTIFS_REFUS: readonly MotifRefus[] = ['invalide', 'deja_utilisee', 'desactivee', 'expiree']
-const ERREURS_SERVEUR: readonly ErreurFormulaire[] = ['mot_de_passe_incorrect', 'recharger', 'non_validee', 'erreur']
+const ERREURS_SERVEUR: readonly ErreurFormulaire[] = ['mot_de_passe_incorrect', 'non_confirme', 'recharger', 'non_validee', 'erreur']
+/** Statuts d'un lien refusé par le serveur (404 invalide, 409 déjà acceptée, 410 expirée ou désactivée). */
+const STATUTS_REFUS: readonly number[] = [404, 409, 410]
 const ETATS_COMPTE: readonly EtatCompte[] = ['aucun', 'existant', 'autre_espace', 'inconnu']
-
-function langueDeLAdresse(): LangueInvitation {
-  return typeof window !== 'undefined' && window.location.pathname.startsWith('/pt') ? 'pt' : 'fr'
-}
 
 function motifRefus(code: unknown): MotifRefus {
   return MOTIFS_REFUS.includes(code as MotifRefus) ? (code as MotifRefus) : 'invalide'
+}
+
+/** Panne passagère (trop de demandes, serveur) : jamais présentée comme une invitation invalide. */
+function pannePassagere(statut: number): boolean {
+  return statut === 429 || statut >= 500
 }
 
 function libelleRole(role: string, langue: LangueInvitation): string {
@@ -90,7 +94,10 @@ function InvitePageContent() {
   const searchParams = useSearchParams()
   const token = searchParams?.get('token') || ''
 
-  const [langue, setLangue] = useState<LangueInvitation>(langueDeLAdresse)
+  // Langue du site d'abord (identique au rendu serveur et dans le navigateur : pas d'écart à l'hydratation), puis celle
+  // de la société dès la réponse du serveur.
+  const localeSite = useLocale()
+  const [langue, setLangue] = useState<LangueInvitation>(localeSite === 'pt' ? 'pt' : 'fr')
   const [etape, setEtape] = useState<Etape>('chargement')
   const [refus, setRefus] = useState<MotifRefus>('invalide')
   const [invitation, setInvitation] = useState<Invitation | null>(null)
@@ -120,7 +127,7 @@ function InvitePageContent() {
           setInvitation({ ...data, etat_compte: etat })
           setEtape(etat === 'autre_espace' ? 'autre_espace' : 'formulaire')
         } else {
-          setRefus(motifRefus(data.code))
+          setRefus(pannePassagere(res.status) ? 'reseau' : motifRefus(data.code))
           setEtape('refus')
         }
       } catch {
@@ -178,7 +185,7 @@ function InvitePageContent() {
 
       if (res.status === 429) setErreurs([t.erreurs.trop])
       else if (data.code === 'autre_espace') setEtape('autre_espace')
-      else if (MOTIFS_REFUS.includes(data.code)) {
+      else if (STATUTS_REFUS.includes(res.status) && MOTIFS_REFUS.includes(data.code)) {
         setRefus(data.code)
         setEtape('refus')
       } else if (data.code === 'mot_de_passe_faible' && Array.isArray(data.defauts)) {
@@ -192,6 +199,12 @@ function InvitePageContent() {
       setEnvoi(false)
     }
   }
+
+  let intro = t.introInconnu
+  if (compteExistant) intro = t.introExistant
+  else if (etatCompte === 'aucun') intro = t.introNouveau
+  let libelleBouton = compteExistant ? t.boutonRejoindre : t.boutonCreer
+  if (envoi) libelleBouton = t.enCours
 
   const lienConnexion = `/${langue}/auth/login/`
   const lienOubli = `/${langue}/auth/reset-password/`
@@ -220,7 +233,7 @@ function InvitePageContent() {
               <div className="text-4xl mb-4">{refus === 'deja_utilisee' ? '✅' : '❌'}</div>
               <h2 className="text-lg font-bold text-gray-900 mb-2">{t.refus[refus].titre}</h2>
               <p className="text-sm text-gray-500 mb-6">{t.refus[refus].texte}</p>
-              <a href={lienConnexion} className="inline-block px-6 py-3 rounded-lg font-bold text-sm" style={boutonJaune}>
+              <a href={lienConnexion} className="text-sm font-semibold" style={{ color: '#FFC107' }}>
                 {t.seConnecter} →
               </a>
               {refus === 'deja_utilisee' && (
@@ -258,9 +271,7 @@ function InvitePageContent() {
                 </div>
               </div>
 
-              <p className="text-sm text-gray-700 mb-4">
-                {compteExistant ? t.introExistant : etatCompte === 'aucun' ? t.introNouveau : t.introInconnu}
-              </p>
+              <p className="text-sm text-gray-700 mb-4">{intro}</p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -308,7 +319,7 @@ function InvitePageContent() {
                   className="w-full py-3 rounded-lg font-bold text-sm transition"
                   style={boutonJaune}
                 >
-                  {envoi ? t.enCours : compteExistant ? t.boutonRejoindre : t.boutonCreer}
+                  {libelleBouton}
                 </button>
 
                 {etatCompte !== 'aucun' && (

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validation = validateBody(proInviteAcceptSchema, body)
     if (!validation.success) {
-      return NextResponse.json({ error: validation.error, code: 'invalide' }, { status: 400 })
+      return NextResponse.json({ error: validation.error, code: 'requete' }, { status: 400 })
     }
     const { token, password } = validation.data
 
@@ -91,7 +91,10 @@ export async function POST(request: NextRequest) {
     }
     const { invite } = lecture
 
-    if (!(await checkRateLimit(`pro_invite_essais_${invite.id}`, ESSAIS_PAR_INVITATION, FENETRE_ESSAIS_MS))) {
+    // Chaque envoi est un essai de mot de passe pour cette adresse : bornés par invitation, et comptés avec ceux de la
+    // connexion à ce compte (même clé que /api/auth/login).
+    if (!(await checkRateLimit(`pro_invite_essais_${invite.id}`, ESSAIS_PAR_INVITATION, FENETRE_ESSAIS_MS))
+      || !(await checkRateLimit(`login_email_${invite.email.toLowerCase().trim()}`, ESSAIS_PAR_INVITATION, FENETRE_ESSAIS_MS))) {
       return rateLimitResponse()
     }
 

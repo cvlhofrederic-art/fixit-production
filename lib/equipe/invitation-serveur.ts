@@ -121,12 +121,15 @@ type Rattachement = { statut: 'rattache'; userId: string } | { statut: 'introuva
 /**
  * Compte Supabase Auth de cette adresse, cherché page par page pour ne pas charger tous les comptes en mémoire.
  * Comparaison sans tenir compte de la casse (Supabase Auth range les adresses en minuscules). « erreur » si la
- * liste n'a pas pu être lue jusqu'au bout : on ne conclut pas alors qu'aucun compte n'existe.
+ * liste n'a pas pu être lue jusqu'au bout : on ne conclut pas alors qu'aucun compte n'existe. Plafond de
+ * PAGES_MAX pages (20 000 comptes) : au-delà, « erreur » plutôt qu'une boucle sans fin.
  */
+const PAGES_MAX = 200
+
 export async function trouverCompteParEmail(email: string): Promise<{ id: string } | null | 'erreur'> {
   const cherche = email.trim().toLowerCase()
   const parPage = 100
-  for (let page = 1; ; page++) {
+  for (let page = 1; page <= PAGES_MAX; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: parPage })
     if (error) return 'erreur'
     const users = data?.users ?? []
@@ -134,6 +137,8 @@ export async function trouverCompteParEmail(email: string): Promise<{ id: string
     if (trouve) return { id: trouve.id }
     if (users.length < parPage) return null // dernière page
   }
+  logger.error('[EQUIPE] liste des comptes plus longue que le plafond de recherche', { pages: PAGES_MAX })
+  return 'erreur'
 }
 
 /** État du compte de l'adresse invitée, lu par la page d'invitation pro pour choisir son formulaire. */
@@ -152,15 +157,19 @@ export async function etatCompteInvite(espace: EspaceEquipe, email: string): Pro
   return compteRattachable(espace, data.user.app_metadata || {}) ? 'existant' : 'autre_espace'
 }
 
-/** Compte existant de l'e-mail invité, rattaché à l'équipe s'il le peut (compteRattachable). */
+/**
+ * Compte existant de l'e-mail invité, rattaché à l'équipe s'il le peut (compteRattachable). `compteConnu` : compte
+ * déjà trouvé par l'appelant (pas de seconde recherche).
+ */
 async function rattacherCompteExistant(
   espace: EspaceEquipe,
   email: string,
   metadonnees: Record<string, unknown>,
+  compteConnu?: { id: string },
 ): Promise<Rattachement> {
   const { journal } = ESPACES[espace]
 
-  const existant = await trouverCompteParEmail(email)
+  const existant = compteConnu ?? await trouverCompteParEmail(email)
   if (existant === 'erreur') {
     logger.error(`${journal} Liste des comptes illisible`)
     return { statut: 'erreur' }
@@ -252,9 +261,10 @@ async function rattacherEtMarquer(
   espace: EspaceEquipe,
   invite: LigneInvitation,
   metadonnees: Record<string, unknown>,
+  compteConnu?: { id: string },
 ): Promise<ResultatAcceptation> {
   const { journal } = ESPACES[espace]
-  const rattachement = await rattacherCompteExistant(espace, invite.email, metadonnees)
+  const rattachement = await rattacherCompteExistant(espace, invite.email, metadonnees, compteConnu)
   if (rattachement.statut === 'autre_espace') {
     return { status: 409, corps: { error: MESSAGE_COMPTE_AUTRE_ESPACE, code: 'autre_espace' } }
   }
@@ -309,9 +319,10 @@ export async function accepterInvitation(
  * Acceptation d'une invitation pro, comme dans les grands logiciels (28/11/2026) :
  * - adresse sans compte : le mot de passe choisi doit suivre la règle de mot-de-passe-invitation.ts, puis le compte
  *   est créé ;
- * - adresse qui a déjà un compte : le mot de passe tapé doit être CELUI de ce compte (vérifié par une connexion) avant
- *   tout rattachement. Une invitation ne change jamais le mot de passe d'un compte, et le lien seul ne suffit plus à
- *   rattacher un compte existant.
+ * - adresse qui a déjà un compte : un compte d'un autre espace est refusé d'emblée (409, sans essayer le mot de passe :
+ *   la réponse ne dit rien de lui) ; sinon le mot de passe tapé doit être CELUI de ce compte (vérifié par une connexion)
+ *   avant tout rattachement. Une invitation ne change jamais le mot de passe d'un compte, et le lien seul ne suffit plus
+ *   à rattacher un compte existant.
  * La route ouvre ensuite la session de l'invité (session-invite.ts) : il entre directement dans son espace.
  */
 export async function accepterInvitationAvecConnexion(
@@ -340,12 +351,24 @@ export async function accepterInvitationAvecConnexion(
     return creation
   }
 
+  const { data: lu, error: lectureError } = await supabaseAdmin.auth.admin.getUserById(compte.id)
+  if (lectureError || !lu?.user) {
+    logger.error(`${journal} Lecture du compte existant impossible:`, lectureError)
+    return { status: 500, corps: { error: 'Erreur lors de la lecture du compte', code: 'erreur' } }
+  }
+  if (!compteRattachable(espace, lu.user.app_metadata || {})) {
+    return { status: 409, corps: { error: MESSAGE_COMPTE_AUTRE_ESPACE, code: 'autre_espace' } }
+  }
+
   const verdict = await verifierMotDePasseDuCompte(invite.email, motDePasse)
   if (verdict === 'refuse') {
     return { status: 401, corps: { error: 'Mot de passe incorrect', code: 'mot_de_passe_incorrect' } }
   }
+  if (verdict === 'non_confirme') {
+    return { status: 403, corps: { error: 'Adresse du compte jamais confirmée', code: 'non_confirme' } }
+  }
   if (verdict === 'erreur') {
     return { status: 503, corps: { error: 'Connexion momentanément impossible. Réessayez.', code: 'erreur' } }
   }
-  return rattacherEtMarquer(espace, invite, metadonnees)
+  return rattacherEtMarquer(espace, invite, metadonnees, compte)
 }

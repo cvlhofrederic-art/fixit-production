@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   setSession: vi.fn(),
   assign: vi.fn(),
   appMobile: false,
+  locale: 'fr' as 'fr' | 'pt',
 }))
 
 vi.mock('next/navigation', () => ({
@@ -30,6 +31,7 @@ vi.mock('@/lib/supabase', () => ({
   supabase: { auth: { getSession: h.getSession, refreshSession: h.refreshSession, setSession: h.setSession } },
 }))
 vi.mock('@/lib/app-mobile', () => ({ estAppMobile: () => h.appMobile }))
+vi.mock('@/lib/i18n/context', () => ({ useLocale: () => h.locale }))
 
 const { default: ProInvitePage } = await import('@/app/(commun)/pro/invite/page')
 
@@ -74,6 +76,7 @@ beforeEach(() => {
   })
   h.assign.mockReset()
   h.appMobile = false
+  h.locale = 'fr'
 })
 
 afterEach(() => {
@@ -208,6 +211,90 @@ describe('autres cas', () => {
     expect(screen.queryByText(/GERANT/)).toBeNull()
   })
 
+  it.each([
+    ['trop de demandes (429)', 429],
+    ['panne du serveur (500)', 500],
+  ])('lecture du lien en %s : « Erreur de connexion », jamais « Invitation invalide »', async (_cas, statut) => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'x', code: 'erreur' }, { status: statut })))
+    render(<ProInvitePage />)
+    expect(await screen.findByText('Erreur de connexion')).toBeTruthy()
+    expect(screen.queryByText('Invitation invalide')).toBeNull()
+  })
+
+  it('état du compte inconnu : deux champs, aucune règle imposée avant l’envoi, « Mot de passe oublié ? »', async () => {
+    const envois = simulerServeur({ etat_compte: 'inconnu' }, { statut: 401, corps: { code: 'mot_de_passe_incorrect' } })
+    render(<ProInvitePage />)
+    expect(await screen.findByText(/Si vous avez déjà un compte Vitfix avec cette adresse, entrez le sien/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toBeTruthy()
+    remplir('invite-mot-de-passe', 'ancien')
+    remplir('invite-confirmation', 'ancien')
+    fireEvent.click(screen.getByRole('button', { name: "Créer mon compte et rejoindre l'équipe" }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Mot de passe incorrect/)
+    expect(envois).toEqual([{ token: 'lien-signe', password: 'ancien' }])
+  })
+
+  it('compte devenu « autre espace » au moment de l’envoi (409) : écran « Adresse déjà utilisée ailleurs »', async () => {
+    simulerServeur({ etat_compte: 'existant' }, { statut: 409, corps: { code: 'autre_espace' } })
+    render(<ProInvitePage />)
+    await screen.findByLabelText('Mot de passe de votre compte Vitfix')
+    remplir('invite-mot-de-passe', 'ancien')
+    fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
+    expect(await screen.findByText('Adresse déjà utilisée ailleurs')).toBeTruthy()
+  })
+
+  it('adresse jamais confirmée (403) : message qui mène à « Mot de passe oublié ? »', async () => {
+    simulerServeur({ etat_compte: 'existant' }, { statut: 403, corps: { code: 'non_confirme' } })
+    render(<ProInvitePage />)
+    await screen.findByLabelText('Mot de passe de votre compte Vitfix')
+    remplir('invite-mot-de-passe', 'ancien')
+    fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/jamais été confirmée/)
+  })
+
+  it('corps refusé par la validation (400 « requete ») : erreur dans le formulaire, pas un écran de lien refusé', async () => {
+    simulerServeur({ etat_compte: 'existant' }, { statut: 400, corps: { code: 'requete' } })
+    render(<ProInvitePage />)
+    await screen.findByLabelText('Mot de passe de votre compte Vitfix')
+    remplir('invite-mot-de-passe', 'ancien')
+    fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Une erreur est survenue/)
+    expect(screen.queryByText('Invitation invalide')).toBeNull()
+  })
+
+  it('code de lien refusé avec un statut qui n’est pas un refus de lien (400) : erreur dans le formulaire', async () => {
+    simulerServeur({ etat_compte: 'existant' }, { statut: 400, corps: { code: 'invalide' } })
+    render(<ProInvitePage />)
+    await screen.findByLabelText('Mot de passe de votre compte Vitfix')
+    remplir('invite-mot-de-passe', 'ancien')
+    fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Une erreur est survenue/)
+    expect(screen.queryByText('Invitation invalide')).toBeNull()
+  })
+
+  it('lien refusé au moment de l’envoi (410 « expiree ») : écran « Invitation expirée »', async () => {
+    simulerServeur({ etat_compte: 'existant' }, { statut: 410, corps: { code: 'expiree' } })
+    render(<ProInvitePage />)
+    await screen.findByLabelText('Mot de passe de votre compte Vitfix')
+    remplir('invite-mot-de-passe', 'ancien')
+    fireEvent.click(screen.getByRole('button', { name: "Rejoindre l'équipe" }))
+    expect(await screen.findByText('Invitation expirée')).toBeTruthy()
+  })
+
+  it('session refusée par le navigateur : écran « Bienvenue » avec « Se connecter », aucune navigation', async () => {
+    h.setSession.mockResolvedValue({ data: { user: null }, error: { message: 'jeton refusé' } })
+    const avertissement = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    simulerServeur({ etat_compte: 'aucun' }, { corps: { success: true, session: SESSION } })
+    render(<ProInvitePage />)
+    await screen.findByText('Choisissez le mot de passe de votre compte Vitfix.')
+    remplir('invite-mot-de-passe', 'MotDePasse1')
+    remplir('invite-confirmation', 'MotDePasse1')
+    fireEvent.click(screen.getByRole('button', { name: "Créer mon compte et rejoindre l'équipe" }))
+    expect(await screen.findByText("Bienvenue dans l'équipe")).toBeTruthy()
+    expect(screen.getByText('Votre compte est prêt. Connectez-vous pour ouvrir votre espace.')).toBeTruthy()
+    expect(h.assign).not.toHaveBeenCalled()
+    avertissement.mockRestore()
+  })
+
   it('trop de tentatives (429) : message dédié', async () => {
     simulerServeur({ etat_compte: 'existant' }, { statut: 429, corps: { error: 'rate' } })
     render(<ProInvitePage />)
@@ -219,6 +306,14 @@ describe('autres cas', () => {
 })
 
 describe('société portugaise', () => {
+  it('site en portugais : premier rendu déjà en portugais (même texte au serveur et au navigateur)', () => {
+    h.locale = 'pt'
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)))
+    render(<ProInvitePage />)
+    expect(screen.getByText('A verificar o convite…')).toBeTruthy()
+    expect(screen.getByText('ESPAÇO PRO')).toBeTruthy()
+  })
+
   it('page en portugais, rôle « Gerente », liens vers les pages /pt', async () => {
     simulerServeur({ etat_compte: 'existant', langue: 'pt' })
     render(<ProInvitePage />)
@@ -230,7 +325,7 @@ describe('société portugaise', () => {
     expect(screen.queryByText(/Mot de passe/)).toBeNull()
   })
 
-  it('mauvais mot de passe : message en portugais ; entrée dans l’espace /pt', async () => {
+  it('mauvais mot de passe : message en portugais', async () => {
     simulerServeur({ etat_compte: 'existant', langue: 'pt' }, { statut: 401, corps: { code: 'mot_de_passe_incorrect' } })
     render(<ProInvitePage />)
     await screen.findByLabelText('Palavra-passe da sua conta Vitfix')

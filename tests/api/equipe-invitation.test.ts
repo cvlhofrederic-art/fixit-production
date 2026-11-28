@@ -566,6 +566,7 @@ describe('invitation pro : compte existant prouvé par son mot de passe, session
       expect(await res.json()).toMatchObject({ success: true, compte_existant: true, session: SESSION })
       expect(h.verifierMotDePasse).toHaveBeenCalledWith(EMAIL, 'AncienMdp')
       expect(h.admin.createUser).not.toHaveBeenCalled()
+      expect(h.admin.listUsers).toHaveBeenCalledTimes(1) // compte cherché une seule fois
       expect(h.admin.updateUserById).toHaveBeenCalledWith('compte-existant', {
         app_metadata: { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: EQUIPE_ID },
       })
@@ -599,20 +600,51 @@ describe('invitation pro : compte existant prouvé par son mot de passe, session
       expect(misesAJour()).toHaveLength(0)
     })
 
-    it("compte d'un autre espace : mot de passe vérifié d'abord, puis 409 « autre_espace », rien n'est modifié", async () => {
+    // La réponse ne doit rien dire du mot de passe d'un compte artisan, client ou admin (bon ou mauvais : même 409).
+    it("compte d'un autre espace : 409 « autre_espace » sans essayer le mot de passe, rien n'est modifié", async () => {
       h.admin.getUserById.mockResolvedValue({ data: { user: { id: 'compte-existant', app_metadata: { role: 'artisan' } } }, error: null })
       const res = await accepter('AncienMdp')
       expect(res.status).toBe(409)
       expect((await res.json()).code).toBe('autre_espace')
-      expect(h.verifierMotDePasse).toHaveBeenCalled()
+      expect(h.verifierMotDePasse).not.toHaveBeenCalled()
       expect(h.admin.updateUserById).not.toHaveBeenCalled()
+    })
+
+    it('adresse du compte jamais confirmée : 403 « non_confirme », rien n’est rattaché', async () => {
+      h.verifierMotDePasse.mockResolvedValue('non_confirme')
+      const res = await accepter('AncienMdp')
+      expect(res.status).toBe(403)
+      expect((await res.json()).code).toBe('non_confirme')
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+      expect(misesAJour()).toHaveLength(0)
+    })
+
+    it('lecture du compte en échec : 500 avant tout essai de mot de passe', async () => {
+      h.admin.getUserById.mockResolvedValue({ data: { user: null }, error: { message: 'timeout' } })
+      expect((await accepter('AncienMdp')).status).toBe(500)
+      expect(h.verifierMotDePasse).not.toHaveBeenCalled()
     })
   })
 
-  it("essais bornés par invitation (10 par quart d'heure)", async () => {
+  it("essais bornés par invitation et comptés avec ceux de la connexion à ce compte (10 par quart d'heure)", async () => {
     const { checkRateLimit } = await import('@/lib/rate-limit')
     await accepter('MotDePasse1')
     expect(checkRateLimit).toHaveBeenCalledWith(`pro_invite_essais_${INVITE_ID}`, 10, 15 * 60_000)
+    expect(checkRateLimit).toHaveBeenCalledWith(`login_email_${EMAIL}`, 10, 15 * 60_000)
+  })
+
+  it('corps refusé par la validation (mot de passe de plus de 200 caractères) : 400 « requete », pas un lien refusé', async () => {
+    const res = await accepter('A1' + 'x'.repeat(250))
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe('requete')
+    expect(h.admin.createUser).not.toHaveBeenCalled()
+  })
+
+  it('liste des comptes sans fin : plafond de pages, état « inconnu » plutôt qu’une boucle sans fin', async () => {
+    const pagePleine = Array.from({ length: 100 }, (_v, i) => ({ id: `c${i}`, email: `autre${i}@exemple.fr` }))
+    h.admin.listUsers.mockResolvedValue({ data: { users: pagePleine }, error: null })
+    expect((await (await lire()).json()).etat_compte).toBe('inconnu')
+    expect(h.admin.listUsers).toHaveBeenCalledTimes(200)
   })
 })
 

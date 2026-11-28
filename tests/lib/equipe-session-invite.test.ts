@@ -43,9 +43,15 @@ describe('verifierMotDePasseDuCompte', () => {
     expect(h.options[0]).toMatchObject({ auth: { persistSession: false, autoRefreshToken: false } })
   })
 
-  it('identifiants refusés (400) : « refuse »', async () => {
-    h.signInWithPassword.mockResolvedValue({ data: { session: null }, error: { status: 400, code: 'invalid_credentials', message: 'Invalid login credentials' } })
-    expect(await verifierMotDePasseDuCompte('claire@exemple.fr', 'Mauvais1')).toBe('refuse')
+  it.each([
+    ['invalid_credentials', { status: 400, code: 'invalid_credentials', message: 'Invalid login credentials' }, 'refuse'],
+    ['serveur sans code, « Invalid login credentials »', { status: 400, message: 'Invalid login credentials' }, 'refuse'],
+    ['email_not_confirmed', { status: 400, code: 'email_not_confirmed', message: 'Email not confirmed' }, 'non_confirme'],
+    ['user_banned', { status: 400, code: 'user_banned', message: 'User is banned' }, 'erreur'],
+    ['400 sans code, autre message', { status: 400, message: 'Bad request' }, 'erreur'],
+  ])('refus %s : « %s »', async (_cas, erreur, attendu) => {
+    h.signInWithPassword.mockResolvedValue({ data: { session: null }, error: erreur })
+    expect(await verifierMotDePasseDuCompte('claire@exemple.fr', 'Mauvais1')).toBe(attendu)
     expect(h.signOut).not.toHaveBeenCalled()
   })
 

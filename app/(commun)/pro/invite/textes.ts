@@ -1,6 +1,6 @@
 // Textes de la page d'acceptation d'une invitation d'équipe pro, en français et en portugais (PT-PT). La page suit la
 // langue de la société qui invite (fiche profiles_artisan.language, renvoyée par GET /api/pro/invite), comme l'e-mail
-// d'invitation ; avant cette réponse, celle de l'adresse (/pt/…).
+// d'invitation ; avant cette réponse, celle du site (/pt/…), la même au rendu serveur et dans le navigateur.
 
 import type { DefautMotDePasse } from '@/lib/equipe/mot-de-passe-invitation'
 
@@ -12,6 +12,7 @@ export type MotifRefus = 'invalide' | 'deja_utilisee' | 'desactivee' | 'expiree'
 /** Erreur affichée sous le formulaire (codes de /api/pro/invite, plus le trop-plein et la panne réseau). */
 export type ErreurFormulaire =
   | 'mot_de_passe_incorrect'
+  | 'non_confirme'
   | 'recharger'
   | 'non_validee'
   | 'erreur'
@@ -74,6 +75,7 @@ export const TEXTES: Record<LangueInvitation, TextesInvitation> = {
     },
     erreurs: {
       mot_de_passe_incorrect: 'Mot de passe incorrect. Réessayez, ou choisissez-en un nouveau avec « Mot de passe oublié ? ».',
+      non_confirme: "L'adresse de ce compte n'a jamais été confirmée. Choisissez un mot de passe avec « Mot de passe oublié ? » : l'e-mail reçu la confirme.",
       recharger: 'Un compte existe déjà avec cette adresse. Rechargez la page.',
       non_validee: "Votre compte est prêt, mais l'invitation n'a pas pu être validée. Contactez le support.",
       erreur: 'Une erreur est survenue. Réessayez dans un instant.',
@@ -125,6 +127,7 @@ export const TEXTES: Record<LangueInvitation, TextesInvitation> = {
     },
     erreurs: {
       mot_de_passe_incorrect: 'Palavra-passe incorreta. Tente novamente ou defina uma nova em «Esqueceu-se da palavra-passe?».',
+      non_confirme: 'O endereço desta conta nunca foi confirmado. Defina uma palavra-passe em «Esqueceu-se da palavra-passe?»: o e-mail recebido confirma-o.',
       recharger: 'Já existe uma conta com este endereço. Recarregue a página.',
       non_validee: 'A sua conta está pronta, mas o convite não pôde ser validado. Contacte o suporte.',
       erreur: 'Ocorreu um erro. Tente novamente dentro de instantes.',
