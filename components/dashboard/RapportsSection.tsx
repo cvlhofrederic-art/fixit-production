@@ -10,7 +10,7 @@ import { generateRapportPDF } from '@/lib/rapport-pdf'
 import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
 import { documentsPourSynthese } from '@/lib/documents/liste-effective'
-import { modeleRapportSociete } from '@/lib/pdf/modeles-societes'
+import { modeleRapportSociete, prefixeNumeroRapport } from '@/lib/pdf/modeles-societes'
 import { carteDocumentsLies } from '@/components/dashboard/rapports/document-lie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
@@ -603,12 +603,14 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   const nextNumber = () => {
     const year = new Date().getFullYear()
-    const existing = rapports.filter(r => r.rapportNumber?.startsWith(`RAP-${year}`))
+    // « RT » (Relatório Técnico) pour une société au gabarit Vitfix, « RAP » sinon ; chaque série a son compteur.
+    const prefixe = prefixeNumeroRapport(modeleRapport)
+    const existing = rapports.filter(r => r.rapportNumber?.startsWith(`${prefixe}-${year}-`))
     const maxNum = existing.reduce((max, r) => {
       const n = parseInt(r.rapportNumber?.split('-').pop() || '0', 10)
       return n > max ? n : max
     }, 0)
-    return `RAP-${year}-${String(maxNum + 1).padStart(3, '0')}`
+    return `${prefixe}-${year}-${String(maxNum + 1).padStart(3, '0')}`
   }
 
   const openNew = () => {

@@ -50,3 +50,11 @@ export function modeleRapportSociete(profilId: string | null | undefined): Model
   if (!profilId) return undefined
   return Object.prototype.hasOwnProperty.call(MODELES_RAPPORT, profilId) ? MODELES_RAPPORT[profilId] : undefined
 }
+
+/**
+ * Préfixe du numéro d'un NOUVEAU rapport : « RT » (Relatório Técnico) au gabarit Vitfix, comme le badge du gabarit ;
+ * « RAP » sinon. Les rapports déjà numérotés gardent leur numéro.
+ */
+export function prefixeNumeroRapport(modele: ModeleRapport | undefined): 'RT' | 'RAP' {
+  return modele === 'vitfix-relatorio' ? 'RT' : 'RAP'
+}

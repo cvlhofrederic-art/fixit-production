@@ -91,6 +91,28 @@ describe('Rapports : gabarit de relatório de la société', () => {
     expect(photos.map((p) => p.id)).toEqual(['photo-1', 'photo-2'])
   })
 
+  it('numéro d’un nouveau rapport : série RT pour la société Vitfix, RAP inchangée ailleurs', async () => {
+    const an = new Date().getFullYear()
+    const existants = [
+      { ...RAPPORT, id: 'rap_1', rapportNumber: `RAP-${an}-007` },
+      { ...RAPPORT, id: 'rap_2', rapportNumber: `RT-${an}-004` },
+    ]
+    const numeroDuNouveau = async (artisan: Artisan, orgRole: string) => {
+      localStorage.setItem(`fixit_rapports_${artisan.id}`, JSON.stringify(existants))
+      const { container, unmount } = render(<RapportsSection artisan={artisan} bookings={[]} services={[]} orgRole={orgRole} />)
+      fireEvent.click(await screen.findByRole('button', { name: '+ Novo relatório' }))
+      const numero = container.querySelector('.v22-ref')?.textContent
+      unmount()
+      return numero
+    }
+    // Vitfix : la série RT a son propre compteur (les anciens RAP restent tels quels).
+    expect(await numeroDuNouveau({ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan, 'pro_societe')).toBe(`RT-${an}-005`)
+    expect(await numeroDuNouveau({ id: 'compte-salarie', fiche_societe_id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan, 'pro_societe')).toBe(`RT-${an}-005`)
+    // Autre société BTP et artisan : série RAP, comme avant.
+    expect(await numeroDuNouveau({ id: 'fiche-autre-societe' } as unknown as Artisan, 'pro_societe')).toBe(`RAP-${an}-008`)
+    expect(await numeroDuNouveau({ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan, 'artisan')).toBe(`RAP-${an}-008`)
+  })
+
   it('rapport sans photo liée : les photos ne sont pas lues pour rien', async () => {
     localStorage.setItem(`fixit_rapports_${VITFIX_SOCIETE_PROFIL_ID}`, JSON.stringify([{ ...RAPPORT, linkedPhotoIds: [] }]))
     render(<RapportsSection artisan={{ id: VITFIX_SOCIETE_PROFIL_ID } as unknown as Artisan} bookings={[]} services={[]} orgRole="pro_societe" />)

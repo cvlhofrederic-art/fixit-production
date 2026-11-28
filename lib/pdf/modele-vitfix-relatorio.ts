@@ -6,18 +6,20 @@
  *
  * Le gabarit s'adapte au module Rapports, pas l'inverse : il reçoit le rapport tel que le formulaire l'enregistre
  * (RapportPDFData) et n'ajoute aucun champ.
- *  - en-tête : marque « vitfix. », titre « Relatório de obra » (nom du document dans le module), sous-titre
- *    « motivo · local » (doc.projeto ; motivo seulement s'il tient sur une ligne courte), numéro du rapport dans le badge ;
+ *  - en-tête : marque « vitfix. », titre « Relatório Técnico » du gabarit (choix de Frédéric du 28/11/2026), sous-titre
+ *    « motivo · local » (doc.projeto ; motivo seulement s'il tient sur une ligne courte), numéro du rapport dans le badge
+ *    (RT-AAAA-NNN pour les rapports créés depuis, RAP-… pour les plus anciens, inchangés) ;
  *  - Emitente : nom, NIPC, morada, contacto, et l'assurance quand le rapport en a une ; Destinatário : nom, NIF,
  *    morada, contacto ; Local da intervenção : morada de l'obra, à défaut celle du client (comme le formulaire),
  *    tipologia ; NIF et tipologia, absents du module, restent en pointillés à remplir à la main (règle 2) ;
- *  - bande : Data da intervenção, Horário (début, fin, durée), orçamento ou fatura associé, Estado ;
+ *  - bande : Data da visita (date de l'intervention), Horário (début, fin, durée), orçamento ou fatura associé, Estado
+ *    (à la place de « Seguradora · processo », que le module n'a pas) ;
  *  - sections numérotées : Objeto (motivo), Observações no local, Trabalhos realizados, Materiais e produtos
  *    (désignation et quantité lue dans « Nome (2 un.) »), Conclusões e recomendações (recomendações) ;
- *  - assinatura : localité du code postal de la société et date d'émission ; signataire en pointillés ;
+ *  - assinatura : localité du code postal de la société et date d'émission (création du rapport, jamais avant la
+ *    visite : la même à chaque téléchargement) ; signataire en pointillés ;
  *  - Anexo fotográfico : photos liées au rapport, recadrées en 4:3 (object-fit: cover), légende = libellé et date ;
- *  - pied légal du gabarit, première phrase ramenée à l'intervention : « baseia-se nas constatações feitas na data da
- *    intervenção » au lieu de « na inspeção realizada na data da visita » ;
+ *  - pied légal du gabarit, mot pour mot ;
  *  - tirets longs remplacés ligne par ligne (règle typographique), sans jamais fusionner deux lignes.
  * Ce que le module n'a pas n'apparaît pas : enquadramento, repères numérotés sur les photos, tableau des anomalies,
  * análise técnica et schémas, phases du método, controlo de qualidade, exclusões e reservas, seguradora · processo,
@@ -68,6 +70,9 @@ const MARGE_COTE = 14 * MM
 const MARGE_BAS = 19 * MM
 const LARGEUR = PAGE_L - 2 * MARGE_COTE
 const GEOMETRIE: Geometrie = { pageL: PAGE_L, pageH: PAGE_H, margeHaut: MARGE_HAUT, margeGauche: MARGE_COTE, largeur: LARGEUR, basPage: PAGE_H - MARGE_BAS }
+
+/** Titre du document (.doc-type du gabarit). */
+const TITULO_RELATORIO = 'Relatório Técnico'
 
 /** line-height du corps (body { line-height: 1.45 }). */
 const LH = 1.45
@@ -292,7 +297,7 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
       if (this.numero()) this.ecrire(this.numero(), MARGE_COTE, base, { taille: 6.9, gras: true, couleur: COR.fino, align: 'centre', largeurZone: LARGEUR })
       this.ecrire(`Página ${p} / ${total}`, MARGE_COTE, base, { taille: 6.9, couleur: COR.fino, align: 'droite', largeurZone: LARGEUR })
     }
-    this.pdf.setProperties({ title: `Relatório de obra ${this.numero()}`.trim(), author: this.nome(), subject: 'Relatório de obra' })
+    this.pdf.setProperties({ title: `${TITULO_RELATORIO} ${this.numero()}`.trim(), author: this.nome(), subject: TITULO_RELATORIO })
   }
 
   // ── Identité ──
@@ -382,7 +387,7 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
     const tTipo = 17
     const espTipo = 0.18 * tTipo
     const hTipo = tTipo * 1.2
-    for (const ligne of this.couperEspace('RELATÓRIO DE OBRA', LARGEUR, tTipo, true, espTipo)) {
+    for (const ligne of this.couperEspace(TITULO_RELATORIO.toUpperCase(), LARGEUR, tTipo, true, espTipo)) {
       // letter-spacing CSS : un espacement aussi après la dernière lettre, qui décale le centrage d'un demi-espacement.
       this.ecrire(ligne, MARGE_COTE - espTipo / 2, this.y + ligneDeBase(hTipo, tTipo), { taille: tTipo, gras: true, couleur: COR.tinta, espacement: espTipo, align: 'centre', largeurZone: LARGEUR })
       this.y += hTipo
@@ -500,7 +505,7 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
     const r = this.r
     const ref = textePdf(r.refDevisFact).trim()
     const casas: Array<[string, string]> = [
-      ['Data da intervenção', datePt(r.interventionDate)],
+      ['Data da visita', datePt(r.interventionDate)],
       ['Horário', horarioRelatorio(r.startTime, r.endTime)],
       [rotuloDocumentoAssociado(ref), ref],
       ['Estado', estadoRelatorio(r.status)],
@@ -787,7 +792,7 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
     const contacto = textePdf(this.r.artisanEmail).trim() || textePdf(this.r.artisanPhone).trim()
     const pontos = { texte: '.'.repeat(24), couleur: COR.pontilhado }
     const fragments: Fragment[] = [
-      { texte: 'Este relatório baseia-se nas constatações feitas na data da intervenção, nas condições de acesso e visibilidade então existentes, e destina-se exclusivamente ao destinatário identificado. Proteção de dados: os dados pessoais constantes deste documento são tratados por ' },
+      { texte: 'Este relatório baseia-se na inspeção realizada na data da visita, nas condições de acesso e visibilidade então existentes, e destina-se exclusivamente ao destinatário identificado. Proteção de dados: os dados pessoais constantes deste documento são tratados por ' },
       this.nome() ? { texte: insecables(this.nome()) } : pontos,
       { texte: ' para efeitos de prestação do serviço e cumprimento de obrigações legais, nos termos do Regulamento (UE) 2016/679 (RGPD). Para exercer os seus direitos, contacte ' },
       contacto ? { texte: insecables(contacto) } : pontos,
@@ -803,10 +808,20 @@ class DocumentoRelatorio extends MiseEnPageGabarit {
 
 // ─── Entrée ───────────────────────────────────────────────────────────────────
 
-/** Date d'émission du rapport : celle du jour de la génération, comme le PDF du module (« Emitido em »). */
-function dataDeHoje(): string {
-  const d = new Date()
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+const jourLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/**
+ * Date d'émission du relatório (« Local e data » de la signature), en jj/mm/aaaa : le jour de création du rapport, à
+ * l'heure de l'appareil, et jamais avant la visite (un rapport préparé à l'avance est émis le jour de la visite). Elle
+ * ne change donc plus d'un téléchargement à l'autre pour un même numéro. Sans date de création (rapport ancien
+ * illisible), le jour de la génération, comme l'ancien PDF.
+ */
+export function dataEmissaoRelatorio(criadoEm: string | null | undefined, dataVisita: string | null | undefined, hoje = new Date()): string {
+  const criacao = criadoEm ? new Date(criadoEm) : null
+  let jour = criacao && !Number.isNaN(criacao.getTime()) ? jourLocal(criacao) : jourLocal(hoje)
+  const visita = /^\d{4}-\d{2}-\d{2}$/.test(dataVisita ?? '') ? (dataVisita as string) : ''
+  if (visita > jour) jour = visita
+  return datePt(jour)
 }
 
 /**
@@ -826,7 +841,7 @@ export async function rendreRelatorioVitfix(
     Promise.all(fotos.map((p) => (p.url ? chargerImageJpeg(p.url, avertir, 4 / 3) : Promise.resolve(null)))),
   ])
   const pdf = new JsPdf({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-  const documento = new DocumentoRelatorio(pdf, enregistrerPolice(pdf, octets, avertir), r, o.dataEmissao ?? dataDeHoje())
+  const documento = new DocumentoRelatorio(pdf, enregistrerPolice(pdf, octets, avertir), r, o.dataEmissao ?? dataEmissaoRelatorio(r.createdAt, r.interventionDate))
   documento.compor(fotos, imagens)
   documento.finalizar()
   return pdf

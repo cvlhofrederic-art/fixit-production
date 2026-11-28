@@ -8,8 +8,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { jsPDF } from 'jspdf'
 import { URL_POLICE_GABARIT, URL_POLICE_GABARIT_GRAS } from '@/lib/pdf/mise-en-page-gabarit'
-import { METHOD_SOLUCOES_PROFIL_ID, VITFIX_SOCIETE_PROFIL_ID, modeleDocumentSociete, modeleRapportSociete } from '@/lib/pdf/modeles-societes'
+import { METHOD_SOLUCOES_PROFIL_ID, VITFIX_SOCIETE_PROFIL_ID, modeleDocumentSociete, modeleRapportSociete, prefixeNumeroRapport } from '@/lib/pdf/modeles-societes'
 import {
+  dataEmissaoRelatorio,
   dataHoraFoto,
   estadoRelatorio,
   fotosDoRelatorio,
@@ -160,6 +161,26 @@ describe('Registre des relatórios de société', () => {
     // Le gabarit d'orçamento de la même fiche ne change pas.
     expect(modeleDocumentSociete(VITFIX_SOCIETE_PROFIL_ID)).toBe('vitfix-orcamento')
   })
+
+  it('numéro d’un nouveau rapport : RT (Relatório Técnico) au gabarit Vitfix, RAP sinon', () => {
+    expect(prefixeNumeroRapport('vitfix-relatorio')).toBe('RT')
+    expect(prefixeNumeroRapport(undefined)).toBe('RAP')
+  })
+})
+
+describe('Date d’émission du relatório', () => {
+  const hoje = new Date(2026, 10, 30, 10, 0)
+  it('jour de création du rapport, à l’heure de l’appareil : la même à chaque téléchargement', () => {
+    expect(dataEmissaoRelatorio('2026-11-26T10:00:00', '2026-11-25', hoje)).toBe('26/11/2026')
+    expect(dataEmissaoRelatorio(new Date(2026, 10, 26, 23, 30).toISOString(), '2026-11-25', hoje)).toBe('26/11/2026')
+  })
+  it('jamais avant la visite : un rapport préparé à l’avance est émis le jour de la visite', () => {
+    expect(dataEmissaoRelatorio('2026-11-20T09:00:00', '2026-11-25', hoje)).toBe('25/11/2026')
+  })
+  it('sans date de création lisible : le jour de la génération', () => {
+    expect(dataEmissaoRelatorio(undefined, '2026-11-25', hoje)).toBe('30/11/2026')
+    expect(dataEmissaoRelatorio('pas une date', '', hoje)).toBe('30/11/2026')
+  })
 })
 
 describe('Champs du module dans les mots du gabarit', () => {
@@ -267,17 +288,19 @@ describe('Relatório au gabarit Vitfix', () => {
     const pdf = await generer('relatorio-complet', rapport())
     const t = tout(pdf)
     const ordre = [
-      'vitfix', 'RELATÓRIO DE OBRA', 'Rua do Cliente, n.º 123, 4000-000 Porto', 'RAP-2026-001',
+      'vitfix', 'RELATÓRIO TÉCNICO', 'Rua do Cliente, n.º 123, 4000-000 Porto', 'RAP-2026-001',
       'EMITENTE', 'DESTINATÁRIO', 'Nome EMPRESA EXEMPLO CONSTRUÇÕES, LDA', 'Nome Cliente Exemplo, Lda',
       'NIPC 500 000 000', 'LOCAL DA INTERVENÇÃO',
-      'DATA DA INTERVENÇÃO', 'HORÁRIO', 'ORÇAMENTO ASSOCIADO', 'ESTADO', '25/11/2026', '09:00 - 17:30 · 8h30', 'ORC-2026-004', 'Concluído',
+      'DATA DA VISITA', 'HORÁRIO', 'ORÇAMENTO ASSOCIADO', 'ESTADO', '25/11/2026', '09:00 - 17:30 · 8h30', 'ORC-2026-004', 'Concluído',
       '1. OBJETO', 'Infiltração por fissuração da fachada principal · identificação',
       '2. OBSERVAÇÕES NO LOCAL', 'Fissuração do reboco',
       '3. TRABALHOS REALIZADOS', 'Picagem do reboco solto',
       '4. MATERIAIS E PRODUTOS', 'PRODUTO QUANTIDADE', 'Argamassa de reparação 4 sacos', 'rede de fibra de vidro 12 m²', 'Tinta elástica impermeabilizante 30 L', 'Fita de proteção',
       '5. CONCLUSÕES E RECOMENDAÇÕES', 'Tratamento integral da fachada', 'Recolocação do tubo de queda',
       'LOCAL E DATA', 'PELA EMPRESA EXEMPLO CONSTRUÇÕES', 'Marco de Canaveses, 26/11/2026',
-      'Este relatório baseia-se nas constatações feitas na data da intervenção', 'tratados por EMPRESA EXEMPLO CONSTRUÇÕES, LDA', 'contacte geral@example.pt.',
+      // Pied légal du gabarit, mot pour mot.
+      'Este relatório baseia-se na inspeção realizada na data da visita, nas condições de acesso e visibilidade então existentes, e destina-se exclusivamente ao destinatário identificado.',
+      'tratados por EMPRESA EXEMPLO CONSTRUÇÕES, LDA', 'contacte geral@example.pt.',
     ]
     let avant = -1
     for (const attendu of ordre) {
@@ -290,7 +313,7 @@ describe('Relatório au gabarit Vitfix', () => {
     expect(t).toContain('Contacto 900 000 000 · geral@example.pt')
     expect(t).toContain('Seguro Seguradora Exemplo, apólice n.º 123456')
     expect(t).toContain('NIPC 500 000 000 NIF Morada')
-    expect(t).toMatch(/Tipologia DATA DA INTERVENÇÃO/)
+    expect(t).toMatch(/Tipologia DATA DA VISITA/)
     // Ce que le module n'a pas n'apparaît pas ; aucun « N/D », aucun tiret long.
     expect(t).not.toMatch(/ENQUADRAMENTO|ANOMALIAS|ANÁLISE|MÉTODO|CONTROLO|RESERVAS|SEGURADORA · PROCESSO|ANEXO FOTOGRÁFICO|Figura/)
     expect(t).not.toMatch(/N\/D|a definir/i)
@@ -326,7 +349,7 @@ describe('Relatório au gabarit Vitfix', () => {
     expect(t).toContain('1. OBJETO')
     expect(t).not.toMatch(/2\. |OBSERVAÇÕES|TRABALHOS|MATERIAIS|CONCLUSÕES/)
     // Cases vides : le libellé reste, la valeur est une ligne en pointillés (aucun texte).
-    expect(t).toContain('DATA DA INTERVENÇÃO HORÁRIO ORÇAMENTO ASSOCIADO ESTADO 25/11/2026')
+    expect(t).toContain('DATA DA VISITA HORÁRIO ORÇAMENTO ASSOCIADO ESTADO 25/11/2026')
     expect(t).not.toContain('Seguro')
     expect(t).not.toMatch(/N\/D|a definir|undefined|null/i)
     sansDebordement(pdf)
@@ -430,6 +453,12 @@ describe('Relatório au gabarit Vitfix', () => {
     sansDebordement(pdf)
   })
 
+  it('signature : la date d’émission vient du rapport, pas du jour du téléchargement', async () => {
+    const pdf = await rendreRelatorioVitfix(jsPDF, rapport({ createdAt: '2026-11-26T10:00:00', interventionDate: '2026-11-25' }), [])
+    const t = (await lirePdf(new Uint8Array(pdf.output('arraybuffer')))).map(ordreDeLecture).join(' ')
+    expect(t).toContain('Marco de Canaveses, 26/11/2026')
+  })
+
   it('Liberation Sans incorporée, propriétés du document', async () => {
     const pdf = await generer('relatorio-proprietes', rapport())
     const brut = pdf.octets.toString('latin1')
@@ -444,7 +473,8 @@ describe('Générateur des rapports du module', () => {
     await generateRapportPDF(rapport(), [], 'pt-PT', 'pro_societe', 'vitfix-relatorio')
     expect(sauvegardes.map((s) => s.nom)).toEqual(['RAP-2026-001.pdf'])
     const texte = (await lirePdf(new Uint8Array(sauvegardes[0].pdf.output('arraybuffer')))).map(ordreDeLecture).join(' ')
-    expect(compact(texte)).toContain('RELATÓRIODEOBRA')
+    expect(compact(texte)).toContain('RELATÓRIOTÉCNICO')
+    expect(compact(texte)).not.toContain('RELATÓRIODEOBRA')
     expect(texte).toContain('1. OBJETO')
     expect(compact(texte)).toContain('EMITENTE')
   })
