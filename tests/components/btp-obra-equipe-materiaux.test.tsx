@@ -74,9 +74,12 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
+// Attend les fiches employés (lecture, puis calcul des coûts par le moteur de paie chargé à la demande) : la colonne
+// « Chef » affiche alors « P. Durand ».
 const monter = async (props: Partial<React.ComponentProps<typeof ChantiersBTPV2>> = {}) => {
   render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" {...props} />)
-  await act(async () => { await Promise.resolve() })
+  // Premier chargement à froid du moteur de paie : plusieurs secondes sur un poste chargé.
+  await screen.findByText('P. Durand', undefined, { timeout: 15_000 })
 }
 const ouvrirFiche = async () => {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Modifier' })) })
@@ -110,6 +113,36 @@ describe('Obras — équipe jour par jour', () => {
     expect(screen.queryByText(/jour\(s\) modifié\(s\)/)).toBeNull()
     await enregistrer()
     expect(etat.modifications).toEqual([{ table: 'chantiers', id: 'c-villa', changes: { equipe_par_jour: {} } }])
+  })
+
+  it('changer l’équipe habituelle d’une obra commencée : lundi et mardi (passés) gardent l’ancienne équipe', async () => {
+    await monter()
+    await ouvrirFiche()
+    // Décocher Jean dans « Employés assignés » (aujourd'hui : mercredi 02/12).
+    const assignes = screen.getByText('Employés assignés').parentElement as HTMLElement
+    await act(async () => { fireEvent.click(within(assignes).getAllByRole('checkbox')[1]) })
+    const jours = within(screen.getByRole('list', { name: /Équipe par jour/ })).getAllByRole('listitem')
+    expect(jours[0].textContent).toContain('Paul D., Jean P.')
+    expect(jours[2].textContent).toContain('Paul D.')
+    expect(jours[2].textContent).not.toContain('Jean P.')
+    await enregistrer()
+    expect(etat.modifications).toEqual([{ table: 'chantiers', id: 'c-villa', changes: {
+      membres_ids: ['m-paul'], equipe_par_jour: { '2026-11-30': ['m-paul', 'm-jean'], '2026-12-01': ['m-paul', 'm-jean'] },
+    } }])
+  })
+
+  it('employé désactivé resté dans l’équipe : visible pour être retiré ; il ne coûte plus rien à partir d’aujourd’hui', async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async url => new Response(JSON.stringify(String(url).includes('table=membres')
+      ? { membres: [MEMBRES[0], { ...MEMBRES[1], actif: false }] } : {})))
+    await monter()
+    // Paul 210 €/j sur 5 jours ouvrés ; Jean 315 €/j seulement lundi et mardi (passés) = 1 050 + 630 = 1 680 €.
+    expect(screen.getByText(/Main-d’œuvre 1\s680 € \(5 jours travaillés\)/)).toBeTruthy()
+    await ouvrirFiche()
+    const ligne = screen.getByText('Jean Petit').closest('label') as HTMLElement
+    expect(ligne.textContent).toContain('inactif')
+    await act(async () => { fireEvent.click(within(ligne).getByRole('checkbox')) })
+    await enregistrer()
+    expect(etat.modifications[0].changes).toMatchObject({ membres_ids: ['m-paul'] })
   })
 
   it('obra sans dates : l’écran demande les dates au lieu d’une liste vide', async () => {

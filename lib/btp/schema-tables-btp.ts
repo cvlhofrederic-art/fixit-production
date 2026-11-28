@@ -19,7 +19,7 @@
  */
 
 import { z } from 'zod'
-import { JOURS_MAX_PAR_CHANTIER, jourValide, lireEquipeParJour, membresDesignes } from '@/lib/btp/equipe-par-jour'
+import { formeEquipeParJourValide, lireEquipeParJour, membresDesignes } from '@/lib/btp/equipe-par-jour'
 
 // Tables écrivables par le POST. `ref_taux` (taux de référence globaux, posés par migration) n'y figure pas :
 // la route le sert seulement en lecture (`GET /api/btp?table=ref_taux`).
@@ -222,9 +222,9 @@ const SCHEMAS_TYPES: Record<TypeColonne, z.ZodType> = {
   // Seulement une liste JSON : la base lirait aussi un littéral de tableau en texte (« {…} »), mais la route doit
   // pouvoir contrôler chaque identifiant (même compte).
   liste_uuid: z.array(z.string().regex(FORMAT_UUID)),
-  // Un vrai jour du calendrier par clé, une liste d'identifiants par jour, au plus JOURS_MAX_PAR_CHANTIER jours.
-  equipe_jours: z.record(z.string().refine(jourValide), z.array(z.string().regex(FORMAT_UUID)))
-    .refine(jours => Object.keys(jours).length <= JOURS_MAX_PAR_CHANTIER),
+  // Un vrai jour du calendrier par clé (aucune autre clé, « __proto__ » compris), une liste bornée d'identifiants par
+  // jour, au plus JOURS_MAX_PAR_CHANTIER jours. Contrôlé sur l'objet reçu : z.record ignorerait une clé « __proto__ ».
+  equipe_jours: z.custom<Record<string, string[]>>(valeur => formeEquipeParJourValide(valeur, FORMAT_UUID)),
   nombre: z.union([z.number(), z.string().regex(FORMAT_NOMBRE)]),
   booleen: z.union([z.boolean(), z.string(), z.number()]),
   date: z.union([z.string(), z.number()]),
@@ -290,6 +290,13 @@ export function valeursHorsBornes(table: TableEcrivable, ligne: Record<string, u
 
 export interface Reference { colonne: string; cible: TableCible; id: string }
 
+/** Identifiants que désigne une valeur : un par employé inscrit (équipe par jour), un par élément (liste), sinon elle-même. */
+function identifiantsDesignes(spec: SpecColonne, valeur: unknown): unknown[] {
+  if (spec.type === 'equipe_jours') return membresDesignes(lireEquipeParJour(valeur))
+  if (spec.type === 'liste_uuid' && Array.isArray(valeur)) return valeur
+  return [valeur]
+}
+
 /** Chantier, membre ou équipe désignés par la ligne (identifiants non vides ; un par élément d'une liste). */
 export function referencesDeLigne(table: TableEcrivable, ligne: Record<string, unknown>): Reference[] {
   const colonnes = COLONNES_BTP[table]
@@ -297,9 +304,7 @@ export function referencesDeLigne(table: TableEcrivable, ligne: Record<string, u
     const spec = colonnes[colonne]
     const cible = spec?.cible
     if (!cible) return []
-    const ids: unknown[] = spec.type === 'equipe_jours' ? membresDesignes(lireEquipeParJour(valeur))
-      : spec.type === 'liste_uuid' && Array.isArray(valeur) ? valeur : [valeur]
-    return ids.filter((id): id is string => typeof id === 'string' && id !== '').map(id => ({ colonne, cible, id }))
+    return identifiantsDesignes(spec, valeur).filter((id): id is string => typeof id === 'string' && id !== '').map(id => ({ colonne, cible, id }))
   })
 }
 

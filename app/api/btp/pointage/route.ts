@@ -376,7 +376,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ pointage: pointagePourEcran(clos) })
     }
 
-    const jour = heureLocale(maintenant, fuseauValide(corps.fuseau)).date
+    const instant = instantArrivee(corps.mode, corps.observeA, maintenant)
+    // Jour de l'arrivée (heure murale du téléphone) : un renfort inscrit ce jour-là peut pointer (equipe_par_jour).
+    const jour = heureLocale(instant, fuseauValide(corps.fuseau)).date
     const chantier = chantiersAffectes(membre, ctx.chantiersEnCours, ctx.equipes, jour).find(c => c.id === corps.chantierId)
     if (!chantier) return refus(403, 'chantier_non_affecte')
     if (corps.mode === 'geo_auto' && chantierPourTelephone(chantier).latitude === null) {
@@ -389,7 +391,6 @@ export async function POST(request: NextRequest) {
     // vu la sortie) : c'est à l'employé de le terminer.
     if (corps.mode === 'geo_auto' && duJour.length > 0) return refus(409, 'pointage_different')
 
-    const instant = instantArrivee(corps.mode, corps.observeA, maintenant)
     // Un seul pointage ouvert par employé : arriver à la main sur un autre chantier clôt le précédent à cette heure.
     for (const ouvert of duJour) await clore(ctx.societeId, ouvert, changementsCloture(ouvert, Math.max(instant, reperesArrivee(ouvert).instant)))
 

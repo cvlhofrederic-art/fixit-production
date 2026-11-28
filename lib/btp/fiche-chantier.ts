@@ -25,14 +25,20 @@ export interface AdresseFiche {
 
 const estObjetSimple = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
+/** Objet à comparer : l'objet lui-même, un objet vide pour une valeur absente, null pour toute autre valeur. */
+function commeObjet(v: unknown): Record<string, unknown> | null {
+  if (estObjetSimple(v)) return v
+  return v == null ? {} : null
+}
+
 /**
  * Deux valeurs de champ égales : absent et null se valent ; listes comparées sans tenir compte de l'ordre ; objets
  * (équipe par jour, 28/11/2026) comparés clé par clé, un objet vide valant un objet absent.
  */
 function memeValeur(a: unknown, b: unknown): boolean {
   if (estObjetSimple(a) || estObjetSimple(b)) {
-    const oa = estObjetSimple(a) ? a : a == null ? {} : null
-    const ob = estObjetSimple(b) ? b : b == null ? {} : null
+    const oa = commeObjet(a)
+    const ob = commeObjet(b)
     if (!oa || !ob) return false
     const cles = new Set([...Object.keys(oa), ...Object.keys(ob)])
     return [...cles].every(cle => cle in oa && cle in ob && memeValeur(oa[cle], ob[cle]))

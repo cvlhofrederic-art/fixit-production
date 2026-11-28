@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2, Package, Trash2 } from 'lucide-react'
 import { CATEGORIE_MATERIAUX, montantDepense, montantHorsIva, type DepenseObra } from '@/lib/btp/rentabilite-obra'
+import { jourLocal } from '@/lib/btp/accueil'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MATÉRIAUX D'UNE OBRA — fiche d'une obra (components/dashboard/ChantiersBTPV2.tsx), 28/11/2026
@@ -16,15 +17,9 @@ import { CATEGORIE_MATERIAUX, montantDepense, montantHorsIva, type DepenseObra }
 const TAUX_PT = [23, 13, 6] as const
 const TAUX_FR = [20, 10, 5.5] as const
 
-/** « AAAA-MM-JJ » du jour, dans le fuseau du navigateur. */
-function aujourdhuiLocal(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 /** Saisie d'un montant : « 1 234,56 », « 1.234,56 », « 1234.56 » → 1234.56 ; NaN si illisible. */
 export function lireMontantSaisi(saisie: string): number {
-  let propre = saisie.replace(/[\s  €]/g, '')
+  let propre = saisie.replace(/[\s€]/g, '') // \s couvre aussi les espaces insécables (U+00A0, U+202F)
   // Virgule décimale (France, Portugal) : les points sont alors des séparateurs de milliers.
   if (propre.includes(',')) propre = propre.replace(/\./g, '').replace(',', '.')
   return /^\d+(\.\d{0,2})?$/.test(propre) ? Number(propre) : Number.NaN
@@ -49,7 +44,7 @@ export function MateriauxObraEditeur({ achats, onAjouter, onRetirer, isPt, isV5,
   const [montant, setMontant] = useState('')
   /** Taux de l'IVA comprise dans le montant saisi ; 0 : montant saisi hors IVA. */
   const [tauxSaisi, setTauxSaisi] = useState<number>(taux[0])
-  const [date, setDate] = useState(aujourdhuiLocal)
+  const [date, setDate] = useState(() => jourLocal(new Date()))
   const [enCours, setEnCours] = useState(false)
 
   const paye = lireMontantSaisi(montant)

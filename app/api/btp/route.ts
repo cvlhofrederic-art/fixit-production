@@ -14,6 +14,7 @@ import {
 import {
   lirePerimetreBtp, peutEcrireTable, projeter, visibiliteListe, type PerimetreBtp, type Visibilite,
 } from '@/lib/btp/perimetre-compte'
+import { figerJoursPasses, lireEquipeParJour } from '@/lib/btp/equipe-par-jour'
 import {
   FUSEAU_PAR_DEFAUT, chantiersAffectes, heureLocale, membreDuCompte,
   type ChantierBtp, type EquipeBtp, type MembreBtp, type ResolutionMembre,
@@ -388,7 +389,47 @@ async function lierMembresDeLaNouvelleEquipe(userId: string, equipeId: string, m
 async function rattachementsNouveaux(etrangeres: Reference[], enBase: Ligne, equipeId: string): Promise<Reference[]> {
   if (etrangeres.length === 0) return []
   const lies = etrangeres.some(r => r.colonne === 'membreIds') ? await lireMembresLies(equipeId) : new Set<string>()
-  return etrangeres.filter(r => (r.colonne === 'membreIds' ? !lies.has(r.id.toLowerCase()) : !dejaEnregistre(r.id, enBase[r.colonne])))
+  return etrangeres.filter(r => {
+    if (r.colonne === 'membreIds') return !lies.has(r.id.toLowerCase())
+    // Un employé supprimé depuis, encore dans l'équipe habituelle du chantier, reste inscrit aux jours où l'écran le
+    // garde (relecture adverse du 28/11/2026) : sinon décocher un AUTRE employé ce jour-là faisait refuser la fiche.
+    if (r.colonne === 'equipe_par_jour' && dejaEnregistre(r.id, enBase.membres_ids)) return false
+    return !dejaEnregistre(r.id, enBase[r.colonne])
+  })
+}
+
+/**
+ * Équipe par jour : forme normalisée à l'écriture (identifiants en minuscules, sans doublon, jours triés), pour que le
+ * pointage la relise telle quelle (lib/btp/equipe-par-jour.ts). Appelée après verifierLigne, qui en a contrôlé la forme.
+ */
+function normaliserLigne(table: TableEcrivable, ligne: Ligne): void {
+  if (table === 'chantiers_btp' && 'equipe_par_jour' in ligne) ligne.equipe_par_jour = lireEquipeParJour(ligne.equipe_par_jour)
+}
+
+/**
+ * L'équipe habituelle d'un chantier change : ses jours passés gardent l'ancienne équipe (figerJoursPasses). Fait ici
+ * pour tous les écrans qui écrivent membres_ids (fiche de l'obra, onglet Affectations du pointage). Rien à figer si la
+ * colonne equipe_par_jour manque encore (migration 20261128c) ou si la fiche est introuvable ; une lecture en échec
+ * n'empêche pas l'enregistrement (le passé n'est alors pas figé, et le journal le dit).
+ */
+async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne): Promise<void> {
+  let enBase: Ligne | null
+  try {
+    enBase = await lireFiche('chantiers_btp', id, userId)
+  } catch (err) {
+    logger.warn('[btp] équipe habituelle changée sans figer les jours passés : fiche illisible', { id, error: err instanceof Error ? err.message : err })
+    return
+  }
+  if (!enBase || !('equipe_par_jour' in enBase)) return
+  const actuelle = lireEquipeParJour('equipe_par_jour' in ligne ? ligne.equipe_par_jour : enBase.equipe_par_jour)
+  const figee = figerJoursPasses({
+    debut: typeof enBase.date_debut === 'string' ? enBase.date_debut : null,
+    aujourdhui: heureLocale(Date.now(), FUSEAU_PAR_DEFAUT).date,
+    ancienneEquipe: Array.isArray(enBase.membres_ids) ? enBase.membres_ids.map(String) : [],
+    nouvelleEquipe: Array.isArray(ligne.membres_ids) ? ligne.membres_ids.map(String) : [],
+    equipeParJour: actuelle,
+  })
+  if ('equipe_par_jour' in ligne || JSON.stringify(figee) !== JSON.stringify(actuelle)) ligne.equipe_par_jour = figee
 }
 
 const refus = (message: string, status = 400) => NextResponse.json({ error: message }, { status })
@@ -500,6 +541,7 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
   const { ligne, membreIds } = preparer(donnees)
   const raison = verifierLigne(table, ligne, 'creation')
   if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+  normaliserLigne(table, ligne)
   const hors = valeursHorsBornes(table, ligne)
   if (hors.length > 0) return refus(hors.map(h => h.message).join(' '))
 
@@ -546,6 +588,7 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   const { ligne, membreIds } = preparer(donnees)
   const raison = verifierLigne(table, ligne, 'modification')
   if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+  normaliserLigne(table, ligne)
 
   const membres = table === 'equipes_btp' ? membresDeLEquipe(membreIds) : undefined
   if (membres === null) return refus(MESSAGE_LISTE_MEMBRES_INVALIDE)
@@ -557,6 +600,8 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   }
 
   if (table === 'chantiers_btp') ligne.updated_at = new Date().toISOString()
+  // Après les contrôles : les jours figés ne reprennent que l'équipe déjà enregistrée sur la fiche.
+  if (table === 'chantiers_btp' && 'membres_ids' in ligne) await figerPasseDuChantier(userId, id, ligne)
 
   // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
   // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient

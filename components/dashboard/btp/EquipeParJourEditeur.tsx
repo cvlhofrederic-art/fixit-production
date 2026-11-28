@@ -19,6 +19,8 @@ interface Props {
   jours: readonly string[]
   /** La liste a été coupée (période trop longue). */
   tronque: boolean
+  /** « AAAA-MM-JJ » du jour : un jour passé garde sa liste (lib/btp/equipe-par-jour.ts). */
+  aujourdhui: string
   /** Employés actifs, proposés au choix. */
   membres: readonly MembreChoisissable[]
   /** Tous les employés connus (anciens compris), pour nommer ceux d'un jour passé. */
@@ -32,12 +34,18 @@ interface Props {
   dl: string
 }
 
+/** Fond d'une ligne : retouchée, jour ouvré, week-end. */
+function fondDuJour(retouche: boolean, ouvre: boolean): string {
+  if (retouche) return '#FFF8E1'
+  return ouvre ? '#fff' : '#FAFAFA'
+}
+
 /** « seg., 01/12 » / « lun. 01/12 » : jour de la semaine et date, sans glisser de fuseau. */
 function libelleJour(jour: string, dl: string): string {
   return new Date(`${jour}T00:00:00Z`).toLocaleDateString(dl, { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' })
 }
 
-export function EquipeParJourEditeur({ jours, tronque, membres, membresTous, membresIds, equipeParJour, onChange, isPt, isV5, dl }: Props) {
+export function EquipeParJourEditeur({ jours, tronque, aujourdhui, membres, membresTous, membresIds, equipeParJour, onChange, isPt, isV5, dl }: Props) {
   const [jourOuvert, setJourOuvert] = useState<string | null>(null)
   const parId = new Map(membresTous.map(m => [m.id, m]))
   const nomCourt = (id: string) => {
@@ -77,7 +85,7 @@ export function EquipeParJourEditeur({ jours, tronque, membres, membresTous, mem
             return (
               <li key={jour} style={{
                 border: `1px solid ${retouche ? '#FFB74D' : '#E0E0E0'}`, borderRadius: 4, padding: '4px 8px', fontSize: 11,
-                background: retouche ? '#FFF8E1' : estJourOuvre(jour) ? '#fff' : '#FAFAFA',
+                background: fondDuJour(retouche, estJourOuvre(jour)),
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 600, minWidth: 74 }}>{libelle}</span>
@@ -114,7 +122,7 @@ export function EquipeParJourEditeur({ jours, tronque, membres, membresTous, mem
                         }}>
                           <input type="checkbox" checked={coche} onChange={() => {
                             const suivants = coche ? presents.filter(id => id !== m.id) : [...presents, m.id]
-                            onChange(retoucherJour(equipeParJour, membresIds, jour, suivants))
+                            onChange(retoucherJour(equipeParJour, membresIds, jour, suivants, aujourdhui))
                           }} />
                           {`${m.prenom} ${m.nom}`.trim()}
                         </label>

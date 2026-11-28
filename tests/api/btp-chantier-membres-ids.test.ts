@@ -8,7 +8,7 @@
 // d'essai sont donc des UUID d'employés du compte ; fiche introuvable (PGRST116) répond 404 et champ inconnu de la base
 // (PGRST204 qui ne nomme pas membres_ids) 400, au lieu de 500. Le repli et ses essais ne changent pas.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 type Ligne = Record<string, unknown>
@@ -46,6 +46,10 @@ const h = vi.hoisted(() => {
         Object.entries(filtres).every(([c, v]) => l[c] === v) && Object.entries(dans).every(([c, v]) => v.includes(l[c])))
       return Promise.resolve({ data: lignes, error: null }).then(ok, ko)
     }
+    // Lecture d'une fiche (lireFiche) : la ligne du chantier qui passe les filtres, sinon rien.
+    b.maybeSingle = async () => ({
+      data: etat.chantiers.find(l => Object.entries(filtres).every(([c, v]) => l[c] === v)) ?? null, error: null,
+    })
     b.single = async () => {
       if (operation !== 'select') etat.envois.push({ operation, valeur: { ...valeur } })
       if (table === 'chantiers_btp' && etat.autreColonneAbsente && operation !== 'select') {
@@ -220,6 +224,36 @@ describe('POST /api/btp — alerte météo d’un chantier (alerte_meteo)', () =
   })
 })
 
+// L'équipe habituelle change (fiche de l'obra ou onglet Affectations) : les jours passés gardent l'ancienne équipe
+// (figerJoursPasses). Aujourd'hui simulé au mercredi 02/12/2026 ; l'obra a commencé le lundi 30/11.
+describe('POST /api/btp — équipe habituelle changée : le passé ne bouge pas', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-12-02T10:00:00Z') })
+    h.etat.colonneAbsente = false
+    h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours', date_debut: '2026-11-30', membres_ids: [M1], equipe_par_jour: {} }]
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('M2 ajouté à l’équipe habituelle (onglet Affectations, sans equipe_par_jour) : lundi et mardi gardent M1 seul', async () => {
+    const res = await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } })
+    expect(res.status).toBe(200)
+    expect(h.etat.envois[0].valeur).toMatchObject({ membres_ids: [M1, M2], equipe_par_jour: { '2026-11-30': [M1], '2026-12-01': [M1] } })
+  })
+
+  it('jours déjà inscrits envoyés par la fiche : gardés tels quels, les autres jours passés figés', async () => {
+    const res = await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M2], equipe_par_jour: { '2026-12-01': [M1, M2] } } })
+    expect(res.status).toBe(200)
+    expect(h.etat.envois[0].valeur.equipe_par_jour).toEqual({ '2026-11-30': [M1], '2026-12-01': [M1, M2] })
+  })
+
+  it('colonne equipe_par_jour encore absente de la base : rien n’est figé, l’équipe s’enregistre comme avant', async () => {
+    h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours', date_debut: '2026-11-30', membres_ids: [M1] }]
+    const res = await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } })
+    expect(res.status).toBe(200)
+    expect('equipe_par_jour' in h.etat.envois[0].valeur).toBe(false)
+  })
+})
+
 // Équipe jour par jour (migration 20261128c, 28/11/2026). Même règle que l'alerte météo : sans la colonne, une obra sans
 // jour retouché (objet vide, valeur par défaut, envoyé par toute nouvelle fiche) s'enregistre sans elle ; une retouche
 // n'est jamais perdue en silence. Et chaque employé désigné un jour doit être un employé de la société.
@@ -258,6 +292,27 @@ describe('POST /api/btp — équipe d’une obra jour par jour (equipe_par_jour)
     expect(res.status).toBe(400)
     expect(String(res.json.error)).toContain('membre de l\'équipe introuvable dans votre compte')
     expect(h.etat.envois).toEqual([])
+  })
+
+  it('employé supprimé encore dans l’équipe habituelle : inscrit à un jour, la fiche s’enregistre quand même', async () => {
+    h.etat.colonneAbsente = false
+    h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours', membres_ids: [M1, M_AUTRE], equipe_par_jour: {} }]
+    const res = await ecrire({ action: 'update', id: 'villa', data: { equipe_par_jour: { '2026-12-01': [M_AUTRE] } } })
+    expect(res.status).toBe(200)
+  })
+
+  it('identifiants écrits en minuscules, sans doublon, jours triés ; clé « __proto__ » refusée', async () => {
+    h.etat.colonneAbsente = false
+    const res = await ecrire({ action: 'update', id: 'villa', data: { equipe_par_jour: { '2026-12-02': [M1], '2026-12-01': [M2.toUpperCase(), M2] } } })
+    expect(res.status).toBe(200)
+    expect(h.etat.envois[0].valeur.equipe_par_jour).toEqual({ '2026-12-01': [M2], '2026-12-02': [M1] })
+    expect(Object.keys(h.etat.envois[0].valeur.equipe_par_jour as Ligne)).toEqual(['2026-12-01', '2026-12-02'])
+    const piege = await POST(new NextRequest('https://vitfix.io/api/btp', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+      body: `{"table":"chantiers_btp","action":"update","id":"villa","data":{"equipe_par_jour":{"2026-12-01":[],"__proto__":{"x":1}}}}`,
+    }))
+    expect(piege.status).toBe(400)
   })
 
   it('jour impossible ou identifiant mal formé : refus 400 qui nomme la colonne', async () => {

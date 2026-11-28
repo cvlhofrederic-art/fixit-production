@@ -5,8 +5,9 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  ajouteCeJour, equipeDuJour, estJourOuvre, jourRetouche, joursEntre, jourValide, lireEquipeParJour, membresDesignes,
-  reprendreEquipeHabituelle, retoucherJour, simplifierEquipeParJour, JOURS_MAX_PAR_CHANTIER,
+  ajouteCeJour, equipeDuJour, estJourOuvre, figerJoursPasses, formeEquipeParJourValide, jourRetouche, joursEntre, jourValide,
+  lireEquipeParJour, membresDesignes, periodeTronquee, reprendreEquipeHabituelle, retoucherJour, simplifierEquipeParJour,
+  JOURS_MAX_PAR_CHANTIER, MEMBRES_MAX_PAR_JOUR,
 } from '@/lib/btp/equipe-par-jour'
 import {
   achatsMateriaux, dateFinProlongee, montantHorsIva, rentabiliteObra, totalMateriauxHT, type EntreeRentabiliteObra,
@@ -69,6 +70,48 @@ describe('jours et équipe habituelle', () => {
     expect(lireEquipeParJour([['2026-12-01', ['a']]])).toEqual({})
     expect(lireEquipeParJour({ [MAR]: ['a', 'a', '', 3], x: ['b'], [MER]: 'a' })).toEqual({ [MAR]: ['a'] })
     expect(membresDesignes({ [MAR]: ['a', 'b'], [MER]: ['b', 'c'] })).toEqual(['a', 'b', 'c'])
+  })
+
+  it('un jour passé garde sa liste même égale à l’équipe habituelle ; un jour à venir égal disparaît', () => {
+    // Aujourd'hui mercredi : lundi et mardi sont passés.
+    expect(simplifierEquipeParJour({ [LUN]: ['a', 'b'], [MER]: ['a', 'b'], [VEN]: ['a'] }, ['a', 'b'], MER))
+      .toEqual({ [LUN]: ['a', 'b'], [VEN]: ['a'] })
+    expect(retoucherJour({}, ['a', 'b'], MAR, ['a', 'b'], MER)).toEqual({ [MAR]: ['a', 'b'] })
+  })
+
+  it('changer l’équipe habituelle fige les jours passés sans liste ; aujourd’hui et la suite prennent la nouvelle', () => {
+    // Rui (r) en renfort mardi ; mercredi, il entre dans l'équipe habituelle.
+    const avant = { [MAR]: ['a', 'b', 'r'] }
+    const apres = figerJoursPasses({ debut: LUN, aujourdhui: MER, ancienneEquipe: ['a', 'b'], nouvelleEquipe: ['a', 'b', 'r'], equipeParJour: avant })
+    expect(apres).toEqual({ [LUN]: ['a', 'b'], [MAR]: ['a', 'b', 'r'] })
+    expect(equipeDuJour(LUN, ['a', 'b', 'r'], apres)).toEqual(['a', 'b'])
+    expect(equipeDuJour(MER, ['a', 'b', 'r'], apres)).toEqual(['a', 'b', 'r'])
+    // Puis Rui repart : mardi le garde, lundi aussi (rien ne bouge dans le passé).
+    const ensuite = figerJoursPasses({ debut: LUN, aujourdhui: VEN, ancienneEquipe: ['a', 'b', 'r'], nouvelleEquipe: ['a', 'b'], equipeParJour: apres })
+    expect(ensuite[MAR]).toEqual(['a', 'b', 'r'])
+    expect(ensuite[MER]).toEqual(['a', 'b', 'r'])
+    expect(equipeDuJour(VEN, ['a', 'b'], ensuite)).toEqual(['a', 'b'])
+    // Même équipe, ou obra pas encore commencée : rien n'est figé.
+    expect(figerJoursPasses({ debut: LUN, aujourdhui: MER, ancienneEquipe: ['b', 'a'], nouvelleEquipe: ['a', 'b'], equipeParJour: {} })).toEqual({})
+    expect(figerJoursPasses({ debut: VEN, aujourdhui: MER, ancienneEquipe: ['a'], nouvelleEquipe: ['b'], equipeParJour: {} })).toEqual({})
+  })
+
+  it('forme stricte attendue par la route : « __proto__ », jour faux, liste trop longue refusés', () => {
+    const UUID = /^[0-9a-f-]{36}$/i
+    const id = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
+    expect(formeEquipeParJourValide({ [MAR]: [id] }, UUID)).toBe(true)
+    expect(formeEquipeParJourValide(JSON.parse(`{"${MAR}": [], "__proto__": {"x": 1}}`), UUID)).toBe(false)
+    expect(formeEquipeParJourValide({ '2026-02-30': [id] }, UUID)).toBe(false)
+    expect(formeEquipeParJourValide({ [MAR]: Array.from({ length: MEMBRES_MAX_PAR_JOUR + 1 }, () => id) }, UUID)).toBe(false)
+    expect(formeEquipeParJourValide([id], UUID)).toBe(false)
+    // Lecture : identifiants en minuscules, clé « __proto__ » ignorée.
+    expect(lireEquipeParJour(JSON.parse(`{"${MAR}": ["${id.toUpperCase()}"], "__proto__": ["${id}"]}`))).toEqual({ [MAR]: [id] })
+  })
+
+  it('période tronquée seulement au-delà du plafond (une obra d’exactement 1 100 jours ne l’est pas)', () => {
+    const fin1100 = new Date(Date.UTC(2026, 0, 1 + JOURS_MAX_PAR_CHANTIER - 1)).toISOString().slice(0, 10)
+    expect(periodeTronquee('2026-01-01', fin1100)).toBe(false)
+    expect(periodeTronquee('2026-01-01', '2099-12-31')).toBe(true)
   })
 
   it('pointage : ajouté ce jour-là seulement ; une colonne illisible n’ajoute rien', () => {
@@ -140,6 +183,22 @@ describe('rentabilité d’une obra, hors IVA, équipe jour par jour', () => {
     const r = rentabiliteObra({ ...base, materiauxHT: null })!
     expect(r.materiauxHT).toBe(750)
     expect(r.materiauxEstimes).toBe(true)
+  })
+
+  it('employé parti (désactivé ou supprimé) : compté les jours passés, plus à partir d’aujourd’hui', () => {
+    // b désactivé : lundi et mardi (passés) avec lui, mercredi à vendredi sans lui.
+    const r = rentabiliteObra({ ...base, actifs: new Set(['a']) })!
+    expect(r.coutMOPrevu).toBe(250 * 2 + 100 * 3)
+    expect(r.coutJourEquipe).toBe(100)
+    // Inscrit nommément un jour à venir : il compte ce jour-là.
+    expect(rentabiliteObra({ ...base, actifs: new Set(['a']), equipeParJour: { [VEN]: ['a', 'b'] } })!.coutMOPrevu).toBe(250 * 2 + 100 * 2 + 250)
+    // Fiches pas encore chargées (aucun filtre) : comme avant.
+    expect(rentabiliteObra(base)!.coutMOPrevu).toBe(1250)
+  })
+
+  it('coût inconnu d’un employé compté : signalé (coût par défaut)', () => {
+    expect(rentabiliteObra(base)!.coutsParDefaut).toBe(false)
+    expect(rentabiliteObra({ ...base, membresIds: ['a', 'inconnu'] })!.coutsParDefaut).toBe(true)
   })
 
   it('un ancien employé (absent de la liste des coûts) compte au coût par défaut ; sans équipe du tout, estimation', () => {

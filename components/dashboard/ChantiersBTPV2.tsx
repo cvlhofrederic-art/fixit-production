@@ -17,8 +17,9 @@ import { estSousCompteSociete } from '@/lib/documents/identite-documents'
 import { lierDevisAuChantierSociete, lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
 import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import {
-  JOURS_MAX_PAR_CHANTIER, joursEntre, lireEquipeParJour, simplifierEquipeParJour, type EquipeParJour,
+  figerJoursPasses, joursEntre, lireEquipeParJour, periodeTronquee, simplifierEquipeParJour, type EquipeParJour,
 } from '@/lib/btp/equipe-par-jour'
+import { jourLocal } from '@/lib/btp/accueil'
 import {
   TAUX_MATERIAUX_ESTIME_PCT, achatsMateriaux, dateFinProlongee, rentabiliteObra, totalMateriauxHT, type DepenseObra,
 } from '@/lib/btp/rentabilite-obra'
@@ -59,19 +60,16 @@ const EMPTY_FORM: ChantierForm = {
 }
 
 /** « AAAA-MM-JJ » du jour, dans le fuseau du navigateur (celui du gérant). */
-function aujourdhuiLocal(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+const aujourdhuiLocal = () => jourLocal(new Date())
 
 /**
- * Jours proposés dans « Équipe par jour » : de la date de début à la date de fin ; pour une obra en cours dont la fin
+ * Période proposée dans « Équipe par jour » : de la date de début à la date de fin ; pour une obra en cours dont la fin
  * est dépassée, jusqu'à aujourd'hui (les jours de retard ont aussi une équipe).
  */
-function joursDeLaFiche(f: Pick<ChantierForm, 'dateDebut' | 'dateFin' | 'statut'>): string[] {
+function periodeDeLaFiche(f: Pick<ChantierForm, 'dateDebut' | 'dateFin' | 'statut'>): { debut: string; fin: string } {
   const aujourdhui = aujourdhuiLocal()
   const fin = f.statut === 'En cours' && f.dateFin && aujourdhui > f.dateFin ? aujourdhui : f.dateFin
-  return joursEntre(f.dateDebut, fin)
+  return { debut: f.dateDebut, fin }
 }
 
 /**
@@ -524,6 +522,23 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     void geocodeAdresse(form, garde)
   }
 
+  /** Employés de l'équipe habituelle qui ne sont plus actifs (désactivés ou supprimés) : affichés pour être retirés. */
+  const partisCoches = (f: ChantierForm): string[] => (f.membres_ids || []).filter(id => !membresList.some(m => m.id === id))
+
+  /**
+   * Coche ou décoche un employé de l'équipe habituelle. Sur une obra existante, les jours passés sans liste à eux
+   * gardent l'équipe d'avant (figerJoursPasses) : changer l'équipe ne réécrit pas qui était là ces jours-là. La route
+   * fait de même pour l'onglet Affectations du pointage.
+   */
+  const basculerHabituel = (id: string) => {
+    const ids = form.membres_ids || []
+    const nouveaux = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+    const equipeParJour = editId
+      ? figerJoursPasses({ debut: form.dateDebut, aujourdhui: aujourdhuiLocal(), ancienneEquipe: ids, nouvelleEquipe: nouveaux, equipeParJour: form.equipe_par_jour ?? {} })
+      : form.equipe_par_jour ?? {}
+    setForm({ ...form, membres_ids: nouveaux, equipe_par_jour: equipeParJour })
+  }
+
   // ── Save ──
   const handleSave = async () => {
     if (!form.titre.trim()) return
@@ -536,7 +551,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
       fiche = { ...form, ...SANS_POSITION }
     }
     // Seuls les jours qui diffèrent de l'équipe habituelle s'enregistrent (une retouche redevenue identique disparaît).
-    fiche = { ...fiche, equipe_par_jour: simplifierEquipeParJour(fiche.equipe_par_jour ?? {}, fiche.membres_ids ?? []) }
+    fiche = { ...fiche, equipe_par_jour: simplifierEquipeParJour(fiche.equipe_par_jour ?? {}, fiche.membres_ids ?? [], aujourdhuiLocal()) }
     setSaving(true)
     // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
     let enregistre: boolean
@@ -566,7 +581,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
       alerteMeteo: c.alerteMeteo === true,
       // Sous la forme où l'enregistrement la renvoie : rouvrir puis enregistrer sans rien toucher n'envoie rien.
-      equipe_par_jour: simplifierEquipeParJour(lireEquipeParJour(c.equipe_par_jour), c.membres_ids || []),
+      equipe_par_jour: simplifierEquipeParJour(lireEquipeParJour(c.equipe_par_jour), c.membres_ids || [], aujourdhuiLocal()),
     }
     ficheOuverteRef.current = fiche
     setForm(fiche)
@@ -593,7 +608,12 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
   }
 
   // ── Rentabilité par chantier (hors IVA, équipe jour par jour, matériaux saisis : lib/btp/rentabilite-obra.ts) ──
-  const coutJourParMembre = useMemo(() => new Map(membresTous.map(m => [m.id, m.daily_cost])), [membresTous])
+  const coutJourParMembre = useMemo(() => new Map(membresTous.map(m => [m.id.toLowerCase(), m.daily_cost])), [membresTous])
+  // Employés actifs, une fois les fiches chargées : un employé parti ne coûte plus rien à partir d'aujourd'hui.
+  const actifs = useMemo(
+    () => (membresTous.length > 0 ? new Set(membresList.map(m => m.id.toLowerCase())) : undefined),
+    [membresTous, membresList],
+  )
   /** Coût d'une journée d'ouvrier par défaut (réglages), celui de l'ancien calcul. */
   const coutJourParDefaut = (settings.cout_horaire_ouvrier || 15) * (1 + (settings.charges_patronales_pct || 45) / 100) * 7
   const getRenta = useCallback((c: ChantierForm & { id: string; statut?: string }, dateFin?: string) => rentabiliteObra({
@@ -607,8 +627,9 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     coutJourParDefaut,
     nbEmployesSansEquipe: Number(c.equipe) || 1,
     materiauxHT: totalMateriauxHT(depenses, c.id),
+    actifs,
     aujourdhui: aujourdhuiLocal(),
-  }), [coutJourParMembre, coutJourParDefaut, depenses])
+  }), [coutJourParMembre, coutJourParDefaut, depenses, actifs])
 
   // ── Charger membres au mount ──
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
@@ -978,7 +999,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
                         {' · '}{isPt ? 'Materiais' : 'Matériaux'} {fmt(renta.materiauxHT, dl)} €
                         {renta.materiauxEstimes && (isPt ? ` (estimativa ${TAUX_MATERIAUX_ESTIME_PCT}%)` : ` (estimation ${TAUX_MATERIAUX_ESTIME_PCT} %)`)}
                         {' · '}{isPt ? 'Mão de obra' : 'Main-d’œuvre'} {fmt(renta.coutMOPrevu, dl)} € ({renta.joursTravailles} {isPt ? 'dias de trabalho' : 'jours travaillés'}
-                        {renta.equipeEstimee && (isPt ? ', equipa estimada' : ', équipe estimée')})
+                        {renta.equipeEstimee && (isPt ? ', equipa estimada' : ', équipe estimée')}
+                        {renta.coutsParDefaut && (isPt ? ', custo por defeito' : ', coût par défaut')})
                       </span>
                     </div>
 
@@ -1266,7 +1288,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
               {/* ── Équipe / Employés assignés ── */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Colaboradores atribuídos' : 'Employés assignés'}</label>
-                {membresList.length === 0 ? (
+                {membresList.length === 0 && partisCoches(form).length === 0 ? (
                   <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Nenhum colaborador. Adicione-os em "Equipas".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
                   </div>
@@ -1280,14 +1302,26 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
                           background: selected ? '#E8F5E9' : '#fff', border: `1px solid ${selected ? '#81C784' : '#E0E0E0'}`,
                           fontSize: 12,
                         }}>
-                          <input type="checkbox" checked={selected}
-                            onChange={() => {
-                              const ids = form.membres_ids || []
-                              setForm({ ...form, membres_ids: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] })
-                            }} />
+                          <input type="checkbox" checked={selected} onChange={() => basculerHabituel(m.id)} />
                           <span style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</span>
                           <span style={{ color: '#999' }}>{isPt ? ROLE_PT[m.role] ?? m.role : m.role}</span>
                           <span style={{ color: '#C62828', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
+                        </label>
+                      )
+                    })}
+                    {/* Employé désactivé ou supprimé resté dans l'équipe : visible pour pouvoir le retirer (il ne compte plus
+                        à partir d'aujourd'hui ; ses jours passés restent). */}
+                    {partisCoches(form).map(id => {
+                      const ancien = membresTous.find(m => m.id === id)
+                      return (
+                        <label key={id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 4, cursor: 'pointer',
+                          background: '#FAFAFA', border: '1px dashed #BDBDBD', fontSize: 12, color: '#777',
+                        }}>
+                          <input type="checkbox" checked onChange={() => basculerHabituel(id)} />
+                          <span style={{ fontWeight: 600 }}>{ancien ? `${ancien.prenom} ${ancien.nom}` : (isPt ? 'Colaborador removido' : 'Employé supprimé')}</span>
+                          <span>{ancien ? (isPt ? 'inativo' : 'inactif') : ''}</span>
+                          <span style={{ marginLeft: 'auto', fontSize: 11 }}>{isPt ? 'desmarque para o retirar' : 'décochez pour le retirer'}</span>
                         </label>
                       )
                     })}
@@ -1303,10 +1337,10 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
 
               {/* ── Équipe jour par jour (28/11/2026) : l'équipe habituelle ci-dessus, retouchée un jour donné ── */}
               {(() => {
-                const jours = joursDeLaFiche(form)
+                const { debut, fin } = periodeDeLaFiche(form)
                 return (
                   <EquipeParJourEditeur
-                    jours={jours} tronque={jours.length >= JOURS_MAX_PAR_CHANTIER}
+                    jours={joursEntre(debut, fin)} tronque={periodeTronquee(debut, fin)} aujourdhui={jourLocal(new Date())}
                     membres={membresList} membresTous={membresTous}
                     membresIds={form.membres_ids || []} equipeParJour={form.equipe_par_jour ?? {}}
                     onChange={equipeParJour => setForm(f => ({ ...f, equipe_par_jour: equipeParJour }))}

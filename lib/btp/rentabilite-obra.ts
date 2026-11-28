@@ -18,7 +18,7 @@
  */
 
 import {
-  equipeDuJour, jourRetouche, jourSuivant, joursEntre, jourValide, JOURS_MAX_PAR_CHANTIER, type EquipeParJour,
+  equipeDuJour, jourRetouche, jourSuivant, joursEntre, jourValide, periodeTronquee, type EquipeParJour,
 } from '@/lib/btp/equipe-par-jour'
 
 /** Part du budget comptée en matériaux tant qu'aucun achat n'est saisi (valeur de l'ancien calcul). */
@@ -90,7 +90,14 @@ export interface EntreeRentabiliteObra {
   nbEmployesSansEquipe: number
   /** Total des achats de matériaux hors IVA ; null : aucun achat saisi. */
   materiauxHT: number | null
-  /** « AAAA-MM-JJ » du jour (Lisbonne ou Paris selon l'écran ; fourni par l'appelant). */
+  /**
+   * Employés actifs (fiches Équipes). Donné, l'équipe habituelle ne compte plus un employé désactivé ou supprimé à
+   * partir d'aujourd'hui : il est parti, il ne coûtera plus rien. Les jours passés le gardent (il était là), comme
+   * tout jour où il est inscrit nommément. Absent (fiches pas encore chargées, ou rôle sans accès aux Équipes) : aucun
+   * filtre (relecture adverse du 28/11/2026 ; l'ancien calcul ne comptait que les actifs, pour tous les jours).
+   */
+  actifs?: ReadonlySet<string>
+  /** « AAAA-MM-JJ » du jour (dans le fuseau du navigateur ; fourni par l'appelant). */
   aujourdhui: string
 }
 
@@ -109,13 +116,15 @@ export interface ResultatRentabiliteObra {
   joursCalendrier: number
   /** Jours prévus où au moins un employé travaille. */
   joursTravailles: number
-  /** Coût d'une journée de l'équipe habituelle (ou de l'estimation sans équipe). */
+  /** Coût d'une journée de l'équipe habituelle à partir d'aujourd'hui (ou de l'estimation sans équipe). */
   coutJourEquipe: number
   coutMOPrevu: number
   materiauxHT: number
   materiauxEstimes: boolean
   /** Aucun employé désigné ni retouche : main-d'œuvre estimée (ancien calcul, jours ouvrés seulement). */
   equipeEstimee: boolean
+  /** Au moins un employé compté sans coût connu (fiche absente ou illisible) : coût d'un ouvrier par défaut. */
+  coutsParDefaut: boolean
   coutTotalPrevu: number
   beneficePrevu: number
   margePrevuePct: number
@@ -136,31 +145,40 @@ function coutDesMembres(membres: readonly string[], e: EntreeRentabiliteObra): n
   return membres.reduce((s, id) => s + (e.coutJourParMembre.get(id) ?? e.coutJourParDefaut), 0)
 }
 
+function statut(beneficeActuel: number, margePrevuePct: number): ResultatRentabiliteObra['status'] {
+  if (beneficeActuel <= 0) return 'loss'
+  return margePrevuePct >= 25 ? 'profit' : 'warning'
+}
+
 /** Rentabilité de l'obra, hors IVA ; null sans valeur ou sans dates valides (comme l'ancien calcul). */
 export function rentabiliteObra(e: EntreeRentabiliteObra): ResultatRentabiliteObra | null {
   const valeurHT = Number.isFinite(e.valeurHT) ? e.valeurHT : 0
   if (valeurHT <= 0 || !jourValide(e.dateDebut) || !jourValide(e.dateFin) || e.dateFin < e.dateDebut) return null
 
-  const equipeEstimee = e.membresIds.length === 0 && Object.values(e.equipeParJour).every(m => m.length === 0)
+  const membresIds = e.membresIds.map(id => id.toLowerCase())
+  const equipeEstimee = membresIds.length === 0 && Object.values(e.equipeParJour).every(m => m.length === 0)
   // Sans aucun employé désigné : l'ancienne estimation (nombre d'ouvriers × coût par défaut), les jours ouvrés.
   const estimation = Array.from({ length: Math.max(1, Math.floor(e.nbEmployesSansEquipe) || 1) }, (_, i) => `estimation-${i}`)
-  const membresHabituels = equipeEstimee ? estimation : e.membresIds
+  const membresHabituels = equipeEstimee ? estimation : membresIds
+  // Équipe habituelle d'aujourd'hui et des jours à venir : sans les employés partis (désactivés ou supprimés).
+  const habituelsAVenir = equipeEstimee || !e.actifs ? membresHabituels : membresHabituels.filter(id => e.actifs?.has(id))
   const equipeParJour = equipeEstimee ? {} : e.equipeParJour
 
   const enCours = e.statut === 'En cours'
   const finDepassee = enCours && jourValide(e.aujourdhui) && e.aujourdhui > e.dateFin
   const fin = finDepassee ? e.aujourdhui : e.dateFin
   const periode = joursEntre(e.dateDebut, fin)
-  const tronque = joursEntre(e.dateDebut, e.dateFin).length >= JOURS_MAX_PAR_CHANTIER
-    || (finDepassee && periode.length >= JOURS_MAX_PAR_CHANTIER)
 
+  let coutsParDefaut = false
   const jours: JourObra[] = periode.map(jour => {
-    const membres = equipeDuJour(jour, membresHabituels, equipeParJour)
+    const habituels = jourValide(e.aujourdhui) && jour >= e.aujourdhui ? habituelsAVenir : membresHabituels
+    const membres = equipeDuJour(jour, habituels, equipeParJour)
+    if (!equipeEstimee && membres.some(id => !e.coutJourParMembre.has(id))) coutsParDefaut = true
     return {
       jour,
       membres: equipeEstimee ? [] : membres,
       cout: arrondi2(coutDesMembres(membres, e)),
-      retouche: !equipeEstimee && jourRetouche(jour, membresHabituels, equipeParJour),
+      retouche: !equipeEstimee && jourRetouche(jour, habituels, equipeParJour),
       enRetard: jour > e.dateFin,
     }
   })
@@ -175,8 +193,6 @@ export function rentabiliteObra(e: EntreeRentabiliteObra): ResultatRentabiliteOb
   const beneficePrevu = valeurHT - coutTotalPrevu
   const margePrevuePct = (beneficePrevu / valeurHT) * 100
   const beneficeActuel = beneficePrevu - coutRetard
-  const status: ResultatRentabiliteObra['status'] = beneficeActuel > 0 && margePrevuePct >= 25 ? 'profit'
-    : beneficeActuel > 0 ? 'warning' : 'loss'
 
   // Nombre de jours de retard : de la date de fin (exclue) à aujourd'hui, sans plafond.
   const joursRetard = finDepassee
@@ -187,11 +203,12 @@ export function rentabiliteObra(e: EntreeRentabiliteObra): ResultatRentabiliteOb
     valeurHT: Math.round(valeurHT),
     joursCalendrier: joursEntre(e.dateDebut, e.dateFin).length,
     joursTravailles: prevus.filter(j => (equipeEstimee ? j.cout > 0 : j.membres.length > 0)).length,
-    coutJourEquipe: Math.round(coutDesMembres(membresHabituels, e)),
+    coutJourEquipe: Math.round(coutDesMembres(habituelsAVenir, e)),
     coutMOPrevu: Math.round(coutMOPrevu),
     materiauxHT: Math.round(materiauxHT),
     materiauxEstimes,
     equipeEstimee,
+    coutsParDefaut,
     coutTotalPrevu: Math.round(coutTotalPrevu),
     beneficePrevu: Math.round(beneficePrevu),
     margePrevuePct: Math.round(margePrevuePct * 10) / 10,
@@ -199,10 +216,10 @@ export function rentabiliteObra(e: EntreeRentabiliteObra): ResultatRentabiliteOb
     joursRetard,
     coutRetard: Math.round(coutRetard),
     beneficeActuel: Math.round(beneficeActuel),
-    status,
+    status: statut(beneficeActuel, margePrevuePct),
     finDepassee,
     jours,
-    tronque,
+    tronque: periodeTronquee(e.dateDebut, fin),
   }
 }
 
