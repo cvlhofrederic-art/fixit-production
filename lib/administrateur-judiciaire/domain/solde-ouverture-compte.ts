@@ -9,12 +9,17 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  *
  * Ce que dit le solde d'ouverture (réponse du référent métier du 28/11/2026, PR 848, point 2, choix B : « Passer au
  * solde de fin de journée : montant et date se recopient tels quels depuis le relevé ») : le solde du compte À LA FIN du
- * jour indiqué, les mouvements de ce jour compris. C'est ainsi qu'un relevé CFONB 120 ou camt.053 écrit son ancien
- * solde, daté de la veille de son premier jour. À partir de ce jour, le solde du compte est ce montant plus les lignes
- * de relevé datées APRÈS ce jour (db/sous-comptes-banque.ts, soldeCompteBancaireCentimes) ; les lignes datées de ce jour
- * ou d'avant sont tenues pour déjà comprises dans ce montant et n'y entrent pas une seconde fois : elles restent
+ * jour indiqué, les mouvements de ce jour compris. À partir de ce jour, le solde du compte est ce montant plus les
+ * lignes de relevé datées APRÈS ce jour (db/sous-comptes-banque.ts, soldeCompteBancaireCentimes) ; les lignes datées de
+ * ce jour ou d'avant sont tenues pour déjà comprises dans ce montant et n'y entrent pas une seconde fois : elles restent
  * importées, comptées et signalées (même réponse, point 3, choix A). Avant ce jour, le solde du compte n'est pas connu :
  * un arrêté n'y est pas ouvert (point 5). Facultatif : un compte ouvert pendant la mission part de zéro.
+ * Constat sur les relevés d'essai du dépôt, CFONB 120 et camt.053 (tests/administrateur-judiciaire/fixtures/releves/),
+ * et non règle générale : leur ancien solde (enregistrement 01, solde OPBD) est daté de la veille du premier mouvement
+ * (30/09/2026 pour des mouvements à partir du 01/10/2026, par exemple) ; recopié tel quel, il est un solde de fin de
+ * journée. Rien n'a été vérifié pour les relevés d'autres banques : un ancien solde daté du premier jour du relevé
+ * ferait tenir les mouvements de ce jour pour déjà compris, ce que seul l'avertissement des lignes déjà comprises
+ * signalerait.
  *
  * Représentation retenue : deux champs du compte (table « banques », non indexés), lus par les calculs. AUCUNE écriture
  * n'est passée au journal. Ce n'est ni un avis juridique ni un avis comptable ; raisons, textes lus sur Légifrance le
@@ -54,7 +59,9 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  *   clôture par db/rapprochements.ts). Le même jour est admis des deux côtés : avec un solde de fin de journée, l'arrêté
  *   de ce jour a pour solde compta le solde d'ouverture lui-même. La réponse ne nommait que l'arrêté clôturé : l'arrêté
  *   en cours est traité de même, faute de quoi il resterait un arrêté en cours daté avant le solde d'ouverture, que sa
- *   clôture refuserait (choix à soumettre au référent métier) ;
+ *   clôture refuserait (choix à soumettre au référent métier). Le refus du solde d'ouverture dit la marche à suivre,
+ *   comme le refus voisin (retour de relecture du 28/11/2026, texte à valider par le référent métier) : le dater au plus
+ *   tard du jour du premier arrêté ; ou, quand ce premier arrêté est en cours, l'abandonner d'abord ;
  * - solde d'ouverture illisible (même réponse, point 8, choix A) : des champs enregistrés hors de l'écran, sans date ou
  *   mal formés, n'entrent toujours dans aucun solde, mais soldeOuvertureIllisible les reconnaît, pour que l'écran les
  *   signale par un bandeau au lieu de les ignorer en silence.
@@ -151,17 +158,35 @@ type ArreteDuCompte = ChangementSoldeOuverture['arretes'][number]
 const REGLE_PREMIER_ARRETE = 'Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour.'
 
 /**
+ * Marche à suivre dite à la fin du même refus, comme le fait le refus voisin (« Déclôturer d'abord… ») : dater le solde
+ * d'ouverture au plus tard du jour du premier arrêté du compte.
+ * - Premier arrêté en cours : c'est le seul arrêté du compte (un arrêté s'ouvre après le dernier). La date conseillée
+ *   est alors admise, l'arrêté se recalcule ; l'abandonner est l'autre issue, le clôturer ne changerait rien.
+ * - Premier arrêté clôturé : à la date conseillée, chaque arrêté clôturé du compte couvre le solde d'ouverture, et le
+ *   refus voisin demande de les déclôturer d'abord ; le refus l'annonce, pour ne pas conseiller une date refusée à son
+ *   tour sans le dire. Abandonner l'arrêté en cours, s'il y en a un, ne suffirait pas : il n'est pas proposé ici.
+ */
+function marcheApresPremierArrete(premier: ArreteDuCompte, arretes: readonly ArreteDuCompte[]): string {
+  const dater = `Le dater au plus tard du ${dateIsoVersFr(premier.dateArrete)}`
+  if (premier.statut === 'En cours') return `${dater}, ou abandonner d’abord cet arrêté en cours.`
+  const plusieurs = arretes.filter((arrete) => arrete.statut === 'Clôturé').length > 1
+  return `${dater}, après avoir déclôturé ${plusieurs ? 'les arrêtés clôturés du compte' : 'cet arrêté'}.`
+}
+
+/**
  * Refus d'un solde d'ouverture daté après un arrêté du compte, clôturé ou en cours (réponse du référent métier du
  * 28/11/2026, PR 848, point 4, choix A : « Le refuser : un solde d'ouverture se date avant le premier arrêté du
  * compte ») ; null s'il est daté au plus tard du premier arrêté (le même jour est admis : solde de fin de journée), si le
- * compte n'a aucun arrêté qui compte, ou si le solde d'ouverture est retiré.
+ * compte n'a aucun arrêté qui compte, ou si le solde d'ouverture est retiré. Le refus dit la règle, puis la marche à
+ * suivre (marcheApresPremierArrete).
  */
 function refusOuvertureApresArrete(apres: SoldeOuverture | null, arretes: readonly ArreteDuCompte[]): string | null {
   if (apres === null) return null
   const premier = arretes.reduce<ArreteDuCompte | null>((min, arrete) => (min === null || arrete.dateArrete < min.dateArrete ? arrete : min), null)
   if (premier === null || premier.dateArrete >= apres.au) return null
   const arrete = `${dateIsoVersFr(premier.dateArrete)}, ${premier.statut === 'En cours' ? 'en cours' : 'clôturé'}`
-  return `Solde d’ouverture refusé : daté du ${dateIsoVersFr(apres.au)}, après le premier arrêté du compte (${arrete}). ${REGLE_PREMIER_ARRETE}`
+  const refus = `Solde d’ouverture refusé : daté du ${dateIsoVersFr(apres.au)}, après le premier arrêté du compte (${arrete}).`
+  return `${refus} ${REGLE_PREMIER_ARRETE} ${marcheApresPremierArrete(premier, arretes)}`
 }
 
 /**
@@ -184,8 +209,9 @@ export function refusArreteAvantOuverture(dateArrete: string, ouverture: SoldeOu
  * en cours du compte s'il y en a un (tant qu'il existe, la déclôture est refusée elle aussi).
  * Refuse aussi, et d'abord, un solde d'ouverture daté APRÈS un arrêté du compte, clôturé ou en cours (réponse du
  * référent métier du 28/11/2026, PR 848, point 4, choix A ; voir l'en-tête) : la date elle-même est refusée, déclôturer
- * n'y changerait rien. Le refus nomme le premier arrêté du compte. Le même jour n'est pas « après ». Retirer le solde
- * d'ouverture, ou le laisser tel quel, n'est jamais refusé par cette règle.
+ * n'y changerait rien. Le refus nomme le premier arrêté du compte et dit lui aussi la marche à suivre : dater le solde
+ * d'ouverture au plus tard de ce jour, ou abandonner d'abord cet arrêté quand il est en cours. Le même jour n'est pas
+ * « après ». Retirer le solde d'ouverture, ou le laisser tel quel, n'est jamais refusé par cette règle.
  */
 export function verifierChangementSoldeOuverture({ avant, apres, compteActif, arretes }: ChangementSoldeOuverture): void {
   if (memeSoldeOuverture(avant, apres)) return

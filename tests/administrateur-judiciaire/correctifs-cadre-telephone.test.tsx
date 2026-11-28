@@ -484,8 +484,9 @@ describe('messages (toasts) au-dessus des fenêtres du module', () => {
   const variable = (nom: string) => Number(style('#aj-root').getPropertyValue(nom).trim())
   /**
    * Propriétés que déclare la règle du correctif, celle qui donne ce z-index aux messages. La place des messages est
-   * l'affaire du correctif « messages (toasts) sur le bouton Fixy » (bloc ci-dessus), qui la vérifie largeur par largeur :
-   * ce bloc n'en répète aucun chiffre, pour ne pas le contredire quand ce correctif-là change.
+   * l'affaire du correctif « messages (toasts) sur le bouton Fixy » (bloc ci-dessus), qui la vérifie largeur par largeur.
+   * Ce bloc vérifie seulement que le point 9 ne la déplace pas : 74 px du bas à toutes les largeurs depuis la PR 855
+   * (rb-c07 A), reprise de main dans cette branche.
    */
   const proprietesDeLaRegle = (zIndex: string): string[][] =>
     Array.from(document.styleSheets)
@@ -516,6 +517,7 @@ describe('messages (toasts) au-dessus des fenêtres du module', () => {
       // (ni place ni taille : les messages gardent celles du correctif « sur le bouton Fixy », à toutes les largeurs).
       expect(z('.vfx-demo-banner')).toBe(101)
       expect(proprietesDeLaRegle('1001')).toEqual([['z-index']])
+      expect(style('.vfx-toast-viewport').bottom).toBe('74px')
     })
 })
 

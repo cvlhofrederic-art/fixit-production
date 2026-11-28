@@ -191,6 +191,22 @@ function AlerteLignesAvantOuverture({ compte, au }: Readonly<{ compte: CompteAff
 }
 
 /**
+ * Conseil du bandeau des soldes d'ouverture illisibles. « Modifier » n'existe que sur la ligne d'un compte actif
+ * (TableauComptes), et le solde d'ouverture d'un compte clôturé ne se modifie plus (domain/solde-ouverture-compte.ts) :
+ * pour un compte clôturé, seule la base locale permet de corriger (retour de relecture du 28/11/2026, texte à valider
+ * par le référent métier). Comptes tous clôturés : déjà nommés en tête du bandeau ; sinon, les comptes clôturés sont
+ * nommés à part.
+ */
+function conseilSoldesOuvertureIllisibles(illisibles: readonly CompteAffiche[]): string {
+  const clotures = illisibles.filter((compte) => !compte.actif)
+  const pourActifs = clotures.length < illisibles.length ? ' À saisir de nouveau (« Modifier »), ou à reprendre dans la base locale.' : ''
+  if (clotures.length === 0) return pourActifs
+  const sujet = clotures.length > 1 ? 'Comptes clôturés' : 'Compte clôturé'
+  const nommes = pourActifs === '' ? '' : ` (${clotures.map(nomDuCompte).join(', ')})`
+  return `${pourActifs} ${sujet}${nommes} : à reprendre dans la base locale.`
+}
+
+/**
  * Bandeau des soldes d'ouverture illisibles (réponse du référent métier du 28/11/2026, PR 848, point 8, choix A : « Un
  * bandeau, comme pour les arrêtés illisibles ») : écrits hors de l'écran sans date ou mal formés, ils n'entrent dans
  * aucun solde. Même forme que le bandeau des arrêtés illisibles (RapprochementPanel.tsx) ; les comptes sont nommés.
@@ -205,7 +221,7 @@ function AlerteSoldesOuvertureIllisibles({ comptes }: Readonly<{ comptes: readon
       {plusieurs
         ? 'sans date ou mal formés, ils n’entrent ni dans le solde de ces comptes ni dans leurs arrêtés.'
         : 'sans date ou mal formé, il n’entre ni dans le solde du compte ni dans ses arrêtés.'}
-      {' À saisir de nouveau (« Modifier »), ou à reprendre dans la base locale.'}
+      {conseilSoldesOuvertureIllisibles(illisibles)}
     </Alert>
   )
 }

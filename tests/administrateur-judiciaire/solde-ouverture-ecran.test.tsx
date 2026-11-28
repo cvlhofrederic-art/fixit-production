@@ -19,8 +19,8 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  * Écran « Banque et recouvrement » : solde d'ouverture des comptes bancaires (PR 799, point 2, choix A validé par le
  * référent métier, décision du 26/11/2026). Formulaires « Nouveau compte » et « Modifier » : deux champs facultatifs,
  * « Solde d'ouverture » (montant signé) et « au » (date, pas après aujourd'hui). Le solde affiché du compte et le solde
- * compta de ses arrêtés le reprennent à partir de sa date : l'arrêté d'un compte ouvert avant le premier relevé importé
- * se clôture. Base de démonstration (jour figé au 04/06/2026).
+ * compta de ses arrêtés le reprennent, avec les lignes datées après son jour : l'arrêté d'un compte ouvert avant le
+ * premier relevé importé se clôture. Base de démonstration (jour figé au 04/06/2026).
  * Réponses du référent métier du 28/11/2026 (PR 848) : solde de FIN de journée (point 2, choix B) ; lignes datées de son
  * jour ou d'avant signalées, hors du solde (point 3, choix A) ; solde d'ouverture daté après un arrêté refusé (point 4,
  * choix A) ; arrêté daté avant lui refusé (point 5, choix A) ; ligne « dont ouverture … » sous le solde et nom
@@ -263,6 +263,42 @@ describe('Solde d’ouverture : solde du compte et avertissements', () => {
     )
   })
 
+  it('solde d’ouverture illisible d’un compte clôturé (ligne sans « Modifier ») : le bandeau ne conseille que la base locale', async () => {
+    const CONSEIL_ACTIF = 'À saisir de nouveau (« Modifier »), ou à reprendre dans la base locale.'
+    const { id } = await ajouter()
+    const autre = await ajouter({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B })
+    await ajDb.banques.update(autre.id, { soldeOuvertureCentimes: 30_000 })
+    await cloturerCompteBancaire(autre.id)
+    await rendre()
+    // La ligne du compte clôturé n'a pas de bouton « Modifier », et son solde d'ouverture ne se modifie plus.
+    const ligneCloturee = lignesComptes().find((ligne) => ligne.textContent?.includes('Fonds de travaux'))
+    expect(ligneCloturee).toBeDefined()
+    expect(within(ligneCloturee as HTMLElement).queryByRole('button', { name: /^Modifier/ })).toBeNull()
+    expect(titresAlertes()).toContain('1 solde d’ouverture de la base non pris en compte')
+    expect(panneauComptes().textContent).toContain(
+      'Fonds de travaux : sans date ou mal formé, il n’entre ni dans le solde du compte ni dans ses arrêtés. Compte clôturé : à reprendre dans la base locale.',
+    )
+    expect(panneauComptes().textContent).not.toContain(CONSEIL_ACTIF)
+
+    // Un compte actif et un compte clôturé : « Modifier » pour le premier, la base locale seule pour le second, nommé.
+    cleanup()
+    await ajDb.banques.update(id, { soldeOuvertureAu: '2026-05-01' })
+    await rendre()
+    expect(titresAlertes()).toContain('2 soldes d’ouverture de la base non pris en compte')
+    expect(panneauComptes().textContent).toContain(
+      `Compte principal, Fonds de travaux : sans date ou mal formés, ils n’entrent ni dans le solde de ces comptes ni dans leurs arrêtés. ${CONSEIL_ACTIF} Compte clôturé (Fonds de travaux) : à reprendre dans la base locale.`,
+    )
+
+    // Deux comptes clôturés : plus aucun « Modifier » à conseiller.
+    cleanup()
+    await cloturerCompteBancaire(id)
+    await rendre()
+    expect(panneauComptes().textContent).toContain(
+      'Compte principal, Fonds de travaux : sans date ou mal formés, ils n’entrent ni dans le solde de ces comptes ni dans leurs arrêtés. Comptes clôturés : à reprendre dans la base locale.',
+    )
+    expect(panneauComptes().textContent).not.toContain(CONSEIL_ACTIF)
+  })
+
   it('aucun solde d’ouverture illisible : aucun bandeau', async () => {
     await ajouter({ soldeOuverture: { montant: '1000', au: '2026-05-01' } })
     await ajouter({ nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B })
@@ -416,7 +452,7 @@ describe('Solde d’ouverture : rapprochement', () => {
     expect(dernierToast()).toMatchObject({
       kind: 'warn',
       title: 'Enregistrement impossible',
-      desc: 'Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour.',
+      desc: 'Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour. Le dater au plus tard du 31/05/2026, ou abandonner d’abord cet arrêté en cours.',
     })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(await ajDb.banques.get(id)).not.toHaveProperty('soldeOuvertureCentimes')

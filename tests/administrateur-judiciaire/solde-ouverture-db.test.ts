@@ -201,7 +201,7 @@ describe('modification du solde d’ouverture et arrêtés clôturés', () => {
     await expect(enregistrerCompteBancaire('C2', saisie(ouverture('1 000,00', '2026-05-15')), { id })).rejects.toThrow(REFUS)
     // Date déplacée après l'arrêté : déclôturer ne suffirait pas, la date elle-même est refusée (point 4).
     await expect(enregistrerCompteBancaire('C2', saisie(ouverture('1 000,00', '2026-06-01')), { id })).rejects.toThrow(
-      `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, clôturé). ${REGLE_PREMIER_ARRETE}`,
+      `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, clôturé). ${REGLE_PREMIER_ARRETE} Le dater au plus tard du 31/05/2026, après avoir déclôturé cet arrêté.`,
     )
     await expect(enregistrerCompteBancaire('C2', saisie({ soldeOuverture: null }), { id })).rejects.toThrow(REFUS)
     expect(await ajDb.banques.get(id)).toMatchObject({ libelle: 'Compte principal', soldeOuvertureCentimes: 100_000, soldeOuvertureAu: '2026-05-01' })
@@ -238,7 +238,7 @@ describe('modification du solde d’ouverture et arrêtés clôturés', () => {
     await cloturerArreteCompte(avril.id)
     await ouvrirArreteCompte(id, { dateArrete: '2026-06-03', soldeBanqueCentimes: 62_850 })
     await expect(enregistrerCompteBancaire('C2', saisie({ libelle: 'Autre', ...ouverture('529,50', '2026-06-01') }), { id })).rejects.toThrow(
-      `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (30/04/2026, clôturé). ${REGLE_PREMIER_ARRETE}`,
+      `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (30/04/2026, clôturé). ${REGLE_PREMIER_ARRETE} Le dater au plus tard du 30/04/2026, après avoir déclôturé cet arrêté.`,
     )
     const ligne = await ajDb.banques.get(id)
     expect(ligne).toMatchObject({ libelle: 'Compte principal' })
@@ -256,7 +256,7 @@ describe('modification du solde d’ouverture et arrêtés clôturés', () => {
     // La banque donne 1 529,50 € au 31/05 : le compte existait avant le premier relevé importé.
     const mai = await ouvrirArreteCompte(id, { dateArrete: '2026-05-31', soldeBanqueCentimes: 152_950 })
     await expect(enregistrerCompteBancaire('C2', saisie(ouverture('1 529,50', '2026-06-01')), { id })).rejects.toThrow(
-      `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). ${REGLE_PREMIER_ARRETE}`,
+      `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). ${REGLE_PREMIER_ARRETE} Le dater au plus tard du 31/05/2026, ou abandonner d’abord cet arrêté en cours.`,
     )
     expect(await ajDb.banques.get(id)).not.toHaveProperty('soldeOuvertureCentimes')
     await enregistrerCompteBancaire('C2', saisie(ouverture('1 529,50', '2026-05-31')), { id })

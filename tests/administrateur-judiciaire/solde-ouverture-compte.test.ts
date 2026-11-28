@@ -236,10 +236,13 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
   describe('solde d’ouverture daté après un arrêté du compte (point 4) : refusé', () => {
     const REGLE = 'Un solde d’ouverture se date avant le premier arrêté du compte, ou le même jour.'
     const juin = { centimes: 52_950, au: '2026-06-01' }
+    /** Refus attendu, message ENTIER (toThrow avec un texte n'en vérifierait qu'une partie) : la règle, puis la marche à suivre. */
+    const refusEntier = (arreteNomme: string, marche: string) =>
+      new Error(`Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (${arreteNomme}). ${REGLE} ${marche}`)
 
-    it('après un arrêté clôturé : première saisie et déplacement de la date refusés, avec la date de cet arrêté', () => {
+    it('après un arrêté clôturé : première saisie et déplacement de la date refusés, avec la date de cet arrêté et la marche à suivre', () => {
       const arretes = [arrete('2026-04-30', 'Clôturé')]
-      const refus = `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (30/04/2026, clôturé). ${REGLE}`
+      const refus = refusEntier('30/04/2026, clôturé', 'Le dater au plus tard du 30/04/2026, après avoir déclôturé cet arrêté.')
       expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(refus)
       expect(() => verifierChangementSoldeOuverture({ avant: { centimes: 20_000, au: '2026-04-01' }, apres: juin, compteActif: true, arretes })).toThrow(refus)
     })
@@ -248,18 +251,32 @@ describe('changement du solde d’ouverture (verifierChangementSoldeOuverture)',
       // Ancienne date couverte par l'arrêté clôturé du 31/05, nouvelle date postérieure à cet arrêté.
       expect(() =>
         verifierChangementSoldeOuverture({ avant, apres: { centimes: 100_000, au: '2026-06-01' }, compteActif: true, arretes: [arrete('2026-05-31', 'Clôturé')] }),
-      ).toThrow(`Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, clôturé). ${REGLE}`)
+      ).toThrow(refusEntier('31/05/2026, clôturé', 'Le dater au plus tard du 31/05/2026, après avoir déclôturé cet arrêté.'))
     })
 
-    it('après un arrêté en cours : refusé aussi (il serait daté avant le solde d’ouverture, ce que le point 5 refuse)', () => {
+    it('après un arrêté en cours : refusé aussi (il serait daté avant le solde d’ouverture, ce que le point 5 refuse) ; l’abandonner est une issue', () => {
+      // Premier arrêté en cours : c'est le seul arrêté du compte. Le clôturer ne changerait rien ; l'abandonner, si.
       expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes: [arrete('2026-05-31', 'En cours')] })).toThrow(
-        `Solde d’ouverture refusé : daté du 01/06/2026, après le premier arrêté du compte (31/05/2026, en cours). ${REGLE}`,
+        refusEntier('31/05/2026, en cours', 'Le dater au plus tard du 31/05/2026, ou abandonner d’abord cet arrêté en cours.'),
       )
     })
 
-    it('plusieurs arrêtés : le refus nomme le premier arrêté du compte', () => {
+    it('plusieurs arrêtés : le refus nomme le premier arrêté du compte ; tous les arrêtés clôturés couvriraient la nouvelle date', () => {
       const arretes = [arrete('2026-05-31', 'En cours'), arrete('2026-04-30', 'Clôturé'), arrete('2026-03-31', 'Clôturé')]
-      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(/premier arrêté du compte \(31\/03\/2026, clôturé\)/)
+      // L'arrêté en cours n'est pas le premier : l'abandonner ne suffirait pas, le refus ne le propose pas.
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes })).toThrow(
+        refusEntier('31/03/2026, clôturé', 'Le dater au plus tard du 31/03/2026, après avoir déclôturé les arrêtés clôturés du compte.'),
+      )
+    })
+
+    it('la marche à suivre du refus mène au but : daté au plus tard du premier arrêté, le solde d’ouverture passe, ou reçoit « Déclôturer d’abord »', () => {
+      const mars = { centimes: 52_950, au: '2026-03-31' }
+      // Premier arrêté en cours : la date conseillée est admise ; l'arrêté abandonné (hors des arrêtés qui comptent), toute date l'est.
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: { ...juin, au: '2026-05-31' }, compteActif: true, arretes: [arrete('2026-05-31', 'En cours')] })).not.toThrow()
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: juin, compteActif: true, arretes: [] })).not.toThrow()
+      // Premier arrêté clôturé : à la date conseillée, le refus voisin demande la déclôture, que le message annonçait.
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: mars, compteActif: true, arretes: [arrete('2026-03-31', 'Clôturé')] })).toThrow(/Déclôturer d’abord cet arrêté/)
+      expect(() => verifierChangementSoldeOuverture({ avant: null, apres: mars, compteActif: true, arretes: [arrete('2026-03-31', 'En cours')] })).not.toThrow()
     })
 
     it('le jour même du premier arrêté : pas « après » (solde de fin de journée) ; en cours, il se recalcule ; clôturé, il couvre la date', () => {
