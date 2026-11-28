@@ -39,7 +39,16 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  *   hors équilibre par le domaine ; « Déclôturer » sur le dernier arrêté clôturé.
  * - Décision du 26/11/2026 (PR 799, rb-01 A) : « Abandonner l'arrêté » sur l'arrêté en cours, à la place qu'occupe
  *   « Déclôturer » sur un arrêté clôturé, avec confirmation (AbandonArreteModal). L'arrêté abandonné reste en base et
- *   n'est plus affiché : « Nouvel arrêté » redevient possible.
+ *   n'est plus l'arrêté affiché : « Nouvel arrêté » redevient possible.
+ * - Réponse du référent métier du 28/11/2026 (corrections de la PR 799, cr-01 A) : les arrêtés abandonnés sont affichés
+ *   dans « Arrêtés du compte », à leur date, statut « Abandonné » : la trace reste à l'écran. Ils n'entrent dans aucun
+ *   calcul (arrêté affiché, dernier arrêté, solde, période arrêtée) : leur ligne montre la date et le solde banque
+ *   saisi, sans solde compta ni écart (le solde compta enregistré d'un arrêté resté en cours n'est que celui de son
+ *   ouverture). La liste est montrée dès qu'un arrêté abandonné existe, même seul. Un arrêté clôturé puis déclôturé
+ *   s'abandonne comme tout arrêté en cours ; la confirmation dit alors qu'il perd sa période arrêtée. Quand il ne reste
+ *   que des arrêtés abandonnés, la phrase du panneau dit « Aucun arrêté en cours ni clôturé pour ce compte. » : « Aucun
+ *   arrêté pour ce compte. » contredirait la liste affichée juste en dessous (relecture du 28/11/2026 ; libellé à
+ *   valider par le référent métier).
  * - Décision du 26/11/2026 (rb-01 C et rb-03 A) : le solde compta et l'écart d'un arrêté en cours sont ceux de l'instant,
  *   recalculés sur les écritures affichées (avecSoldeComptaCourant), dans le panneau comme dans la liste ; la clôture
  *   enregistre ce solde et le fige. Même mise en page.
@@ -203,9 +212,58 @@ function ArreteAffiche({ arrete, decloturer, abandonner, occupe }: Readonly<{ ar
   )
 }
 
-/** Arrêtés du compte, du plus récent au plus ancien (montrés à partir de deux). */
-function ListeArretes({ arretes }: Readonly<{ arretes: readonly ArreteRapprochement[] }>) {
-  const lignes = [...arretes].sort((a, b) => b.dateArrete.localeCompare(a.dateArrete))
+/** Valeur absente d'une ligne de la liste, comme dans « Comptes bancaires du mandat ». */
+const SANS_VALEUR = '—'
+
+/** Arrêté abandonné, tel que l'écran le lit : à afficher seulement. */
+type ArreteAbandonneLu = ArretesLusEcran['abandonnes'][number]
+
+/** Ligne de « Arrêtés du compte » : les textes affichés. */
+interface LigneArrete {
+  id: string
+  /** AAAA-MM-JJ. */
+  dateArrete: string
+  soldeBanque: string
+  soldeCompta: string
+  ecart: string
+  statut: string
+}
+
+/** Arrêté qui compte : ses soldes et son écart (etatArrete). */
+const ligneArrete = (arrete: ArreteRapprochement): LigneArrete => ({
+  id: arrete.id,
+  dateArrete: arrete.dateArrete,
+  soldeBanque: euros(arrete.soldeBanqueCentimes),
+  soldeCompta: euros(arrete.soldeComptaCentimes),
+  ecart: euros(etatArrete(arrete).ecartCentimes),
+  statut: arrete.statut,
+})
+
+/**
+ * Arrêté abandonné : sa date, son solde banque saisi et son statut, rien de calculé. Ni solde compta ni écart : celui
+ * enregistré d'un arrêté resté en cours n'est que le solde compta de son ouverture, jamais recalculé depuis.
+ */
+const ligneAbandonnee = (arrete: ArreteAbandonneLu): LigneArrete => ({
+  id: arrete.id,
+  dateArrete: arrete.dateArrete,
+  soldeBanque: euros(arrete.soldeBanqueCentimes),
+  soldeCompta: SANS_VALEUR,
+  ecart: SANS_VALEUR,
+  statut: arrete.statut,
+})
+
+/**
+ * Arrêtés du compte, du plus récent au plus ancien (montrés à partir de deux, ou dès qu'un arrêté abandonné existe).
+ * Réponse du référent métier du 28/11/2026 (cr-01 A) : les arrêtés abandonnés y sont à leur date, statut « Abandonné »,
+ * après l'arrêté qui compte de la même date.
+ */
+function ListeArretes({ arretes, abandonnes }: Readonly<{ arretes: readonly ArreteRapprochement[]; abandonnes: readonly ArreteAbandonneLu[] }>) {
+  const lignes = [...arretes].sort((a, b) => b.dateArrete.localeCompare(a.dateArrete)).map(ligneArrete)
+  // Chaque arrêté abandonné, lu du plus ancien au plus récent, se place avant la première ligne plus ancienne que lui.
+  for (const abandonne of abandonnes) {
+    const suivante = lignes.findIndex((ligne) => ligne.dateArrete < abandonne.dateArrete)
+    lignes.splice(suivante === -1 ? lignes.length : suivante, 0, ligneAbandonnee(abandonne))
+  }
   return (
     <div className="tbl-wrap" style={{ marginTop: 14 }}>
       <table className="tbl vfx-fiches" aria-label="Arrêtés du compte" role="table">
@@ -225,21 +283,21 @@ function ListeArretes({ arretes }: Readonly<{ arretes: readonly ArreteRapprochem
           </tr>
         </thead>
         <tbody role="rowgroup">
-          {lignes.map((arrete) => (
-            <tr key={arrete.id} role="row">
+          {lignes.map((ligne) => (
+            <tr key={ligne.id} role="row">
               <td role="cell" className="num-cell" data-label="Date">
-                {dateIsoVersFr(arrete.dateArrete)}
+                {dateIsoVersFr(ligne.dateArrete)}
               </td>
               <td role="cell" className="num-cell" style={STYLE_MONTANT} data-label="Solde banque">
-                {euros(arrete.soldeBanqueCentimes)}
+                {ligne.soldeBanque}
               </td>
               <td role="cell" className="num-cell" style={STYLE_MONTANT} data-label="Solde compta">
-                {euros(arrete.soldeComptaCentimes)}
+                {ligne.soldeCompta}
               </td>
               <td role="cell" className="num-cell" style={STYLE_MONTANT} data-label="Écart">
-                {euros(etatArrete(arrete).ecartCentimes)}
+                {ligne.ecart}
               </td>
-              <td role="cell" data-label="Statut">{arrete.statut}</td>
+              <td role="cell" data-label="Statut">{ligne.statut}</td>
             </tr>
           ))}
         </tbody>
@@ -282,10 +340,10 @@ function ContenuArretes({
         <ArreteAffiche arrete={courant} {...actions} />
       ) : (
         <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          Aucun arrêté pour ce compte.
+          {lus.abandonnes.length > 0 ? 'Aucun arrêté en cours ni clôturé pour ce compte.' : 'Aucun arrêté pour ce compte.'}
         </p>
       )}
-      {arretes.length > 1 && <ListeArretes arretes={arretes} />}
+      {(arretes.length > 1 || lus.abandonnes.length > 0) && <ListeArretes arretes={arretes} abandonnes={lus.abandonnes} />}
     </>
   )
 }
@@ -372,7 +430,13 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
         />
       )}
       {modale === 'abandon' && compte && courant?.statut === 'En cours' && (
-        <AbandonArreteModal compte={compte} arrete={courant} onClose={fermer} onConfirmer={() => ecritures.abandonner(courant)} />
+        <AbandonArreteModal
+          compte={compte}
+          arrete={courant}
+          dejaCloture={lus.enCoursDejaCloture}
+          onClose={fermer}
+          onConfirmer={() => ecritures.abandonner(courant)}
+        />
       )}
     </Panel>
   )

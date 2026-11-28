@@ -48,6 +48,11 @@ import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain
  * useArretesRapprochement) : il suit une clôture ou une déclôture faite dans le panneau « Rapprochement ». La base refuse
  * de toute façon l'import (db/releves-bancaires.ts) : après un refus, les arrêtés sont relus. Plusieurs arrêtés clôturés
  * concernés : le bandeau dit que déclôturer le dernier ne suffit pas (motif du domaine, libellé à valider).
+ * Réponses du référent métier du 28/11/2026 (corrections de la PR 799) : la phrase à côté du bouton dit « encaissements
+ * imputés », le mot « rapprochement » étant réservé au rapprochement bancaire (cr-02) ; sans compte actif, le motif
+ * « Aucun compte bancaire actif … » est dit près du bouton « Importer N lignes », là où l'on est bloqué, dans le bandeau
+ * « Import impossible » des autres motifs, et plus sous la liste « Compte bancaire du relevé », qui affiche déjà « Aucun
+ * compte actif » (cr-03 B). Il n'est toujours dit qu'une fois dans le panneau (rb-c08).
  */
 
 /** Fichiers proposés : CSV, CFONB 120 (.txt, .cfonb) et camt.053 (.xml, .053). */
@@ -169,10 +174,10 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   if (analyse && !analyseValablePour(analyse, compteChoisi)) setAnalyse(null)
   // Analyse affichée : celle du fichier, avec le blocage de la période arrêtée d'après les arrêtés lus (rb-04 A).
   const analyseAffichee = analyse && avecPeriodeArretee(analyse, arretesLus.arretes)
+  // Motif dit une seule fois (rb-c08), dans le bandeau « Import impossible » placé près du bouton d'import ; « Aucun compte
+  // bancaire actif » n'est plus dit sous la liste des comptes (cr-03 B, réponse du 28/11/2026). La zone aria-live l'annonce
+  // toujours avec le résultat de l'analyse.
   const motifCompte = motifSansCompte(etatComptes, actifs.length, compteChoisi)
-  // « Aucun compte bancaire actif » est déjà dit sous la liste des comptes : pas répété dans le bandeau (rb-c08 A, décision
-  // du 26/11/2026). Le bouton reste inactif et la zone aria-live l'annonce toujours avec le résultat de l'analyse.
-  const motifDejaAffiche = motifCompte === AUCUN_COMPTE_ACTIF && etatComptes === 'lu'
 
   const analyser = () => {
     const resultat = analyserReleve({
@@ -230,6 +235,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
         choisi={compteChoisi}
         choisir={setChoixCompte}
         choixExige
+        sansCompteActif={null}
       />
       <div
         style={{
@@ -280,7 +286,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
           }}
         >
           <ResultatAnalyseReleve analyse={analyseAffichee} personnes={personnes} selections={selections} setSelections={setSelections} />
-          {motifCompte && !motifDejaAffiche && (
+          {motifCompte && (
             <Alert kind="warn" icon="alert" title="Import impossible">
               {motifCompte}
             </Alert>
@@ -307,7 +313,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
                 color: 'var(--navy-500)',
               }}
             >
-              Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.
+              Les encaissements imputés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.
             </span>
           </div>
         </div>

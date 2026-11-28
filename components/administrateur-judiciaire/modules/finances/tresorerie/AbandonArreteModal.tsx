@@ -14,18 +14,24 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  * (CompteBancaireModal.tsx). L'arrêté reste en base, marqué « Abandonné » ; aucune action ne le reprend depuis l'écran :
  * la confirmation le dit avant le clic. Aucune règle ici : l'écriture (db/rapprochements.ts) applique le domaine, et un
  * refus est signalé par un toast, la modale restant ouverte.
+ * Réponse du référent métier du 28/11/2026 (corrections de la PR 799, cr-01 A) : un arrêté clôturé puis déclôturé
+ * s'abandonne aussi ; la confirmation dit alors qu'il perd sa période arrêtée (`dejaCloture`). Depuis sa déclôture, sa
+ * période n'est déjà plus protégée de l'import d'un relevé (domain/periode-arretee.ts) ; abandonné, il ne pourra plus
+ * être clôturé de nouveau. L'arrêté abandonné reste affiché dans « Arrêtés du compte », statut « Abandonné ».
  */
 
 export interface AbandonArreteModalProps {
   compte: CompteAffiche
   /** Arrêté en cours du compte. */
   arrete: ArreteRapprochement
+  /** L'arrêté a déjà été clôturé une fois, puis déclôturé : la confirmation dit qu'il perd sa période arrêtée. */
+  dejaCloture: boolean
   onClose: () => void
   /** Abandonne ; renvoie vrai si la modale peut se fermer. Ne rejette jamais (l'écran signale l'échec). */
   onConfirmer: () => Promise<boolean>
 }
 
-export function AbandonArreteModal({ compte, arrete, onClose, onConfirmer }: Readonly<AbandonArreteModalProps>) {
+export function AbandonArreteModal({ compte, arrete, dejaCloture, onClose, onConfirmer }: Readonly<AbandonArreteModalProps>) {
   const [enCours, setEnCours] = useState(false)
   const confirmer = async () => {
     if (enCours) return
@@ -44,6 +50,11 @@ export function AbandonArreteModal({ compte, arrete, onClose, onConfirmer }: Rea
           L’arrêté reste dans la base, marqué « Abandonné ». Il ne compte plus : ni arrêté en cours, ni solde, ni période
           arrêtée. Un nouvel arrêté pourra être ouvert sur ce compte. Sans retour depuis cet écran.
         </p>
+        {dejaCloture && (
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: 12.5 }}>
+            Cet arrêté a déjà été clôturé une fois : il perd sa période arrêtée.
+          </p>
+        )}
       </ModalBody>
       <ModalFooter>
         <button type="button" className="btn ghost" onClick={onClose}>

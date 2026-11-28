@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { listerArretes } from '@/lib/administrateur-judiciaire/db/rapprochements'
-import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { arreteDejaCloture, listerArretes } from '@/lib/administrateur-judiciaire/db/rapprochements'
+import type { ArreteAbandonne, ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 
 /**
  * Lecture des arrêtés de rapprochement d'un compte bancaire (db/rapprochements.ts), sur le modèle de
@@ -14,6 +14,10 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  * faite dans le panneau « Rapprochement » est connue de l'import sans nouvelle analyse. Un échec de lecture toucherait
  * alors tous les lecteurs à la fois : un seul le signale à l'utilisateur, celui du panneau « Rapprochement » ; les
  * autres passent `signalerErreur` à null et gardent l'échec dans `erreur` (retour de relecture de la suite rb-04).
+ * Réponse du référent métier du 28/11/2026 (corrections de la PR 799, cr-01 A) : les arrêtés abandonnés sont remontés à
+ * part (`abandonnes`), pour être affichés dans « Arrêtés du compte » et rien d'autre. La lecture dit aussi si l'arrêté en
+ * cours a déjà été clôturé une fois (`enCoursDejaCloture`, journal d'activité), pour la confirmation de l'abandon : les
+ * arrêtés sont remontés d'abord, comme avant, ce passé juste après, sans retarder leur affichage ; un journal illisible ne touche pas les arrêtés déjà remontés, il est seulement signalé.
  */
 
 /** Lecteurs montés, à relancer ensemble (voir l'en-tête). */
@@ -23,11 +27,15 @@ export interface ArretesLusEcran {
   /** Vrai tant que les arrêtés du compte n'ont pas été lus. */
   chargement: boolean
   erreur: string | null
-  /**
-   * Arrêtés lisibles du compte qui comptent (en cours, clôturés), par date. Les arrêtés abandonnés (décision du
-   * 26/11/2026, PR 799, rb-01 A) restent en base et ne sont pas remontés à l'écran.
-   */
+  /** Arrêtés lisibles du compte qui comptent (en cours, clôturés), par date : les seuls reçus par les règles et les calculs. */
   arretes: ArreteRapprochement[]
+  /**
+   * Arrêtés abandonnés lisibles du compte, par date (décision du 26/11/2026, PR 799, rb-01 A) : à afficher seulement
+   * (« Arrêtés du compte », statut « Abandonné »), jamais dans un calcul.
+   */
+  abandonnes: ArreteAbandonne[]
+  /** Vrai si l'arrêté en cours du compte a déjà été clôturé une fois, puis déclôturé ; faux sans arrêté en cours. */
+  enCoursDejaCloture: boolean
   /** Lignes du compte sans la forme d'un arrêté. */
   illisibles: number
   /** Relit les arrêtés, ici et dans les autres lecteurs montés de l'écran. */
@@ -37,6 +45,9 @@ export interface ArretesLusEcran {
 interface Lecture {
   banqueId: string | null
   arretes: ArreteRapprochement[]
+  abandonnes: ArreteAbandonne[]
+  /** Identifiant de l'arrêté en cours quand il a déjà été clôturé une fois ; null : aucun, jamais clôturé, ou pas encore lu. */
+  dejaClotureId: string | null
   illisibles: number
   erreur: string | null
 }
@@ -52,19 +63,39 @@ export function useArretesRapprochement(banqueId: string | null, signalerErreur:
 
   useEffect(() => {
     let abandonnee = false
-    const lire = banqueId ? listerArretes(banqueId) : Promise.resolve({ arretes: [], illisibles: 0 })
-    lire.then(
-      ({ arretes, illisibles }) => {
-        if (!abandonnee) setLecture({ banqueId, arretes, illisibles, erreur: null })
-      },
-      (erreur: unknown) => {
+    const lire = async () => {
+      const lus = banqueId ? await listerArretes(banqueId) : { arretes: [], abandonnes: [], illisibles: 0 }
+      if (abandonnee) return
+      const enCours = lus.arretes.find((arrete) => arrete.statut === 'En cours')
+      // Arrêtés remontés tout de suite. Un arrêté déjà clôturé une fois le reste : ce qui a été lu de l'arrêté en cours
+      // à la lecture précédente du même compte est gardé, le journal d'activité est relu juste après.
+      setLecture((precedente) => ({
+        ...lus,
+        banqueId,
+        dejaClotureId: enCours && precedente?.banqueId === banqueId && precedente.dejaClotureId === enCours.id ? enCours.id : null,
+        erreur: null,
+      }))
+      if (!enCours) return
+      // Le journal ne sert qu'au texte de la confirmation d'abandon : s'il est illisible, les arrêtés déjà remontés
+      // restent affichés, la confirmation garde son texte habituel et l'échec est signalé une fois.
+      let dejaCloture: boolean
+      try {
+        dejaCloture = await arreteDejaCloture(enCours.id)
+      } catch (erreur: unknown) {
         if (abandonnee) return
-        const message = erreur instanceof Error ? erreur.message : String(erreur)
-        setLecture({ banqueId, arretes: [], illisibles: 0, erreur: message })
-        // null : lecteur secondaire, l'échec est déjà signalé par le panneau « Rapprochement » (voir l'en-tête).
-        refSignaler.current?.(message)
-      },
-    )
+        refSignaler.current?.(erreur instanceof Error ? erreur.message : String(erreur))
+        return
+      }
+      if (!dejaCloture || abandonnee) return
+      setLecture((precedente) => precedente && { ...precedente, dejaClotureId: enCours.id })
+    }
+    lire().catch((erreur: unknown) => {
+      if (abandonnee) return
+      const message = erreur instanceof Error ? erreur.message : String(erreur)
+      setLecture({ banqueId, arretes: [], abandonnes: [], dejaClotureId: null, illisibles: 0, erreur: message })
+      // null : lecteur secondaire, l'échec est déjà signalé par le panneau « Rapprochement » (voir l'en-tête).
+      refSignaler.current?.(message)
+    })
     return () => {
       abandonnee = true
     }
@@ -87,6 +118,8 @@ export function useArretesRapprochement(banqueId: string | null, signalerErreur:
     chargement: !aJour,
     erreur: aJour ? lecture.erreur : null,
     arretes: aJour ? lecture.arretes : [],
+    abandonnes: aJour ? lecture.abandonnes : [],
+    enCoursDejaCloture: aJour && lecture.dejaClotureId !== null,
     illisibles: aJour ? lecture.illisibles : 0,
     relire,
   }

@@ -275,7 +275,11 @@ describe('Import des relevés : petits défauts de texte (rb-c08 A, décision du
     analyser(CFONB_UN_COMPTE)
     const bloc = boutonImporter().parentElement as HTMLElement
     expect(bloc).toHaveClass('vfx-import-actions')
-    expect(bloc.querySelector('span')?.textContent).toContain('Les encaissements rapprochés mettent le solde du copropriétaire à jour')
+    // cr-02 (réponse du référent métier du 28/11/2026) : « imputés », le mot « rapprochement » est réservé au rapprochement bancaire.
+    expect(bloc.querySelector('span')?.textContent).toBe(
+      'Les encaissements imputés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.',
+    )
+    expect(panneauImport().textContent).not.toContain('encaissements rapprochés')
   })
 
   it('rb-19 A : la colonne de l’imputation proposée et le chapeau parlent d’imputation, plus de rapprochement', async () => {
