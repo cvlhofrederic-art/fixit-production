@@ -1,7 +1,7 @@
 // tests/api/user-export-data.test.ts
 //
-// GET /api/user/export-data (RGPD art. 20, libre-service). PR 2, lot 6 (SPEC § 2.10) : pour un gestionnaire AJ
-// Signalement (rôle gestionnaire_signalement, ou compte relié à une fiche), l'export ajoute une section aj_signalement :
+// GET /api/user/export-data (RGPD art. 20, libre-service). PR 2, lot 6 (SPEC § 2.10) : pour un gestionnaire de Vitfix
+// Signal (rôle gestionnaire_signalement, ou compte relié à une fiche), l'export ajoute une section vitfixsignal :
 // sa fiche (nom, e-mail, cabinet, dates), ses attributions (copropriété, origine, date) et les lignes du journal des
 // 12 derniers mois où il est l'auteur ou le sujet — sans aucune donnée d'une autre personne (ni identifiant, ni nom,
 // ni adresse d'un collègue ou du super admin : l'auteur d'une ligne est « vous », « collegue », « cabinet » ou
@@ -14,26 +14,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
-vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/aj-signalement-base')).baseQr.client }))
-vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/aj-signalement-routes')).mockCookies())
-vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/aj-signalement-routes')).mockAuth())
-vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement-routes')).mockLimites())
-vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
-vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
+vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/vitfixsignal-base')).baseQr.client }))
+vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/vitfixsignal-routes')).mockCookies())
+vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/vitfixsignal-routes')).mockAuth())
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/vitfixsignal-routes')).mockLimites())
+vi.mock('@/lib/email', async () => (await import('../helpers/vitfixsignal-routes')).mockEmail())
+vi.mock('@/lib/logger', async () => (await import('../helpers/vitfixsignal-routes')).mockLogger())
 
-const { baseQr, simulerProductionAvant1111Qr, simulerProductionAvant1112Qr } = await import('../helpers/aj-signalement-base')
-const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
-const A = await import('../helpers/aj-signalement-acces')
+const { baseQr, simulerProductionAvant1111Qr, simulerProductionAvant1112Qr } = await import('../helpers/vitfixsignal-base')
+const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/vitfixsignal-routes')
+const A = await import('../helpers/vitfixsignal-acces')
 const { GET } = await import('@/app/api/user/export-data/route')
-const { POST: CREER } = await import('@/app/api/aj-signalement/coproprietes/route')
-const { PATCH: MODIFIER } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
-const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
-const { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } = await import('@/lib/aj-signalement/types')
-const { COLONNES_BUREAU_QR } = await import('@/lib/aj-signalement/serveur-bureaux')
-const { MESSAGE_EXPORT_INDISPONIBLE_QR } = await import('@/lib/aj-signalement/serveur-compte')
+const { POST: CREER } = await import('@/app/api/vitfixsignal/coproprietes/route')
+const { PATCH: MODIFIER } = await import('@/app/api/vitfixsignal/coproprietes/[id]/route')
+const { reinitialiserReplisQr } = await import('@/lib/vitfixsignal/serveur')
+const { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } = await import('@/lib/vitfixsignal/types')
+const { COLONNES_BUREAU_QR } = await import('@/lib/vitfixsignal/serveur-bureaux')
+const { MESSAGE_EXPORT_INDISPONIBLE_QR } = await import('@/lib/vitfixsignal/serveur-compte')
 const {
   EXCEPTION_LECTURE_QR, MESSAGE_EXCEPTION_LECTURE_QR, ligneBureauQr, refuserLecturesQr, simulerProductionAvantBureauxQr,
-} = await import('../helpers/aj-signalement-bureaux')
+} = await import('../helpers/vitfixsignal-bureaux')
 
 const CLIENT = { id: '0c000000-0000-4000-8000-000000000001', email: 'client@exemple.test', app_metadata: { role: 'client' } }
 /** Clés de l'export tel qu'il est rendu à tout compte avant la PR 2. */
@@ -41,7 +41,7 @@ const CLES_EXPORT = [
   'artisan_photos', 'artisan_profile', 'bookings_as_artisan', 'bookings_as_client', 'client_profile', 'devis', 'exported_at', 'factures',
   'messages', 'pt_fiscal_documents', 'pt_fiscal_series', 'rgpd_article', 'services', 'subscription', 'syndic', 'user',
 ]
-/** Fiche de G1 dans la section aj_signalement (sans bureau). */
+/** Fiche de G1 dans la section vitfixsignal (sans bureau). */
 const FICHE_G1_EXPORTEE = {
   nom: 'Marie Exemple', email: A.EMAIL_G1, cabinet: 'Cabinet Exemple', actif: true, creeLe: '2026-11-05T08:00:00+00:00',
   adresseConfirmeeLe: '2026-11-05T09:00:00+00:00', accesOuvertLe: '2026-11-06T09:00:00+00:00', desactiveLe: null,
@@ -78,14 +78,14 @@ beforeEach(() => {
   ]
 })
 
-describe('compte d’un gestionnaire : section aj_signalement', () => {
+describe('compte d’un gestionnaire : section vitfixsignal', () => {
   beforeEach(() => A.connecterQr(A.COMPTE_G1))
 
   it('fiche, attributions et journal (12 mois, auteur ou sujet), sans donnée d’une autre personne', async () => {
     const { status, corps } = await exporter()
     expect(status).toBe(200)
-    expect(trie(Object.keys(corps))).toEqual(trie([...CLES_EXPORT, 'aj_signalement']))
-    const section = corps.aj_signalement as Record<string, unknown>
+    expect(trie(Object.keys(corps))).toEqual(trie([...CLES_EXPORT, 'vitfixsignal']))
+    const section = corps.vitfixsignal as Record<string, unknown>
     expect(section.fiche).toEqual(FICHE_G1_EXPORTEE)
     expect(section.attributions).toEqual([{ copropriete: 'Résidence Une', origine: 'super_admin', depuis: '2026-11-05T09:00:00+00:00' }])
     const lignes = section.journal as Array<Record<string, unknown>>
@@ -109,7 +109,7 @@ describe('compte d’un gestionnaire : section aj_signalement', () => {
   it('compte relié à une fiche sans le rôle : section aussi', async () => {
     A.connecterQr({ id: A.U2, email: A.EMAIL_G2, app_metadata: { role: 'client' } })
     const { corps } = await exporter()
-    expect((corps.aj_signalement as { fiche: { nom: string } }).fiche.nom).toBe('Paul Collègue')
+    expect((corps.vitfixsignal as { fiche: { nom: string } }).fiche.nom).toBe('Paul Collègue')
   })
 
   it.each([
@@ -136,7 +136,7 @@ describe('compte d’un gestionnaire : section aj_signalement', () => {
     }
     baseQr.etat.maxLignes = 1000   // max-rows de PostgREST : une réponse plus longue serait tronquée en silence
     const { corps } = await exporter()
-    const attributions = (corps.aj_signalement as { attributions: Array<{ copropriete: string | null }> }).attributions
+    const attributions = (corps.vitfixsignal as { attributions: Array<{ copropriete: string | null }> }).attributions
     expect(attributions).toHaveLength(ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR)
     expect(attributions.filter((a) => a.copropriete === null)).toEqual([])
     const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_coproprietes')
@@ -163,7 +163,7 @@ describe('bureau de sa fiche (migration 20261119, décision du 20/11/2026)', () 
     baseQr.etat.tables.signalements_qr_bureaux = [ligneBureauQr(NORD, A.CAB, 'Nord')]
   })
   const rattacherG1 = () => Object.assign(baseQr.table('signalements_qr_gestionnaires').find((g) => g.id === A.G1) ?? {}, { bureau_id: NORD })
-  const ficheExportee = (corps: Record<string, unknown>) => (corps.aj_signalement as { fiche: Record<string, unknown> }).fiche
+  const ficheExportee = (corps: Record<string, unknown>) => (corps.vitfixsignal as { fiche: Record<string, unknown> }).fiche
   const exportsJournalises = () => baseQr.table('signalements_qr_journal').filter((l) => l.action === 'gestionnaire.exporte')
 
   it('fiche rattachée : son bureau (identifiant et nom) dans sa fiche, comme l’export du super admin ; rien d’autre ne change', async () => {
@@ -185,7 +185,7 @@ describe('bureau de sa fiche (migration 20261119, décision du 20/11/2026)', () 
     for (let i = 0; i < 2; i += 1) {
       const { status, corps } = await exporter()
       expect(status).toBe(200)
-      expect(trie(Object.keys(corps))).toEqual(trie([...CLES_EXPORT, 'aj_signalement']))
+      expect(trie(Object.keys(corps))).toEqual(trie([...CLES_EXPORT, 'vitfixsignal']))
       expect(ficheExportee(corps)).toEqual(FICHE_G1_EXPORTEE)
     }
     expect(simulQr.logger.warn.mock.calls.filter((c) => /19\/11\/2026/.test(String(c[0])))).toHaveLength(1)
@@ -208,7 +208,7 @@ describe('bureau de sa fiche (migration 20261119, décision du 20/11/2026)', () 
     expect(await res.json()).toEqual({ error: MESSAGE_EXPORT_INDISPONIBLE_QR })
     expect(MESSAGE_EXPORT_INDISPONIBLE_QR).not.toMatch(/bureau/i)
     expect(res.headers.get('content-disposition')).toBeNull()
-    // Ni journal d'AJ Signalement (gestionnaire.exporte) ni audit_logs (EXPORT_DATA) : rien n'a été exporté.
+    // Ni journal de Vitfix Signal (gestionnaire.exporte) ni audit_logs (EXPORT_DATA) : rien n'a été exporté.
     expect(baseQr.etat.ecritures).toEqual([])
     // Journal serveur : le code seul, jamais le nom d'un bureau ni le message de la base.
     expect(simulQr.logger.error).toHaveBeenCalledWith(expect.stringContaining('bureau'), { code: 'XX000' })
@@ -248,10 +248,10 @@ describe('doublon refusé hors de sa portée : ni nom ni identifiant de la copro
     c2.immatriculation = 'AB1234567'
     baseQr.table('signalements_qr_coproprietes').find((c) => c.id === A.C_TOUS)!.reference_cabinet = 'REF-003'
   })
-  const creer = (referenceCabinet: string) => CREER(requeteQr('/api/aj-signalement/coproprietes', 'POST', {
+  const creer = (referenceCabinet: string) => CREER(requeteQr('/api/vitfixsignal/coproprietes', 'POST', {
     operationId: 'f0000000-0000-4000-8000-0000000000aa', nom: 'Sonde', adresse: '1 rue Sonde', codePostal: '13009', ville: 'Marseille', referenceCabinet,
   }))
-  const section = async () => (await exporter()).corps.aj_signalement as { journal: Array<{ action: string; copropriete: string | null }> }
+  const section = async () => (await exporter()).corps.vitfixsignal as { journal: Array<{ action: string; copropriete: string | null }> }
 
   it('création refusée (référence du cabinet) : la ligne doublon.refuse est exportée sans copropriété', async () => {
     const res = await creer('REF-002')
@@ -265,7 +265,7 @@ describe('doublon refusé hors de sa portée : ni nom ni identifiant de la copro
   })
 
   it('modification de SA copropriété refusée (immatriculation) : même chose', async () => {
-    const res = await MODIFIER(requeteQr(`/api/aj-signalement/coproprietes/${A.C1}`, 'PATCH', { immatriculation: 'AB1234567' }), contexteQr(A.C1))
+    const res = await MODIFIER(requeteQr(`/api/vitfixsignal/coproprietes/${A.C1}`, 'PATCH', { immatriculation: 'AB1234567' }), contexteQr(A.C1))
     expect(res.status).toBe(409)
     const exportee = await section()
     expect(exportee.journal).toContainEqual(expect.objectContaining({ action: 'doublon.refuse', copropriete: null }))
@@ -288,7 +288,7 @@ describe('doublon refusé hors de sa portée : ni nom ni identifiant de la copro
 })
 
 describe('autres comptes : export inchangé', () => {
-  it('compte client : aucune section aj_signalement, aucune ligne de journal AJ', async () => {
+  it('compte client : aucune section vitfixsignal, aucune ligne de journal AJ', async () => {
     A.connecterQr(CLIENT)
     const { status, corps } = await exporter()
     expect(status).toBe(200)

@@ -3,7 +3,7 @@ import '@/app/polices.css'
 import '@/app/globals.css'
 import { dashboardFontsClassName } from '@/lib/fonts/dashboard-fonts'
 
-// Mise en page racine des pages publiques servies SANS la coquille de VitFix (AJ Signalement, PR 3, lot 6 ; cahier
+// Mise en page racine des pages publiques servies SANS la coquille de VitFix (Vitfix Signal, PR 3, lot 6 ; cahier
 // § 7.5, décision F3) : aujourd'hui la seule page de désinscription des messages de diffusion d'un cabinet client
 // (vitfix.io/<identifiant>/desinscription/, réécrite vers /cabinet/<identifiant>/desinscription/). Exigence, et non
 // option : ni en-tête ni pied publics, ni bandeau de consentement, ni mesure d'audience (GA4, balise Cloudflare), ni

@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (04/11/2026) — signalements déposés par QR code, sans compte.
+-- Vitfix Signal (04/11/2026) — signalements déposés par QR code, sans compte.
 --
 -- Deux tables indépendantes du logiciel Syndic (aucune clé vers syndic_*) :
 --   signalements_qr_coproprietes : une copropriété = un jeton unique, imprimé dans un QR code
@@ -7,12 +7,12 @@
 --   signalements_qr              : ce qu'une personne a saisi après avoir scanné le QR code
 --                                  (coordonnées obligatoires : prénom, nom, téléphone, e-mail,
 --                                  étage, numéro de lot) ; chaque ligne est aussi envoyée par e-mail.
--- Accès : clé service uniquement (routes app/api/aj-signalement/*) ; RLS activée sans politique,
+-- Accès : clé service uniquement (routes app/api/vitfixsignal/*) ; RLS activée sans politique,
 -- donc rien n'est lisible ni modifiable avec la clé anonyme.
 --
 -- À appliquer en production par Frédéric (Supabase > SQL Editor). Crée la copropriété de test
--- « Parc Belle Ombre » avec un jeton aléatoire : son QR code apparaît ensuite dans le tableau de bord
--- (portail copropriétaire, vue super admin, écran « AJ Signalement »).
+-- « Parc Bois Fictif » avec un jeton aléatoire : son QR code apparaît ensuite dans le tableau de bord
+-- (portail copropriétaire, vue super admin, écran « Vitfix Signal »).
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ── 1. Copropriétés dotées d'un QR code ──
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_coproprietes (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE signalements_qr_coproprietes IS 'AJ Signalement : copropriétés dotées d''un QR code de signalement (sans lien avec les tables syndic_*).';
+COMMENT ON TABLE signalements_qr_coproprietes IS 'Vitfix Signal : copropriétés dotées d''un QR code de signalement (sans lien avec les tables syndic_*).';
 COMMENT ON COLUMN signalements_qr_coproprietes.jeton IS 'Jeton du QR code (32 caractères hexadécimaux) : la page publique est /fr/signalement/<jeton>/.';
 COMMENT ON COLUMN signalements_qr_coproprietes.emails_destinataires IS 'Adresses qui reçoivent chaque signalement ; vide = ADMIN_EMAIL / ADMIN_EMAIL_2 du déploiement.';
 COMMENT ON COLUMN signalements_qr_coproprietes.actif IS 'false : le QR code ne reçoit plus rien (page 404), l''historique est conservé.';
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr (
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_copropriete_date
   ON signalements_qr (copropriete_id, created_at DESC);
 
-COMMENT ON TABLE signalements_qr IS 'AJ Signalement : signalements déposés après scan du QR code d''une copropriété, avec les coordonnées du déclarant.';
+COMMENT ON TABLE signalements_qr IS 'Vitfix Signal : signalements déposés après scan du QR code d''une copropriété, avec les coordonnées du déclarant.';
 COMMENT ON COLUMN signalements_qr.email_envoye_le IS 'Horodatage de l''e-mail reçu par les destinataires ; NULL avec email_erreur renseigné quand l''envoi a échoué.';
 
 -- ── 3. Aucune lecture avec la clé anonyme : RLS sans politique (service role uniquement) ──
@@ -90,7 +90,7 @@ CREATE OR REPLACE TRIGGER trg_signalements_qr_updated_at
   BEFORE UPDATE ON signalements_qr
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- ── 5. Copropriété de test demandée par Frédéric : « Parc Belle Ombre », jeton aléatoire ──
+-- ── 5. Copropriété de test demandée par Frédéric : « Parc Bois Fictif », jeton aléatoire ──
 INSERT INTO signalements_qr_coproprietes (nom, adresse, jeton)
-SELECT 'Parc Belle Ombre', '', replace(gen_random_uuid()::text, '-', '')
-WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes WHERE nom = 'Parc Belle Ombre');
+SELECT 'Parc Bois Fictif', '', replace(gen_random_uuid()::text, '-', '')
+WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes WHERE nom = 'Parc Bois Fictif');

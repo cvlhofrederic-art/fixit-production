@@ -1,7 +1,7 @@
 // tests/api/user-delete-account.test.ts
 //
 // DELETE /api/user/delete-account (RGPD art. 17, libre-service : une session et confirmation: 'DELETE_MY_ACCOUNT').
-// PR 2, lot 6 (SPEC § 2.10, RG-26) : le compte d'un gestionnaire AJ Signalement est géré par son employeur, le cabinet
+// PR 2, lot 6 (SPEC § 2.10, RG-26) : le compte d'un gestionnaire Vitfix Signal est géré par son employeur, le cabinet
 // (responsable de traitement ; VitFix est sous-traitant, art. 28). Pour un compte gestionnaire_signalement, ou un compte
 // relié à une fiche, la route REFUSE avant toute suppression : 403 demande_au_cabinet ; la fiche est seulement datée
 // (effacement_demande_le), la demande journalisée (gestionnaire.effacement_demande, acteur : lui-même) et le super admin
@@ -24,25 +24,25 @@ import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
-vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/aj-signalement-invitation')).clientInvitationQr }))
-vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/aj-signalement-routes')).mockCookies())
-vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/aj-signalement-routes')).mockAuth())
-vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement-routes')).mockLimites())
-vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
+vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/vitfixsignal-invitation')).clientInvitationQr }))
+vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/vitfixsignal-routes')).mockCookies())
+vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/vitfixsignal-routes')).mockAuth())
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/vitfixsignal-routes')).mockLimites())
+vi.mock('@/lib/email', async () => (await import('../helpers/vitfixsignal-routes')).mockEmail())
 vi.mock('@/lib/logger', async () => {
-  const { simulQr } = await import('../helpers/aj-signalement-routes')
+  const { simulQr } = await import('../helpers/vitfixsignal-routes')
   return { logger: { ...simulQr.logger, withTenant: () => simulQr.logger } }
 })
 
-const { baseQr, simulerProductionAvant1111Qr, simulerProductionAvant1112Qr } = await import('../helpers/aj-signalement-base')
-const { messagesEnvoyesQr, reinitialiserSimulQr, requeteQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
-const { authQr, clientInvitationQr, reinitialiserAuthQr } = await import('../helpers/aj-signalement-invitation')
-const A = await import('../helpers/aj-signalement-acces')
+const { baseQr, simulerProductionAvant1111Qr, simulerProductionAvant1112Qr } = await import('../helpers/vitfixsignal-base')
+const { messagesEnvoyesQr, reinitialiserSimulQr, requeteQr, simulQr, texteJournalServeurQr } = await import('../helpers/vitfixsignal-routes')
+const { authQr, clientInvitationQr, reinitialiserAuthQr } = await import('../helpers/vitfixsignal-invitation')
+const A = await import('../helpers/vitfixsignal-acces')
 const { DELETE } = await import('@/app/api/user/delete-account/route')
-const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { reinitialiserReplisQr } = await import('@/lib/vitfixsignal/serveur')
 
 const CLIENT = { id: '0c000000-0000-4000-8000-000000000001', email: 'client@exemple.test', app_metadata: { role: 'client' } }
-const MESSAGE = 'Votre compte AJ Signalement est géré par votre employeur : adressez votre demande au cabinet.'
+const MESSAGE = 'Votre compte Vitfix Signal est géré par votre employeur : adressez votre demande au cabinet.'
 
 const supprimer = (corps: unknown = { confirmation: 'DELETE_MY_ACCOUNT' }) => DELETE(requeteQr('/api/user/delete-account', 'DELETE', corps))
 const suppressions = () => baseQr.etat.ecritures.filter((e) => e.op === 'delete')

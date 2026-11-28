@@ -14,7 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { PGlite } from '@electric-sql/pglite'
 import { createHash, randomUUID } from 'crypto'
 import { deflateSync } from 'zlib'
-import { analyserPngQr } from '@/lib/aj-signalement/logo'
+import { analyserPngQr } from '@/lib/vitfixsignal/logo'
 import { creerBaseSignalementsQr, empreinteSchemaQr, erreurPg, type ErreurPg } from '../helpers/pglite-signalements'
 import { avecOctet, ihdrPng, lignesBrutes, morceauPng, pngDeMorceaux, pngSynthetique } from '../helpers/png-synthetique'
 
@@ -238,7 +238,7 @@ describe('contrainte : seul un PNG conforme est stocké (23514 sinon, rien d’�
 // Relecture de conformité du 13/11/2026 : la base acceptait des PNG que le serveur refuse (texte, animation, aucun IDAT) ;
 // écrits hors de la route (fonction appelée directement, éditeur SQL), les pages annonçaient un logo dont l'image
 // renvoyait 404. La contrainte parcourt désormais les morceaux (signalements_qr_png_forme_valide) : même FORME que
-// analyserPngQr (lib/aj-signalement/logo.ts). Restent au serveur seul, que la base ne sait pas calculer : les CRC et le
+// analyserPngQr (lib/vitfixsignal/logo.ts). Restent au serveur seul, que la base ne sait pas calculer : les CRC et le
 // contenu zlib des IDAT (une telle image n'est jamais servie : la lecture la revérifie).
 describe('contrainte : même forme que le serveur (parcours des morceaux)', () => {
   const flux = (l: number, h: number, octetsParPixel = 4) => deflateSync(lignesBrutes(l, h, octetsParPixel))

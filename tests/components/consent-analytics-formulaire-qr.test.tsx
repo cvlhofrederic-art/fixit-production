@@ -2,7 +2,7 @@
 //
 // D24 (et D10) — décision de Hugo du 17/11/2026, au nom de VitFix, point 4 : « mesure d'audience retirée du formulaire ».
 // La mesure d'audience de VitFix (components/common/ConsentAnalytics.tsx : balise Cloudflare Web Analytics, Google
-// Analytics 4, page vue envoyée à /api/analytics/track) ne se charge JAMAIS sur le formulaire public d'AJ Signalement,
+// Analytics 4, page vue envoyée à /api/analytics/track) ne se charge JAMAIS sur le formulaire public de Vitfix Signal,
 // même après « Tout accepter » : adresse affichée (/<identifiant>/signalement/<jeton>/, ancienne /fr/signalement/<jeton>/)
 // comme page interne de la réécriture (/cabinet/<identifiant>/signalement/<jeton>, /signalement/<jeton>), selon ce que
 // rend usePathname. Les autres pages du site gardent la mesure, toujours soumise au consentement.
@@ -20,7 +20,7 @@ vi.mock('@/components/common/CookieConsent', () => ({ isAnalyticsAllowed: () => 
 vi.mock('@/lib/analytics', () => ({ trackPageView }))
 
 const { default: ConsentAnalytics } = await import('@/components/common/ConsentAnalytics')
-const { estFormulaireSignalementQr } = await import('@/lib/aj-signalement/chemin-cabinet')
+const { estFormulaireSignalementQr } = await import('@/lib/vitfixsignal/chemin-cabinet')
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const GA4 = 'https://www.googletagmanager.com/gtag/js?id='
@@ -42,7 +42,7 @@ const FORMULAIRES = [
 
 const AUTRES_PAGES = [
   '/fr/', '/', '/fr/confidentialite/', '/cabinet-exemple/suivi/', '/cabinet-exemple/connexion/',
-  '/cabinet-exemple/desinscription/', '/cabinet-exemple/confirmation-adresse/', '/aj-signalement/connexion/',
+  '/cabinet-exemple/desinscription/', '/cabinet-exemple/confirmation-adresse/', '/vitfixsignal/connexion/',
   '/fr/signalement/', '/blog/signalement-fuite/', null,
 ]
 

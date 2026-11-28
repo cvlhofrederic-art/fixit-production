@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { isAnalyticsAllowed } from './CookieConsent'
 import { trackPageView } from '@/lib/analytics'
-import { estFormulaireSignalementQr } from '@/lib/aj-signalement/chemin-cabinet'
+import { estFormulaireSignalementQr } from '@/lib/vitfixsignal/chemin-cabinet'
 
 /**
  * Tracks page views when the user has accepted performance cookies (RGPD-compliant).
@@ -20,7 +20,7 @@ import { estFormulaireSignalementQr } from '@/lib/aj-signalement/chemin-cabinet'
  * CookieConsent.tsx (ANALYTICS_PATTERNS) si l'user décline.
  *
  * D24 (décision de Hugo du 17/11/2026, au nom de VitFix, point 4 : « mesure d'audience retirée du formulaire ») : aucune
- * de ces mesures sur le formulaire public d'AJ Signalement (page du QR code, estFormulaireSignalementQr), même avec le
+ * de ces mesures sur le formulaire public de Vitfix Signal (page du QR code, estFormulaireSignalementQr), même avec le
  * consentement. VitFix y est sous-traitant du cabinet client : il ne mesure pas, pour son propre compte, les visiteurs
  * d'une page de signalement. Le bandeau de cookies reste affiché sur cette page (D10 : écran, décision de Frédéric).
  */
@@ -30,7 +30,7 @@ import { estFormulaireSignalementQr } from '@/lib/aj-signalement/chemin-cabinet'
 const GA_MEASUREMENT_ID = 'G-NRVL0FMJBY'
 
 export default function ConsentAnalytics() {
-  // Formulaire public d'AJ Signalement : mesure démontée, ni script, ni minuterie, ni page vue (D24).
+  // Formulaire public de Vitfix Signal : mesure démontée, ni script, ni minuterie, ni page vue (D24).
   if (estFormulaireSignalementQr(usePathname())) return null
   return <MesureAudience />
 }

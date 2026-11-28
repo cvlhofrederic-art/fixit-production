@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (12/11/2026) — accès de chaque gestionnaire à l'espace de son cabinet (vitfix.io/<identifiant>/suivi/).
+-- Vitfix Signal (12/11/2026) — accès de chaque gestionnaire à l'espace de son cabinet (vitfix.io/<identifiant>/suivi/).
 --
 -- Demandes de Hugo du 10 et du 11/11/2026 : chaque gestionnaire a un compte VitFix professionnel (rôle serveur
 -- gestionnaire_signalement, posé par le serveur à l'acceptation d'une invitation signée envoyée par e-mail) ; un compte
@@ -67,7 +67,7 @@ COMMENT ON COLUMN signalements_qr_gestionnaires.acces_ouvert_le IS 'Date de la p
 COMMENT ON COLUMN signalements_qr_gestionnaires.connexion_bloquee_le IS 'Compte banni après le départ (la fiche inactive coupe déjà tout accès).';
 COMMENT ON COLUMN signalements_qr_gestionnaires.effacement_demande_le IS 'Demande d''effacement reçue du gestionnaire (suppression du compte refusée, transmise au cabinet).';
 
--- ── 2. Envoi d'un accès (route POST /api/aj-signalement/gestionnaires/[id]/acces) ──
+-- ── 2. Envoi d'un accès (route POST /api/vitfixsignal/gestionnaires/[id]/acces) ──
 -- p_invitation = { id, invite_token, email } signés par nouvelleInvitation (lib/equipe) AVANT cet appel, insérés tels
 -- quels. Le journal (gestionnaire.acces_envoye) est écrit par la route après l'e-mail, comme la confirmation d'adresse.
 -- L'adresse n'a pas à être confirmée avant : l'acceptation prouve la boîte (le trigger la date).
@@ -143,8 +143,8 @@ CREATE OR REPLACE TRIGGER trg_signalements_qr_invitations_liaison
 -- fait livrer par sa messagerie aux mêmes boîtes). La partie locale exige une seule « @ » aux deux parties non vides ;
 -- NULL ou sans « @ » : non. Le domaine de la fiche n'entre pas en compte (une fiche forcée sur une messagerie publique
 -- garde sa partie locale sur les domaines de son cabinet). Jumelle TypeScript : estAdresseDeFicheQr
--- (lib/aj-signalement/gestionnaires.ts), mêmes réponses sur la table de cas commune
--- (tests/helpers/aj-signalement-adresse-de-fiche.cas.json : test de parité, essai PGlite). Immuable : les domaines lui
+-- (lib/vitfixsignal/gestionnaires.ts), mêmes réponses sur la table de cas commune
+-- (tests/helpers/vitfixsignal-adresse-de-fiche.cas.json : test de parité, essai PGlite). Immuable : les domaines lui
 -- sont passés, elle ne lit aucune table. Seule utilisée, par la garde ci-dessous, pour les exclusions de l'envoi
 -- (section 5) et pour chaque retrait des saisies (départ, effacement, retrait d'attribution) ; et par la création d'une
 -- fiche (section 10 : boîte déjà portée).
@@ -178,7 +178,7 @@ $fn$;
 -- boîte, et elle n'est pas destinataire (section 5) ; sinon l'adresse exacte d'une fiche partie restait servie par un
 -- doublon non confirmé (constat 2). Préfiltre (constat 7) : la règle n'est appelée que pour une autre fiche de même
 -- partie locale (minuscules, espaces de bord retirés, sans étiquette « + ») ; c'est une condition NÉCESSAIRE de la règle
--- (même boîte, ou même partie locale de boîte), qui n'en change aucune réponse. Jumelle des tests : saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts), mêmes réponses sur
+-- (même boîte, ou même partie locale de boîte), qui n'en change aucune réponse. Jumelle des tests : saisieDeLaFicheQr (tests/helpers/vitfixsignal-variantes.ts), mêmes réponses sur
 -- la table commune (gardes) et dans l'essai PGlite. Lit les fiches, les attributions et les domaines : STABLE.
 CREATE OR REPLACE FUNCTION signalements_qr_saisie_de_la_fiche(
   p_adresse text, p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid
@@ -215,7 +215,7 @@ $fn$;
 -- « Ouvrir le suivi » dans l'e-mail d'un signalement, sans jeton).
 -- Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée selon la règle de la section 4
 -- (domaines du cabinet de la fiche) ; elle ne reçoit donc rien. La ligne exclue porte cette SAISIE (retirée telle quelle
--- de l'envoi par destinatairesSignalementQr, lib/aj-signalement/destinataires.ts). Une fiche pseudonymisée n'a plus
+-- de l'envoi par destinatairesSignalementQr, lib/vitfixsignal/destinataires.ts). Une fiche pseudonymisée n'a plus
 -- d'adresse et n'exclut plus rien : ses saisies sont retirées AVANT (section 8). Par la garde (contre-vérification du
 -- 12/11) : une saisie que la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet
 -- de la copropriété n'est pas exclue (la garde ne dépend que de la boîte de la saisie : l'exclusion de
@@ -250,7 +250,7 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   LIMIT 100
 $fn$;
 
--- ── 6. « Ce n'est pas moi » aussi depuis un lien d'accès (route POST /api/aj-signalement/invitation/refus) ──
+-- ── 6. « Ce n'est pas moi » aussi depuis un lien d'accès (route POST /api/vitfixsignal/invitation/refus) ──
 -- Même signature et même corps que la 20261111 (version corrigée de la PR 1 : la fiche verrouillée d'abord, puis ses
 -- envois ; les jetons de TOUS ses envois effacés, celui d'un envoi déjà accepté compris), avec : envoi de confirmation
 -- d'adresse OU d'accès ; fiche SANS compte relié (un compte ouvert a déjà prouvé la boîte : la fiche ne se conteste
@@ -287,7 +287,7 @@ BEGIN
   RETURN true;
 END $fn$;
 
--- ── 7. Départ d'un gestionnaire (route POST /api/aj-signalement/gestionnaires/[id]/depart) ──
+-- ── 7. Départ d'un gestionnaire (route POST /api/vitfixsignal/gestionnaires/[id]/depart) ──
 -- Même signature et même corps que la 20261111 (version corrigée de la PR 1 : ordre unique des verrous, fiches puis
 -- copropriétés ; au plus 1 000 attributions par fiche ; jetons de TOUS ses envois effacés), sauf ses saisies : son
 -- adresse ET ses variantes (règle de la section 4, domaines de son cabinet) quittent les adresses saisies de toutes les
@@ -420,7 +420,7 @@ BEGIN
 END $fn$;
 
 
--- ── 8. Effacement RGPD d'une fiche partie (route PATCH /api/aj-signalement/gestionnaires/[id] { pseudonymiser }) ──
+-- ── 8. Effacement RGPD d'une fiche partie (route PATCH /api/vitfixsignal/gestionnaires/[id] { pseudonymiser }) ──
 -- Une transaction : les saisies reconnues comme l'adresse de la fiche (règle de la section 4, domaines de son cabinet)
 -- quittent TOUTES les copropriétés AVANT que l'adresse ne soit effacée ; sinon plus rien ne les exclurait de l'envoi
 -- (l'exclusion de la section 5 porte sur l'adresse de la fiche) et une variante restée (import, saisie antérieure,
@@ -657,7 +657,7 @@ BEGIN
   RETURN jsonb_build_object('coproprietes', to_jsonb(v_cibles), 'adressesRetirees', v_retirees);
 END $fn$;
 
--- ── 10. Création d'une fiche (route POST /api/aj-signalement/gestionnaires) ──
+-- ── 10. Création d'une fiche (route POST /api/vitfixsignal/gestionnaires) ──
 -- Même signature et même corps que la 20261111 (version corrigée de la PR 1), avec, contre-vérification du 12/11 : les
 -- verrous du domaine et de la boîte, et le refus d'une boîte déjà portée par une fiche (existe_deja, identifiant en
 -- DETAIL). Avant cette migration, seule l'adresse exacte était refusée (index unique) : deux fiches pouvaient partager
@@ -746,7 +746,7 @@ BEGIN
   RETURN v_id;
 END $fn$;
 
--- ── 11. Domaines d'un cabinet (routes POST et PATCH /api/aj-signalement/cabinets) ──
+-- ── 11. Domaines d'un cabinet (routes POST et PATCH /api/vitfixsignal/cabinets) ──
 -- Même signature et même corps que la 20261111 (version corrigée de la PR 1), avec, contre-vérification du 12/11 : le
 -- refus d'un NOUVEAU domaine porté par l'adresse d'une fiche d'un autre cabinet (domaine_pris), sous le verrou de chaque
 -- domaine.

@@ -1,6 +1,6 @@
 // lib/equipe/lien-invitation.ts
 //
-// Lien d'invitation d'équipe (pro BTP : pro_team_members, syndic : syndic_team_members, AJ Signalement :
+// Lien d'invitation d'équipe (pro BTP : pro_team_members, syndic : syndic_team_members, Vitfix Signal :
 // signalements_qr_invitations, envois aux gestionnaires d'un cabinet client — confirmation d'adresse en PR 1).
 // L'espace fait partie du message signé : un lien d'un espace ne vaut rien dans un autre.
 //
@@ -19,12 +19,18 @@
 // Clé : dérivée (HKDF-SHA256) de SUPABASE_SERVICE_ROLE_KEY, secret serveur déjà présent dans le Worker.
 // Aucun nouveau secret. Changer cette clé invalide les invitations en attente (7 jours au plus). L'info
 // « invitation-equipe-v1 » de la dérivation est la version de la clé, commune aux deux formats de message.
+//
+// Vitfix Signal seulement (décision du 26/11/2026, lib/vitfixsignal/ancien-nom.ts, bloc D) : les invitations envoyées
+// avant le renommage du produit ont été signées sous l'ancien nom de cet espace. Un lien se SIGNE sous le nom actuel ;
+// il se VÉRIFIE sous le nom actuel puis sous l'ancien (nomsSignes). Les espaces pro et syndic n'ont qu'un nom : rien ne
+// change pour eux. À retirer 7 jours après la mise en production du renommage (durée de vie d'une invitation).
 
 import { randomHex } from '@/lib/crypto-compat'
+import { ANCIEN_ESPACE_INVITATION_QR } from '@/lib/vitfixsignal/ancien-nom'
 
-export type EspaceEquipe = 'pro' | 'syndic' | 'aj_signalement'
+export type EspaceEquipe = 'pro' | 'syndic' | 'vitfixsignal'
 
-/** Rôle des gestionnaires d'AJ Signalement (posé par le serveur seul, PR 2) ; égalité stricte. */
+/** Rôle des gestionnaires de Vitfix Signal (posé par le serveur seul, PR 2) ; égalité stricte. */
 const ROLE_GESTIONNAIRE_SIGNALEMENT = 'gestionnaire_signalement'
 
 /** Ligne d'invitation telle qu'enregistrée en base. */
@@ -35,7 +41,7 @@ export interface InvitationSignee {
   /** company_id (pro) ou cabinet_id (syndic). */
   equipe_id: string
   /**
-   * Rôle donné par l'invitation (colonne role de la ligne), signé avec elle. AJ Signalement : non lu, le seul rôle
+   * Rôle donné par l'invitation (colonne role de la ligne), signé avec elle. Vitfix Signal : non lu, le seul rôle
    * de sa table est signé (ROLE_GESTIONNAIRE_SIGNALEMENT).
    */
   role?: string | null
@@ -70,19 +76,30 @@ function cleHmac(): Promise<CryptoKey> {
   return cleEnCache.cle
 }
 
-/** Rôle signé : celui de la ligne d'invitation ; AJ Signalement n'en admet qu'un, imposé par sa table (CHECK). */
+/** Rôle signé : celui de la ligne d'invitation ; Vitfix Signal n'en admet qu'un, imposé par sa table (CHECK). */
 function roleSigne(espace: EspaceEquipe, inv: InvitationSignee): string | null {
-  return espace === 'aj_signalement' ? ROLE_GESTIONNAIRE_SIGNALEMENT : (inv.role ?? null)
+  return espace === 'vitfixsignal' ? ROLE_GESTIONNAIRE_SIGNALEMENT : (inv.role ?? null)
 }
 
-/** Message signé (v2) : tableau JSON, sans ambiguïté quel que soit le contenu des champs. */
-function message(espace: EspaceEquipe, inv: InvitationSignee) {
-  return encodeur.encode(JSON.stringify(['v2', espace, inv.id, inv.equipe_id, inv.email, inv.invite_token, roleSigne(espace, inv)]))
+/**
+ * Noms sous lesquels un lien de cet espace a pu être signé : le nom actuel d'abord (le seul qui signe), puis, pour
+ * Vitfix Signal, celui d'avant le renommage du produit (transition, voir l'en-tête).
+ */
+function nomsSignes(espace: EspaceEquipe): readonly string[] {
+  return espace === 'vitfixsignal' ? [espace, ANCIEN_ESPACE_INVITATION_QR] : [espace]
+}
+
+/**
+ * Message signé (v2) : tableau JSON, sans ambiguïté quel que soit le contenu des champs. `nomSigne` : le nom de
+ * l'espace écrit dans le message (l'espace lui-même, sauf à la vérification d'un lien d'avant le renommage).
+ */
+function message(espace: EspaceEquipe, inv: InvitationSignee, nomSigne: string = espace) {
+  return encodeur.encode(JSON.stringify(['v2', nomSigne, inv.id, inv.equipe_id, inv.email, inv.invite_token, roleSigne(espace, inv)]))
 }
 
 /** Message des liens envoyés avant le format v2 (sans le rôle) : vérifié seulement avant FIN_FORMAT_V1. */
-function messageV1(espace: EspaceEquipe, inv: InvitationSignee) {
-  return encodeur.encode(JSON.stringify(['v1', espace, inv.id, inv.equipe_id, inv.email, inv.invite_token]))
+function messageV1(nomSigne: string, inv: InvitationSignee) {
+  return encodeur.encode(JSON.stringify(['v1', nomSigne, inv.id, inv.equipe_id, inv.email, inv.invite_token]))
 }
 
 const enHex = (octets: ArrayBuffer) => Array.from(new Uint8Array(octets), (o) => o.toString(16).padStart(2, '0')).join('')
@@ -102,7 +119,7 @@ export async function jetonDuLien(espace: EspaceEquipe, invitation: InvitationSi
 /**
  * Identifiants d'une nouvelle invitation, à insérer tels quels (id, invite_token), et jeton signé du lien.
  * `role` (pro, syndic) : le rôle inséré dans la ligne, signé avec elle ; un lien signé sans lui ne correspondrait
- * pas à la ligne et ne s'accepterait pas. AJ Signalement : sans objet (rôle unique de sa table).
+ * pas à la ligne et ne s'accepterait pas. Vitfix Signal : sans objet (rôle unique de sa table).
  * Échoue sans clé de signature : à appeler avant toute écriture.
  */
 export async function nouvelleInvitation(
@@ -125,7 +142,8 @@ export function lireJetonDuLien(jeton: string): { jeton: string; signature: stri
 
 /**
  * Vrai si la signature du lien correspond à la ligne d'invitation lue en base (comparaison à temps constant) :
- * format v2 (rôle compris) ou, avant FIN_FORMAT_V1, format v1. `maintenant` : l'horloge, réglable par les tests.
+ * format v2 (rôle compris) ou, avant FIN_FORMAT_V1, format v1, sous chacun des noms de l'espace (nomsSignes).
+ * `maintenant` : l'horloge, réglable par les tests.
  */
 export async function signatureValide(
   espace: EspaceEquipe,
@@ -136,9 +154,15 @@ export async function signatureValide(
   const cle = await cleHmac()
   if (!/^[a-f0-9]{64}$/.test(signature)) return false
   const octets = depuisHex(signature)
-  if (await crypto.subtle.verify('HMAC', cle, octets, message(espace, invitation))) return true
+  const noms = nomsSignes(espace)
+  for (const nom of noms) {
+    if (await crypto.subtle.verify('HMAC', cle, octets, message(espace, invitation, nom))) return true
+  }
   if (maintenant >= FIN_FORMAT_V1) return false
-  return crypto.subtle.verify('HMAC', cle, octets, messageV1(espace, invitation))
+  for (const nom of noms) {
+    if (await crypto.subtle.verify('HMAC', cle, octets, messageV1(nom, invitation))) return true
+  }
+  return false
 }
 
 /**
@@ -149,9 +173,9 @@ export async function signatureValide(
  */
 export function compteRattachable(espace: EspaceEquipe, appMetadata: Record<string, unknown> | undefined): boolean {
   const role = typeof appMetadata?.role === 'string' ? appMetadata.role : ''
-  // AJ Signalement : AVANT le test « sans rôle » ; seul un compte qui porte déjà le rôle des gestionnaires est
+  // Vitfix Signal : AVANT le test « sans rôle » ; seul un compte qui porte déjà le rôle des gestionnaires est
   // rattaché, jamais un compte sans rôle ni celui d'un autre espace.
-  if (espace === 'aj_signalement') return role === ROLE_GESTIONNAIRE_SIGNALEMENT
+  if (espace === 'vitfixsignal') return role === ROLE_GESTIONNAIRE_SIGNALEMENT
   if (!role) return true
   if (espace === 'syndic') return role.startsWith('syndic_')
   const roleEquipe = appMetadata?.pro_team_role

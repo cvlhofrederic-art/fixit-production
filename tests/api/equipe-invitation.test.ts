@@ -76,8 +76,8 @@ const routes = {
 }
 
 interface CasEspace {
-  // Espaces à routes d'équipe (pro, syndic) ; aj_signalement (11/11/2026) n'a ni route /team ni /invite en PR 1.
-  espace: Exclude<EspaceEquipe, 'aj_signalement'>
+  // Espaces à routes d'équipe (pro, syndic) ; vitfixsignal (11/11/2026) n'a ni route /team ni /invite en PR 1.
+  espace: Exclude<EspaceEquipe, 'vitfixsignal'>
   table: string
   colonneEquipe: string
   role: string
@@ -298,7 +298,7 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       expect(await res.json()).not.toHaveProperty('compte_existant')
     })
 
-    // AJ Signalement (PR 2, relecture 4 du lot 6) lit le code de l'erreur : la réponse des routes pro et syndic ne change pas.
+    // Vitfix Signal (PR 2, relecture 4 du lot 6) lit le code de l'erreur : la réponse des routes pro et syndic ne change pas.
     it('mot de passe refusé par Supabase Auth (weak_password) : réponse de la route inchangée (500), rien accepté', async () => {
       h.base.lignes[table] = [ligne()]
       h.admin.createUser.mockResolvedValue({ data: { user: null }, error: { message: 'Password is known to be weak', code: 'weak_password', status: 422 } })

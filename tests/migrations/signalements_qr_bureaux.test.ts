@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_bureaux.test.ts
 //
-// Migration 20261119_signalements_qr_bureaux.sql (AJ Signalement, bureaux des cabinets clients, PR 1 sans écran ;
+// Migration 20261119_signalements_qr_bureaux.sql (Vitfix Signal, bureaux des cabinets clients, PR 1 sans écran ;
 // accord du 17/11/2026 sur les cinq choix de la note des bureaux). Le TEXTE SQL est contrôlé ici : additive, rejouable,
 // sans politique RLS, droits à service_role seul, journal par des actions EXISTANTES (liste fermée non touchée), aucune
 // valeur de client (dépôt public), et surtout la fonction redéfinie : signalements_qr_inviter_gestionnaire part du texte
@@ -64,7 +64,7 @@ const FONCTIONS_TRIGGER = ['signalements_qr_bureau_du_gestionnaire', 'signalemen
 const ERREURS_NOUVELLES = ['nom_pris', 'plafond_bureaux', 'bureau_utilise', 'bureau_requis', 'bureau_ferme']
 
 describe(`Migration ${FICHIER} : fichier et ordre`, () => {
-  it('existe et passe après toutes les migrations d’AJ Signalement (la 20261112 qu’elle reprend, la 20261113, la 20261114)', () => {
+  it('existe et passe après toutes les migrations de Vitfix Signal (la 20261112 qu’elle reprend, la 20261113, la 20261114)', () => {
     expect(existsSync(CHEMIN)).toBe(true)
     const fichiers = readdirSync(DOSSIER).sort((a, b) => a.localeCompare(b))
     for (const avant of ['20261112_signalements_qr_acces_gestionnaires.sql', '20261113_signalements_qr_diffusion.sql', '20261114_signalements_qr_logo_cabinet.sql']) {

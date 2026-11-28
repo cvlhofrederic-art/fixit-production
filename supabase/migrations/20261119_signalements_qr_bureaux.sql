@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (19/11/2026) — bureaux des cabinets clients : base (PR 1, sans écran).
+-- Vitfix Signal (19/11/2026) — bureaux des cabinets clients : base (PR 1, sans écran).
 --
 -- Demande du 14/11/2026 : un cabinet client a plusieurs bureaux ; chaque gestionnaire appartient à un bureau.
 -- Accord du 17/11/2026 sur les cinq choix de la note des bureaux : (1) la copropriété est rattachée DIRECTEMENT à un
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_bureaux (
 -- Deux bureaux d'un même cabinet ne portent pas le même nom, à la casse et aux espaces près, bureaux fermés compris.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_signalements_qr_bureaux_nom
   ON signalements_qr_bureaux (cabinet_id, lower(btrim(nom)));
-COMMENT ON TABLE signalements_qr_bureaux IS 'AJ Signalement : bureaux d''un cabinet client, créés par le super admin (V1 : nom et fermeture, aucune adresse de contact).';
+COMMENT ON TABLE signalements_qr_bureaux IS 'Vitfix Signal : bureaux d''un cabinet client, créés par le super admin (V1 : nom et fermeture, aucune adresse de contact).';
 COMMENT ON COLUMN signalements_qr_bureaux.ferme_le IS 'NULL : bureau ouvert ; une date : bureau fermé (aucun nouveau rattachement ni aucune réactivation ; ce qui y est rattaché le reste).';
 
 -- ── 2. Bureau d'une fiche gestionnaire et d'une copropriété ──
@@ -246,7 +246,7 @@ BEGIN
   RETURN jsonb_build_object('id', p_bureau, 'modifie', true);
 END $fn$;
 
--- ── 5. Création d'une fiche (route POST /api/aj-signalement/gestionnaires) ──
+-- ── 5. Création d'une fiche (route POST /api/vitfixsignal/gestionnaires) ──
 -- Même signature, même en-tête et même corps que la 20261112 (dernière définition, contre-vérification du 12/11
 -- comprise), avec une seule différence : le bureau de la fiche (bureauId, facultatif) lu dans p_gestionnaire et inséré.
 -- Les triggers de la section 3 font les contrôles (bureau_requis, bureau_ferme), la clé étrangère composée le cabinet du

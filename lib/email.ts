@@ -20,7 +20,7 @@ export interface EmailAttachment {
   /** Type MIME (ex. « image/png ») ; absent : Resend le déduit du nom du fichier, et rien n'est transmis. */
   contentType?: string
   /**
-   * Pièce jointe EN LIGNE (logo d'un cabinet dans l'accusé d'AJ Signalement, 13/11/2026) : identifiant appelé dans le
+   * Pièce jointe EN LIGNE (logo d'un cabinet dans l'accusé de Vitfix Signal, 13/11/2026) : identifiant appelé dans le
    * HTML par <img src="cid:…"> (champ contentId du SDK, content_id de l'API ; resend.com/docs/dashboard/emails/
    * embed-inline-images). Envoi unitaire (sendEmail) seulement : le lot de Resend n'accepte aucune pièce jointe.
    * Absent : rien n'est transmis (pièce jointe ordinaire, comme avant).
@@ -149,7 +149,7 @@ export async function sendBatchEmails(emails: EmailPayload[]): Promise<{ sent: n
   return results
 }
 
-// ── Envoi d'UN lot détaillé (diffusion AJ Signalement, SPEC diffusion § 5.1, § 5.5) ──
+// ── Envoi d'UN lot détaillé (diffusion Vitfix Signal, SPEC diffusion § 5.1, § 5.5) ──
 // Différences avec sendBatchEmails (inchangé) : un seul appel (100 messages au plus, une clé d'idempotence pour le
 // lot), mode de validation choisi (« permissive » par défaut : un message refusé n'empêche pas les autres), délai
 // borné, et un résultat fait seulement d'indices et de codes. Le texte des erreurs de Resend n'est jamais rendu ni

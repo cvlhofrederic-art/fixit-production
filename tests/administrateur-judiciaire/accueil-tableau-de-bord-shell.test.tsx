@@ -271,12 +271,12 @@ describe('Shell — le Tableau de bord, page d’accueil', () => {
 })
 
 /**
- * « AJ Signalement » sort de l'AJ (demande de Hugo du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
- * palette, le fil d'Ariane et le registre ; l'espace indépendant (/fr/aj-signalement/) n'a plus qu'un lien au pied de
+ * « Vitfix Signal » sort de l'AJ (demande du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
+ * palette, le fil d'Ariane et le registre ; l'espace indépendant (/fr/vitfixsignal/) n'a plus qu'un lien au pied de
  * la barre latérale, pour le seul super admin (tests/components/panneau-admin-liens.test.tsx). Une ancre, un favori ou
  * un récent hérités ne mènent à rien de mort.
  */
-describe('AJ Signalement sorti de l’AJ', () => {
+describe('Vitfix Signal sorti de l’AJ', () => {
   const ROUTE = 'signalementsQr'
 
   it('ni menu, ni fil d’Ariane, ni palette, ni registre, ni page du cabinet', () => {

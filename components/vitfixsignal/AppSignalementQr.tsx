@@ -1,0 +1,139 @@
+'use client'
+
+// ── Application publique « Vitfix Signal » ───────────────────────────────────
+//
+// Ce que voit la personne qui a scanné le QR code d'une copropriété : le nom de la copropriété, le
+// formulaire (coordonnées obligatoires puis le parcours du portail copropriétaire), et la confirmation
+// avec le numéro du signalement. Pas de compte, pas de suivi : l'administrateur recontacte le déclarant
+// au téléphone ou à l'e-mail laissés. Pensée pour un téléphone (une colonne, cibles de 44 px).
+// Copropriété sans adresse (demande de Hugo du 06/11/2026) : une carte « Copropriété » explique en une phrase à
+// quoi sert la position, puis montre l'adresse proposée d'après elle (copropriété « à moitié identifiée ») ; refus
+// ou échec n'empêchent rien. Adresse connue : elle est affichée et aucune position n'est demandée.
+// PR 3, lot 7 : l'information à la collecte (politique du cabinet), lue par la page serveur, est passée au formulaire.
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé dans un
+// bandeau BLANC au-dessus de l'en-tête bleu nuit (un logo sombre y reste lisible), aligné sur la colonne de la page ;
+// sans logo, la page est celle d'avant.
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : la confirmation
+// d'un signalement envoyé comme urgent répète la consigne renforcée d'appel aux secours (ConsigneSecoursQr.tsx).
+// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026) : lus par la page serveur avec la copropriété, passés
+// au formulaire (liste à choix du champ « Bâtiment ») ; sans bâtiment, le formulaire est celui d'avant.
+
+import { useState } from 'react'
+import { dateLongue, remplir, textesCopro } from '@/lib/coproprietaire/textes'
+import type { CoproprieteQrPublique, LangueSignalementQr } from '@/lib/vitfixsignal/types'
+import { TEXTES_SIGNALEMENT_QR, type InformationFormulaireQr, type TextesSignalementQr } from '@/lib/vitfixsignal/textes'
+import { Bouton, Carte, Icone } from '@/components/coproprietaire-dashboard/ui'
+import FormulaireSignalementQr, { type ConfirmationSignalementQr } from '@/components/vitfixsignal/FormulaireSignalementQr'
+import { useAdresseProposeeQr, type AdresseProposeeEtat } from '@/components/vitfixsignal/useAdresseProposeeQr'
+import ImageLogoCabinetQr, { BOITE_LOGO_CARTE_QR } from '@/components/vitfixsignal/ImageLogoCabinetQr'
+import { ConsigneSecoursUrgenteQr } from '@/components/vitfixsignal/ConsigneSecoursQr'
+import type { LogoPageQr } from '@/lib/vitfixsignal/logo'
+
+/** Message de la carte « Copropriété » selon l'état de la géolocalisation ; '' pendant la demande au navigateur. */
+function messageAdresse(a: AdresseProposeeEtat, tq: TextesSignalementQr): string {
+  switch (a.etat) {
+    case 'recherche':
+      return tq.adresseRecherche
+    case 'proposee':
+      return remplir(tq.adresseProposee, { adresse: a.adresse })
+    case 'refusee':
+      return tq.positionRefusee
+    case 'echec':
+      return tq.adresseIntrouvable
+    default:
+      return ''
+  }
+}
+
+export interface PropsAppSignalementQr {
+  jeton: string
+  copropriete: CoproprieteQrPublique
+  langue: LangueSignalementQr
+  /** PR 3, lot 7 : information à la collecte ; absente (copropriété sans cabinet, cabinet sans politique) : rien. */
+  information?: InformationFormulaireQr | null
+  /** Logo du cabinet de la copropriété ; absent ou null (sans cabinet, sans logo) : page d'avant. */
+  logo?: LogoPageQr | null
+}
+
+export default function AppSignalementQr({ jeton, copropriete, langue, information = null, logo = null }: Readonly<PropsAppSignalementQr>) {
+  const t = textesCopro(langue)
+  const tq = TEXTES_SIGNALEMENT_QR[langue]
+  const [confirmation, setConfirmation] = useState<ConfirmationSignalementQr | null>(null)
+  // Incrémentée à chaque nouveau signalement : le formulaire est remonté vide.
+  const [cle, setCle] = useState(0)
+  // Ici et non dans le formulaire : un nouveau signalement ne redemande pas la position.
+  const adresse = useAdresseProposeeQr(jeton, copropriete.adresse)
+
+  const enHaut = () => {
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
+  }
+  const recommencer = () => {
+    setConfirmation(null)
+    setCle((c) => c + 1)
+    enHaut()
+  }
+
+  return (
+    <div id="vitfixsignal" className="flex min-h-screen flex-col bg-[#F7F4EE] text-[#1F2D3D]">
+      {logo && (
+        <div className="border-b border-[#E4DDD0] bg-white px-4 py-3">
+          <div className="mx-auto w-full max-w-2xl">
+            <ImageLogoCabinetQr logo={logo} boite={BOITE_LOGO_CARTE_QR} className="block max-w-full" />
+          </div>
+        </div>
+      )}
+      <header className="bg-[#0D1B2E] px-4 py-5 text-white md:py-7">
+        <div className="mx-auto w-full max-w-2xl">
+          <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">
+            <Icone nom="qr" taille={18} />
+            <span>{tq.application}</span>
+          </p>
+          <h1 className="mt-2 font-serif text-2xl leading-tight md:text-3xl">{copropriete.nom}</h1>
+          {copropriete.adresse && <p className="mt-1 text-base text-white/80">{copropriete.adresse}</p>}
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 md:py-8">
+        {confirmation ? (
+          <Carte ton="vert" titre={remplir(tq.confirmationTitre, { date: dateLongue(confirmation.date, langue) })}>
+            <div className="space-y-2">
+              <p className="text-base font-semibold text-[#0D1B2E]">{remplir(tq.confirmationNumero, { numero: confirmation.numero })}</p>
+              <p className="text-base text-[#1F2D3D]">
+                {remplir(tq.confirmationSuite, { telephone: confirmation.telephone, email: confirmation.email })}
+              </p>
+            </div>
+            {confirmation.priorite === 'urgente' && <ConsigneSecoursUrgenteQr tq={tq} className="mt-4" />}
+            <div className="mt-5">
+              <Bouton variante="secondaire" icone="demandes" onClick={recommencer}>{tq.autreSignalement}</Bouton>
+            </div>
+          </Carte>
+        ) : (
+          <>
+            <h2 className="font-serif text-xl text-[#0D1B2E] md:text-2xl">{tq.titre}</h2>
+            <p className="mb-5 mt-2 text-base">{remplir(tq.accroche, { copropriete: copropriete.nom })}</p>
+            {adresse.etat !== 'inutile' && (
+              <Carte titre={tq.copropriete} className="mb-6">
+                <p className="text-base font-semibold text-[#0D1B2E]">{copropriete.nom}</p>
+                <p className="mt-1 text-sm text-[#4A5E78]">{tq.geolocalisationExplication}</p>
+                <p aria-live="polite" className="mt-2 text-base text-[#1F2D3D]">{messageAdresse(adresse, tq)}</p>
+              </Carte>
+            )}
+            <FormulaireSignalementQr
+              key={cle}
+              jeton={jeton}
+              langue={langue}
+              t={t}
+              tq={tq}
+              adresseProposee={adresse.etat === 'proposee' ? adresse.adresse : ''}
+              information={information}
+              batiments={copropriete.batiments}
+              onEnvoye={(c) => { setConfirmation(c); enHaut() }}
+            />
+          </>
+        )}
+      </main>
+
+      <footer className="px-4 pb-8 text-center text-sm text-[#4A5E78]">{tq.piedDePage}</footer>
+    </div>
+  )
+}

@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_gestionnaires.test.ts
 //
-// Migration 20261111_signalements_qr_gestionnaires.sql (AJ Signalement, demandes de Hugo du 10/11/2026) : cabinets
+// Migration 20261111_signalements_qr_gestionnaires.sql (Vitfix Signal, demandes du 10/11/2026) : cabinets
 // clients (nom, identifiant du chemin public vitfix.io/<identifiant>/…, langue, domaines e-mail), gestionnaires,
 // envois de confirmation d'adresse, attributions, journal, opérations, colonnes ajoutées aux copropriétés et aux
 // signalements, 14 fonctions appelées par les routes et 2 fonctions de trigger (gel de l'identifiant, rattachement
@@ -9,8 +9,8 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { MIGRATION_GESTIONNAIRES_QR } from '@/lib/aj-signalement/serveur'
-import { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from '@/lib/aj-signalement/types'
+import { MIGRATION_GESTIONNAIRES_QR } from '@/lib/vitfixsignal/serveur'
+import { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from '@/lib/vitfixsignal/types'
 import { attributionsGestionnaireQrSchema, departGestionnaireQrSchema } from '@/lib/validation'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
@@ -125,7 +125,7 @@ describe(`Migration ${FICHIER} : rejouable, sans donnée`, () => {
     expect(code).not.toMatch(/'[a-z0-9-]+(\.[a-z0-9-]+)*\.(fr|com|pt|io|net|org|eu|test)'/i)
     expect(sql.toLowerCase()).not.toContain('aj' + 'associ')
     expect(sql.toLowerCase()).not.toContain(['aj', 'associ'].join(' '))
-    expect(sql).not.toMatch(/Parc Belle Ombre/i)
+    expect(sql).not.toMatch(/Parc Bois Fictif/i)
   })
 })
 

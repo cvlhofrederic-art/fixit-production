@@ -171,8 +171,23 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   ADMIN_EMAIL_2
 #   ADMIN_PASSWORD_2
 #   INTERNAL_API_SECRET
+#   VITFIXSIGNAL_CLE_LIENS_DIFFUSION             (Vitfix Signal : signature des liens de désinscription, >= 32 caractères ;
+#                                                 sans elle aucune diffusion ne part. EN PRODUCTION, NE PAS GÉNÉRER de
+#                                                 valeur neuve : recopier celle du secret d'avant le renommage, voir la
+#                                                 note sous les trois noms. Valeur aléatoire seulement pour un
+#                                                 environnement neuf, qui n'a jamais envoyé de diffusion.)
 #
 # MEDIUM:
+#   VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE  (Vitfix Signal : clé précédente, seulement pendant une rotation)
+#   VITFIXSIGNAL_EXPEDITEUR_DIFFUSION            (Vitfix Signal : adresse d'expédition des diffusions ; à défaut RESEND_FROM_EMAIL)
+#     Ces trois valeurs sont lues par lib/vitfixsignal/variables.ts, qui accepte encore leur nom d'avant le renommage du
+#     produit (transition, décision du 26/11/2026 : lib/vitfixsignal/ancien-nom.ts, bloc F). Les reposer sous ces noms-ci
+#     avec les MÊMES valeurs, puis supprimer les anciens secrets (wrangler secret delete).
+#     Clé des liens : une valeur DIFFÉRENTE sous le nouveau nom l'emporte sur l'ancienne. Les liens de désinscription des
+#     messages déjà envoyés ne restent alors vérifiés (comme signés par une clé précédente) que tant que l'ancien secret
+#     existe ; après sa suppression, ils ne valent plus rien et une opposition par le lien « un clic » serait perdue sans
+#     signal. Avant de supprimer l'ancien secret : même valeur sous les deux noms, ou ancienne valeur reposée dans
+#     VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE.
 #   TAVILY_API_KEY
 #   OPENROUTER_API_KEY
 #   CEREBRAS_API_KEY              (fallback provider Groq)

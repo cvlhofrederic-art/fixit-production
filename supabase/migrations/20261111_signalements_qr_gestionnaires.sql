@@ -1,17 +1,17 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (10/11/2026) — cabinets clients, gestionnaires, attributions, journal, création unique et import.
+-- Vitfix Signal (10/11/2026) — cabinets clients, gestionnaires, attributions, journal, création unique et import.
 --
 -- Demandes de Hugo du 10/11/2026 : chaque cabinet client a sa ligne (le premier client n'est qu'un cabinet parmi
 -- d'autres) : son nom, l'identifiant de son chemin public (vitfix.io/<identifiant>/signalement/<jeton>/), la langue de
 -- ses pages et les domaines e-mail de ses gestionnaires. Chaque gestionnaire reçoit par e-mail les signalements des
--- copropriétés qui lui sont attribuées, une fois son adresse confirmée. Tout se saisit dans l'espace AJ Signalement par
+-- copropriétés qui lui sont attribuées, une fois son adresse confirmée. Tout se saisit dans l'espace Vitfix Signal par
 -- le super admin : AUCUNE valeur ici (ni cabinet, ni domaine, ni gestionnaire, ni drapeau sur une copropriété), car le
 -- dépôt est public et une migration rejouée écraserait un choix fait à l'écran.
 --
 -- Tables nouvelles (7) : signalements_qr_cabinets, signalements_qr_domaines_autorises, signalements_qr_gestionnaires,
 -- signalements_qr_invitations, signalements_qr_attributions, signalements_qr_journal, signalements_qr_operations.
 -- RLS activée sans politique, droits retirés à anon et authenticated (tables, et séquence de l'identité du journal) :
--- clé service seulement (routes app/api/aj-signalement/*). 14 fonctions appelées par les routes (EXECUTE donné à
+-- clé service seulement (routes app/api/vitfixsignal/*). 14 fonctions appelées par les routes (EXECUTE donné à
 -- service_role seul) et 2 fonctions de trigger (gel de l'identifiant d'un cabinet, rattachement définitif d'une copropriété).
 --
 -- Règles :
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_cabinets (
     CHECK (char_length(identifiant) BETWEEN 3 AND 40 AND identifiant ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$'),
   CONSTRAINT signalements_qr_cabinets_langue_valeurs CHECK (langue IN ('fr', 'pt'))
 );
-COMMENT ON TABLE signalements_qr_cabinets IS 'AJ Signalement : cabinets clients (nom, identifiant du chemin public, langue des pages), saisis par le super admin.';
+COMMENT ON TABLE signalements_qr_cabinets IS 'Vitfix Signal : cabinets clients (nom, identifiant du chemin public, langue des pages), saisis par le super admin.';
 COMMENT ON COLUMN signalements_qr_cabinets.identifiant IS 'Chemin public du cabinet : /<identifiant>/signalement/<jeton>/. Figé (trigger) dès que le cabinet a une copropriété ou un gestionnaire.';
 COMMENT ON COLUMN signalements_qr_cabinets.langue IS 'Langue de la page publique de signalement du cabinet (fr ou pt).';
 
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_domaines_autorises (
 );
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_domaines_cabinet
   ON signalements_qr_domaines_autorises (cabinet_id);
-COMMENT ON TABLE signalements_qr_domaines_autorises IS 'AJ Signalement : domaines e-mail des gestionnaires de chaque cabinet client (un domaine, un seul cabinet).';
+COMMENT ON TABLE signalements_qr_domaines_autorises IS 'Vitfix Signal : domaines e-mail des gestionnaires de chaque cabinet client (un domaine, un seul cabinet).';
 
 -- ── 2. Gestionnaires ──
 CREATE TABLE IF NOT EXISTS signalements_qr_gestionnaires (
@@ -98,7 +98,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_signalements_qr_gestionnaires_email
   ON signalements_qr_gestionnaires (email) WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_gestionnaires_cabinet
   ON signalements_qr_gestionnaires (cabinet_id, actif);
-COMMENT ON TABLE signalements_qr_gestionnaires IS 'AJ Signalement : gestionnaires d''un cabinet client (fiches tenues par le super admin ; aucun compte en PR 1).';
+COMMENT ON TABLE signalements_qr_gestionnaires IS 'Vitfix Signal : gestionnaires d''un cabinet client (fiches tenues par le super admin ; aucun compte en PR 1).';
 COMMENT ON COLUMN signalements_qr_gestionnaires.adresse_confirmee_le IS 'Date à laquelle le gestionnaire a prouvé détenir la boîte (lien signé) ; NULL = aucun e-mail de signalement.';
 
 -- Envois (une ligne par envoi, format lu par lib/equipe : la validité de 7 jours court depuis created_at).
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_invitations (
 );
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_invitations_gestionnaire
   ON signalements_qr_invitations (gestionnaire_id, objet, created_at DESC);
-COMMENT ON TABLE signalements_qr_invitations IS 'AJ Signalement : envois de confirmation d''adresse (et d''accès en PR 2) aux gestionnaires, une ligne par envoi.';
+COMMENT ON TABLE signalements_qr_invitations IS 'Vitfix Signal : envois de confirmation d''adresse (et d''accès en PR 2) aux gestionnaires, une ligne par envoi.';
 
 -- ── 3. Colonnes ajoutées aux tables existantes ──
 ALTER TABLE signalements_qr_coproprietes ADD COLUMN IF NOT EXISTS cabinet_id UUID;
@@ -202,7 +202,7 @@ ALTER TABLE signalements_qr VALIDATE CONSTRAINT signalements_qr_nb_emails_bornes
 
 COMMENT ON COLUMN signalements_qr_coproprietes.cabinet_id IS 'Cabinet client ; NULL = sans cabinet (adresse /fr/signalement/<jeton>/, aucun gestionnaire). Rattachement définitif (trigger).';
 COMMENT ON COLUMN signalements_qr_coproprietes.attribuee_a_tous IS 'Copropriété vue par tous les gestionnaires actifs de son cabinet (copropriété de test) ; posé à l''écran par le super admin seulement.';
-COMMENT ON COLUMN signalements_qr_coproprietes.cle_nom IS 'Nom normalisé (calculé côté serveur, lib/aj-signalement/doublons.ts) pour le contrôle des doublons ; NULL pour les lignes antérieures.';
+COMMENT ON COLUMN signalements_qr_coproprietes.cle_nom IS 'Nom normalisé (calculé côté serveur, lib/vitfixsignal/doublons.ts) pour le contrôle des doublons ; NULL pour les lignes antérieures.';
 COMMENT ON COLUMN signalements_qr.nb_emails_envoyes IS 'Messages réservés pour ce dépôt dans le budget d''e-mails (par copropriété et par cabinet, sur une heure).';
 COMMENT ON COLUMN signalements_qr.email_retenu IS 'Dépôt enregistré mais e-mail non envoyé : budget d''e-mails atteint.';
 
@@ -234,7 +234,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_attributions (
 );
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_attributions_gestionnaire
   ON signalements_qr_attributions (gestionnaire_id);
-COMMENT ON TABLE signalements_qr_attributions IS 'AJ Signalement : copropriétés attribuées à chaque gestionnaire (même cabinet, contrôlé par les fonctions).';
+COMMENT ON TABLE signalements_qr_attributions IS 'Vitfix Signal : copropriétés attribuées à chaque gestionnaire (même cabinet, contrôlé par les fonctions).';
 
 -- ── 5. Journal et opérations ──
 CREATE TABLE IF NOT EXISTS signalements_qr_journal (
@@ -271,7 +271,7 @@ CREATE INDEX IF NOT EXISTS idx_signalements_qr_journal_cabinet ON signalements_q
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_journal_copro  ON signalements_qr_journal (copropriete_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_journal_gest   ON signalements_qr_journal (gestionnaire_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_journal_acteur ON signalements_qr_journal (acteur_gestionnaire_id, created_at DESC);
-COMMENT ON TABLE signalements_qr_journal IS 'AJ Signalement : traçabilité (qui a créé ou changé quoi), sans donnée personnelle ; 12 mois glissants.';
+COMMENT ON TABLE signalements_qr_journal IS 'Vitfix Signal : traçabilité (qui a créé ou changé quoi), sans donnée personnelle ; 12 mois glissants.';
 COMMENT ON COLUMN signalements_qr_journal.details IS 'Énumérations, identifiants et nombres seulement (exception : nom d''une copropriété supprimée).';
 
 -- Un lot de création (saisie = lot d'une ligne, ou import) = un identifiant tiré par le navigateur : rejeu sans effet,
@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_operations (
   resultat       JSONB NOT NULL DEFAULT '{}'::jsonb,   -- identifiants et jetons créés ; aucun contenu de fichier
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE signalements_qr_operations IS 'AJ Signalement : lots de création de copropriétés (saisie ou import), pour rejouer un double clic sans effet.';
+COMMENT ON TABLE signalements_qr_operations IS 'Vitfix Signal : lots de création de copropriétés (saisie ou import), pour rejouer un double clic sans effet.';
 
 -- ── 6. Fonctions de trigger : identifiant figé, rattachement définitif ──
 CREATE OR REPLACE FUNCTION signalements_qr_identifiant_fige() RETURNS trigger

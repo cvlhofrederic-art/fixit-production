@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (14/11/2026) — logo d'un cabinet client.
+-- Vitfix Signal (14/11/2026) — logo d'un cabinet client.
 --
 -- Demande de Hugo du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». Le logo est une DONNÉE du cabinet,
 -- envoyée et retirée par le super admin dans l'espace (fiche du cabinet), JAMAIS un fichier du dépôt (dépôt public :
@@ -15,7 +15,7 @@
 -- Seul format stocké : PNG. Le navigateur convertit SVG, PNG, JPEG et WebP en PNG par un canvas (un SVG chargé comme
 -- image n'exécute aucun script), la route revérifie l'image, la base aussi : aucun SVG n'est jamais stocké ni servi.
 -- Relecture de conformité du 13/11/2026 — un seul contrat de forme : la contrainte appelle signalements_qr_png_forme_valide,
--- qui parcourt les morceaux comme le serveur (analyserPngQr, lib/aj-signalement/logo.ts) : signature ; IHDR d'abord
+-- qui parcourt les morceaux comme le serveur (analyserPngQr, lib/vitfixsignal/logo.ts) : signature ; IHDR d'abord
 -- (profondeur 8, RVB ou RVBA, sans entrelacement) ; puis seulement des accessoires sans texte, de longueur fixe, une fois
 -- chacun (sRGB, gAMA, cHRM, sBIT, pHYs, bKGD, tRNS en RVB) ; puis les IDAT, à la suite ; IEND vide en dernier et rien
 -- après. Ce que la base ne sait pas calculer reste au SERVEUR : les CRC des morceaux et le contenu zlib des IDAT (flux

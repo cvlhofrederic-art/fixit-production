@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
-import { lienEspaceQr } from '@/lib/aj-signalement/acces-espace'
+import { lienEspaceQr } from '@/lib/vitfixsignal/acces-espace'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { seDeconnecter, useEspaceCopro, type EtatEspace } from '@/lib/coproprietaire/etat'
 import { estSuperAdmin, useSourceAj } from '@/lib/coproprietaire/liaison-aj'
@@ -167,7 +167,7 @@ function BarreLaterale({
         )}
         {lienQr && (
           <a href={lienQr} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-white/10 hover:text-white">
-            <Icone nom="qr" taille={18} /><span>{t.menu.ajSignalement}</span>
+            <Icone nom="qr" taille={18} /><span>{t.menu.vitfixSignal}</span>
           </a>
         )}
         <button type="button" onClick={onDeconnexion} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-[#C0392B]/30 hover:text-white">
@@ -269,7 +269,7 @@ export default function CoproprietaireDashboard() {
   const ecran: EcranCopro = visibles.includes(navigation.ecran) ? navigation.ecran : 'accueil'
   const Ecran = ECRANS[ecran]
   const lienAdmin = lienPanneauAdmin(metadonnees ?? undefined)
-  // « AJ Signalement » : espace indépendant du super admin (/fr/aj-signalement/, 10/11/2026) ; ici un simple lien,
+  // « Vitfix Signal » : espace indépendant du super admin (/fr/vitfixsignal/, 10/11/2026) ; ici un simple lien,
   // jamais proposé à un copropriétaire ni à un locataire (app_metadata seulement).
   const lienQr = lienEspaceQr(metadonnees)
   const heure = heureCourte(etat.miseAJourLe, langue)
@@ -392,7 +392,7 @@ export default function CoproprietaireDashboard() {
               <li><a href={lienAdmin} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="cadenas" taille={22} /><span>{t.menu.panneauAdmin}</span></a></li>
             )}
             {lienQr && (
-              <li><a href={lienQr} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="qr" taille={22} /><span>{t.menu.ajSignalement}</span></a></li>
+              <li><a href={lienQr} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="qr" taille={22} /><span>{t.menu.vitfixSignal}</span></a></li>
             )}
             <li>
               <button type="button" onClick={() => { setMenuPlus(false); setConfirmerDeconnexion(true) }} className="flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-[#D98B82] px-4 text-base font-medium text-[#9B2C20]">

@@ -133,12 +133,12 @@ describe('rôle signé (format v2)', () => {
     expect(await signatureValide('pro', signature, ligne)).toBe(false)
   })
 
-  it('AJ Signalement : le rôle unique de sa table est signé, quel que soit le rôle lu dans la ligne', async () => {
-    const n = await nouvelleInvitation('aj_signalement', invitation.email, invitation.equipe_id)
+  it('Vitfix Signal : le rôle unique de sa table est signé, quel que soit le rôle lu dans la ligne', async () => {
+    const n = await nouvelleInvitation('vitfixsignal', invitation.email, invitation.equipe_id)
     const ligne = { id: n.id, email: invitation.email, invite_token: n.invite_token, equipe_id: invitation.equipe_id }
     const signature = await signatureDe(n.jetonLien)
-    expect(await signatureValide('aj_signalement', signature, { ...ligne, role: 'gestionnaire_signalement' })).toBe(true)
-    expect(await signatureValide('aj_signalement', signature, ligne)).toBe(true)
+    expect(await signatureValide('vitfixsignal', signature, { ...ligne, role: 'gestionnaire_signalement' })).toBe(true)
+    expect(await signatureValide('vitfixsignal', signature, ligne)).toBe(true)
   })
 })
 
@@ -219,7 +219,7 @@ describe('compteRattachable', () => {
     expect(compteRattachable('pro', undefined)).toBe(true)
   })
 
-  // AJ Signalement (11/11/2026) : un compte n'est rattaché que s'il porte DÉJÀ le rôle des gestionnaires ; jamais un
+  // Vitfix Signal (11/11/2026) : un compte n'est rattaché que s'il porte DÉJÀ le rôle des gestionnaires ; jamais un
   // compte sans rôle (la branche passe avant « sans rôle → rattachable »), jamais un compte d'un autre espace.
   it.each([
     [{}, false],
@@ -231,26 +231,26 @@ describe('compteRattachable', () => {
     [{ role: 'client' }, false],
     [{ role: 'artisan' }, false],
     [{ role: 'pro_societe', pro_team_role: 'OUVRIER' }, false],
-  ])('aj_signalement : %o → %s', (meta, attendu) => {
-    expect(compteRattachable('aj_signalement', meta)).toBe(attendu)
+  ])('vitfixsignal : %o → %s', (meta, attendu) => {
+    expect(compteRattachable('vitfixsignal', meta)).toBe(attendu)
   })
 })
 
-describe('espace aj_signalement', () => {
-  it('un lien AJ Signalement ne vaut pas pour le syndic ni le pro, et inversement', async () => {
-    const aj = await signatureDe(await jetonDuLien('aj_signalement', invitation))
-    expect(await signatureValide('aj_signalement', aj, invitation)).toBe(true)
+describe('espace vitfixsignal', () => {
+  it('un lien Vitfix Signal ne vaut pas pour le syndic ni le pro, et inversement', async () => {
+    const aj = await signatureDe(await jetonDuLien('vitfixsignal', invitation))
+    expect(await signatureValide('vitfixsignal', aj, invitation)).toBe(true)
     expect(await signatureValide('syndic', aj, invitation)).toBe(false)
     expect(await signatureValide('pro', aj, invitation)).toBe(false)
     const syndic = await signatureDe(await jetonDuLien('syndic', invitation))
-    expect(await signatureValide('aj_signalement', syndic, invitation)).toBe(false)
+    expect(await signatureValide('vitfixsignal', syndic, invitation)).toBe(false)
   })
 
   it('nouvelleInvitation signe l’identifiant de fiche reçu', async () => {
-    const inv = await nouvelleInvitation('aj_signalement', 'claire@exemple.fr', invitation.equipe_id)
+    const inv = await nouvelleInvitation('vitfixsignal', 'claire@exemple.fr', invitation.equipe_id)
     const lu = lireJetonDuLien(inv.jetonLien)
     expect(lu?.jeton).toBe(inv.invite_token)
-    expect(await signatureValide('aj_signalement', lu?.signature ?? '', { id: inv.id, email: 'claire@exemple.fr', invite_token: inv.invite_token, equipe_id: invitation.equipe_id })).toBe(true)
+    expect(await signatureValide('vitfixsignal', lu?.signature ?? '', { id: inv.id, email: 'claire@exemple.fr', invite_token: inv.invite_token, equipe_id: invitation.equipe_id })).toBe(true)
   })
 })
 

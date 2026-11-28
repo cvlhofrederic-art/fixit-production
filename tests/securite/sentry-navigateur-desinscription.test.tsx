@@ -1,6 +1,6 @@
 // tests/securite/sentry-navigateur-desinscription.test.tsx
 //
-// AJ Signalement, PR 3 (cahier § 7.5, § 8.1, § 8.2 « Journalisation : Sentry … jamais … de jeton » et « Jamais dans une
+// Vitfix Signal, PR 3 (cahier § 7.5, § 8.1, § 8.2 « Journalisation : Sentry … jamais … de jeton » et « Jamais dans une
 // URL : … jeton de la page (il est dans le fragment) ») — Sentry du NAVIGATEUR (instrumentation-client.ts, chargé par
 // Next sur toutes les pages, y compris la page sans coquille /<identifiant>/desinscription/).
 // Constat de la relecture 2 : la page efface le fragment (history.replaceState) ; l'intégration « breadcrumbs » du SDK
@@ -61,7 +61,7 @@ async function ouvrirPage(jeton: string, type: 'page' | 'un_clic'): Promise<void
   window.history.replaceState(null, '', `/${ID}/desinscription/#${jeton}`)
   stubLecture(type)
   await sentry()
-  const { default: Page } = await import('@/components/aj-signalement/DesinscriptionDiffusionQr')
+  const { default: Page } = await import('@/components/vitfixsignal/DesinscriptionDiffusionQr')
   render(<Page identifiant={ID} cabinet={{ langue: 'fr', contact: null }} />)
   await waitFor(() => expect(window.location.hash).toBe(''))
   await waitFor(() => expect(document.body.textContent).toContain('Résidence Exemple'))

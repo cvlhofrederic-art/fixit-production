@@ -3,8 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { exportGestionnaireDuCompteQr } from '@/lib/aj-signalement/serveur-compte'
-import { lireParValeursQr, lirePagesQr, tableAbsenteQr } from '@/lib/aj-signalement/serveur'
+import { exportGestionnaireDuCompteQr } from '@/lib/vitfixsignal/serveur-compte'
+import { lireParValeursQr, lirePagesQr, tableAbsenteQr } from '@/lib/vitfixsignal/serveur'
 
 export const maxDuration = 60
 
@@ -180,11 +180,11 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    // 12 bis. AJ Signalement (PR 2, SPEC § 2.10) : fiche (avec son bureau), attributions et journal d'un gestionnaire d'un
+    // 12 bis. Vitfix Signal (PR 2, SPEC § 2.10) : fiche (avec son bureau), attributions et journal d'un gestionnaire d'un
     // cabinet client ; section omise pour tout autre compte (export inchangé), et tant que les migrations manquent.
     // Bureau non lu (autre cause que la migration absente) : 503 au message générique, rien d'exporté ni journalisé.
-    const ajSignalement = await exportGestionnaireDuCompteQr(user)
-    if (!ajSignalement.ok) return ajSignalement.reponse
+    const vitfixSignal = await exportGestionnaireDuCompteQr(user)
+    if (!vitfixSignal.ok) return vitfixSignal.reponse
 
     // 12 ter. Société BTP (pro_societe) : sauvegarde du stockage du navigateur et tables du BTP. Les autres rôles gardent
     // leur export (règle n° 1 artisan / BTP).
@@ -227,7 +227,7 @@ export async function GET(request: NextRequest) {
         signalements: syndicSignalements,
         planning_events: syndicPlanningEvents,
       },
-      ...ajSignalement.champ,
+      ...vitfixSignal.champ,
       ...(donneesBtp ? { user_storage: donneesBtp.userStorage, btp: donneesBtp.btp } : {}),
     }
 

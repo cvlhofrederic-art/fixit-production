@@ -31,7 +31,7 @@ export function CarteMotDePasse({ titre, sousTitre, children }: Readonly<{ titre
 
 const CLASSES_RETOUR_CONNEXION = 'inline-block bg-yellow hover:bg-yellow-light text-gray-900 py-3 px-6 rounded-xl font-bold transition-all'
 
-// Réussite : coche verte, titre, message et lien vers la connexion. `lienConnexion` (AJ Signalement, PR 2) : connexion
+// Réussite : coche verte, titre, message et lien vers la connexion. `lienConnexion` (Vitfix Signal, PR 2) : connexion
 // professionnelle d'un cabinet client, adresse sans langue (simple lien, même aspect) ; absent : la connexion générale.
 export function SuccesMotDePasse({ titre, message, retourConnexion, lienConnexion }: Readonly<{
   titre: string; message: string; retourConnexion: string; lienConnexion?: string

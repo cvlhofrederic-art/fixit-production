@@ -10,8 +10,8 @@
  *   PREMIÈRE règle dont la regex du routes-manifest correspond (sensible à la casse).
  *
  * Défaut gardé (PR 2) : placées en FIN de beforeFiles, les règles du chemin d'un cabinet (« /:identifiant(…)/connexion »…)
- * captaient sous next start le chemin INTERNE produit par une règle de langue : /fr/aj-signalement/connexion/ →
- * /aj-signalement/connexion → /cabinet/aj-signalement/connexion, identifiant réservé, 404. De même
+ * captaient sous next start le chemin INTERNE produit par une règle de langue : /fr/vitfixsignal/connexion/ →
+ * /vitfixsignal/connexion → /cabinet/vitfixsignal/connexion, identifiant réservé, 404. De même
  * /<langue>/tracking/connexion/, /<langue>/auth/invitation/… La production (première règle seulement) servait la bonne
  * page : seule la CI E2E voyait le défaut. Le middleware n'y peut rien : il ne voit que le chemin d'origine.
  *
@@ -30,7 +30,7 @@ import { describe, expect, it } from 'vitest'
 import configurationNext from '@/next.config'
 import {
   IDENTIFIANTS_RESERVES_QR, SEGMENTS_CABINET_QR, cheminEspaceCabinetQr, cheminPublicCabinetQr,
-} from '@/lib/aj-signalement/chemin-cabinet'
+} from '@/lib/vitfixsignal/chemin-cabinet'
 
 type Regle = { source: string; destination: string; has?: unknown[]; missing?: unknown[] }
 type Parametres = Record<string, string | string[]>
@@ -233,7 +233,7 @@ describe('réécritures beforeFiles : next start (CI E2E) et OpenNext (productio
     expect(regles.filter(estRegleDeCabinet)).toHaveLength(11)
     expect(pages.length).toBeGreaterThan(300)
     for (const attendu of [
-      '/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/', '/fr/tracking/connexion/', '/es/signalement/invitation/',
+      '/fr/vitfixsignal/connexion/', '/pt/vitfixsignal/connexion/', '/fr/tracking/connexion/', '/es/signalement/invitation/',
       '/fr/auth/login/', '/fr/contact/', '/pt/contacto/', '/fr/blog/exemple/', '/admin/login/',
       // Nouveau segment (lot 6) : chemins internes d'une règle de langue, page interne sous chaque langue.
       '/fr/tracking/desinscription/', '/pt/auth/desinscription/', '/fr/cabinet/exemple/desinscription/',
@@ -248,11 +248,11 @@ describe('réécritures beforeFiles : next start (CI E2E) et OpenNext (productio
     expect(regles.map((regle) => routeDeNext('before_files_rewrite', regle)).filter((route) => route.check)).toEqual([])
   })
 
-  it.each(['fr', 'pt'])('/%s/aj-signalement/connexion/ est servie par la connexion de l’espace (#669) dans les deux moteurs', async (langue) => {
+  it.each(['fr', 'pt'])('/%s/vitfixsignal/connexion/ est servie par la connexion de l’espace (#669) dans les deux moteurs', async (langue) => {
     const { next, openNext } = await rejeu()
-    for (const chemin of [`/${langue}/aj-signalement/connexion/`, `/${langue}/aj-signalement/connexion`]) {
-      expect(next(chemin), `next start : ${chemin}`).toBe('/aj-signalement/connexion')
-      expect(openNext(chemin), `OpenNext : ${chemin}`).toBe('/aj-signalement/connexion')
+    for (const chemin of [`/${langue}/vitfixsignal/connexion/`, `/${langue}/vitfixsignal/connexion`]) {
+      expect(next(chemin), `next start : ${chemin}`).toBe('/vitfixsignal/connexion')
+      expect(openNext(chemin), `OpenNext : ${chemin}`).toBe('/vitfixsignal/connexion')
     }
   })
 

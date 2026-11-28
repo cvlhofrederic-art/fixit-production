@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_logo_cabinet.test.ts
 //
-// Migration 20261114_signalements_qr_logo_cabinet.sql (AJ Signalement, demande de Hugo du 13/11/2026 : « pouvoir ajouter
+// Migration 20261114_signalements_qr_logo_cabinet.sql (Vitfix Signal, demande du 13/11/2026 : « pouvoir ajouter
 // le logo au cabinet et aux PDF »). Le TEXTE SQL est contrôlé ici : additive, rejouable, sans politique RLS, droits à
 // service_role seul, indépendante de la 20261113 (fusionnée, pas encore appliquée : la liste fermée du journal n'est pas
 // touchée). Les règles elles-mêmes (contrainte de l'image, envoi, retrait, journal, droits) sont exécutées sur un vrai
@@ -182,7 +182,7 @@ describe('Sûreté de la migration', () => {
     expect(horsFonctions).not.toMatch(/\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|TRUNCATE)\b/i)
   })
 
-  // Aucun nom de client réel : garde commune à tout le périmètre (tests/lib/aj-signalement-identifiants-reserves.test.ts).
+  // Aucun nom de client réel : garde commune à tout le périmètre (tests/lib/vitfixsignal-identifiants-reserves.test.ts).
   it('aucun logo dans le fichier (dépôt public) : ni image en ligne, ni valeur bytea littérale autre que les marqueurs PNG', () => {
     expect(sql).not.toMatch(/data:image|base64,/i)
     const litteraux = [...code.matchAll(/'\\x([0-9a-f]+)'::bytea/g)].map((m) => m[1])

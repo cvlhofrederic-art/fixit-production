@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement — RETOUR ARRIÈRE de supabase/migrations/20261119_signalements_qr_bureaux.sql (bureaux des cabinets).
+-- Vitfix Signal — RETOUR ARRIÈRE de supabase/migrations/20261119_signalements_qr_bureaux.sql (bureaux des cabinets).
 --
 -- PAS une migration : ce fichier n'est jamais appliqué par la chaîne (il n'est pas dans supabase/migrations). À exécuter
 -- seulement sur décision, par l'éditeur SQL de Supabase (tout ou rien), après avoir relevé ce qu'il fera perdre (des

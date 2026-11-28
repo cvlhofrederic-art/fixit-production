@@ -1,16 +1,16 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import AppSignalementQr from '@/components/aj-signalement/AppSignalementQr'
-import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/aj-signalement/serveur'
-import { informationFormulaireQr } from '@/lib/aj-signalement/serveur-information'
-import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
+import AppSignalementQr from '@/components/vitfixsignal/AppSignalementQr'
+import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/vitfixsignal/serveur'
+import { informationFormulaireQr } from '@/lib/vitfixsignal/serveur-information'
+import { lireLogoPageCabinetQr } from '@/lib/vitfixsignal/serveur-logo'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
-} from '@/lib/aj-signalement/chemin-cabinet'
-import { estJetonQr } from '@/lib/aj-signalement/types'
-import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
+} from '@/lib/vitfixsignal/chemin-cabinet'
+import { estJetonQr } from '@/lib/vitfixsignal/types'
+import { batimentsProposesQr } from '@/lib/vitfixsignal/batiments'
 
-// ── AJ Signalement : page ouverte par le QR code, sous le chemin du cabinet client ────────────────────────────
+// ── Vitfix Signal : page ouverte par le QR code, sous le chemin du cabinet client ────────────────────────────
 //
 // vitfix.io/<identifiant>/signalement/<jeton>/ (choix de Hugo du 10/11/2026), servie par réécriture (next.config.ts)
 // après le middleware, qui la laisse passer sans langue ni session. Le jeton suffit, mais il doit appartenir au cabinet
@@ -30,7 +30,7 @@ import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'AJ Signalement — Signaler un problème',
+  title: 'Vitfix Signal — Signaler un problème',
 }
 
 const identifiantValide = (identifiant: string): boolean =>

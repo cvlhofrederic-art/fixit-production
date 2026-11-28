@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import InvitationAccesQr from '@/components/aj-signalement/InvitationAccesQr'
+import InvitationAccesQr from '@/components/vitfixsignal/InvitationAccesQr'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
-} from '@/lib/aj-signalement/chemin-cabinet'
-import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
+} from '@/lib/vitfixsignal/chemin-cabinet'
+import { lireLogoPageCabinetQr } from '@/lib/vitfixsignal/serveur-logo'
 
-// ── AJ Signalement : ouverture de l'accès d'un gestionnaire à l'espace de son cabinet (PR 2, SPEC § 2.3.2) ─────────
+// ── Vitfix Signal : ouverture de l'accès d'un gestionnaire à l'espace de son cabinet (PR 2, SPEC § 2.3.2) ─────────
 //
 // vitfix.io/<identifiant>/invitation/#<jeton>, lien de l'e-mail envoyé par le super admin (« Ouvrir l'accès à son
 // suivi »). Servie par réécriture, publique (aucune session : le compte n'existe pas encore). Le jeton est APRÈS le
@@ -21,7 +21,7 @@ import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'AJ Signalement — Ouverture de votre accès',
+  title: 'Vitfix Signal — Ouverture de votre accès',
   robots: { index: false, follow: false, noarchive: true },
   referrer: 'no-referrer',
 }

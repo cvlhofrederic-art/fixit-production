@@ -6,9 +6,8 @@
 // Idem pour le sous-rôle Locataire et l'accès complet de la carte « Syndic / Cabinet », qui ouvre le
 // Syndic v54 français (/fr/syndic/v54 ; /syndic/dashboard redirigeait vers la version PT).
 // Les cartes Artisan / BTP gardent la « vue en tant que » (ces dashboards ont besoin du rôle).
-// La carte « AJ Signalement » (11/11/2026, demande de Hugo : « je ne vois pas aj signalements sur mon dashboard
-// admin ») ouvre l'espace indépendant /fr/aj-signalement/ de la même façon, juste après la carte Administrateur
-// judiciaire.
+// La carte « Vitfix Signal » (demande du 11/11/2026 du référent métier : la carte manquait au panneau admin) ouvre
+// l'espace indépendant /fr/vitfixsignal/ de la même façon, juste après la carte Administrateur judiciaire.
 
 import React from 'react'
 import { describe, it, expect, afterEach, vi } from 'vitest'
@@ -109,21 +108,21 @@ describe('Panneau admin — cartes Copropriétaire sans « vue en tant que »', 
   })
 })
 
-describe('Panneau admin — carte « AJ Signalement »', () => {
+describe('Panneau admin — carte « Vitfix Signal »', () => {
   it('la carte existe, avec son libellé, juste après la carte Administrateur judiciaire', async () => {
     await ouvrirSelecteur()
-    const carte = screen.getByRole('button', { name: /AJ Signalement/ })
-    expect(carte.querySelector('h3')?.textContent).toBe('AJ Signalement')
+    const carte = screen.getByRole('button', { name: /Vitfix Signal/ })
+    expect(carte.querySelector('h3')?.textContent).toBe('Vitfix Signal')
     const cartes = screen.getAllByRole('button').filter((bouton) => bouton.querySelector('h3'))
     const rangAj = cartes.findIndex((bouton) => bouton.querySelector('h3')?.textContent === 'Administrateur Judiciaire')
     expect(rangAj).toBeGreaterThanOrEqual(0)
     expect(cartes[rangAj + 1]).toBe(carte)
   })
 
-  it('clic : sans « vue en tant que » (rôle super_admin conservé), ouverture de /fr/aj-signalement/', async () => {
+  it('clic : sans « vue en tant que » (rôle super_admin conservé), ouverture de /fr/vitfixsignal/', async () => {
     const { fetchSpy, emplacement } = await ouvrirSelecteur()
-    fireEvent.click(screen.getByRole('button', { name: /AJ Signalement/ }))
-    await waitFor(() => expect(emplacement.href).toBe('/fr/aj-signalement/'), { timeout: 5000 })
+    fireEvent.click(screen.getByRole('button', { name: /Vitfix Signal/ }))
+    await waitFor(() => expect(emplacement.href).toBe('/fr/vitfixsignal/'), { timeout: 5000 })
     expect(roleDemande(fetchSpy)).toBe('super_admin')
   })
 })

@@ -1,6 +1,6 @@
 // tests/components/conditional-layout-espaces.test.tsx
 //
-// ConditionalLayout : les espaces qui ont leur propre coquille (tableaux de bord, succursale AJ, espace AJ Signalement)
+// ConditionalLayout : les espaces qui ont leur propre coquille (tableaux de bord, succursale AJ, espace Vitfix Signal)
 // ne reçoivent ni l'en-tête ni le pied marketing, ni SiteProtection, ni le décalage pt-[68px] de l'en-tête.
 
 import React from 'react'
@@ -26,11 +26,11 @@ beforeEach(() => {
   h.chemin = '/'
 })
 
-describe('ConditionalLayout — espace AJ Signalement', () => {
+describe('ConditionalLayout — espace Vitfix Signal', () => {
   it.each([
-    '/fr/aj-signalement/', '/fr/aj-signalement', '/pt/aj-signalement/',
+    '/fr/vitfixsignal/', '/fr/vitfixsignal', '/pt/vitfixsignal/',
     // Page de connexion professionnelle de l'espace (11/11/2026) : sans en-tête ni pied marketing.
-    '/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/',
+    '/fr/vitfixsignal/connexion/', '/pt/vitfixsignal/connexion/',
   ])('%s : contenu seul, sans habillage marketing', (chemin) => {
     const { container } = rendre(chemin)
     expect(screen.getByText('contenu')).toBeInTheDocument()

@@ -226,11 +226,11 @@ describe('POST /api/auth/update-password — réponses de Supabase', () => {
   })
 })
 
-// PR 2 AJ Signalement, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client qui a choisi son nouveau mot
+// PR 2 Vitfix Signal, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client qui a choisi son nouveau mot
 // de passe est renvoyé vers la connexion professionnelle de SON cabinet (vitfix.io/<identifiant>/connexion/), jamais vers
 // la connexion générale (choix Particulier / Artisan / Pro, que Hugo refuse pour un professionnel). La destination se lit
 // dans app_metadata du compte vérifié (posé par le serveur) ; tout autre compte : réponse inchangée ({ ok: true }).
-describe('POST /api/auth/update-password — retour d’un gestionnaire AJ Signalement', () => {
+describe('POST /api/auth/update-password — retour d’un gestionnaire Vitfix Signal', () => {
   const sessionAvec = (appMetadata: Record<string, unknown>) => () => json({
     access_token: JETON_ACCES, token_type: 'bearer', expires_in: 3600, expires_at: MAINTENANT_S + 3600,
     refresh_token: 'jeton-rafraichissement-de-recuperation',
@@ -238,7 +238,7 @@ describe('POST /api/auth/update-password — retour d’un gestionnaire AJ Signa
   })
 
   it('gestionnaire avec le repère de son cabinet : connexion de son cabinet', async () => {
-    reponses.verify = sessionAvec({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' })
+    reponses.verify = sessionAvec({ role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'cabinet-exemple' })
     const reponse = await POST(requete({ password: MOT_DE_PASSE }))
     expect(reponse.status).toBe(200)
     expect(await reponse.json()).toEqual({ ok: true, connexion: '/cabinet-exemple/connexion/' })
@@ -246,17 +246,17 @@ describe('POST /api/auth/update-password — retour d’un gestionnaire AJ Signa
   })
 
   it('gestionnaire sans repère valable : connexion professionnelle de l’espace (jamais la connexion générale)', async () => {
-    for (const meta of [{ role: 'gestionnaire_signalement' }, { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'API' }]) {
+    for (const meta of [{ role: 'gestionnaire_signalement' }, { role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'API' }]) {
       reponses.verify = sessionAvec(meta)
       const reponse = await POST(requete({ password: MOT_DE_PASSE }))
-      expect(await reponse.json()).toEqual({ ok: true, connexion: '/fr/aj-signalement/connexion/' })
+      expect(await reponse.json()).toEqual({ ok: true, connexion: '/fr/vitfixsignal/connexion/' })
     }
   })
 
   it.each([
     ['client', { role: 'client' }],
     ['super admin', { role: 'super_admin' }],
-    ['repère sans le rôle', { aj_signalement_cabinet: 'cabinet-exemple' }],
+    ['repère sans le rôle', { vitfixsignal_cabinet: 'cabinet-exemple' }],
     ['rôle dans user_metadata seulement', {}],
   ])('%s : réponse inchangée', async (_cas, meta) => {
     reponses.verify = sessionAvec(meta)
@@ -265,7 +265,7 @@ describe('POST /api/auth/update-password — retour d’un gestionnaire AJ Signa
   })
 
   it('mot de passe refusé après vérification : aucune destination rendue', async () => {
-    reponses.verify = sessionAvec({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' })
+    reponses.verify = sessionAvec({ role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'cabinet-exemple' })
     reponses.user = erreurGoTrue(422, 'same_password', 'New password should be different from the old password.')
     const reponse = await POST(requete({ password: MOT_DE_PASSE }))
     expect(await reponse.json()).toEqual({ erreur: 'meme-mot-de-passe' })

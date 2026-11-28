@@ -1,0 +1,198 @@
+// tests/lib/vitfixsignal-logo-emails-sans-logo.test.ts
+//
+// Logo d'un cabinet client (demande de Hugo du 13/11/2026), non-régression des e-mails : SANS logo (cabinet qui n'en a
+// pas, copropriété sans cabinet, migration 20261114 non appliquée), l'accusé de réception au déclarant et les e-mails
+// de signalement aux destinataires sont OCTET POUR OCTET ceux d'avant le logo, et leur envoi est le même (mêmes champs,
+// aucune pièce jointe). Les empreintes SHA-256 et les instantanés ci-dessous ont été écrits sur le code d'avant le logo
+// (commit 055e7f24) : ils ne doivent plus bouger. Le service d'e-mail est simulé ; données fictives.
+// R70 du dossier téléphonie (14/11/2026, brouillon) : l'accusé d'un signalement URGENT porte en plus, en tête, la consigne
+// d'appel aux secours (blocConsigneSecoursQr). Elle est vérifiée puis retirée avant le calcul des empreintes, qui restent
+// celles d'avant : rien d'autre n'a changé dans l'accusé.
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createHash } from 'node:crypto'
+
+const h = vi.hoisted(() => ({
+  sendEmail: vi.fn<(charge: unknown) => Promise<{ success: boolean; id?: string; error?: string }>>(async () => ({ success: true, id: 'mail-1' })),
+  sendBatchEmails: vi.fn<(lot: unknown[]) => Promise<{ sent: number; failed: number; errors: string[] }>>(async (lot) => ({ sent: lot.length, failed: 0, errors: [] })),
+}))
+vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail, sendBatchEmails: h.sendBatchEmails }))
+
+const {
+  blocConsigneSecoursQr, envoyerConfirmationQr, envoyerEmailsSignalementQr, templateConfirmationQr, templateSignalementQr,
+} = await import('@/lib/vitfixsignal/email')
+import type { DestinataireQr, SignalementQr } from '@/lib/vitfixsignal/types'
+
+const empreinte = (texte: string): string => createHash('sha256').update(texte).digest('hex')
+
+/** Accusé sans la consigne d'appel aux secours (R70), après avoir vérifié qu'elle y est une fois si et seulement si urgent. */
+function sansConsigne(html: string, s: Pick<SignalementQr, 'priorite' | 'langue'>): string {
+  const bloc = blocConsigneSecoursQr(s.langue)
+  expect(html.split(bloc).length - 1).toBe(s.priorite === 'urgente' ? 1 : 0)
+  return html.replace(bloc, '')
+}
+
+const signalement = (sur: Partial<SignalementQr> = {}): SignalementQr => ({
+  id: '5f2c9a1e-1111-4222-8333-444444444444',
+  coproprieteId: 'c1', coproprieteNom: 'Résidence Exemple',
+  prenom: 'Prénom', nom: 'Déclarant', telephone: '06 00 00 00 00', email: 'declarant@exemple.test',
+  batiment: 'B', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '',
+  typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier\n<b>texte</b>',
+  priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: null, emailErreur: null,
+  confirmationEnvoyeeLe: null, confirmationErreur: null,
+  qualiteDeclarant: 'proprietaire', adresseProposee: '', signalementLieId: null,
+  creeLe: '2026-11-04T13:05:00.000Z', misAJourLe: '2026-11-04T13:05:00.000Z',
+  ...sur,
+})
+
+const POLITIQUE = { cabinet: 'Cabinet Exemple', url: 'https://cabinet-exemple.test/confidentialite' }
+
+beforeEach(() => {
+  h.sendEmail.mockClear()
+  h.sendBatchEmails.mockClear()
+})
+
+describe('accusé de réception sans logo : HTML d’avant le logo', () => {
+  it('FR (d’origine ; annonce et politique) et PT (parties communes, politique)', () => {
+    const cas = [
+      { s: signalement(), options: {} },
+      { s: signalement(), options: { annoncerDiffusion: true, politique: POLITIQUE } },
+      { s: signalement({ langue: 'pt', estPartieCommune: true, zoneSignalee: 'Escada', priorite: 'normale' }), options: { politique: POLITIQUE } },
+    ]
+    const sorties = cas.map(({ s, options }) => {
+      const { subject, html: complet } = templateConfirmationQr({ copropriete: { nom: 'Résidence Exemple' }, signalement: s, ...options })
+      const html = sansConsigne(complet, s)
+      return { subject, html: empreinte(html), longueur: html.length }
+    })
+    expect(sorties).toMatchInlineSnapshot(`
+      [
+        {
+          "html": "2d8238161e197353437ec4098799c06cb869c28fe8fd7073e1da09a23d76aadd",
+          "longueur": 4524,
+          "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",
+        },
+        {
+          "html": "f966300a5a03ec8091fea762918272b06bc7ed691ea17e83cb363d635e3c4298",
+          "longueur": 5123,
+          "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",
+        },
+        {
+          "html": "d5dc3f5a03fea1dee2a957a24ecd2cc4d9d5eedce0e261542b42e60030a87333",
+          "longueur": 4913,
+          "subject": "A sua ocorrência n.º 5F2C9A1E foi registada — Résidence Exemple",
+        },
+      ]
+    `)
+  })
+
+  it('envoi : mêmes champs qu’avant, aucune pièce jointe', async () => {
+    await envoyerConfirmationQr({ copropriete: { nom: 'Résidence Exemple' }, signalement: signalement() })
+    expect(h.sendEmail).toHaveBeenCalledTimes(1)
+    const charge = h.sendEmail.mock.calls[0][0] as Record<string, unknown>
+    expect(Object.keys(charge).sort()).toEqual(['html', 'subject', 'tags', 'to'])
+    expect({ ...charge, html: empreinte(sansConsigne(String(charge.html), signalement())) }).toMatchInlineSnapshot(`
+      {
+        "html": "2d8238161e197353437ec4098799c06cb869c28fe8fd7073e1da09a23d76aadd",
+        "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",
+        "tags": [
+          {
+            "name": "type",
+            "value": "vitfixsignal-confirmation",
+          },
+        ],
+        "to": [
+          "declarant@exemple.test",
+        ],
+      }
+    `)
+  })
+})
+
+describe('e-mails de signalement aux destinataires : HTML d’avant le logo (un lot, aucune pièce jointe)', () => {
+  const destinataires: DestinataireQr[] = [
+    { email: 'admin@exemple.test', type: 'administrateur', accesOuvert: false },
+    { email: 'gestion@exemple.test', type: 'gestionnaire', accesOuvert: true },
+    { email: 'cs@externe.test', type: 'saisi', accesOuvert: false },
+  ]
+
+  it('gabarits par type de destinataire', () => {
+    const copropriete = { nom: 'Résidence Exemple', adresse: '1 rue Exemple, 13001 Marseille' }
+    const sorties = (['administrateur', 'gestionnaire', 'saisi'] as const).map((destinataire) => {
+      const { subject, html } = templateSignalementQr({ copropriete, signalement: signalement(), destinataire, lienSuivi: 'https://vitfix.io/cabinet-exemple/suivi/#signalements' })
+      return { destinataire, subject, html: empreinte(html), longueur: html.length }
+    })
+    expect(sorties).toMatchInlineSnapshot(`
+      [
+        {
+          "destinataire": "administrateur",
+          "html": "72e79ee3423cb02d8d88e332827494eb5557f0c887958bc9498f529c762be19d",
+          "longueur": 5237,
+          "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
+        },
+        {
+          "destinataire": "gestionnaire",
+          "html": "b62f1433eb59bb7da54661a66643fd4945b3294495cef07329575a6b6fd2ea09",
+          "longueur": 5224,
+          "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
+        },
+        {
+          "destinataire": "saisi",
+          "html": "f23d0aa91de60b20232afb16790dba596fc3ed09c119c05ff3445f66916daf39",
+          "longueur": 4933,
+          "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
+        },
+      ]
+    `)
+  })
+
+  it('envoi : un seul lot, mêmes champs qu’avant pour chaque message', async () => {
+    await envoyerEmailsSignalementQr({
+      destinataires, signalement: signalement(), copropriete: { nom: 'Résidence Exemple', adresse: '' },
+      lienSuivi: 'https://vitfix.io/cabinet-exemple/suivi/#signalements',
+    })
+    expect(h.sendBatchEmails).toHaveBeenCalledTimes(1)
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    const lot = h.sendBatchEmails.mock.calls[0][0] as Array<Record<string, unknown>>
+    for (const m of lot) expect(Object.keys(m).sort()).toEqual(['html', 'replyTo', 'subject', 'tags', 'to'])
+    expect(lot.map((m) => ({ ...m, html: empreinte(String(m.html)) }))).toMatchInlineSnapshot(`
+      [
+        {
+          "html": "fbabc346c1856eee622fd6774d706b5b81cbf8e49d5b3f07dba4de9d042ba437",
+          "replyTo": "declarant@exemple.test",
+          "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
+          "tags": [
+            {
+              "name": "type",
+              "value": "vitfixsignal",
+            },
+          ],
+          "to": "admin@exemple.test",
+        },
+        {
+          "html": "f4d4feb5dc72e35364c9335352815da631f1e519cf7166dfa5e0e4426d37fa5a",
+          "replyTo": "declarant@exemple.test",
+          "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
+          "tags": [
+            {
+              "name": "type",
+              "value": "vitfixsignal",
+            },
+          ],
+          "to": "gestion@exemple.test",
+        },
+        {
+          "html": "8c91a5dcc4161e08ac7a369c323085203bc4b84cb59c9f37d4f1922cca31aa5a",
+          "replyTo": "declarant@exemple.test",
+          "subject": "[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Résidence Exemple — lot 12",
+          "tags": [
+            {
+              "name": "type",
+              "value": "vitfixsignal",
+            },
+          ],
+          "to": "cs@externe.test",
+        },
+      ]
+    `)
+  })
+})

@@ -28,7 +28,7 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { marquerNotificationLiaisonVue, marquerVuParAj } from '@/lib/liaison-copro-aj/stockage'
 import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
-import LienAjSignalement from '@/components/common/LienAjSignalement'
+import LienVitfixSignal from '@/components/common/LienVitfixSignal'
 import {
   useDonneesCadre,
   useNomsCoproprietesSelonMode,
@@ -851,11 +851,11 @@ export function Shell() {
               <Icon name="shield" aria-hidden="true" />
               <span>Panneau admin</span>
             </LienPanneauAdmin>
-            {/* Super_admin seulement : espace indépendant AJ Signalement (sorti de l'AJ le 10/11/2026). */}
-            <LienAjSignalement className="nav-item" style={{ marginTop: 4, textDecoration: 'none' }}>
+            {/* Super_admin seulement : espace indépendant Vitfix Signal (sorti de l'AJ le 10/11/2026). */}
+            <LienVitfixSignal className="nav-item" style={{ marginTop: 4, textDecoration: 'none' }}>
               <Icon name="qr" aria-hidden="true" />
-              <span>AJ Signalement</span>
-            </LienAjSignalement>
+              <span>Vitfix Signal</span>
+            </LienVitfixSignal>
           </div>
         </aside>
         <div

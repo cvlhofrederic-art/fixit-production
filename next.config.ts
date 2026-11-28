@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 // Chemin dédié à la configuration : l'import depuis « @sentry/nextjs » est déprécié depuis Sentry 10.73 et disparaît en v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
-import { SOURCE_IDENTIFIANT_CABINET_QR } from "./lib/aj-signalement/chemin-cabinet";
+import { ANCIEN_CHEMIN_CRON_REPRISE_QR, ANCIEN_PREFIXE_API_QR } from "./lib/vitfixsignal/ancien-nom";
+import { SOURCE_IDENTIFIANT_CABINET_QR } from "./lib/vitfixsignal/chemin-cabinet";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
@@ -32,12 +33,12 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
-        // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/aj-signalement/chemin-cabinet.ts) ──
+        // ── Vitfix Signal : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/vitfixsignal/chemin-cabinet.ts) ──
         // EN TÊTE de beforeFiles, avant toute règle de langue. `next start` et `next dev` (CI E2E, poste) appliquent TOUTES
         // les règles beforeFiles à la suite, chacune sur le chemin déjà réécrit par les précédentes ; OpenNext (production)
         // n'applique que la première qui correspond. Placées après les règles de langue, ces règles captaient sous next start
-        // le chemin interne produit par l'une d'elles (/fr/aj-signalement/connexion/ → /aj-signalement/connexion →
-        // /cabinet/aj-signalement/connexion, 404). En tête, elles ne voient que le chemin d'origine, celui que le middleware a
+        // le chemin interne produit par l'une d'elles (/fr/vitfixsignal/connexion/ → /vitfixsignal/connexion →
+        // /cabinet/vitfixsignal/connexion, 404). En tête, elles ne voient que le chemin d'origine, celui que le middleware a
         // reconnu, et leur destination /cabinet/<id>/… ne correspond à aucune règle suivante. Les deux familles sont
         // disjointes (toute autre source commence par une langue de 2 lettres, l'identifiant en compte 3 à 40) : en
         // production, la première règle qui correspond reste la même pour tout chemin. Garde :
@@ -53,7 +54,7 @@ const nextConfig: NextConfig = {
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`, destination: '/cabinet/:identifiant/invitation/' },
         // Espace du cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire, mêmes paires exactes. Sur le
         // chemin d'origine, le middleware ne laisse arriver ici que les identifiants valables (jamais un nom réservé : la
-        // connexion de l'espace global /aj-signalement/connexion/ part en 302 de langue) et redirige lui-même /<id>/.
+        // connexion de l'espace global /vitfixsignal/connexion/ part en 302 de langue) et redirige lui-même /<id>/.
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion`, destination: '/cabinet/:identifiant/connexion' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`, destination: '/cabinet/:identifiant/connexion/' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`, destination: '/cabinet/:identifiant/suivi' },
@@ -79,14 +80,14 @@ const nextConfig: NextConfig = {
         { source: '/fr/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
         { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
-        // Espace AJ Signalement (super admin) : l'espace (vues par ancre, #signalements…) et sa page de connexion
+        // Espace Vitfix Signal (super admin) : l'espace (vues par ancre, #signalements…) et sa page de connexion
         // professionnelle, en règles exactes seulement. Une autre sous-page un jour (ex. /gestionnaires/) : ses deux
         // règles exactes, ou « :path* » APRÈS toutes ces règles exactes (OpenNext : « :path* » vide laisse la destination
         // littérale).
-        { source: '/fr/aj-signalement', destination: '/aj-signalement' },
-        { source: '/fr/aj-signalement/', destination: '/aj-signalement/' },
-        { source: '/fr/aj-signalement/connexion', destination: '/aj-signalement/connexion' },
-        { source: '/fr/aj-signalement/connexion/', destination: '/aj-signalement/connexion/' },
+        { source: '/fr/vitfixsignal', destination: '/vitfixsignal' },
+        { source: '/fr/vitfixsignal/', destination: '/vitfixsignal/' },
+        { source: '/fr/vitfixsignal/connexion', destination: '/vitfixsignal/connexion' },
+        { source: '/fr/vitfixsignal/connexion/', destination: '/vitfixsignal/connexion/' },
         { source: '/fr/contact', destination: '/contact' },
         { source: '/fr/contact/', destination: '/contact/' },
         { source: '/fr/confirmation', destination: '/confirmation' },
@@ -106,7 +107,7 @@ const nextConfig: NextConfig = {
         { source: '/fr/rejoindre', destination: '/rejoindre' },
         { source: '/fr/rejoindre/', destination: '/rejoindre/' },
         { source: '/fr/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
-        // AJ Signalement : page ouverte par le QR code d'une copropriété (lib/aj-signalement/types.ts, urlSignalementQr).
+        // Vitfix Signal : page ouverte par le QR code d'une copropriété (lib/vitfixsignal/types.ts, urlSignalementQr).
         { source: '/fr/signalement/:jeton', destination: '/signalement/:jeton' },
         // ── Shared root pages accessible via /pt/ prefix ──
         { source: '/pt/auth/:path*', destination: '/auth/:path*' },
@@ -121,10 +122,10 @@ const nextConfig: NextConfig = {
         { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
-        { source: '/pt/aj-signalement', destination: '/aj-signalement' },
-        { source: '/pt/aj-signalement/', destination: '/aj-signalement/' },
-        { source: '/pt/aj-signalement/connexion', destination: '/aj-signalement/connexion' },
-        { source: '/pt/aj-signalement/connexion/', destination: '/aj-signalement/connexion/' },
+        { source: '/pt/vitfixsignal', destination: '/vitfixsignal' },
+        { source: '/pt/vitfixsignal/', destination: '/vitfixsignal/' },
+        { source: '/pt/vitfixsignal/connexion', destination: '/vitfixsignal/connexion' },
+        { source: '/pt/vitfixsignal/connexion/', destination: '/vitfixsignal/connexion/' },
         // Slug PT du contact (phase 1 SEO PT, point 1.8) ; /pt/contact/ redirige vers /pt/contacto/.
         { source: '/pt/contacto', destination: '/contact' },
         { source: '/pt/contacto/', destination: '/contact/' },
@@ -146,6 +147,20 @@ const nextConfig: NextConfig = {
         // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
         { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
         { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
+        // ── Vitfix Signal : routes d'API d'avant le renommage du produit (décision du 26/11/2026) ──
+        // RÉÉCRITES vers les nouvelles, jamais redirigées : le POST « un clic » de l'en-tête List-Unsubscribe (RFC 8058)
+        // d'un message déjà envoyé vient d'une messagerie, qui ne suit pas une redirection ; une page restée ouverte
+        // pendant le déploiement appelle encore les anciennes routes. Le middleware, qui passe avant, voit le chemin
+        // d'origine (son exemption du contrôle d'Origin reconnaît les deux adresses un clic). « :path* » capture toujours
+        // au moins un segment pour une route qui existe : la destination est compilée par OpenNext (la racine seule,
+        // littérale, n'a pas de route : 404 comme avant). Le filet de reprise n'a aucun paramètre : paire exacte, avec et
+        // sans barre finale. Placées en fin de liste : aucune autre règle ne commence par /api/, et leurs destinations ne
+        // correspondent à aucune règle (next start les enchaîne). Les anciennes PAGES sont redirigées par le middleware.
+        // Transition et condition de retrait : lib/vitfixsignal/ancien-nom.ts, bloc B.
+        // Gardes : tests/next-config-routage-opennext.test.ts, tests/securite/acces-middleware-vitfixsignal.test.ts.
+        { source: `${ANCIEN_PREFIXE_API_QR}/:path*`, destination: '/api/vitfixsignal/:path*' },
+        { source: ANCIEN_CHEMIN_CRON_REPRISE_QR, destination: '/api/cron/vitfixsignal-diffusion-reprise' },
+        { source: `${ANCIEN_CHEMIN_CRON_REPRISE_QR}/`, destination: '/api/cron/vitfixsignal-diffusion-reprise/' },
       ],
       afterFiles: [],
       fallback: [],
@@ -346,9 +361,9 @@ const nextConfig: NextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
-      // Espace AJ Signalement (super admin), page de connexion comprise : jamais indexable. Les redirections du middleware
+      // Espace Vitfix Signal (super admin), page de connexion comprise : jamais indexable. Les redirections du middleware
       // portent le même en-tête (middleware.ts, viseEspacePrive).
-      ...['/:locale(fr|pt)/aj-signalement/:path*', '/aj-signalement/:path*'].map((source) => ({
+      ...['/:locale(fr|pt)/vitfixsignal/:path*', '/vitfixsignal/:path*'].map((source) => ({
         source,
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
       })),

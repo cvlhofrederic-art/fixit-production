@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_diffusion.test.ts
 //
-// Migration 20261113_signalements_qr_diffusion.sql (AJ Signalement, PR 3 : diffusion de messages d'exploitation aux
+// Migration 20261113_signalements_qr_diffusion.sql (Vitfix Signal, PR 3 : diffusion de messages d'exploitation aux
 // déclarants d'une copropriété ; cahier des charges du 11/11/2026, § 2 et § 3, décisions de Hugo du 11/11 : H1 = option C,
 // H7 = date facultative de fin de mission). Le TEXTE SQL est contrôlé ici (liste du § 10.1) ; les règles elles-mêmes
 // (oppositions, lots, annonce, purge) sont exécutées sur un vrai PostgreSQL par signalements_qr_diffusion.execution.test.ts.
@@ -8,8 +8,8 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { DELAI_ANNONCE_DIFFUSION_JOURS, MODELES_DIFFUSION_QR } from '@/lib/aj-signalement/affichage-diffusion'
-import { LANGUES_DIFFUSION_OUVERTES_QR } from '@/lib/aj-signalement/types'
+import { DELAI_ANNONCE_DIFFUSION_JOURS, MODELES_DIFFUSION_QR } from '@/lib/vitfixsignal/affichage-diffusion'
+import { LANGUES_DIFFUSION_OUVERTES_QR } from '@/lib/vitfixsignal/types'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
 const FICHIER = '20261113_signalements_qr_diffusion.sql'
@@ -172,7 +172,7 @@ describe(`Migration ${FICHIER} : rejouable, sans donnée`, () => {
     expect(code).not.toMatch(/'[a-z0-9-]+(\.[a-z0-9-]+)*\.(fr|com|pt|io|net|org|eu|test)'/i)
     expect(sql.toLowerCase()).not.toContain('aj' + 'associ')
     expect(sql.toLowerCase()).not.toContain(['aj', 'associ'].join(' '))
-    expect(sql).not.toMatch(/Parc Belle Ombre/i)
+    expect(sql).not.toMatch(/Parc Bois Fictif/i)
   })
 })
 
@@ -370,7 +370,7 @@ describe(`Migration ${FICHIER} : tables de la diffusion`, () => {
     expect(trie(MODELES_DIFFUSION_QR)).toEqual(trie(valeursListe(bloc, /modele\s+TEXT NOT NULL CHECK \(modele IN/)))
     expect(DELAI_ANNONCE_DIFFUSION_JOURS).toBe(15)
     expect(fonction('signalements_qr_diffusion_cible').corps).toContain(`interval '${DELAI_ANNONCE_DIFFUSION_JOURS} days'`)
-    // CoupleValeursQr (lib/aj-signalement/diffusion-valeurs.ts) lit batiment, etage et nb_adresses.
+    // CoupleValeursQr (lib/vitfixsignal/diffusion-valeurs.ts) lit batiment, etage et nb_adresses.
     expect(fonction('signalements_qr_diffusion_valeurs').entete).toMatch(/RETURNS TABLE\(batiment text, etage text, nb_adresses bigint\)/)
   })
 

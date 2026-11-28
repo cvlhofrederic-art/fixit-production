@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (06/11/2026) — e-mail de confirmation envoyé au déclarant.
+-- Vitfix Signal (06/11/2026) — e-mail de confirmation envoyé au déclarant.
 --
--- Après chaque dépôt par QR code, la route POST /api/aj-signalement/signalements envoie au déclarant
+-- Après chaque dépôt par QR code, la route POST /api/vitfixsignal/signalements envoie au déclarant
 -- un récapitulatif (langue de la page, FR ou PT). Comme pour l'e-mail de l'administrateur, son échec
 -- n'annule jamais le dépôt : l'état est conservé sur la ligne et affiché dans le détail du tableau de bord.
 --

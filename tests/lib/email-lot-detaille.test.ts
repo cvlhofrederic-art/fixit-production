@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/lib/email-lot-detaille.test.ts
 //
-// lib/email.ts (partagé) : ajouts de la PR 3 d'AJ Signalement (SPEC diffusion § 5.1, § 5.5, décision F5).
+// lib/email.ts (partagé) : ajouts de la PR 3 de Vitfix Signal (SPEC diffusion § 5.1, § 5.5, décision F5).
 //   - EmailPayload accepte `headers` (List-Unsubscribe, RFC 8058) et `text` (version texte), transmis par sendEmail,
 //     sendBatchEmails et le nouveau sendBatchEmailsDetaille ;
 //   - sendBatchEmailsDetaille : UN lot (100 messages au plus), mode de validation « permissive » (en-tête
@@ -88,7 +88,7 @@ afterEach(() => {
 
 // ── Données ──────────────────────────────────────────────────────────────────
 
-const CLE = 'aj-diffusion-0f0e0d0c-0000-4000-8000-000000000001-3'
+const CLE = 'vitfixsignal-diffusion-0f0e0d0c-0000-4000-8000-000000000001-3'
 
 const message = (i: number): EmailPayload => ({
   from: '"Cabinet Exemple" <diffusion@exemple.test>',
@@ -97,7 +97,7 @@ const message = (i: number): EmailPayload => ({
   html: `<p>Message ${i}</p>`,
   text: `Message ${i}`,
   replyTo: 'contact@cabinet-exemple.test',
-  tags: [{ name: 'type', value: 'aj-diffusion' }, { name: 'destinataire', value: `d${i}` }],
+  tags: [{ name: 'type', value: 'vitfixsignal-diffusion' }, { name: 'destinataire', value: `d${i}` }],
   headers: {
     'List-Unsubscribe': `<https://exemple.test/desinscription/un-clic/jeton${i}>`,
     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
@@ -112,7 +112,7 @@ const messageAncien = (i: number): EmailPayload => ({
   subject: `Signalement ${i}`,
   html: `<p>Signalement ${i}</p>`,
   replyTo: 'declarant@exemple.test',
-  tags: [{ name: 'type', value: 'aj-signalement' }],
+  tags: [{ name: 'type', value: 'vitfixsignal' }],
 })
 
 const corpsLot = (appel: AppelFetch) => appel.corps as Array<Record<string, unknown>>
@@ -145,7 +145,7 @@ describe('sendBatchEmailsDetaille — requête émise', () => {
         html: `<p>Message ${i}</p>`,
         text: `Message ${i}`,
         reply_to: 'contact@cabinet-exemple.test',
-        tags: [{ name: 'type', value: 'aj-diffusion' }, { name: 'destinataire', value: `d${i}` }],
+        tags: [{ name: 'type', value: 'vitfixsignal-diffusion' }, { name: 'destinataire', value: `d${i}` }],
         headers: {
           'List-Unsubscribe': `<https://exemple.test/desinscription/un-clic/jeton${i}>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
@@ -394,7 +394,7 @@ describe('non-régression : sendBatchEmails et sendEmail inchangés pour leurs a
       subject: 'Signalement 7',
       html: '<p>Signalement 7</p>',
       reply_to: 'declarant@exemple.test',
-      tags: [{ name: 'type', value: 'aj-signalement' }],
+      tags: [{ name: 'type', value: 'vitfixsignal' }],
     })
   })
 
@@ -427,7 +427,7 @@ describe('non-régression : sendBatchEmails et sendEmail inchangés pour leurs a
       subject: 'Signalement 1',
       html: '<p>Signalement 1</p>',
       reply_to: 'declarant@exemple.test',
-      tags: [{ name: 'type', value: 'aj-signalement' }],
+      tags: [{ name: 'type', value: 'vitfixsignal' }],
     })
   })
 
