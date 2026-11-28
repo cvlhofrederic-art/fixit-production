@@ -165,6 +165,17 @@
 }
 
 /*
+ * Analyse d'un relevé, fiche d'une ligne retenue (décision du 28/11/2026, point 856 · 2 A) : « Copropriétaire » (liste) et
+ * « Imputation proposée » passent sous leur étiquette, sur toute la largeur de la fiche (la liste n'était lisible qu'à 65 %,
+ * « Exemple Alpha · L » sans le lot ni le solde ; l'imputation tenait sur 3 lignes à côté de la pastille). Colonnes portant
+ * pleineLargeur (DataTable) : classe vfx-fiche-pleine. Les autres champs et le bureau (au-dessus de 768 px) ne changent pas.
+ */
+@media (max-width: 768px){
+#aj-root .tbl.vfx-fiches tbody td.vfx-fiche-pleine{flex-direction:column;align-items:stretch;gap:4px;text-align:left}
+#aj-root .tbl.vfx-fiches tbody td.vfx-fiche-pleine>select{width:100%;max-width:100%}
+}
+
+/*
  * rb-c06 : « Importer N lignes » partageait sa ligne avec la phrase d'explication et se retrouvait écrasé à 70 px, texte
  * coupé (« Impor / 6 lign »). Sous 769 px, le bloc passe en colonne : la phrase au-dessus, le bouton dessous, à sa largeur
  * naturelle. Sur ordinateur, le bouton puis la phrase, centrés sur la ligne, comme avant (l'alignement vertical, écrit

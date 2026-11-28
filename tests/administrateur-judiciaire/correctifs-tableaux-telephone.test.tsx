@@ -245,3 +245,40 @@ describe('fiche d’un compte : détails de présentation (relecture du 27/11/20
     }
   })
 })
+
+describe('analyse d’un relevé : copropriétaire et imputation sous leur étiquette (décision du 28/11/2026, point 856 · 2)', () => {
+  const cellule = (table: HTMLElement, etiquette: string) =>
+    within(within(table).getAllByRole('row')[1]).getAllByRole('cell').find((c) => c.getAttribute('data-label') === etiquette) as HTMLElement
+
+  it('seules les cellules « Copropriétaire » et « Imputation proposée » portent la classe de pleine largeur', async () => {
+    const table = await monterAnalyse()
+    const pleines = within(within(table).getAllByRole('row')[1])
+      .getAllByRole('cell')
+      .filter((c) => c.classList.contains('vfx-fiche-pleine'))
+      .map((c) => c.getAttribute('data-label'))
+    expect(pleines).toEqual(['Copropriétaire', 'Imputation proposée'])
+  })
+
+  it('sur la fiche (375 px), l’étiquette passe au-dessus de la valeur, qui prend toute la largeur ; sur ordinateur (769 px), rien ne change', async () => {
+    for (const [largeur, direction, largeurListe] of [
+      [375, 'column', '100%'],
+      [769, 'row', 'auto'],
+    ] as const) {
+      cleanup()
+      retirerFeuilles()
+      feuillesALargeur(largeur)
+      const table = await monterAnalyse()
+      expect(getComputedStyle(cellule(table, 'Copropriétaire')).flexDirection).toBe(direction)
+      expect(getComputedStyle(cellule(table, 'Imputation proposée')).flexDirection).toBe(direction)
+      const liste = within(table).getByLabelText('Copropriétaire ligne 1')
+      expect(getComputedStyle(liste).width).toBe(largeurListe)
+      expect(getComputedStyle(liste).maxWidth).toBe(largeur === 375 ? '100%' : 'none')
+    }
+  })
+
+  it('les autres champs de la fiche gardent l’étiquette à gauche et la valeur à droite', async () => {
+    feuillesALargeur(375)
+    const table = await monterAnalyse()
+    expect(getComputedStyle(cellule(table, 'Montant')).flexDirection).toBe('row')
+  })
+})

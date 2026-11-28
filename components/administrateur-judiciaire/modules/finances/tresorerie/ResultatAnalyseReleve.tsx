@@ -221,11 +221,13 @@ function TableauLignesRetenues({ analyse, personnes, selections, setSelections }
         },
         {
           h: 'Copropriétaire',
+          pleineLargeur: true,
           render: (ligne) => <CelluleCoproprietaire ligne={ligne} personnes={personnes} selections={selections} setSelections={setSelections} />,
         },
         {
           // Imputation proposée à un copropriétaire : « Rapprochement » désigne le rapprochement bancaire (rb-19 A, décision du 26/11/2026).
           h: 'Imputation proposée',
+          pleineLargeur: true,
           render: (ligne) => <CelluleImputationProposee ligne={ligne} />,
         },
       ]}

@@ -11,6 +11,8 @@ export interface ColonneTableau<T> {
   tdStyle?: CSSProperties
   /** Étiquette de la valeur sur la fiche du téléphone (data-label), quand h n'est pas un simple texte. */
   etiquette?: string
+  /** Sur la fiche du téléphone, la valeur passe sous son étiquette, sur toute la largeur de la fiche (classe vfx-fiche-pleine). */
+  pleineLargeur?: boolean
 }
 
 export interface DataTableProps<T> {
@@ -68,7 +70,13 @@ export function DataTable<T>({ columns, rows, onRow, rowKey, fiches }: DataTable
               key={rowKey ? (ligne[rowKey] as Key) : index}
             >
               {columns.map((colonne, indexColonne) => (
-                <td style={colonne.tdStyle} key={indexColonne} role={role('cell')} data-label={etiquette(colonne)}>
+                <td
+                  style={colonne.tdStyle}
+                  key={indexColonne}
+                  role={role('cell')}
+                  data-label={etiquette(colonne)}
+                  className={fiches && colonne.pleineLargeur ? 'vfx-fiche-pleine' : undefined}
+                >
                   {colonne.render ? colonne.render(ligne) : (ligne[colonne.k as keyof T] as ReactNode)}
                 </td>
               ))}
