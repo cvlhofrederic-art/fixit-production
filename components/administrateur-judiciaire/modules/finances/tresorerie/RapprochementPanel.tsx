@@ -25,7 +25,7 @@ import {
 } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { useArretesRapprochement, type ArretesLusEcran } from '@/lib/administrateur-judiciaire/db/use-arretes'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
-import { etatArrete, type ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { etatArrete, refusArretesIllisibles, type ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -312,8 +312,8 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
   // Les arrêtés lus sont ceux du compte choisi : son solde d'ouverture entre dans leur solde compta (PR 799, point 2).
   const arretes = lus.arretes.map((arrete) => avecSoldeComptaCourant(arrete, ecrituresBanque, compte?.soldeOuverture ?? null))
   const courant = arreteCourant(arretes)
-  // Arrêté illisible sur le compte : ouverture, clôture et déclôture refusées par l'écriture (db/rapprochements.ts).
-  const pret = compte !== null && !lus.chargement && !lus.erreur && lus.illisibles === 0
+  // Arrêté illisible sur le compte : toute écriture refusée, règle commune du domaine (refusArretesIllisibles, rb-16 A).
+  const pret = compte !== null && !lus.chargement && !lus.erreur && refusArretesIllisibles(lus.illisibles) === null
   // Une écriture à la fois (double clic) ; les écritures signalent elles-mêmes leur échec (toast).
   const lancer = async (action: () => Promise<void>) => {
     if (occupe) return

@@ -13,6 +13,8 @@ import {
   type PropositionImputation,
 } from '@/lib/administrateur-judiciaire/domain/import/releve-bancaire'
 import { designationReleve, formaterMontantMineur, type ReleveCompte } from '@/lib/administrateur-judiciaire/domain/import/releve-compte'
+import { lignesEnPeriodeArretee, motifPeriodeArretee } from '@/lib/administrateur-judiciaire/domain/periode-arretee'
+import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import type { SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 
 /**
@@ -36,6 +38,8 @@ import type { SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/sold
  *   28/11/2026, PR 848, points 2 et 3 : solde de fin de journée, lignes déjà comprises gardées) : une ligne retenue datée
  *   de son jour ou d'avant est gardée, avec un avertissement : elle n'entrera pas dans le solde du compte
  *   (db/sous-comptes-banque.ts).
+ * - Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : avecPeriodeArretee ajoute le blocage d'un relevé, quel
+ *   que soit son format, dont une ligne retenue est datée au plus tard du dernier arrêté clôturé du compte.
  */
 
 /** Pastille de confiance d'un rapprochement proposé (clés = champ confiance de proposerImputations). */
@@ -275,3 +279,20 @@ export function analyserReleve(entree: EntreeAnalyseReleve): AnalyseReleve {
  */
 export const analyseValablePour = (analyse: AnalyseReleve, compte: EntreeAnalyseReleve['compte']): boolean =>
   analyse.compteId === (compte?.id ?? null) && analyse.compteIban === (compte?.iban ?? null)
+
+/**
+ * Analyse avec le blocage de la période arrêtée (décision du 26/11/2026, PR 799, rb-04 A ; règle et motif du domaine,
+ * periode-arretee.ts) : une ligne retenue datée au plus tard du dernier arrêté clôturé du compte de l'analyse bloque
+ * l'import du relevé en entier. `arretes` : arrêtés qui comptent, lus par l'écran ; appliquée à chaque affichage, le
+ * blocage suit donc une clôture ou une déclôture faite après l'analyse. Rend l'analyse reçue, inchangée, quand rien de
+ * neuf ne bloque : aucun compte, aucune ligne concernée, ou fichier déjà bloqué (ce motif-là reste, avec ses erreurs).
+ */
+export function avecPeriodeArretee(analyse: AnalyseReleve, arretes: readonly ArreteRapprochement[]): AnalyseReleve {
+  if (analyse.compteId === null || analyse.blocage !== null) return analyse
+  const constat = lignesEnPeriodeArretee(
+    arretes,
+    analyse.compteId,
+    analyse.retenues.map((ligne) => ligne.date),
+  )
+  return constat ? { ...analyse, blocage: `Import bloqué : ${motifPeriodeArretee(constat)}` } : analyse
+}

@@ -16,6 +16,7 @@ import { buildDocumentLines } from '@/lib/devis-totals'
 import { toCents } from '@/lib/money'
 import { appliquerRemiseGlobale, lireRemise, montantNetLigne, type LigneRemisable } from '@/lib/remise-commerciale'
 import { getMentionLegale, type TvaLocale, type TvaRegime } from '@/lib/tva-calculator'
+import { traducteurDevisBtp } from '@/lib/devis-btp-traduction'
 
 type DocumentLike = Record<string, unknown>
 type LigneLike = Record<string, unknown>
@@ -317,8 +318,9 @@ export function buildAcompteParTauxPrefill(
     ? `Adiantamento n.º ${params.ordre} de ${params.total} (${pourcentage} %) — ${titreParent}`
     : `Acompte n° ${params.ordre} sur ${params.total} (${pourcentage} %) — ${titreParent}`
   const referenceMinuscule = reference.charAt(0).toLowerCase() + reference.slice(1)
+  // Échéance enregistrée en français (« À la livraison ») : traduite pour un adiantamento, comme le formulaire l'affiche.
   const notes = locale === 'pt'
-    ? `Adiantamento de ${pourcentage} % (n.º ${params.ordre} de ${params.total}) por conta ${estDevis ? 'do' : 'da'} ${referenceMinuscule}. Vencimento: ${params.declencheur}.`
+    ? `Adiantamento de ${pourcentage} % (n.º ${params.ordre} de ${params.total}) por conta ${estDevis ? 'do' : 'da'} ${referenceMinuscule}. Vencimento: ${traducteurDevisBtp('pt')(params.declencheur)}.`
     : `Acompte de ${pourcentage} % (n° ${params.ordre} sur ${params.total}) sur ${estDevis ? 'le' : 'la'} ${referenceMinuscule}. Échéance : ${params.declencheur}.`
   return {
     ...buildAcomptePrefill(parent, { ...params, percentage: pourcentageArrondi }),

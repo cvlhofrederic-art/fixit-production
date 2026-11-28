@@ -14,7 +14,7 @@ import { feuillesALargeur, retirerFeuilles, STYLES } from './regles-a-largeur'
  * - Quatre indicateurs empilés à 375 px.
  * - Ombre de la barre latérale fermée au bord gauche (mise en page tiroir, jusqu'à 1024 px).
  * - Bandeau du mode (démonstration / données réelles) au-dessus du voile des fenêtres, à toutes les largeurs.
- * - Messages (toasts) sur le bouton Fixy sous 769 px.
+ * - Messages (toasts) sur le bouton Fixy sous 769 px, puis sur ordinateur (décision du 26/11/2026, PR 799, rb-c07 A).
  * - En-tête de l’avis d’appel coincé à côté de son sélecteur sous 769 px.
  *
  * Feuilles chargées « à une largeur donnée », dans l'ordre du layout (regles-a-largeur.ts). Chaque bloc commence par le
@@ -410,12 +410,68 @@ describe('messages (toasts) sur le bouton Fixy', () => {
       expect(bas()).toBe(basDansFixy(FENETRE))
     })
 
-  for (const largeur of [769, 1440])
-    it(`à ${largeur} px : rien ne change`, () => {
+  /**
+   * Sur ordinateur (décision du 26/11/2026, page de validation de la PR 799, point rb-c07 A) : le bouton Fixy n'a pas la
+   * hauteur des cibles tactiles ; mesuré dans Chrome à 1440 px le 27/11/2026, 39 à 42 px de haut selon son pictogramme, soit
+   * un haut à 61 à 64 px du bas de l'écran.
+   */
+  const HAUT_DU_BOUTON_ORDINATEUR = 64
+
+  it('sans le correctif, les messages couvrent aussi le bouton Fixy sur ordinateur (constat du 20/11/2026)', () => {
+    feuillesALargeur(1440, SANS_CORRECTIF)
+    monterCadre()
+    expect(bas()).toBe(24)
+    expect(bas()).toBeLessThan(HAUT_DU_BOUTON_ORDINATEUR)
+  })
+
+  for (const largeur of [769, 1024, 1440])
+    it(`à ${largeur} px : au-dessus du bouton Fixy, au bas de sa fenêtre, comme sur téléphone`, () => {
       feuillesALargeur(largeur)
       monterCadre()
-      expect(bas()).toBe(24)
+      expect(bas()).toBeGreaterThan(HAUT_DU_BOUTON_ORDINATEUR)
+      expect(bas()).toBe(basDansFixy(FENETRE))
+      // Seule la hauteur change : les messages restent dans le coin, à 24 px du bord droit.
+      expect(style('.vfx-toast-viewport').right).toBe('24px')
     })
+
+  /** Fenêtre de Fixy ouverte : même rôle et même nom que dans FixyLauncher.tsx, dans #aj-root comme dans le layout. */
+  const ouvrirFenetreFixy = () => {
+    const fenetre = document.createElement('div')
+    fenetre.setAttribute('role', 'dialog')
+    fenetre.setAttribute('aria-label', 'Fixy')
+    document.getElementById('aj-root')?.appendChild(fenetre)
+  }
+  /** Largeur et bord droit de la fenêtre de Fixy, relus dans le style de la fenêtre (FixyLauncher.tsx). */
+  const geometrieFenetre = (): { largeur: number; droite: number } => {
+    const bloc = new RegExp(`${FENETRE.source}[\\s\\S]*?style=\\{\\{([\\s\\S]*?)\\}\\}`).exec(lireSource('shell', 'FixyLauncher.tsx'))?.[1] ?? ''
+    const largeur = /\bwidth: 'min\((\d+)px, calc\(100vw - 44px\)\)',/.exec(bloc)
+    const droite = /\bright: (\d+),/.exec(bloc)
+    expect(largeur, 'largeur de la fenêtre de Fixy').not.toBeNull()
+    expect(droite, 'bord droit de la fenêtre de Fixy').not.toBeNull()
+    return { largeur: Number(largeur?.[1]), droite: Number(droite?.[1]) }
+  }
+
+  for (const largeur of [769, 1024, 1440])
+    it(`à ${largeur} px, fenêtre de Fixy ouverte : à gauche de la fenêtre, à 24 px du bas, sans couvrir sa zone de demande`, () => {
+      feuillesALargeur(largeur)
+      monterCadre()
+      ouvrirFenetreFixy()
+      const messages = style('.vfx-toast-viewport')
+      const fenetre = geometrieFenetre()
+      expect(fenetre).toEqual({ largeur: 440, droite: 22 })
+      expect(messages.bottom).toBe('24px')
+      expect(parseFloat(messages.right)).toBe(fenetre.droite + fenetre.largeur + 16)
+      // Largeur bornée par la place qui reste à gauche de la fenêtre (16 px de marge) : rien ne sort de l'écran.
+      expect(sansEspaces(messages.maxWidth)).toBe(`min(380px,calc(100vw-${fenetre.droite + fenetre.largeur + 16 + 16}px))`)
+    })
+
+  it('à 375 px, fenêtre de Fixy ouverte : rien ne change (fenêtre presque pleine largeur, limite connue)', () => {
+    feuillesALargeur(375)
+    monterCadre()
+    ouvrirFenetreFixy()
+    expect(bas()).toBe(74)
+    expect(style('.vfx-toast-viewport').right).toBe('16px')
+  })
 })
 
 /**
@@ -467,7 +523,7 @@ describe('en-tête de l’avis d’appel coincé à côté de son sélecteur', (
   /** Sélecteur de aj-correctifs.css : enfant de l'en-tête qui n'est ni le pictogramme ni le bloc de droite. */
   const ENFANT_TITRE = 'div:not(.h-ico):not(.right)'
   const blocTitre = (entete: Element) => getComputedStyle(entete.querySelector(`:scope>${ENFANT_TITRE}`) as Element)
-  /** L'avis d'appel (en-tête à la ligne) et un autre panneau à contrôle, que la décision ne vise pas (inchangé). */
+  /** L'avis d'appel (en-tête à la ligne) et un panneau témoin fictif à contrôle, sans la propriété (inchangé). */
   const monterPanneaux = () =>
     render(
       <div id="aj-root" lang="fr">
@@ -483,12 +539,12 @@ describe('en-tête de l’avis d’appel coincé à côté de son sélecteur', (
           }
         />
         <Panel
-          title="Comptes bancaires du mandat"
-          sub="Choix du cabinet, remplaçable mandat par mandat"
-          icon="bank"
+          title="Panneau témoin"
+          sub="En-tête fictif, sans retour à la ligne demandé"
+          icon="check"
           right={
             <button type="button" className="btn gold sm">
-              Nouveau compte
+              Action témoin
             </button>
           }
         />
