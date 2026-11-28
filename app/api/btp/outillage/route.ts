@@ -44,6 +44,8 @@ import {
 // Toujours la société résolue côté serveur (lirePerimetreBtp), jamais une société désignée par l'écran. Un outil retiré
 // garde sa ligne (retire_le) ; une vérification n'est jamais réécrite : une seconde de la même semaine s'ajoute.
 // Tables de la migration 20261126 ; sans elle, GET rend `disponible: false` et toute écriture 409 migration_requise.
+// Catégorie d'un outil (28/11/2026) : colonne de la migration 20261128d ; sans elle, GET rend les outils sans
+// catégorie et une écriture qui en porte une (ou un véhicule, dont elle est vidée) répond 409 migration_categorie.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SEMAINES_HISTORIQUE = 12
@@ -60,7 +62,15 @@ const corpsSchema = z.discriminatedUnion('action', [
 const refus = (status: number, error: string) => NextResponse.json({ error }, { status })
 const SANS_CACHE = { 'Cache-Control': 'private, no-store' }
 
-class MigrationRequise extends Error {}
+class MigrationRequise extends Error {
+  constructor(quoi: string, readonly code: 'migration_requise' | 'migration_categorie' = 'migration_requise') { super(quoi) }
+}
+
+/**
+ * Colonne inconnue de la base (PostgREST, PostgreSQL). Seule l'écriture d'un outil en attend une nouvelle :
+ * `categorie`, tant que la migration 20261128d manque ; ailleurs, c'est une panne comme une autre.
+ */
+const COLONNE_ABSENTE = new Set(['PGRST204', '42703'])
 
 /** Erreur de lecture ou d'écriture : table absente (migration non appliquée) ou autre panne. */
 function echec(error: { code?: unknown; message?: string }, quoi: string): Error {
@@ -206,10 +216,19 @@ async function chantierDeLaSociete(societeId: string, chantierId: string): Promi
   return data !== null
 }
 
-const colonnesOutil = (outil: OutilSaisi) => ({
-  type: outil.type, nom: outil.nom, reference: outil.reference, quantite: outil.quantite,
-  chantier_id: outil.chantierId, etat: outil.etat, notes: outil.notes,
-})
+/**
+ * Colonnes écrites. Catégorie (migration 20261128d) : vide pour un véhicule ; pour un outil, absente du formulaire
+ * (écran chargé avant elle) = colonne laissée telle quelle, jamais effacée par mégarde.
+ */
+function colonnesOutil(outil: OutilSaisi): Ligne {
+  let categorie: Ligne = {}
+  if (outil.type === 'vehicule') categorie = { categorie: null }
+  else if (outil.categorie !== undefined) categorie = { categorie: outil.categorie }
+  return {
+    type: outil.type, nom: outil.nom, reference: outil.reference, quantite: outil.quantite,
+    chantier_id: outil.chantierId, etat: outil.etat, notes: outil.notes, ...categorie,
+  }
+}
 
 /**
  * Modification d'un outil de la société encore au répertoire ; null s'il n'existe pas (ou plus). Un changement
@@ -237,6 +256,7 @@ async function enregistrerOutil(acces: Acces, outil: OutilSaisi, id: string | nu
     requete = supabaseAdmin.from('outillage_btp').update(changements).eq('id', id).eq('owner_id', acces.societeId).is('retire_le', null)
   }
   const { data, error } = await requete.select('*')
+  if (error && COLONNE_ABSENTE.has(String(error.code))) throw new MigrationRequise('enregistrement de l’outil', 'migration_categorie')
   if (error) throw echec(error, 'enregistrement de l’outil')
   const ligne = ((data ?? []) as Ligne[])[0]
   if (!ligne) return refus(404, 'outil_introuvable')
@@ -323,7 +343,7 @@ export async function POST(request: NextRequest) {
     if (corps.action === 'retirer') return await retirerOutil(acces, corps.id)
     return await enregistrerOutil(acces, corps.outil, corps.action === 'modifier' ? corps.id : null)
   } catch (err) {
-    if (err instanceof MigrationRequise) return refus(409, 'migration_requise')
+    if (err instanceof MigrationRequise) return refus(409, err.code)
     logger.error('[btp/outillage] POST', { action: corps.action, error: err instanceof Error ? err.message : err })
     return refus(500, 'Erreur serveur')
   }

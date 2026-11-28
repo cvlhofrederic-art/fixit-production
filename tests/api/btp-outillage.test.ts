@@ -348,3 +348,61 @@ describe('POST creer / modifier / retirer — le répertoire', () => {
     expect((await envoyer({ action: 'creer', outil: outilValide })).status).toBe(201)
   })
 })
+
+describe('catégorie d’un outil (migration 20261128d, 28/11/2026)', () => {
+  const ligne = (id: string) => (etat.tables.outillage_btp as Ligne[]).find(o => o.id === id) as Ligne
+
+  it('le gérant classe un outil : catégorie enregistrée et rendue ; un véhicule n’en garde jamais', async () => {
+    etat.user = GERANT_A
+    const { status, json } = await envoyer({ action: 'creer', outil: { ...outilValide, categorie: 'electroportatif' } })
+    expect(status).toBe(201)
+    expect(json.outil).toMatchObject({ nom: 'Rebarbadora', categorie: 'electroportatif' })
+    expect(ligne(json.outil.id)).toMatchObject({ categorie: 'electroportatif' })
+    const vehicule = await envoyer({ action: 'creer', outil: { ...outilValide, type: 'vehicule', nom: 'Carrinha 2', categorie: 'machines' } })
+    expect(vehicule.status).toBe(201)
+    expect(ligne(vehicule.json.outil.id)).toMatchObject({ type: 'vehicule', categorie: null })
+    expect((await lire()).json.outils.find((o: Ligne) => o.id === json.outil.id)).toMatchObject({ categorie: 'electroportatif' })
+  })
+
+  it('modifier : catégorie changée ou vidée ; absente du formulaire (écran d’avant), elle reste ; devenue véhicule, effacée', async () => {
+    etat.user = GERANT_A
+    ligne(O_BETONEIRA).categorie = 'machines'
+    const betoneira = { type: 'outil', nom: 'Betoneira', reference: null, quantite: 1, chantierId: C_VILLA, etat: 'ok', notes: null }
+    expect((await envoyer({ action: 'modifier', id: O_BETONEIRA, outil: { ...betoneira, notes: 'Revista' } })).status).toBe(200)
+    expect(ligne(O_BETONEIRA)).toMatchObject({ categorie: 'machines', notes: 'Revista' })
+    expect((await envoyer({ action: 'modifier', id: O_BETONEIRA, outil: { ...betoneira, categorie: 'autre' } })).status).toBe(200)
+    expect(ligne(O_BETONEIRA).categorie).toBe('autre')
+    expect((await envoyer({ action: 'modifier', id: O_BETONEIRA, outil: { ...betoneira, categorie: null } })).status).toBe(200)
+    expect(ligne(O_BETONEIRA).categorie).toBeNull()
+    ligne(O_BETONEIRA).categorie = 'machines'
+    expect((await envoyer({ action: 'modifier', id: O_BETONEIRA, outil: { ...betoneira, type: 'vehicule' } })).status).toBe(200)
+    expect(ligne(O_BETONEIRA)).toMatchObject({ type: 'vehicule', categorie: null })
+  })
+
+  it('une catégorie inconnue : 400, rien d’écrit', async () => {
+    etat.user = GERANT_A
+    expect(await envoyer({ action: 'creer', outil: { ...outilValide, categorie: 'grua' } })).toMatchObject({ status: 400 })
+    expect(ecrituresOutillage()).toEqual([])
+  })
+
+  it('migration 20261128d non appliquée : lecture normale (sans catégorie), écriture d’une catégorie 409 migration_categorie', async () => {
+    etat.user = GERANT_A
+    etat.colonnesAbsentes.add('outillage_btp.categorie')
+    const { status, json } = await lire()
+    expect(status).toBe(200)
+    expect(json.outils.every((o: Ligne) => o.categorie === null)).toBe(true)
+    expect(await envoyer({ action: 'creer', outil: { ...outilValide, categorie: 'main' } })).toMatchObject({ status: 409, json: { error: 'migration_categorie' } })
+    // Un écran d'avant la catégorie (champ absent) enregistre encore un outil.
+    expect((await envoyer({ action: 'creer', outil: { ...outilValide, chantierId: null } })).status).toBe(201)
+    // La vérification du vendredi n'écrit pas dans outillage_btp : elle marche toujours.
+    etat.user = CHEF
+    expect((await envoyer(toutPresent())).status).toBe(201)
+  })
+})
+
+describe('colonne absente ailleurs que dans la catégorie : panne ordinaire, pas « migration des catégories »', () => {
+  it('vérification du vendredi qui échoue sur une colonne inconnue : 500, sans message trompeur', async () => {
+    etat.colonnesAbsentes.add('verifications_outillage_btp.observations')
+    expect(await envoyer(toutPresent())).toMatchObject({ status: 500, json: { error: 'Erreur serveur' } })
+  })
+})

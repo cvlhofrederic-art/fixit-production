@@ -333,3 +333,20 @@ Aucune autre table n'est touchée.
 DROP TABLE IF EXISTS public.verifications_outillage_btp;
 DROP TABLE IF EXISTS public.outillage_btp;
 ```
+
+---
+
+## Migration 20261128d — Catégorie des outils BTP (`20261128d_btp_outillage_categorie.sql`)
+
+Retire la colonne `categorie` d'`outillage_btp`. ATTENTION : cela EFFACE la catégorie choisie pour chaque outil (les
+outils eux-mêmes, leur emplacement et les vérifications du vendredi restent). Le code continue de marcher sans elle :
+l'écran range toutes les ferramentas sous « Sem categoria » (les viaturas restent sous « Viaturas »), et
+`/api/btp/outillage` refuse alors toute création ou
+modification (409 `migration_categorie`, l'écran le dit) ; la vérification du vendredi et le retrait d'un outil
+marchent toujours. Aucune autre table n'est touchée.
+
+```sql
+-- Rollback
+ALTER TABLE public.outillage_btp DROP CONSTRAINT IF EXISTS outillage_btp_categorie_valide;
+ALTER TABLE public.outillage_btp DROP COLUMN IF EXISTS categorie;
+```
