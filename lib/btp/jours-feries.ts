@@ -13,7 +13,7 @@
  * Module pur ; jours « AAAA-MM-JJ » calculés en UTC, comme lib/btp/equipe-par-jour.ts.
  */
 
-import { estJourOuvre } from '@/lib/btp/equipe-par-jour'
+import { estJourOuvre, jourValide } from '@/lib/btp/equipe-par-jour'
 
 export type PaysObra = 'PT' | 'FR'
 
@@ -79,14 +79,29 @@ const MOBILES: Record<PaysObra, Array<{ ecart: number; pt: string; fr: string }>
   ],
 }
 
-/** Nom du jour férié national (dans la langue de l'écran), ou null pour un jour ordinaire. */
+/**
+ * Fériés d'une année pour un pays, calculés une fois : tout l'écran se recalcule à chaque frappe dans la fiche, et
+ * chaque jour de chaque obra passe par ici (relecture adverse du 28/11/2026 : 9 µs par appel sans cache).
+ */
+const cacheAnnees = new Map<string, Map<string, { pt: string; fr: string }>>()
+function feriesDeLAnnee(annee: number, pays: PaysObra): Map<string, { pt: string; fr: string }> {
+  const cle = `${pays}-${annee}`
+  const deja = cacheAnnees.get(cle)
+  if (deja) return deja
+  const feries = new Map<string, { pt: string; fr: string }>()
+  for (const [moisJour, nom] of Object.entries(FIXES[pays])) feries.set(`${annee}-${moisJour}`, nom)
+  const pasques = paques(annee)
+  for (const m of MOBILES[pays]) feries.set(decaler(pasques, m.ecart), { pt: m.pt, fr: m.fr })
+  cacheAnnees.set(cle, feries)
+  return feries
+}
+
+/** Nom du jour férié national (dans la langue de l'écran), ou null pour un jour ordinaire (ou invalide). */
 export function nomFerie(jour: string, pays: PaysObra, isPt: boolean): string | null {
-  const fixe = FIXES[pays][jour.slice(5)]
-  if (fixe) return isPt ? fixe.pt : fixe.fr
-  const pasques = paques(Number(jour.slice(0, 4)))
-  const mobile = MOBILES[pays].find(m => decaler(pasques, m.ecart) === jour)
-  if (!mobile) return null
-  return isPt ? mobile.pt : mobile.fr
+  if (!jourValide(jour)) return null
+  const nom = feriesDeLAnnee(Number(jour.slice(0, 4)), pays).get(jour)
+  if (!nom) return null
+  return isPt ? nom.pt : nom.fr
 }
 
 /** Jour férié national de ce pays. */
@@ -94,17 +109,32 @@ export function estFerie(jour: string, pays: PaysObra): boolean {
   return nomFerie(jour, pays, false) !== null
 }
 
-/** Pays d'une obra d'après son code postal : « 4050-262 » (Portugal) ou « 13008 » (France) ; null s'il ne le dit pas. */
+/**
+ * Pays d'une obra d'après son code postal : quatre chiffres (« 4050-262 », « 4050 262 », « 4050262 », « 4050 »,
+ * « 4050-262 Porto ») pour le Portugal, cinq (« 13008 », « 13 008 ») pour la France ; null s'il ne le dit pas.
+ */
 export function paysDuCodePostal(codePostal: unknown): PaysObra | null {
-  const cp = typeof codePostal === 'string' ? codePostal.trim() : ''
-  if (/^\d{4}-\d{3}$/.test(cp)) return 'PT'
-  if (/^\d{5}$/.test(cp)) return 'FR'
+  const brut = typeof codePostal === 'number' ? String(codePostal) : codePostal
+  const cp = typeof brut === 'string' ? brut.trim() : ''
+  if (/^\d{4}(?:[-\s]?\d{3})?(?!\d)/.test(cp) && !/^\d{2}\s?\d{3}(?!\d)/.test(cp)) return 'PT'
+  if (/^\d{2}\s?\d{3}(?!\d)/.test(cp)) return 'FR'
   return null
 }
 
 /**
- * Jours travaillés par l'équipe habituelle : du lundi au vendredi, hors fériés nationaux du pays. Pays inconnu (serveur
- * sans code postal) : hors fériés des DEUX pays — un jour douteux n'est jamais compté comme travaillé d'office.
+ * Pays de la société quand le code postal de l'obra ne dit rien : celui de la langue de l'écran (cookie « locale »,
+ * le même signal que les réglages BTP par défaut, lib/hooks/use-btp-data.ts). L'écran et la route (qui fige le passé
+ * pour l'onglet Affectations) appliquent ainsi le même calendrier.
+ */
+export function paysDeLaLangue(locale: unknown): PaysObra | null {
+  if (locale === 'pt') return 'PT'
+  if (locale === 'fr') return 'FR'
+  return null
+}
+
+/**
+ * Jours travaillés par l'équipe habituelle : du lundi au vendredi, hors fériés nationaux du pays. Pays inconnu (ni code
+ * postal ni langue) : hors fériés des deux pays.
  */
 export function jourOuvreDans(pays: PaysObra | null): (jour: string) => boolean {
   if (pays) return jour => estJourOuvre(jour) && !estFerie(jour, pays)

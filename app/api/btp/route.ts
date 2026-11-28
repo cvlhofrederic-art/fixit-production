@@ -15,7 +15,7 @@ import {
   lirePerimetreBtp, peutEcrireTable, projeter, visibiliteListe, type PerimetreBtp, type Visibilite,
 } from '@/lib/btp/perimetre-compte'
 import { figerJoursPasses, lireEquipeParJour } from '@/lib/btp/equipe-par-jour'
-import { jourOuvreDans, paysDuCodePostal } from '@/lib/btp/jours-feries'
+import { jourOuvreDans, paysDeLaLangue, paysDuCodePostal, type PaysObra } from '@/lib/btp/jours-feries'
 import {
   FUSEAU_PAR_DEFAUT, chantiersAffectes, heureLocale, membreDuCompte,
   type ChantierBtp, type EquipeBtp, type MembreBtp, type ResolutionMembre,
@@ -413,7 +413,7 @@ function normaliserLigne(table: TableEcrivable, ligne: Ligne): void {
  * colonne equipe_par_jour manque encore (migration 20261128c) ou si la fiche est introuvable ; une lecture en échec
  * n'empêche pas l'enregistrement (le passé n'est alors pas figé, et le journal le dit).
  */
-async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne): Promise<void> {
+async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne, paysDeLEcran: PaysObra | null): Promise<void> {
   let enBase: Ligne | null
   try {
     enBase = await lireFiche('chantiers_btp', id, userId)
@@ -429,9 +429,9 @@ async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne): P
     ancienneEquipe: Array.isArray(enBase.membres_ids) ? enBase.membres_ids.map(String) : [],
     nouvelleEquipe: Array.isArray(ligne.membres_ids) ? ligne.membres_ids.map(String) : [],
     equipeParJour: actuelle,
-    // Mêmes jours chômés que l'écran : week-end et fériés nationaux du pays de l'obra (d'après son code postal ; s'il
-    // ne le dit pas, fériés des deux pays : un jour douteux n'est jamais figé comme travaillé).
-    ouvre: jourOuvreDans(paysDuCodePostal(enBase.code_postal)),
+    // Mêmes jours chômés que l'écran : week-end et fériés nationaux du pays de l'obra (son code postal, sinon la langue
+    // de l'écran qui envoie la modification, comme ChantiersBTPV2).
+    ouvre: jourOuvreDans(paysDuCodePostal(enBase.code_postal) ?? paysDeLEcran),
   })
   if ('equipe_par_jour' in ligne || JSON.stringify(figee) !== JSON.stringify(actuelle)) ligne.equipe_par_jour = figee
 }
@@ -585,7 +585,9 @@ async function refusFaceALaFiche(
   return null
 }
 
-async function modifier(userId: string, table: TableEcrivable, id: string, donnees: unknown): Promise<NextResponse> {
+async function modifier(
+  userId: string, table: TableEcrivable, id: string, donnees: unknown, paysDeLEcran: PaysObra | null = null,
+): Promise<NextResponse> {
   if (!estObjet(donnees)) return refus('Données invalides')
   const contrat = verifierContrat(table, donnees)
   if (contrat) return contrat
@@ -605,7 +607,7 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
 
   if (table === 'chantiers_btp') ligne.updated_at = new Date().toISOString()
   // Après les contrôles : les jours figés ne reprennent que l'équipe déjà enregistrée sur la fiche.
-  if (table === 'chantiers_btp' && 'membres_ids' in ligne) await figerPasseDuChantier(userId, id, ligne)
+  if (table === 'chantiers_btp' && 'membres_ids' in ligne) await figerPasseDuChantier(userId, id, ligne, paysDeLEcran)
 
   // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
   // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient
@@ -747,7 +749,7 @@ export async function POST(request: NextRequest) {
       case 'import': return await reprendre(societeId, table, data)
       case 'upsert_settings': return await enregistrerReglages(societeId, data)
       case 'insert': return await creer(societeId, table, data)
-      case 'update': return id ? await modifier(societeId, table, id, data) : refus('Action invalide')
+      case 'update': return id ? await modifier(societeId, table, id, data, paysDeLaLangue(request.cookies.get('locale')?.value)) : refus('Action invalide')
       case 'delete': return id ? await supprimer(societeId, table, id) : refus('Action invalide')
       default: return refus('Action invalide')
     }

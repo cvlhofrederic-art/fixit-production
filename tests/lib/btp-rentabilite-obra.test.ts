@@ -10,10 +10,10 @@ import {
   JOURS_MAX_PAR_CHANTIER, MEMBRES_MAX_PAR_JOUR,
 } from '@/lib/btp/equipe-par-jour'
 import {
-  achatsMateriaux, dateFinProlongee, montantHorsIva, pointagesDeLObra, rentabiliteObra, totalAutresDepensesHT,
-  totalMateriauxHT, type EntreeRentabiliteObra,
+  achatsMateriaux, dateFinProlongee, debutPointagesFiables, lirePointages, montantHorsIva, nomsDesPointes, pointagesParJour,
+  rentabiliteObra, totalAutresDepensesHT, totalMateriauxHT, type EntreeRentabiliteObra,
 } from '@/lib/btp/rentabilite-obra'
-import { estFerie, jourOuvreDans, nomFerie, paques, paysDuCodePostal } from '@/lib/btp/jours-feries'
+import { estFerie, jourOuvreDans, nomFerie, paques, paysDeLaLangue, paysDuCodePostal } from '@/lib/btp/jours-feries'
 
 // Lundi 30/11/2026 → dimanche 06/12/2026.
 const LUN = '2026-11-30', MAR = '2026-12-01', MER = '2026-12-02', VEN = '2026-12-04', SAM = '2026-12-05', DIM = '2026-12-06'
@@ -272,6 +272,13 @@ describe('jours fériés nationaux', () => {
     expect(paysDuCodePostal('4050-262')).toBe('PT')
     expect(paysDuCodePostal(' 13008 ')).toBe('FR')
     expect(paysDuCodePostal('')).toBeNull()
+    // Saisies tolérées (relecture adverse) : espace, sans tiret, quatre chiffres seuls, ville à la suite.
+    for (const cp of ['4050 262', '4050262', '4050', '4050-262 Porto']) expect(paysDuCodePostal(cp)).toBe('PT')
+    for (const cp of ['13 008', '75001 Paris', 13008]) expect(paysDuCodePostal(cp)).toBe('FR')
+    expect(paysDuCodePostal('Porto')).toBeNull()
+    expect(paysDeLaLangue('pt')).toBe('PT')
+    expect(paysDeLaLangue(undefined)).toBeNull()
+    expect(nomFerie('abc', 'PT', true)).toBeNull()
     expect(jourOuvreDans('PT')(MAR)).toBe(false) // 1er décembre, férié au Portugal
     expect(jourOuvreDans('FR')(MAR)).toBe(true)
     expect(jourOuvreDans(null)(MAR)).toBe(false) // pays inconnu : fériés des deux pays
@@ -296,39 +303,95 @@ describe('pointage réel et autres dépenses', () => {
     coutJourParMembre: new Map([['a', 100], ['b', 150]]), coutHeureParMembre: new Map([['a', 12.5], ['b', 20]]),
     coutJourParDefaut: 200, nbEmployesSansEquipe: 1, materiauxHT: 1000, aujourdhui: MER,
   }
+  const lignes = (l: Array<Record<string, unknown>>) => lirePointages(l)
+  const ici = (l: Array<Record<string, unknown>>, chantier = 'c1') => pointagesParJour(lignes(l).filter(p => p.chantierId === chantier), MER)
 
-  it('jour passé pointé : heures × coût horaire de chacun, à la place de l’équipe prévue ; deux pointages s’additionnent', () => {
-    const pointages = pointagesDeLObra([
+  it('jour passé pointé : heures × coût horaire ; deux pointages du même employé s’additionnent', () => {
+    const r = rentabiliteObra({ ...base, membresIds: ['a'], pointesIci: ici([
       { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: '4' },
       { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 3.5 },
-      { chantier_id: 'c1', membre_id: 'c', date: MAR, heures_travaillees: 8 },
       { chantier_id: 'autre', membre_id: 'b', date: MAR, heures_travaillees: 8 },
-    ], 'c1')
-    const r = rentabiliteObra({ ...base, pointages })!
+    ]) })!
     const mardi = r.jours.find(j => j.jour === MAR)!
     expect(mardi.source).toBe('pointage')
-    expect(mardi.heures).toEqual({ a: 7.5, c: 8 })
-    // a : 7,5 h × 12,5 = 93,75 ; c (sans fiche connue) : 8 h × 200 ÷ 7.
-    expect(mardi.cout).toBeCloseTo(93.75 + 8 * 200 / 7, 1)
+    expect(mardi.composition).toEqual({ pointes: [{ id: 'a', heures: 7.5 }], prevus: [] })
+    expect(mardi.cout).toBe(93.75)
     expect(r.joursPointes).toBe(1)
-    expect(r.coutsParDefaut).toBe(true)
   })
 
-  it('pointage sans heures (départ non enregistré) : une journée ; pointage d’aujourd’hui ou à venir : ignoré', () => {
-    const pointages = pointagesDeLObra([
+  it('un seul pointé n’efface pas ses collègues prévus : un prévu sans aucun pointage ce jour-là compte une journée', () => {
+    const pointes = [{ chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 8 }]
+    const r = rentabiliteObra({ ...base, pointesIci: ici(pointes), pointesSociete: pointagesParJour(lignes(pointes), MER) })!
+    expect(r.jours.find(j => j.jour === MAR)!.composition).toEqual({ pointes: [{ id: 'a', heures: 8 }], prevus: ['b'] })
+    expect(r.jours.find(j => j.jour === MAR)!.cout).toBe(8 * 12.5 + 150)
+  })
+
+  it('un prévu qui a pointé sur une autre obra ce jour-là n’est pas compté ici', () => {
+    const pointes = [
+      { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 8 },
+      { chantier_id: 'c2', membre_id: 'b', date: MAR, heures_travaillees: 8 },
+    ]
+    const r = rentabiliteObra({ ...base, pointesIci: ici(pointes), pointesSociete: pointagesParJour(lignes(pointes), MER) })!
+    expect(r.jours.find(j => j.jour === MAR)!.composition).toEqual({ pointes: [{ id: 'a', heures: 8 }], prevus: [] })
+  })
+
+  it('pointage sans heures : une journée ; clos à 0 h alors qu’il a des heures ailleurs ce jour-là (doublon) : ignoré', () => {
+    const pointes = [
       { chantierId: 'c1', membreId: 'b', date: LUN, heures_travaillees: null },
-      { chantierId: 'c1', membreId: 'a', date: MER, heures_travaillees: 2 },
-    ], 'c1')
-    const r = rentabiliteObra({ ...base, pointages })!
-    expect(r.jours.find(j => j.jour === LUN)).toMatchObject({ source: 'pointage', cout: 150 })
-    expect(r.jours.find(j => j.jour === MER)).toMatchObject({ source: 'prevu', cout: 250 })
+      { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 0 },
+      { chantier_id: 'c2', membre_id: 'a', date: MAR, heures_travaillees: 7 },
+      { chantier_id: 'c1', membre_id: 'b', date: MAR, heures_travaillees: 8 },
+    ]
+    const r = rentabiliteObra({ ...base, membresIds: [], equipeParJour: {}, pointesIci: ici(pointes), pointesSociete: pointagesParJour(lignes(pointes), MER) })!
+    expect(r.jours.find(j => j.jour === LUN)!.cout).toBe(150)
+    expect(r.jours.find(j => j.jour === MAR)!.composition).toEqual({ pointes: [{ id: 'b', heures: 8 }], prevus: [] })
   })
 
-  it('pointage au nom seul (sans fiche) : compté au coût par défaut, sous son nom', () => {
-    const pointages = pointagesDeLObra([{ chantier_id: 'c1', membre_id: null, employe: 'Rui', date: LUN, heures_travaillees: 7 }], 'c1')
-    const lundi = rentabiliteObra({ ...base, pointages })!.jours.find(j => j.jour === LUN)!
-    expect(lundi.membres).toEqual(['nom:rui'])
+  it('indemnités du jour (panier, trajet) ajoutées une fois par jour pointé à ses heures', () => {
+    const r = rentabiliteObra({
+      ...base, membresIds: ['a'], indemniteJourParMembre: new Map([['a', 24]]),
+      pointesIci: ici([{ chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 7 }]),
+    })!
+    expect(r.jours.find(j => j.jour === MAR)!.cout).toBe(7 * 12.5 + 24)
+  })
+
+  it('obra sans employé désigné : un pointage ne fait pas tomber l’estimation des autres jours (bloquant de la relecture)', () => {
+    const sans = { ...base, membresIds: [], nbEmployesSansEquipe: 3 }
+    const avant = rentabiliteObra(sans)!
+    const apres = rentabiliteObra({ ...sans, pointesIci: ici([{ chantier_id: 'c1', membre_id: 'a', date: LUN, heures_travaillees: 8 }]) })!
+    expect(avant.equipeEstimee).toBe(true)
+    expect(apres.equipeEstimee).toBe(true)
+    // Lundi : 8 h de a au lieu de 3 × 200 ; les quatre autres jours ouvrés gardent l'estimation (3 × 200).
+    expect(apres.coutMOPrevu).toBe(8 * 12.5 + 4 * 600)
+    expect(apres.coutJourEquipe).toBe(600)
+  })
+
+  it('pointage hors de la période de l’obra, ou plus ancien que le début fiable d’une liste coupée : ignoré', () => {
+    const pointes = lignes([
+      { chantier_id: 'c1', membre_id: 'a', date: '2026-11-20', heures_travaillees: 8 },
+      { chantier_id: 'c1', membre_id: 'a', date: LUN, heures_travaillees: 8 },
+      { chantier_id: 'c1', membre_id: 'a', date: MAR, heures_travaillees: 8 },
+    ])
+    // Un pointage du 20/11 (avant le début de l'obra, le 30/11) ne change rien au calcul.
+    const horsPeriode = pointagesParJour(pointes.filter(p => p.date === '2026-11-20'), MER)
+    expect(rentabiliteObra({ ...base, pointesIci: horsPeriode })!.coutMOPrevu).toBe(rentabiliteObra(base)!.coutMOPrevu)
+    expect(rentabiliteObra({ ...base, pointesIci: horsPeriode })!.joursPointes).toBe(0)
+    expect(debutPointagesFiables(pointes, false)).toBeNull()
+    const depuis = debutPointagesFiables(pointes, true)
+    expect(depuis).toBe('2026-11-20')
+    // Liste coupée commençant au lundi : le lundi lui-même peut être incomplet et retombe sur l'équipe prévue.
+    const coupee = pointagesParJour(pointes.filter(p => p.date >= LUN), MER, LUN)
+    const r = rentabiliteObra({ ...base, pointesIci: coupee })!
+    expect(r.jours.find(j => j.jour === LUN)!.source).toBe('prevu')
+    expect(r.jours.find(j => j.jour === MAR)!.source).toBe('pointage')
+  })
+
+  it('pointage au nom seul (sans fiche) : compté au coût par défaut, son nom d’origine gardé pour l’affichage', () => {
+    const pointes = lignes([{ chantier_id: 'c1', membre_id: null, employe: 'Rui Sousa', date: LUN, heures_travaillees: 7 }])
+    const lundi = rentabiliteObra({ ...base, membresIds: [], pointesIci: pointagesParJour(pointes, MER) })!.jours.find(j => j.jour === LUN)!
+    expect(lundi.membres).toEqual(['nom:rui sousa'])
     expect(lundi.cout).toBe(200)
+    expect(nomsDesPointes(pointes).get('nom:rui sousa')).toBe('Rui Sousa')
   })
 
   it('autres dépenses de l’obra (location, carburant…) déduites du résultat, hors matériaux', () => {

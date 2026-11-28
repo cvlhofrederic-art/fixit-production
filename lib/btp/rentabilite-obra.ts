@@ -74,7 +74,8 @@ export function montantDepense(d: DepenseObra): number {
   return typeof n === 'number' && Number.isFinite(n) ? n : 0
 }
 
-const estMateriau = (d: DepenseObra) => (CATEGORIES_MATERIAUX as readonly string[]).includes(d.category ?? '')
+/** Dépense comptée comme matériaux. */
+export const estMateriau = (d: DepenseObra) => (CATEGORIES_MATERIAUX as readonly string[]).includes(d.category ?? '')
 const deLObra = (d: DepenseObra, chantierId: string) => (d.chantier_id || d.chantierId) === chantierId
 
 /** Dépenses rattachées à l'obra (toutes catégories), les plus récentes d'abord. */
@@ -98,25 +99,28 @@ export function totalAutresDepensesHT(depenses: readonly DepenseObra[], chantier
   return arrondi2(depensesDeLObra(depenses, chantierId).filter(d => !estMateriau(d)).reduce((s, d) => s + montantDepense(d), 0))
 }
 
-/** Un pointage sur l'obra, réduit à ce qui compte pour le coût. */
+/** Un pointage, réduit à ce qui compte pour le coût. */
 export interface PointageObra {
+  /** Obra du pointage. */
+  chantierId: string
   /** Fiche de l'employé (membres_btp) ; vide pour un ancien pointage saisi au nom seul. */
   membreId: string
   /** Nom porté par le pointage (sert de repère quand la fiche manque). */
   employe?: string
   date: string
-  /** Heures travaillées ; null : pointage sans heures (départ non enregistré). */
+  /** Heures travaillées ; null : pointage sans heures (départ non enregistré). 0 : clos sans heures (doublon, oubli). */
   heures: number | null
 }
 
-/** Pointages d'une obra, depuis les lignes de pointages_btp (brutes ou mises en forme par le hook). */
-export function pointagesDeLObra(lignes: readonly Record<string, unknown>[], chantierId: string): PointageObra[] {
+/** Pointages de la société, depuis les lignes de pointages_btp (brutes ou mises en forme par le hook). */
+export function lirePointages(lignes: readonly Record<string, unknown>[]): PointageObra[] {
   return lignes
-    .filter(l => (l.chantier_id ?? l.chantierId) === chantierId && typeof l.date === 'string')
+    .filter(l => typeof l.date === 'string')
     .map(l => {
       const brut = l.heures_travaillees
       const heures = typeof brut === 'number' ? brut : Number.parseFloat(String(brut))
       return {
+        chantierId: String(l.chantier_id ?? l.chantierId ?? ''),
         membreId: String(l.membre_id ?? l.membreId ?? ''),
         employe: typeof l.employe === 'string' ? l.employe : undefined,
         date: l.date as string,
@@ -125,8 +129,75 @@ export function pointagesDeLObra(lignes: readonly Record<string, unknown>[], cha
     })
 }
 
-/** Clé d'un employé pointé : sa fiche, ou à défaut son nom. */
-const clePointee = (p: PointageObra) => (p.membreId ? p.membreId.toLowerCase() : `nom:${(p.employe ?? '').trim().toLowerCase()}`)
+/** Pointages d'une obra (lirePointages, filtrés sur l'obra). */
+export function pointagesDeLObra(lignes: readonly Record<string, unknown>[], chantierId: string): PointageObra[] {
+  return lirePointages(lignes).filter(p => p.chantierId === chantierId)
+}
+
+/** Clé d'un employé pointé : sa fiche, ou à défaut son nom (sans la casse). */
+export const clePointee = (p: Pick<PointageObra, 'membreId' | 'employe'>) =>
+  (p.membreId ? p.membreId.toLowerCase() : `nom:${(p.employe ?? '').trim().toLowerCase()}`)
+
+/** Nom à afficher pour une clé « nom:… » : le nom tel que le pointage l'écrit. */
+export function nomsDesPointes(pointages: readonly PointageObra[]): Map<string, string> {
+  return new Map(pointages.filter(p => !p.membreId).map(p => [clePointee(p), (p.employe ?? '').trim()]))
+}
+
+/** Pour chaque jour, pour chaque employé : heures pointées cumulées, ou null si aucune heure positive n'est connue. */
+export type PointesParJour = ReadonlyMap<string, ReadonlyMap<string, number | null>>
+
+/**
+ * Pointages par jour puis par employé, pour les jours PASSÉS (avant `aujourdhui`) et, si la liste est coupée par le
+ * plafond de lecture, seulement après `depuis` : le jour le plus ancien d'une liste coupée peut être incomplet, et les
+ * jours plus anciens n'y sont pas du tout ; ils retombent sur l'équipe prévue.
+ */
+export function pointagesParJour(pointages: readonly PointageObra[], aujourdhui: string, depuis?: string | null): PointesParJour {
+  const parJour = new Map<string, Map<string, number | null>>()
+  for (const p of pointages) {
+    if (!jourValide(p.date) || !(p.date < aujourdhui) || (depuis && p.date <= depuis)) continue
+    const jour = parJour.get(p.date) ?? new Map<string, number | null>()
+    const cle = clePointee(p)
+    const deja = jour.has(cle) ? (jour.get(cle) as number | null) : null
+    const heures = p.heures !== null && p.heures > 0 ? p.heures : null
+    jour.set(cle, heures === null ? deja : (deja ?? 0) + heures)
+    parJour.set(p.date, jour)
+  }
+  return parJour
+}
+
+/** Jour le plus ancien d'une liste de pointages coupée par le plafond (ses jours ne sont fiables qu'APRÈS lui). */
+export function debutPointagesFiables(pointages: readonly PointageObra[], coupee: boolean): string | null {
+  if (!coupee || pointages.length === 0) return null
+  return pointages.reduce((min, p) => (p.date < min ? p.date : min), pointages[0].date)
+}
+
+/** Composition d'un jour pointé : les pointés (à leurs heures) et les prévus qui n'ont pointé nulle part ce jour-là. */
+export interface CompositionJour {
+  pointes: Array<{ id: string; heures: number | null }>
+  prevus: string[]
+}
+
+/**
+ * Qui compte un jour où quelqu'un a pointé sur l'obra (relecture adverse du 28/11/2026 : un seul pointé ne doit pas
+ * effacer ses collègues sans l'appli) :
+ *   - chaque employé pointé ici, à ses heures ; sans heures positives ici, une journée, sauf s'il a des heures ailleurs
+ *     ce jour-là (pointage fermé sans heures en doublon) ;
+ *   - chaque employé PRÉVU ce jour-là (équipe du jour) qui n'a pointé NULLE PART ce jour-là, une journée.
+ * `ici` : pointages de l'obra ce jour-là ; `societe` : ceux de toute la société ce jour-là (à défaut, `ici`).
+ */
+export function compositionDuJour(
+  prevus: readonly string[],
+  ici: ReadonlyMap<string, number | null>,
+  societe?: ReadonlyMap<string, number | null>,
+): CompositionJour {
+  const partout = societe ?? ici
+  const pointes: CompositionJour['pointes'] = []
+  for (const [id, heures] of ici) {
+    if (heures === null && (partout.get(id) ?? null) !== null) continue
+    pointes.push({ id, heures })
+  }
+  return { pointes, prevus: prevus.filter(id => !partout.has(id) && !ici.has(id)) }
+}
 
 export interface EntreeRentabiliteObra {
   /** Valeur de l'obra hors IVA (« Valor s/ IVA », colonne budget). */
@@ -141,6 +212,11 @@ export interface EntreeRentabiliteObra {
   coutJourParMembre: ReadonlyMap<string, number>
   /** Coût horaire chargé de chaque employé (pour les heures pointées) ; à défaut, coût journalier ÷ 7. */
   coutHeureParMembre?: ReadonlyMap<string, number>
+  /**
+   * Indemnités d'une journée de chaque employé (panier, trajet) : le coût horaire du moteur de paie ne les contient pas
+   * (lib/payroll/engine.ts), elles s'ajoutent une fois par jour pointé à ses heures.
+   */
+  indemniteJourParMembre?: ReadonlyMap<string, number>
   /** Coût d'une journée d'ouvrier quand celui d'un employé est inconnu, et pour l'estimation sans équipe. */
   coutJourParDefaut: number
   /** Ancienne fiche sans aucun employé désigné : nombre d'ouvriers saisi (colonne equipe), 1 à défaut. */
@@ -149,8 +225,10 @@ export interface EntreeRentabiliteObra {
   materiauxHT: number | null
   /** Total des autres dépenses de l'obra hors IVA (0 par défaut). */
   autresDepensesHT?: number
-  /** Pointages de l'obra (pointagesDeLObra) : ils font foi pour les jours passés où il y en a. */
-  pointages?: readonly PointageObra[]
+  /** Pointages de l'obra par jour (pointagesParJour) : ils font foi pour les jours passés où il y en a. */
+  pointesIci?: PointesParJour
+  /** Pointages de toute la société par jour : un prévu qui a pointé ailleurs ce jour-là n'est pas compté ici. */
+  pointesSociete?: PointesParJour
   /** Jours travaillés par l'équipe habituelle (week-end et fériés exclus) ; du lundi au vendredi par défaut. */
   ouvre?: JourOuvre
   /**
@@ -172,10 +250,10 @@ export interface JourObra {
   retouche: boolean
   /** Jour après la date de fin prévue (retard). */
   enRetard: boolean
-  /** « pointage » : jour passé compté sur les pointages réels ; « prevu » : équipe prévue. */
+  /** « pointage » : jour passé compté sur les pointages réels (et les prévus sans pointage) ; « prevu » : équipe prévue. */
   source: 'pointage' | 'prevu'
-  /** Jour pointé : heures de chacun (null : pointage sans heures, compté une journée). */
-  heures?: Record<string, number | null>
+  /** Jour pointé : qui a pointé et ses heures, et les prévus comptés faute de pointage. */
+  composition?: CompositionJour
 }
 
 export interface ResultatRentabiliteObra {
@@ -192,7 +270,7 @@ export interface ResultatRentabiliteObra {
   materiauxHT: number
   materiauxEstimes: boolean
   autresDepensesHT: number
-  /** Aucun employé désigné, retouche ni pointage : main-d'œuvre estimée (ancien calcul, jours ouvrés seulement). */
+  /** Aucun employé désigné ni retouche : main-d'œuvre estimée les jours non pointés (ancien calcul, jours ouvrés). */
   equipeEstimee: boolean
   /** Au moins un employé compté sans coût connu (fiche absente ou illisible) : coût d'un ouvrier par défaut. */
   coutsParDefaut: boolean
@@ -217,19 +295,18 @@ function statut(beneficeActuel: number, margePrevuePct: number): ResultatRentabi
   return margePrevuePct >= 25 ? 'profit' : 'warning'
 }
 
-/** Pointages passés de l'obra, par jour puis par employé : heures cumulées (null si aucune heure n'est connue). */
-export function pointagesParJour(pointages: readonly PointageObra[], aujourdhui: string): Map<string, Map<string, number | null>> {
-  const parJour = new Map<string, Map<string, number | null>>()
-  for (const p of pointages) {
-    if (!jourValide(p.date) || !(p.date < aujourdhui)) continue
-    const jour = parJour.get(p.date) ?? new Map<string, number | null>()
-    const cle = clePointee(p)
-    const deja = jour.get(cle) ?? null
-    const heures = p.heures !== null && p.heures > 0 ? p.heures : null
-    jour.set(cle, heures === null ? deja : (deja ?? 0) + heures)
-    parJour.set(p.date, jour)
-  }
-  return parJour
+/** Coûts d'un employé : journée, heure chargée, indemnités ; et s'il est connu. */
+function coutsDe(e: EntreeRentabiliteObra) {
+  const jour = (id: string) => e.coutJourParMembre.get(id) ?? e.coutJourParDefaut
+  const indemnite = (id: string) => e.indemniteJourParMembre?.get(id) ?? 0
+  const heure = (id: string) => e.coutHeureParMembre?.get(id) ?? (jour(id) - indemnite(id)) / HEURES_JOUR_PAR_DEFAUT
+  return { jour, heure, indemnite, connu: (id: string) => e.coutJourParMembre.has(id) }
+}
+
+/** Coût d'un jour pointé : chaque pointé à ses heures (plus ses indemnités du jour), chaque prévu sans pointage une journée. */
+function coutJourPointe(c: CompositionJour, couts: ReturnType<typeof coutsDe>): number {
+  const pointes = c.pointes.reduce((s, p) => s + (p.heures === null ? couts.jour(p.id) : p.heures * couts.heure(p.id) + couts.indemnite(p.id)), 0)
+  return pointes + c.prevus.reduce((s, id) => s + couts.jour(id), 0)
 }
 
 /** Rentabilité de l'obra, hors IVA ; null sans valeur ou sans dates valides (comme l'ancien calcul). */
@@ -238,52 +315,52 @@ export function rentabiliteObra(e: EntreeRentabiliteObra): ResultatRentabiliteOb
   if (valeurHT <= 0 || !jourValide(e.dateDebut) || !jourValide(e.dateFin) || e.dateFin < e.dateDebut) return null
 
   const ouvre = e.ouvre ?? estJourOuvre
-  const pointes = pointagesParJour(e.pointages ?? [], e.aujourdhui)
   const membresIds = e.membresIds.map(id => id.toLowerCase())
-  const equipeEstimee = membresIds.length === 0 && pointes.size === 0
-    && Object.values(e.equipeParJour).every(m => m.length === 0)
-  // Sans aucun employé désigné : l'ancienne estimation (nombre d'ouvriers × coût par défaut), les jours travaillés.
+  // Estimation (ancienne fiche sans aucun employé désigné) : elle vaut pour les jours NON pointés ; un pointage ne
+  // l'efface pas (relecture adverse du 28/11/2026 : un seul pointage ramenait la main-d'œuvre presque à zéro).
+  const equipeEstimee = membresIds.length === 0 && Object.values(e.equipeParJour).every(m => m.length === 0)
   const estimation = Array.from({ length: Math.max(1, Math.floor(e.nbEmployesSansEquipe) || 1) }, (_, i) => `estimation-${i}`)
   const membresHabituels = equipeEstimee ? estimation : membresIds
   // Équipe habituelle d'aujourd'hui et des jours à venir : sans les employés partis (désactivés ou supprimés).
   const habituelsAVenir = equipeEstimee || !e.actifs ? membresHabituels : membresHabituels.filter(id => e.actifs?.has(id))
   const equipeParJour = equipeEstimee ? {} : e.equipeParJour
-
-  const coutJour = (id: string) => e.coutJourParMembre.get(id) ?? e.coutJourParDefaut
-  const coutHeure = (id: string) => e.coutHeureParMembre?.get(id) ?? coutJour(id) / HEURES_JOUR_PAR_DEFAUT
+  const couts = coutsDe(e)
   let coutsParDefaut = false
-  const connu = (id: string) => e.coutJourParMembre.has(id)
+  const signalerInconnus = (ids: readonly string[]) => {
+    if (ids.some(id => !id.startsWith('estimation-') && !couts.connu(id))) coutsParDefaut = true
+  }
 
   const enCours = e.statut === 'En cours'
   const finDepassee = enCours && jourValide(e.aujourdhui) && e.aujourdhui > e.dateFin
   const fin = finDepassee ? e.aujourdhui : e.dateFin
 
+  // Seuls les jours de la période de l'obra : un pointage hors période ne compte pas.
   const jours: JourObra[] = joursEntre(e.dateDebut, fin).map(jour => {
     const enRetard = jour > e.dateFin
-    const pointe = pointes.get(jour)
-    if (pointe) {
-      // Jour passé pointé : ce qui s'est réellement passé fait foi (heures × coût horaire ; sans heures, une journée).
-      const heures = Object.fromEntries(pointe)
-      const cout = [...pointe].reduce((s, [id, h]) => s + (h === null ? coutJour(id) : h * coutHeure(id)), 0)
-      if ([...pointe.keys()].some(id => !connu(id))) coutsParDefaut = true
-      return { jour, membres: [...pointe.keys()], cout: arrondi2(cout), retouche: false, enRetard, source: 'pointage', heures }
-    }
     const habituels = jourValide(e.aujourdhui) && jour >= e.aujourdhui ? habituelsAVenir : membresHabituels
-    const membres = equipeDuJour(jour, habituels, equipeParJour, ouvre)
-    if (!equipeEstimee && membres.some(id => !connu(id))) coutsParDefaut = true
+    const prevus = equipeDuJour(jour, habituels, equipeParJour, ouvre)
+    const retouche = !equipeEstimee && jourRetouche(jour, habituels, equipeParJour, ouvre)
+    const ici = e.pointesIci?.get(jour)
+    if (ici && ici.size > 0) {
+      const composition = compositionDuJour(equipeEstimee ? [] : prevus, ici, e.pointesSociete?.get(jour))
+      const membres = [...composition.pointes.map(p => p.id), ...composition.prevus]
+      signalerInconnus(membres)
+      return { jour, membres, cout: arrondi2(coutJourPointe(composition, couts)), retouche, enRetard, source: 'pointage', composition }
+    }
+    if (!equipeEstimee) signalerInconnus(prevus)
     return {
       jour,
-      membres: equipeEstimee ? [] : membres,
-      cout: arrondi2(membres.reduce((s, id) => s + coutJour(id), 0)),
-      retouche: !equipeEstimee && jourRetouche(jour, habituels, equipeParJour, ouvre),
+      membres: equipeEstimee ? [] : prevus,
+      cout: arrondi2(prevus.reduce((s, id) => s + couts.jour(id), 0)),
+      retouche,
       enRetard,
       source: 'prevu',
     }
   })
 
-  const prevus = jours.filter(j => !j.enRetard)
+  const prevusJours = jours.filter(j => !j.enRetard)
   const retard = jours.filter(j => j.enRetard)
-  const coutMOPrevu = prevus.reduce((s, j) => s + j.cout, 0)
+  const coutMOPrevu = prevusJours.reduce((s, j) => s + j.cout, 0)
   const coutRetard = retard.reduce((s, j) => s + j.cout, 0)
   const materiauxEstimes = e.materiauxHT === null
   const materiauxHT = materiauxEstimes ? valeurHT * TAUX_MATERIAUX_ESTIME_PCT / 100 : (e.materiauxHT as number)
@@ -301,9 +378,9 @@ export function rentabiliteObra(e: EntreeRentabiliteObra): ResultatRentabiliteOb
   return {
     valeurHT: Math.round(valeurHT),
     joursCalendrier: joursEntre(e.dateDebut, e.dateFin).length,
-    joursTravailles: prevus.filter(j => (equipeEstimee ? j.cout > 0 : j.membres.length > 0)).length,
-    joursPointes: prevus.filter(j => j.source === 'pointage').length,
-    coutJourEquipe: Math.round(habituelsAVenir.reduce((s, id) => s + coutJour(id), 0)),
+    joursTravailles: prevusJours.filter(j => (j.source === 'pointage' || !equipeEstimee ? j.membres.length > 0 : j.cout > 0)).length,
+    joursPointes: prevusJours.filter(j => j.source === 'pointage').length,
+    coutJourEquipe: Math.round(habituelsAVenir.reduce((s, id) => s + couts.jour(id), 0)),
     coutMOPrevu: Math.round(coutMOPrevu),
     materiauxHT: Math.round(materiauxHT),
     materiauxEstimes,

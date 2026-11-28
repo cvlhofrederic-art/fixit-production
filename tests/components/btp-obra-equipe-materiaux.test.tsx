@@ -47,6 +47,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 const REGLAGES = vi.hoisted(() => ({ country: 'FR', company_type: 'sarl', cout_horaire_ouvrier: 20, charges_patronales_pct: 50, objectif_marge_pct: 20 }))
 
 import { ChantiersBTPV2 } from '@/components/dashboard/ChantiersBTPV2'
+import { coutHorsIvaRecuperable } from '@/components/dashboard/btp/DepensesObraEditeur'
 
 const artisan = { id: 'art-1', user_id: 'soc-a' } as unknown as React.ComponentProps<typeof ChantiersBTPV2>['artisan']
 
@@ -158,12 +159,26 @@ describe('Obras — achats de matériaux et rentabilité hors TVA', () => {
     await ouvrirFiche()
     fireEvent.change(screen.getByRole('textbox', { name: 'Description de la dépense' }), { target: { value: 'Ciment' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Montant payé (€)' }), { target: { value: '1 200,00' } })
-    expect(screen.getByText(/Compte 1\s000,00 € HT \(les 200,00 € de TVA ne comptent pas\)/)).toBeTruthy()
+    expect(screen.getByText(/Compte 1\s000,00 € HT \(les 200,00 € de TVA récupérable ne comptent pas\)/)).toBeTruthy()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Ajouter/ })) })
     expect(etat.ajouts).toEqual([{ table: 'depenses', objet: {
       chantierId: 'c-villa', label: 'Ciment', amount: 1000, category: 'materiaux', date: '2026-12-02',
-      notes: expect.stringMatching(/Montant payé TTC \(TVA 20 %\) : 1\s200,00 €/),
+      notes: expect.stringMatching(/Montant payé \(TTC, TVA 20 %\) : 1\s200,00 €/),
     } }])
+  })
+
+  it('TVA récupérable en partie (carburant d’un véhicule de tourisme, 80 %) ou pas du tout : seule la part récupérable est retirée', async () => {
+    // 120 € TTC à 20 % : 20 € de TVA, dont 16 € récupérables → 104 € de coût réel ; non récupérable → 120 €.
+    expect(coutHorsIvaRecuperable(120, { taux: 20, deductible: 0.8 })).toBe(104)
+    expect(coutHorsIvaRecuperable(123, { taux: 23, deductible: 0.5 })).toBe(111.5)
+    expect(coutHorsIvaRecuperable(123, { taux: 0, deductible: 0 })).toBe(123)
+    await monter()
+    await ouvrirFiche()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Type de dépense' }), { target: { value: 'carburant' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Montant payé (€)' }), { target: { value: '120' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Le montant comprend-il la TVA ?' }), { target: { value: '20-80' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Ajouter/ })) })
+    expect(etat.ajouts[0].objet).toMatchObject({ label: 'Carburant', category: 'carburant', amount: 104 })
   })
 
   it('montant saisi HT : enregistré tel quel, sans note', async () => {
@@ -218,20 +233,25 @@ describe('Obras — achats de matériaux et rentabilité hors TVA', () => {
       { id: 'd1', chantier_id: 'c-villa', category: 'materiaux', amount: 1000, date: '2026-11-30', label: 'Ciment' },
       { id: 'd2', chantier_id: 'c-villa', category: 'location', amount: 300, date: '2026-11-30', label: 'Mini-pelle' },
     ]
-    // Mardi 01/12 (passé) : seul Paul a pointé, 4 h (coût horaire 20 × 1,5 = 30 €) ; Jean n'est pas venu.
+    // Mardi 01/12 (passé) : Paul a pointé 4 h (coût horaire 20 × 1,5 = 30 €) ; Jean, prévu, n'a pointé nulle part : il
+    // compte une journée (315 €) — un collègue sans l'appli ne disparaît pas du coût.
     etat.tables.pointages = [{ id: 'p1', chantier_id: 'c-villa', membre_id: 'm-paul', employe: 'Paul Durand', date: '2026-12-01', heures_travaillees: 4 }]
     await monter()
     const ligne = screen.getByText(/Villa Lilas: \+/).closest('div')?.parentElement as HTMLElement
     expect(ligne.textContent).toMatch(/Autres dépenses 300 €/)
-    // Lundi 525 + mardi pointé 120 + mercredi à vendredi 3 × 525 = 2 220 €.
-    expect(ligne.textContent).toMatch(/Main-d’œuvre 2\s220 € \(5 jours travaillés, dont 1 pointés\)/)
-    // 10 000 − 1 000 − 300 − 2 220 = 6 480 € HT
-    expect(ligne.textContent).toMatch(/Villa Lilas: \+6\s480 € HT/)
+    // Lundi 525 + mardi (120 + 315) + mercredi à vendredi 3 × 525 = 2 535 €.
+    expect(ligne.textContent).toMatch(/Main-d’œuvre 2\s535 € \(5 jours travaillés, dont 1 pointé\)/)
+    // 10 000 − 1 000 − 300 − 2 535 = 6 165 € HT
+    expect(ligne.textContent).toMatch(/Villa Lilas: \+6\s165 € HT/)
     await ouvrirFiche()
     const mardi = within(screen.getByRole('list', { name: /Équipe par jour/ })).getAllByRole('listitem')[1]
     expect(mardi.textContent).toContain('Paul D. 4 h')
+    expect(mardi.textContent).toContain('Jean P. (prévu, sans pointage)')
     expect(mardi.textContent).toContain('pointage (se corrige dans Pointage)')
-    expect(within(mardi).queryByRole('button', { name: /Modifier l’équipe/ })).toBeNull()
+    // L'équipe prévue reste modifiable ce jour-là (pour retirer un absent qui n'a pas pointé).
+    await act(async () => { fireEvent.click(within(mardi).getByRole('button', { name: /Modifier l’équipe/ })) })
+    await act(async () => { fireEvent.click(within(mardi).getByRole('checkbox', { name: 'Jean Petit' })) })
+    expect(mardi.textContent).not.toContain('(prévu, sans pointage)')
   })
 
   it('jour férié (France : 11 novembre) : chômé par l’équipe habituelle, nommé, modifiable', async () => {
@@ -243,6 +263,10 @@ describe('Obras — achats de matériaux et rentabilité hors TVA', () => {
     const mercredi = within(screen.getByRole('list', { name: /Équipe par jour/ })).getAllByRole('listitem')[2]
     expect(mercredi.textContent).toContain('Férié : Armistice')
     expect(mercredi.textContent).toContain('Personne')
+    // Modifiable : l'équipe a travaillé ce jour-là.
+    await act(async () => { fireEvent.click(within(mercredi).getByRole('button', { name: /Modifier l’équipe/ })) })
+    await act(async () => { fireEvent.click(within(mercredi).getByRole('checkbox', { name: 'Paul Durand' })) })
+    expect(mercredi.textContent).toContain('Paul D.')
   })
 
   it('sans le droit sur la comptabilité : pas de saisie d’achats dans la fiche', async () => {

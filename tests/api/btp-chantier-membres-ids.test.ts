@@ -89,10 +89,10 @@ const M2 = 'd4d4d4d4-0000-4000-8000-000000000002'
 /** Employé de l'autre société. */
 const M_AUTRE = 'e5e5e5e5-0000-4000-8000-000000000001'
 
-const ecrire = async (corps: Ligne) => {
+const ecrire = async (corps: Ligne, cookie?: string) => {
   const res = await POST(new NextRequest('https://vitfix.io/api/btp', {
     method: 'POST',
-    headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+    headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
     body: JSON.stringify({ table: 'chantiers_btp', ...corps }),
   }))
   return { status: res.status, json: await res.json() as Ligne }
@@ -246,6 +246,15 @@ describe('POST /api/btp — équipe habituelle changée : le passé ne bouge pas
     const res = await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } })
     expect(res.status).toBe(200)
     expect(h.etat.envois[0].valeur.equipe_par_jour).toEqual({ '2026-11-30': [M1] })
+  })
+
+  it('sans code postal : le calendrier de la langue de l’écran (cookie « locale »), comme l’écran Obras', async () => {
+    h.etat.chantiers = [{ ...h.etat.chantiers[0], code_postal: null }]
+    await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } }, 'locale=pt')
+    expect(h.etat.envois[0].valeur.equipe_par_jour).toEqual({ '2026-11-30': [M1] })
+    h.etat.envois = []
+    await ecrire({ action: 'update', id: 'villa', data: { membres_ids: [M1, M2] } }, 'locale=fr')
+    expect(h.etat.envois[0].valeur.equipe_par_jour).toEqual({ '2026-11-30': [M1], '2026-12-01': [M1] })
   })
 
   it('jours déjà inscrits envoyés par la fiche : gardés tels quels, les autres jours passés figés', async () => {

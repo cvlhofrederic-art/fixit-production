@@ -5,19 +5,18 @@ import { CalendarDays, RotateCcw, Timer } from 'lucide-react'
 import {
   equipeDuJour, estJourOuvre, jourRetouche, reprendreEquipeHabituelle, retoucherJour, type EquipeParJour, type JourOuvre,
 } from '@/lib/btp/equipe-par-jour'
+import type { CompositionJour } from '@/lib/btp/rentabilite-obra'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ÉQUIPE PAR JOUR — fiche d'une obra (components/dashboard/ChantiersBTPV2.tsx), 28/11/2026
 // L'équipe habituelle (cases « Employés assignés ») travaille du lundi au vendredi, hors jours fériés ; chaque jour peut
 // être retouché : un absent, un renfort, un samedi travaillé, un férié travaillé. Un jour passé où quelqu'un a pointé
-// sur l'obra montre les heures pointées : c'est le pointage qui fait foi (il se corrige dans l'écran Pointage).
+// sur l'obra montre les heures pointées (elles font foi et se corrigent dans l'écran Pointage) et les prévus comptés
+// faute de pointage ; « Modifier » y retouche l'équipe prévue (pour retirer un absent qui n'a pas pointé).
 // Règles : lib/btp/equipe-par-jour.ts, lib/btp/rentabilite-obra.ts.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface MembreChoisissable { id: string; prenom: string; nom: string }
-
-/** Employé pointé un jour : sa fiche (ou « nom:… » sans fiche) et ses heures (null : pointage sans heures). */
-export interface PresencePointee { id: string; heures: number | null }
 
 interface Props {
   /** Jours de l'obra (« AAAA-MM-JJ »), dans l'ordre. Vide : dates de l'obra pas encore saisies. */
@@ -30,8 +29,10 @@ interface Props {
   ouvre?: JourOuvre
   /** Nom du jour férié national, ou null. */
   ferie?: (jour: string) => string | null
-  /** Jours passés pointés sur l'obra : qui, et combien d'heures. */
-  pointes?: ReadonlyMap<string, readonly PresencePointee[]>
+  /** Jours passés pointés sur l'obra : qui a pointé (et ses heures), qui est compté faute de pointage. */
+  compositions?: ReadonlyMap<string, CompositionJour>
+  /** Nom d'origine d'un employé pointé sans fiche (clé « nom:… »). */
+  noms?: ReadonlyMap<string, string>
   /** Employés actifs, proposés au choix. */
   membres: readonly MembreChoisissable[]
   /** Tous les employés connus (anciens compris), pour nommer ceux d'un jour passé. */
@@ -60,18 +61,19 @@ function libelleJour(jour: string, dl: string): string {
 const masque = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } as const
 
 export function EquipeParJourEditeur({
-  jours, tronque, aujourdhui, ouvre = estJourOuvre, ferie, pointes, membres, membresTous, membresIds, equipeParJour, onChange,
+  jours, tronque, aujourdhui, ouvre = estJourOuvre, ferie, compositions, noms, membres, membresTous, membresIds, equipeParJour, onChange,
   isPt, isV5, dl,
 }: Props) {
   const [jourOuvert, setJourOuvert] = useState<string | null>(null)
   const parId = new Map(membresTous.map(m => [m.id.toLowerCase(), m]))
-  const nomCourt = (id: string) => {
-    if (id.startsWith('nom:')) return id.slice(4) || '?'
+  const nomCourt = (id: string): string => {
+    if (id.startsWith('nom:')) return noms?.get(id) || id.slice(4) || '?'
     const m = parId.get(id.toLowerCase())
-    return m ? `${m.prenom} ${m.nom.charAt(0)}.`.trim() : (isPt ? 'Colaborador removido' : 'Employé supprimé')
+    if (m) return `${m.prenom} ${m.nom.charAt(0)}.`.trim()
+    return isPt ? 'Colaborador removido' : 'Employé supprimé'
   }
   const heures = (h: number | null) => (h === null ? (isPt ? 'dia' : 'journée') : `${h.toLocaleString(dl, { maximumFractionDigits: 2 })} h`)
-  const retouches = jours.filter(j => !pointes?.has(j) && jourRetouche(j, membresIds, equipeParJour, ouvre)).length
+  const retouches = jours.filter(j => jourRetouche(j, membresIds, equipeParJour, ouvre)).length
   const bouton = isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'
 
   return (
@@ -96,10 +98,10 @@ export function EquipeParJourEditeur({
       ) : (
         <ul aria-labelledby="equipe-par-jour-titre" style={{ listStyle: 'none', margin: 0, padding: 3, maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
           {jours.map(jour => {
-            const pointe = pointes?.get(jour)
+            const pointe = compositions?.get(jour)
             const presents = equipeDuJour(jour, membresIds, equipeParJour, ouvre)
-            const retouche = !pointe && jourRetouche(jour, membresIds, equipeParJour, ouvre)
-            const ouvert = !pointe && jourOuvert === jour
+            const retouche = jourRetouche(jour, membresIds, equipeParJour, ouvre)
+            const ouvert = jourOuvert === jour
             const libelle = libelleJour(jour, dl)
             const nomFerie = ferie?.(jour) ?? null
             // Employés proposés ce jour-là : les actifs, plus un ancien employé encore inscrit à ce jour (pour pouvoir le retirer).
@@ -118,8 +120,13 @@ export function EquipeParJourEditeur({
                   )}
                   {pointe ? (
                     <>
-                      <span style={{ color: '#1565C0', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Timer size={11} /> {pointe.map(p => `${nomCourt(p.id)} ${heures(p.heures)}`).join(' · ')}
+                      <span style={{ color: '#1565C0', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <Timer size={11} /> {pointe.pointes.map(p => `${nomCourt(p.id)} ${heures(p.heures)}`).join(' · ')}
+                        {pointe.prevus.length > 0 && (
+                          <span style={{ color: '#666' }}>
+                            {' + '}{pointe.prevus.map(nomCourt).join(', ')}{isPt ? ' (previsto, sem ponto)' : ' (prévu, sans pointage)'}
+                          </span>
+                        )}
                       </span>
                       <span style={{ color: '#666', fontSize: 10 }}>
                         {isPt ? 'registo de ponto (corrige-se em Registo de horas)' : 'pointage (se corrige dans Pointage)'}
@@ -137,13 +144,11 @@ export function EquipeParJourEditeur({
                       <RotateCcw size={10} /> {isPt ? 'Repor' : 'Rétablir'}
                     </button>
                   )}
-                  {!pointe && (
-                    <button type="button" className={bouton} style={{ fontSize: 10 }}
-                      aria-expanded={ouvert} aria-label={isPt ? `Alterar a equipa de ${libelle}` : `Modifier l’équipe du ${libelle}`}
-                      onClick={() => setJourOuvert(ouvert ? null : jour)}>
-                      {ouvert ? (isPt ? 'Fechar' : 'Fermer') : (isPt ? 'Alterar' : 'Modifier')}
-                    </button>
-                  )}
+                  <button type="button" className={bouton} style={{ fontSize: 10 }}
+                    aria-expanded={ouvert} aria-label={isPt ? `Alterar a equipa de ${libelle}` : `Modifier l’équipe du ${libelle}`}
+                    onClick={() => setJourOuvert(ouvert ? null : jour)}>
+                    {ouvert ? (isPt ? 'Fechar' : 'Fermer') : (isPt ? 'Alterar' : 'Modifier')}
+                  </button>
                 </div>
                 {ouvert && (
                   <fieldset style={{ border: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: 4 }}>

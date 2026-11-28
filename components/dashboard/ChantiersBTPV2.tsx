@@ -17,14 +17,15 @@ import { estSousCompteSociete } from '@/lib/documents/identite-documents'
 import { lierDevisAuChantierSociete, lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
 import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import {
-  figerJoursPasses, joursEntre, lireEquipeParJour, periodeTronquee, simplifierEquipeParJour, type EquipeParJour,
+  equipeDuJour, figerJoursPasses, joursEntre, lireEquipeParJour, periodeTronquee, simplifierEquipeParJour, type EquipeParJour,
 } from '@/lib/btp/equipe-par-jour'
 import { jourLocal } from '@/lib/btp/accueil'
 import {
-  TAUX_MATERIAUX_ESTIME_PCT, dateFinProlongee, depensesDeLObra, pointagesDeLObra, pointagesParJour, rentabiliteObra, totalAutresDepensesHT,
-  totalMateriauxHT, type DepenseObra,
+  TAUX_MATERIAUX_ESTIME_PCT, compositionDuJour, dateFinProlongee, debutPointagesFiables, depensesDeLObra, lirePointages,
+  nomsDesPointes, pointagesParJour, rentabiliteObra, totalAutresDepensesHT, totalMateriauxHT, type DepenseObra,
 } from '@/lib/btp/rentabilite-obra'
 import { jourOuvreDans, nomFerie, paysDuCodePostal, type PaysObra } from '@/lib/btp/jours-feries'
+import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
 import { EquipeParJourEditeur } from '@/components/dashboard/btp/EquipeParJourEditeur'
 import { DepensesObraEditeur } from '@/components/dashboard/btp/DepensesObraEditeur'
 import { toast } from 'sonner'
@@ -99,6 +100,8 @@ interface MembreSummary {
   daily_cost: number; actif: boolean
   /** Coût horaire chargé (moteur de paie), pour les heures pointées. */
   cout_heure: number
+  /** Indemnités d'une journée (panier, trajet), hors coût horaire : ajoutées une fois par jour pointé. */
+  indemnite_jour: number
 }
 
 type DocLie = { id: string; type: 'devis' | 'facture'; numero: string; client_name: string; total_ht: number | null; status: string }
@@ -340,6 +343,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
           const netSalary = m.salaire_net_mensuel || m.salaire_net || 0
           let dailyCost = 0
           let coutHeure = 0
+          let indemniteJour = 0
           if (netSalary > 0) {
             const b = calculateEmployeeCost({
               country, company_type: companyType, net_salary: netSalary,
@@ -354,6 +358,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
             })
             dailyCost = b.cost_per_day
             coutHeure = b.cost_per_hour
+            indemniteJour = b.indemnites_jour
           } else {
             const ch = m.cout_horaire || settings.cout_horaire_ouvrier || 15
             const cp = (m.charges_patronales_pct || settings.charges_patronales_pct || 45) / 100
@@ -365,6 +370,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
             role: m.role || m.poste || 'Ouvrier',
             daily_cost: Math.round(dailyCost * 100) / 100,
             cout_heure: Math.round(coutHeure * 100) / 100,
+            indemnite_jour: Math.round(indemniteJour * 100) / 100,
             actif: m.actif !== false,
           }
         })
@@ -636,9 +642,30 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     () => new Map(membresTous.filter(m => m.cout_heure > 0).map(m => [m.id.toLowerCase(), m.cout_heure])),
     [membresTous],
   )
-  /** Pays de l'obra : son code postal le dit (4050-262, 13008), sinon celui de la société. */
-  const paysSociete: PaysObra = settings.country === 'PT' ? 'PT' : 'FR'
+  const indemniteJourParMembre = useMemo(
+    () => new Map(membresTous.filter(m => m.indemnite_jour > 0).map(m => [m.id.toLowerCase(), m.indemnite_jour])),
+    [membresTous],
+  )
+  /**
+   * Pays de l'obra : son code postal le dit (4050-262, 13008), sinon la langue de l'écran — le même signal que la route
+   * qui fige le passé pour l'onglet Affectations (cookie « locale »), pour que les deux appliquent les mêmes fériés.
+   */
+  const paysSociete: PaysObra = isPt ? 'PT' : 'FR'
   const paysObra = useCallback((codePostal: unknown): PaysObra => paysDuCodePostal(codePostal) ?? paysSociete, [paysSociete])
+  // Pointages de la société : une liste coupée par le plafond de lecture n'est fiable qu'après son jour le plus ancien.
+  const pointagesLus = useMemo(() => lirePointages(pointages), [pointages])
+  const pointagesDepuis = useMemo(
+    () => debutPointagesFiables(pointagesLus, pointages.length >= PLAFONDS_LECTURE_BTP.pointages),
+    [pointagesLus, pointages.length],
+  )
+  const pointesSociete = useMemo(
+    () => pointagesParJour(pointagesLus, aujourdhuiLocal(), pointagesDepuis),
+    [pointagesLus, pointagesDepuis],
+  )
+  const pointesDeLObra = useCallback(
+    (chantierId: string) => pointagesParJour(pointagesLus.filter(p => p.chantierId === chantierId), aujourdhuiLocal(), pointagesDepuis),
+    [pointagesLus, pointagesDepuis],
+  )
   /** Coût d'une journée d'ouvrier par défaut (réglages), celui de l'ancien calcul. */
   const coutJourParDefaut = (settings.cout_horaire_ouvrier || 15) * (1 + (settings.charges_patronales_pct || 45) / 100) * 7
   const getRenta = useCallback((c: ChantierForm & { id: string; statut?: string }, dateFin?: string) => rentabiliteObra({
@@ -653,12 +680,14 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
     nbEmployesSansEquipe: Number(c.equipe) || 1,
     materiauxHT: totalMateriauxHT(depenses, c.id),
     autresDepensesHT: totalAutresDepensesHT(depenses, c.id),
-    pointages: pointagesDeLObra(pointages, c.id),
+    pointesIci: pointesDeLObra(c.id),
+    pointesSociete,
     coutHeureParMembre,
+    indemniteJourParMembre,
     ouvre: jourOuvreDans(paysObra(c.codePostal)),
     actifs,
     aujourdhui: aujourdhuiLocal(),
-  }), [coutJourParMembre, coutHeureParMembre, coutJourParDefaut, depenses, pointages, paysObra, actifs])
+  }), [coutJourParMembre, coutHeureParMembre, indemniteJourParMembre, coutJourParDefaut, depenses, pointesDeLObra, pointesSociete, paysObra, actifs])
 
   // ── Charger membres au mount ──
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
@@ -1029,7 +1058,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
                         {renta.materiauxEstimes && (isPt ? ` (estimativa ${TAUX_MATERIAUX_ESTIME_PCT}%)` : ` (estimation ${TAUX_MATERIAUX_ESTIME_PCT} %)`)}
                         {renta.autresDepensesHT > 0 && <>{' · '}{isPt ? 'Outras despesas' : 'Autres dépenses'} {fmt(renta.autresDepensesHT, dl)} €</>}
                         {' · '}{isPt ? 'Mão de obra' : 'Main-d’œuvre'} {fmt(renta.coutMOPrevu, dl)} € ({renta.joursTravailles} {isPt ? 'dias de trabalho' : 'jours travaillés'}
-                        {renta.joursPointes > 0 && (isPt ? `, dos quais ${renta.joursPointes} com registo de ponto` : `, dont ${renta.joursPointes} pointés`)}
+                        {renta.joursPointes > 0 && (isPt ? `, dos quais ${renta.joursPointes} com registo de ponto` : `, dont ${renta.joursPointes} pointé${renta.joursPointes > 1 ? 's' : ''}`)}
                         {renta.equipeEstimee && (isPt ? ', equipa estimada' : ', équipe estimée')}
                         {renta.coutsParDefaut && (isPt ? ', custo por defeito' : ', coût par défaut')})
                       </span>
@@ -1370,12 +1399,16 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestion
               {(() => {
                 const { debut, fin } = periodeDeLaFiche(form)
                 const pays = paysObra(form.codePostal)
-                const pointes = new Map([...pointagesParJour(editId ? pointagesDeLObra(pointages, editId) : [], aujourdhuiLocal())]
-                  .map(([jour, presences]) => [jour, [...presences].map(([id, heures]) => ({ id, heures }))]))
+                const ouvre = jourOuvreDans(pays)
+                // Jours passés pointés sur l'obra ouverte : pointés à leurs heures, prévus sans pointage (même règle que le calcul).
+                const compositions = new Map([...(editId ? pointesDeLObra(editId) : new Map<string, Map<string, number | null>>())]
+                  .map(([jour, ici]) => [jour, compositionDuJour(
+                    equipeDuJour(jour, form.membres_ids || [], form.equipe_par_jour ?? {}, ouvre), ici, pointesSociete.get(jour),
+                  )]))
                 return (
                   <EquipeParJourEditeur
                     jours={joursEntre(debut, fin)} tronque={periodeTronquee(debut, fin)} aujourdhui={jourLocal(new Date())}
-                    ouvre={jourOuvreDans(pays)} ferie={jour => nomFerie(jour, pays, isPt)} pointes={pointes}
+                    ouvre={ouvre} ferie={jour => nomFerie(jour, pays, isPt)} compositions={compositions} noms={nomsDesPointes(pointagesLus)}
                     membres={membresList} membresTous={membresTous}
                     membresIds={form.membres_ids || []} equipeParJour={form.equipe_par_jour ?? {}}
                     onChange={equipeParJour => setForm(f => ({ ...f, equipe_par_jour: equipeParJour }))}

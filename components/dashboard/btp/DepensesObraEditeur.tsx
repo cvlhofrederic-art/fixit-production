@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Loader2, Package, Trash2 } from 'lucide-react'
 import {
-  CATEGORIES_DEPENSE_OBRA, CATEGORIES_MATERIAUX, montantDepense, montantHorsIva, type DepenseObra,
+  CATEGORIES_DEPENSE_OBRA, estMateriau, montantDepense, montantHorsIva, type DepenseObra,
 } from '@/lib/btp/rentabilite-obra'
 import { jourLocal } from '@/lib/btp/accueil'
 
@@ -12,26 +12,50 @@ import { jourLocal } from '@/lib/btp/accueil'
 // Achats de matériaux (ils remplacent l'estimation de 15 % du calcul de rentabilité) et autres dépenses directes
 // (location de matériel, carburant, transport, autres). Ils s'enregistrent comme dépenses de l'obra (depenses_btp), que
 // l'écran Rentabilité lit aussi.
-// Le montant enregistré est TOUJOURS hors IVA : l'IVA payée au fournisseur se récupère, ce n'est pas un coût.
-// Payé IVA comprise : l'écran ramène hors IVA au taux choisi, et garde le montant payé dans la note.
+// Le montant enregistré est le COÛT RÉEL hors IVA récupérable : l'IVA déductible se récupère, ce n'est pas un coût ;
+// une IVA non déductible (carburant d'un véhicule léger, location d'une voiture particulière…) en est un. Payé IVA
+// comprise : l'écran retire la part déductible au taux choisi, et garde le montant payé dans la note.
+// Déductibilité partielle (relecture adverse du 28/11/2026) : Portugal, CIVA art. 21.º n.º 1 b) — gazole des
+// véhicules légers déductible à 50 % ; France, CGI art. 298-4 — carburant des véhicules de tourisme récupérable à 80 %.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Taux d'IVA (Portugal continental) ou de TVA (France), du taux normal au taux réduit. */
-const TAUX_PT = [23, 13, 6] as const
-const TAUX_FR = [20, 10, 5.5] as const
+/** Façon dont le montant saisi comprend l'IVA : taux, et part de cette IVA qui se récupère (1 = toute, 0 = rien). */
+interface ModeIva { cle: string; taux: number; deductible: number; pt: string; fr: string }
+
+/** Portugal continental (IVA) et France (TVA), du cas courant aux cas particuliers. */
+const MODES_PT: readonly ModeIva[] = [
+  { cle: '23', taux: 23, deductible: 1, pt: 'com IVA 23%', fr: '' },
+  { cle: '13', taux: 13, deductible: 1, pt: 'com IVA 13%', fr: '' },
+  { cle: '6', taux: 6, deductible: 1, pt: 'com IVA 6%', fr: '' },
+  { cle: '23-50', taux: 23, deductible: 0.5, pt: 'com IVA 23%, dedutível a 50% (gasóleo de ligeiros)', fr: '' },
+  { cle: 'nd', taux: 0, deductible: 0, pt: 'com IVA não dedutível (conta o total)', fr: '' },
+  { cle: '0', taux: 0, deductible: 0, pt: 'sem IVA', fr: '' },
+]
+const MODES_FR: readonly ModeIva[] = [
+  { cle: '20', taux: 20, deductible: 1, pt: '', fr: 'TTC, TVA 20 %' },
+  { cle: '10', taux: 10, deductible: 1, pt: '', fr: 'TTC, TVA 10 %' },
+  { cle: '5.5', taux: 5.5, deductible: 1, pt: '', fr: 'TTC, TVA 5,5 %' },
+  { cle: '20-80', taux: 20, deductible: 0.8, pt: '', fr: 'TTC, TVA 20 % récupérable à 80 % (carburant d’un véhicule de tourisme)' },
+  { cle: 'nd', taux: 0, deductible: 0, pt: '', fr: 'TTC, TVA non récupérable (compte le total)' },
+  { cle: '0', taux: 0, deductible: 0, pt: '', fr: 'HT' },
+]
+
+/** Coût réel hors IVA récupérable d'un montant payé : 123 € à 23 % → 100 € ; à 23 % dédutible à 50 % → 111,50 €. */
+export function coutHorsIvaRecuperable(paye: number, mode: Pick<ModeIva, 'taux' | 'deductible'>): number {
+  const horsIva = montantHorsIva(paye, mode.taux)
+  return Math.round((paye - (paye - horsIva) * mode.deductible) * 100) / 100
+}
 
 type CategorieObra = typeof CATEGORIES_DEPENSE_OBRA[number]
 
-/** Libellé d'une catégorie (aussi le libellé d'une dépense saisie sans description). */
-const LIBELLES: Record<CategorieObra, { pt: string; fr: string }> = {
-  materiaux: { pt: 'Materiais', fr: 'Matériaux' },
-  location: { pt: 'Aluguer de equipamento', fr: 'Location de matériel' },
-  carburant: { pt: 'Combustível', fr: 'Carburant' },
-  transport: { pt: 'Transporte', fr: 'Transport' },
-  autre: { pt: 'Outros (subempreitada, resíduos…)', fr: 'Autres (sous-traitance, déchets…)' },
+/** Libellé d'une catégorie (aussi le libellé d'une dépense saisie sans description) et exemple de description. */
+const LIBELLES: Record<CategorieObra, { pt: string; fr: string; exemplePt: string; exempleFr: string }> = {
+  materiaux: { pt: 'Materiais', fr: 'Matériaux', exemplePt: 'Ex.: cimento, azulejos…', exempleFr: 'Ex. : ciment, carrelage…' },
+  location: { pt: 'Aluguer de equipamento', fr: 'Location de matériel', exemplePt: 'Ex.: mini-escavadora, andaime…', exempleFr: 'Ex. : mini-pelle, échafaudage…' },
+  carburant: { pt: 'Combustível', fr: 'Carburant', exemplePt: 'Ex.: gasóleo da carrinha…', exempleFr: 'Ex. : gazole de la camionnette…' },
+  transport: { pt: 'Transporte', fr: 'Transport', exemplePt: 'Ex.: entrega de material…', exempleFr: 'Ex. : livraison de matériaux…' },
+  autre: { pt: 'Outros', fr: 'Autres', exemplePt: 'Ex.: subempreitada, resíduos…', exempleFr: 'Ex. : sous-traitance, déchets…' },
 }
-
-const estMateriau = (d: DepenseObra) => (CATEGORIES_MATERIAUX as readonly string[]).includes(d.category ?? '')
 
 function libelleCategorie(categorie: string | null | undefined, isPt: boolean): string {
   if (categorie === 'materiel') return isPt ? LIBELLES.materiaux.pt : LIBELLES.materiaux.fr
@@ -62,21 +86,21 @@ interface Props {
 }
 
 export function DepensesObraEditeur({ depenses, onAjouter, onRetirer, isPt, isV5, dl }: Props) {
-  const taux = isPt ? TAUX_PT : TAUX_FR
-  const pct = (t: number) => `${t.toLocaleString(dl)}${isPt ? '%' : ' %'}`
+  const modes = isPt ? MODES_PT : MODES_FR
   const euros = (n: number) => `${n.toLocaleString(dl, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
   const [categorie, setCategorie] = useState<CategorieObra>('materiaux')
   const [libelle, setLibelle] = useState('')
   const [montant, setMontant] = useState('')
-  /** Taux de l'IVA comprise dans le montant saisi ; 0 : montant saisi hors IVA. */
-  const [tauxSaisi, setTauxSaisi] = useState<number>(taux[0])
+  /** Façon dont le montant saisi comprend l'IVA (taux et part déductible). */
+  const [cleMode, setCleMode] = useState<string>(modes[0].cle)
+  const mode = modes.find(m => m.cle === cleMode) ?? modes[0]
   const [date, setDate] = useState(() => jourLocal(new Date()))
   const [enCours, setEnCours] = useState(false)
 
   const paye = lireMontantSaisi(montant)
   const valide = Number.isFinite(paye) && paye > 0 && !!date
-  const horsIva = valide ? montantHorsIva(paye, tauxSaisi) : 0
+  const horsIva = valide ? coutHorsIvaRecuperable(paye, mode) : 0
   const total = depenses.reduce((s, d) => s + montantDepense(d), 0)
   const totalMateriaux = depenses.filter(estMateriau).reduce((s, d) => s + montantDepense(d), 0)
   const aucunMateriau = !depenses.some(estMateriau)
@@ -84,9 +108,7 @@ export function DepensesObraEditeur({ depenses, onAjouter, onRetirer, isPt, isV5
   const ajouter = async () => {
     if (!valide || enCours) return
     setEnCours(true)
-    const note = tauxSaisi > 0
-      ? (isPt ? `Valor pago com IVA ${pct(tauxSaisi)}: ${euros(paye)}` : `Montant payé TTC (TVA ${pct(tauxSaisi)}) : ${euros(paye)}`)
-      : null
+    const note = mode.cle === '0' ? null : (isPt ? `Valor pago (${mode.pt}): ${euros(paye)}` : `Montant payé (${mode.fr}) : ${euros(paye)}`)
     const ok = await onAjouter({
       label: libelle.trim() || libelleCategorie(categorie, isPt),
       amount: horsIva, category: categorie, date, notes: note,
@@ -112,8 +134,8 @@ export function DepensesObraEditeur({ depenses, onAjouter, onRetirer, isPt, isV5
       </div>
       <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
         {isPt
-          ? 'Materiais, aluguer, combustível, transporte… Contam na rentabilidade sem o IVA: o IVA pago ao fornecedor é recuperado, não é um custo.'
-          : 'Matériaux, location, carburant, transport… Comptés dans la rentabilité hors TVA : la TVA payée au fournisseur se récupère, ce n’est pas un coût.'}
+          ? 'Materiais, aluguer, combustível, transporte… Contam na rentabilidade sem o IVA dedutível: o IVA que se recupera não é um custo. Se o IVA não for dedutível (ou só em parte), escolha a opção certa.'
+          : 'Matériaux, location, carburant, transport… Comptés dans la rentabilité hors TVA récupérable : la TVA qui se récupère n’est pas un coût. Si elle ne l’est pas (ou en partie), choisissez l’option qui convient.'}
       </div>
 
       {depenses.length > 0 && (
@@ -150,13 +172,12 @@ export function DepensesObraEditeur({ depenses, onAjouter, onRetirer, isPt, isV5
           {CATEGORIES_DEPENSE_OBRA.map(c => <option key={c} value={c}>{libelleCategorie(c, isPt)}</option>)}
         </select>
         <input className={champ} value={libelle} onChange={e => setLibelle(e.target.value)} maxLength={120}
-          aria-label={isPt ? 'Descrição da despesa' : 'Description de la dépense'} placeholder={isPt ? 'Ex.: cimento, azulejos…' : 'Ex. : ciment, carrelage…'} />
+          aria-label={isPt ? 'Descrição da despesa' : 'Description de la dépense'} placeholder={isPt ? LIBELLES[categorie].exemplePt : LIBELLES[categorie].exempleFr} />
         <input className={champ} value={montant} onChange={e => setMontant(e.target.value)} inputMode="decimal"
           aria-label={isPt ? 'Valor pago (€)' : 'Montant payé (€)'} placeholder="0,00" />
-        <select className={isV5 ? 'v5-filter-sel' : 'v22-filter-sel'} value={String(tauxSaisi)} onChange={e => setTauxSaisi(Number(e.target.value))}
+        <select className={isV5 ? 'v5-filter-sel' : 'v22-filter-sel'} value={cleMode} onChange={e => setCleMode(e.target.value)}
           aria-label={isPt ? 'O valor inclui IVA?' : 'Le montant comprend-il la TVA ?'}>
-          {taux.map(t => <option key={t} value={String(t)}>{isPt ? `com IVA ${pct(t)}` : `TTC, TVA ${pct(t)}`}</option>)}
-          <option value="0">{isPt ? 'sem IVA' : 'HT'}</option>
+          {modes.map(m => <option key={m.cle} value={m.cle}>{isPt ? m.pt : m.fr}</option>)}
         </select>
         <input type="date" className={champ} value={date} onChange={e => setDate(e.target.value)}
           aria-label={isPt ? 'Data da despesa' : 'Date de la dépense'} />
@@ -165,10 +186,10 @@ export function DepensesObraEditeur({ depenses, onAjouter, onRetirer, isPt, isV5
         </button>
       </div>
       <output aria-live="polite" style={{ display: 'block', fontSize: 10, color: '#2E7D32', marginTop: 3, minHeight: 13 }}>
-        {valide && tauxSaisi > 0 && (isPt
-          ? `Conta ${euros(horsIva)} s/ IVA (os ${euros(paye - horsIva)} de IVA não contam).`
-          : `Compte ${euros(horsIva)} HT (les ${euros(paye - horsIva)} de TVA ne comptent pas).`)}
-        {valide && tauxSaisi === 0 && (isPt ? `Conta ${euros(horsIva)} s/ IVA.` : `Compte ${euros(horsIva)} HT.`)}
+        {valide && paye > horsIva && (isPt
+          ? `Conta ${euros(horsIva)} (os ${euros(paye - horsIva)} de IVA recuperável não contam).`
+          : `Compte ${euros(horsIva)} HT (les ${euros(paye - horsIva)} de TVA récupérable ne comptent pas).`)}
+        {valide && paye === horsIva && (isPt ? `Conta ${euros(horsIva)}.` : `Compte ${euros(horsIva)}.`)}
         {montant.trim() !== '' && !Number.isFinite(paye) && (
           <span style={{ color: '#C62828' }}>{isPt ? 'Valor inválido.' : 'Montant invalide.'}</span>
         )}
