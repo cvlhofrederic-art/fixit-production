@@ -1675,17 +1675,17 @@ export async function generateDevisPdfV3(
   } else if (docType === 'facture') {
     // ── Section RÈGLEMENT pour facture ──
     const payLines: string[] = []
-    // Document portugais : l'escompte choisi (déjà traduit) prend la place de la phrase par défaut.
-    // Avant, la fatura imprimait les deux : « Aucun escompte accordé… » en tête puis « Sem desconto… ».
-    const escomptePt = locale === 'pt' ? paymentCondition : ''
-    if (paymentCondition && !escomptePt) payLines.push(paymentCondition)
+    // Document portugais, escompte de la liste du formulaire (déjà traduit) : « sem desconto » n'est
+    // plus imprimé deux fois (avant : « Aucun escompte accordé… » en tête puis « Sem desconto… ») ; un
+    // escompte accordé n'est plus suivi de la phrase par défaut qui le contredit. Texte libre : comme avant.
+    const escompteListe = moduleTextesPt ? moduleTextesPt.escompteDaLista(paymentCondition) : null
+    if (paymentCondition && escompteListe !== 'aucun') payLines.push(paymentCondition)
     if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
     if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', formatPaymentDueDate(paymentDue)))
     if (iban) payLines.push(bic ? t('devis.pdf.ibanBicLabel').replace('{iban}', iban).replace('{bic}', bic) : t('devis.pdf.ibanLabel').replace('{iban}', iban))
     payLines.push(t('devis.pdf.latePenalties'))
     if (discount) payLines.push(t('devis.pdf.earlyDiscountYes').replace('{discount}', discount))
-    else if (escomptePt && !/^sem desconto/i.test(escomptePt)) payLines.push(escomptePt)
-    else payLines.push(t('devis.pdf.earlyDiscountNo'))
+    else if (escompteListe !== 'accorde') payLines.push(t('devis.pdf.earlyDiscountNo'))
     if (sourceDevisRef) {
       const datePart = prestationDate ? ` ${locale === 'pt' ? 'com data de' : 'en date du'} ${new Date(prestationDate).toLocaleDateString(dateLocaleStr)}` : ''
       payLines.push(t('devis.pdf.invoiceFromDevis').replace('{ref}', sourceDevisRef).replace('{date}', datePart))
@@ -2022,7 +2022,7 @@ export async function generateDevisPdfV3(
 
     pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     // Texte accentué (il était écrit sans accents : « RESOLUCAO », « dispoe », « Nao ») :
-    // ces lettres existent dans Liberation Sans comme dans la police de repli.
+    // ces lettres font partie de l'encodage WinAnsi de la police helvetica du PDF.
     pdf.text('DIREITO DE LIVRE RESOLUÇÃO', mL, ry)
     ry += 5
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)

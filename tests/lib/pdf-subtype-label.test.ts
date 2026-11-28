@@ -39,6 +39,15 @@ describe('buildSubTypeLabel', () => {
 
   it('locale PT', () => {
     expect(buildSubTypeLabel({ docType: 'facture', factureSubType: 'acompte', acompteOrdre: 1, acompteTotal: 2, parentInvoiceNumber: 'FACT-2026-001' }, true))
-      .toBe('FATURA DE ADIANTAMENTO N°1 de 2 (sobre fatura FACT-2026-001)')
+      .toBe('FATURA DE ADIANTAMENTO N.º 1 de 2 (sobre fatura FACT-2026-001)')
+  })
+
+  it('locale PT : ni « N° » ni « (AVOIR) », parent orçamento nommé comme tel (28/11/2026)', () => {
+    expect(buildSubTypeLabel({ docType: 'facture', factureSubType: 'acompte', acompteOrdre: 1, acompteTotal: 3, parentInvoiceNumber: 'ORC-2026-005' }, true))
+      .toBe('FATURA DE ADIANTAMENTO N.º 1 de 3 (sobre orçamento ORC-2026-005)')
+    expect(buildSubTypeLabel({ docType: 'facture', factureSubType: 'situation', situationNumber: 2, situationAvancement: 60 }, true))
+      .toBe('FATURA DE SITUAÇÃO N.º 2 — 60%')
+    expect(buildSubTypeLabel({ docType: 'facture', factureSubType: 'avoir', parentInvoiceNumber: 'FT-2026-001' }, true))
+      .toBe('NOTA DE CRÉDITO sobre fatura FT-2026-001')
   })
 })

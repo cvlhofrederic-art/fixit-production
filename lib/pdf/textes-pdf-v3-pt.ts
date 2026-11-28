@@ -9,24 +9,22 @@
  * défaut les imprimait tels quels : « Virement bancaire », « Aucun escompte accordé pour paiement anticipé »,
  * « 3 semaines », « Main d'œuvre »… sur une fatura portugaise (constat de Frédéric du 28/11/2026, FA-2026-001).
  *
- * Les traductions sont celles du gabarit Method (lib/pdf/modele-method-solucoes.ts), sauf les unités, abrégées pour
- * la colonne étroite du tableau. Un texte saisi librement qui ne correspond à aucune valeur connue reste tel quel.
+ * Valeurs des listes du formulaire (mode de paiement, escompte, déclencheur d'acompte) : traduction EXACTE, celle
+ * que le formulaire affiche en portugais (lib/devis-btp-traduction-pt.json). Libellés rédigés par Vitfix, sections et
+ * délai d'exécution : motifs ancrés du gabarit Method (lib/pdf/modele-method-solucoes.ts). Unités : abrégées pour la
+ * colonne étroite du tableau. Un texte saisi librement qui n'est pas exactement une de ces valeurs reste tel quel.
  * Module chargé à la demande, pour les seuls documents portugais.
  */
 import type { DevisAcompte, ProductLine } from '@/lib/devis-types'
+import { TEXTES_DEVIS_BTP_PT } from '@/lib/devis-btp-traduction'
 import type { PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
-import {
-  descontoPagamento,
-  modoPagamento,
-  nomeCapitulo,
-  prazoExecucao,
-  quandoPrestacao,
-  textePdf,
-  traduireLibellesGeneres,
-} from '@/lib/pdf/modele-method-solucoes'
+import { nomeCapitulo, prazoExecucao, textePdf, traduireLibellesGeneres } from '@/lib/pdf/modele-method-solucoes'
 
-const sansAccents = (s: string) =>
-  s.normalize('NFD').replace(/\p{M}/gu, '').replace(/œ/g, 'oe').replace(/[’`]/g, "'").toLowerCase().trim()
+/** Valeur d'une liste du formulaire BTP, enregistrée en français → son libellé portugais du formulaire, à l'identique. */
+function valeurListePt(valeur: string): string {
+  const v = valeur.trim()
+  return Object.prototype.hasOwnProperty.call(TEXTES_DEVIS_BTP_PT, v) ? TEXTES_DEVIS_BTP_PT[v] : valeur
+}
 
 /** La traduction si elle change le texte (tirets longs et point final mis à part), sinon le texte d'origine. */
 function siTraduit(original: string, traduction: string): string {
@@ -49,21 +47,37 @@ export function libellesPt(texte: string): string {
   return texte.split('\n').map((ligne) => siTraduit(ligne, traduireLibellesGeneres(textePdf(ligne)))).join('\n')
 }
 
-export function modoPagamentoPt(mode: string): string {
-  return mode.trim() ? siTraduit(mode, modoPagamento(mode).curto) : mode
-}
+/** Mode de paiement (MODES_PAIEMENT) : « Virement bancaire » → « Transferência bancária ». */
+export const modoPagamentoPt = valeurListePt
 
-export function descontoPt(escompte: string): string {
-  return escompte.trim() ? siTraduit(escompte, descontoPagamento(escompte)) : escompte
+/** Escompte (ESCOMPTES) : « Aucun escompte accordé pour paiement anticipé » → « Sem desconto por pagamento antecipado ». */
+export const descontoPt = valeurListePt
+
+/**
+ * Escompte d'une fatura portugaise, une fois traduit : « aucun » (il répète la phrase par défaut du PDF), « accorde »
+ * (un escompte de la liste, que la phrase par défaut « sem desconto » contredirait), null (texte libre).
+ */
+export function escompteDaLista(escompte: string): 'aucun' | 'accorde' | null {
+  const v = escompte.trim()
+  if (v === TEXTES_DEVIS_BTP_PT['Aucun escompte accordé pour paiement anticipé']) return 'aucun'
+  const accordes = [TEXTES_DEVIS_BTP_PT['1 % pour paiement à 10 jours'], TEXTES_DEVIS_BTP_PT['2 % pour paiement comptant']]
+  return accordes.includes(v) ? 'accorde' : null
 }
 
 export function prazoExecucaoPt(delai: string): string {
   return delai.trim() ? siTraduit(delai, prazoExecucao(delai)) : delai
 }
 
-/** Pénalités de retard par défaut du formulaire français → valeur par défaut du formulaire portugais. */
-export function penalidadePt(penalite: string): string {
-  return /^3\s*(?:×|x|fois)\s*(?:le\s+)?taux d'interet legal/.test(sansAccents(penalite)) ? 'Taxa de juro legal em vigor' : penalite
+/** Valeurs par défaut du formulaire français (pénalités, frais de recouvrement) → celles du formulaire portugais. */
+const DEFAUTS_PT: Readonly<Record<string, string>> = {
+  "3 × taux d'intérêt légal en vigueur": 'Taxa de juro legal em vigor',
+  "3 × taux d'intérêt légal": 'Taxa de juro legal em vigor',
+  '40 € (BtoB uniquement)': '40 € (apenas B2B)',
+}
+
+export function valeurParDefautPt(valeur: string): string {
+  const v = valeur.trim()
+  return Object.prototype.hasOwnProperty.call(DEFAUTS_PT, v) ? DEFAUTS_PT[v] : valeur
 }
 
 /** Nom de section posé par le formulaire ou par Vitfix (« Main d'œuvre », « Acomptes déjà facturés (à déduire) »…). */
@@ -71,9 +85,14 @@ export function seccaoPt(nom: string | undefined): string | undefined {
   return nom?.trim() ? siTraduit(nom, nomeCapitulo(nom, false)) : nom
 }
 
-/** Déclencheur d'un acompte (« À la signature »…) : « na adjudicação »… */
+/**
+ * Déclencheur d'un acompte (DECLENCHEURS_ACOMPTE) : libellé du formulaire, première lettre en minuscule pour la
+ * ligne de l'échéancier (« Adiantamento 1 : 30% na adjudicação »). Les libellés du gabarit Method (« no final,
+ * contra auto de receção provisória ») sont trop longs pour cette ligne et y ajoutent une condition.
+ */
 export function quandoPt(declencheur: string): string {
-  return declencheur.trim() ? siTraduit(declencheur, quandoPrestacao(declencheur)) : declencheur
+  const traduit = valeurListePt(declencheur)
+  return traduit === declencheur ? declencheur : traduit.charAt(0).toLowerCase() + traduit.slice(1)
 }
 
 /** Titres que Vitfix rédige (facture d'acompte, de solde) ou titres par défaut, dans la forme portugaise de Vitfix. */
@@ -110,9 +129,11 @@ function lignePt(l: ProductLine): ProductLine {
   return { ...l, description: libellesPt(l.description || ''), unit: l.unit === 'autre' ? l.unit : unidadeCurta(l.unit) }
 }
 
-const lignesPt = (lignes: ProductLine[] | undefined) => lignes?.map(lignePt)
+// Une ligne absente (null dans un document abîmé) reste telle quelle : le générateur l'ignore déjà.
+const lignesPt = (lignes: ProductLine[] | undefined) => lignes?.map((l) => (l ? lignePt(l) : l))
 
 function acomptePt(a: DevisAcompte): DevisAcompte {
+  if (!a) return a
   const label = /^Acompte (\d+)$/.exec(a.label?.trim() || '')
   return { ...a, label: label ? `Adiantamento ${label[1]}` : a.label, declencheur: quandoPt(a.declencheur || '') }
 }
@@ -124,7 +145,8 @@ export function portugaliserEntreeV3(e: PdfV3Input): PdfV3Input {
     docTitle: tituloPt(e.docTitle),
     paymentMode: modoPagamentoPt(e.paymentMode),
     paymentCondition: descontoPt(e.paymentCondition),
-    penaltyRate: penalidadePt(e.penaltyRate),
+    penaltyRate: valeurParDefautPt(e.penaltyRate),
+    recoveryFee: valeurParDefautPt(e.recoveryFee),
     executionDelay: prazoExecucaoPt(e.executionDelay),
     notes: libellesPt(e.notes || ''),
     lines: lignesPt(e.lines) ?? e.lines,

@@ -1,13 +1,30 @@
 // Entrée d'exemple du générateur PDF BTP (lib/pdf/devis-pdf-v3.ts), commune aux tests qui produisent un PDF V3 :
 // un devis de ravalement d'une société en SAS, une ligne à 1 000 € HT et TVA à 10 %. Chaque test ne surcharge que ce
 // qui le concerne (numéro, date, société, client, images…).
-import type { PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
+import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
 import fr from '@/locales/fr.json'
+import pt from '@/locales/pt.json'
+
+/** Traduction d'une clé du générateur dans un dictionnaire (la clé elle-même si elle n'existe pas). */
+const traductionDans = (dictionnaire: unknown) => (cle: string): string => {
+  const valeur = cle.split('.').reduce<unknown>((noeud, part) => (noeud as Record<string, unknown> | undefined)?.[part], dictionnaire)
+  return typeof valeur === 'string' ? valeur : cle
+}
 
 /** Traduction française d'une clé du générateur (la clé elle-même si elle n'existe pas). */
-export const traductionFr = (cle: string): string => {
-  const valeur = cle.split('.').reduce<unknown>((noeud, part) => (noeud as Record<string, unknown> | undefined)?.[part], fr)
-  return typeof valeur === 'string' ? valeur : cle
+export const traductionFr = traductionDans(fr)
+
+/** Traduction portugaise d'une clé du générateur (la clé elle-même si elle n'existe pas). */
+export const traductionPt = traductionDans(pt)
+
+/**
+ * Textes dessinés dans le PDF produit, toutes pages, dans l'ordre, échappements jsPDF retirés (le contenu
+ * n'est pas compressé : chaque chaîne est un opérateur « (…) Tj »).
+ */
+export async function textesPdfV3(input: PdfV3Input): Promise<string[]> {
+  const { pdfArrayBuffer } = await generateDevisPdfV3(input)
+  const pdf = Buffer.from(pdfArrayBuffer).toString('latin1')
+  return [...pdf.matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(m => m[1].replaceAll(/\\(.)/g, '$1'))
 }
 
 /** Ligne de devis de l'exemple : 1 000 € HT, TVA à 10 %. */

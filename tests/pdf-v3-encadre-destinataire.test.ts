@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { generateDevisPdfV3, mentionRegistoPt, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
 import fr from '@/locales/fr.json'
+import { textesPdfV3 } from './helpers/entree-pdf-v3'
 
 const t = (cle: string): string => {
   const valeur = cle.split('.').reduce<unknown>((noeud, part) => (noeud as Record<string, unknown> | undefined)?.[part], fr)
@@ -136,12 +137,8 @@ function taillePolice(page: string, fragment: string): number {
   return Number([...page.slice(0, i).matchAll(/\/F\d+ ([\d.]+) Tf/g)].pop()?.[1])
 }
 
-/** Tout le texte dessiné, toutes pages, échappements jsPDF retirés, chaînes mises bout à bout. */
-async function texteComplet(input: PdfV3Input): Promise<string> {
-  const { pdfArrayBuffer } = await generateDevisPdfV3(input)
-  const pdf = Buffer.from(pdfArrayBuffer).toString('latin1')
-  return [...pdf.matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(m => m[1].replaceAll(/\\(.)/g, '$1')).join(' ')
-}
+/** Tout le texte dessiné, toutes pages, chaînes mises bout à bout. */
+const texteComplet = async (input: PdfV3Input): Promise<string> => (await textesPdfV3(input)).join(' ')
 
 // Fatura d'une société portugaise (données fictives) : la morada de l'émetteur est plus large que l'encadré.
 const MORADA_LONGA = 'Avenida do Exemplo Imaginario, 109, Bloco B, 6.o Dto. Frente, 4000-000 Porto'
