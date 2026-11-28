@@ -139,7 +139,7 @@ export function verifierChangementSoldeOuverture({ avant, apres, compteActif, ar
   if (memeSoldeOuverture(avant, apres)) return
   if (!compteActif) throw new Error('Compte bancaire clôturé : son solde d’ouverture ne se modifie plus.')
   const dates = [avant?.au, apres?.au].filter((date): date is string => date !== undefined)
-  const premiere = dates.reduce((min, date) => (date < min ? date : min))
+  const premiere = dates.reduce((min, date) => (date < min ? date : min), dates[0])
   const couvrants = arretes
     .filter((arrete) => arrete.statut === 'Clôturé' && arrete.dateArrete >= premiere)
     .map((arrete) => arrete.dateArrete)
