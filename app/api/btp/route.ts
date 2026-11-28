@@ -197,6 +197,10 @@ export async function GET(request: NextRequest) {
     // Société du compte, rôle d'équipe et permissions : une seule résolution, serveur, pour la lecture comme pour
     // l'écriture. Pour un titulaire, societeId vaut user.id et rien ne change par rapport à avant ce lot.
     const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+    // Ligne d'équipe du compte illisible (panne, délai dépassé) : son périmètre vide n'est pas un refus. Répondre des
+    // listes vides montrait « aucun chantier » sans erreur, liste que le tableau de bord gardait 5 minutes en cache
+    // (signalement du 27/11/2026). Erreur, comme toute autre lecture en échec.
+    if (perimetre.illisible) return reponseLectureImpossible(new Error('périmètre du compte illisible (ligne d’équipe)'))
 
     if (table === 'all') {
       const visibiliteReglages = visibiliteListe(perimetre, 'settings')
@@ -240,14 +244,18 @@ export async function GET(request: NextRequest) {
       ...etatRestriction([visibilite], rattachement),
     })
   } catch (err) {
-    // Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6).
-    if (err instanceof ErreurLecture) {
-      logger.error('[btp] GET : la base a répondu en erreur', { source: err.source, code: err.erreurBase.code, error: err.erreurBase.message })
-    } else {
-      logger.error('[btp] GET error', { error: err instanceof Error ? err.message : err })
-    }
-    return NextResponse.json({ error: MESSAGE_LECTURE_IMPOSSIBLE }, { status: 500 })
+    return reponseLectureImpossible(err)
   }
+}
+
+/** Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6). */
+function reponseLectureImpossible(err: unknown): NextResponse {
+  if (err instanceof ErreurLecture) {
+    logger.error('[btp] GET : la base a répondu en erreur', { source: err.source, code: err.erreurBase.code, error: err.erreurBase.message })
+  } else {
+    logger.error('[btp] GET error', { error: err instanceof Error ? err.message : err })
+  }
+  return NextResponse.json({ error: MESSAGE_LECTURE_IMPOSSIBLE }, { status: 500 })
 }
 
 // ── POST /api/btp — créer, modifier, supprimer, reprendre les anciennes données du navigateur ───────────────
@@ -279,7 +287,7 @@ const MESSAGE_LISTE_MEMBRES_INVALIDE = 'Enregistrement refusé : la liste des me
 
 /** La base a répondu en erreur pendant une écriture ; `messageUtilisateur` remplace alors « Erreur serveur ». */
 class ErreurEcriture extends Error {
-  constructor(readonly erreurBase: ErreurBase, readonly messageUtilisateur?: string) {
+  constructor(readonly erreurBase: ErreurBase, readonly messageUtilisateur?: string, readonly statut = 500) {
     super('écriture en erreur')
   }
 }
@@ -421,13 +429,51 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
 }
 
 /**
- * Colonne chantiers_btp.membres_ids (employés affectés, migration 20261116) absente de la base : PostgREST répond
- * PGRST204 (écriture) ou 42703 en la nommant. Le chantier s'enregistre alors sans ses employés au lieu d'échouer.
- * Les employés ont déjà été contrôlés (format, même compte) : le second essai n'écrit que des colonnes contrôlées.
+ * Colonnes récentes de chantiers_btp, qu'une base pas encore migrée n'a pas : PostgREST répond PGRST204 (écriture) ou
+ * 42703 en nommant la colonne. Le chantier s'enregistre alors sans elle au lieu d'échouer.
+ * - membres_ids (employés affectés, migration 20261116) : déjà contrôlés (format, même compte), le second essai
+ *   n'écrit que des colonnes contrôlées ;
+ * - alerte_meteo (alerte météo par notification, migration 20261126b) : décochée (valeur par défaut de la colonne),
+ *   elle est retirée et le reste de la fiche est enregistré ; cochée, toute l'écriture est refusée (409) et rien n'est
+ *   enregistré (ecrireSansColonnesAbsentes).
  */
-function affectationSansColonne(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): boolean {
-  if (!error || table !== 'chantiers_btp' || !('membres_ids' in ligne)) return false
-  return (error.code === 'PGRST204' || error.code === '42703') && (error.message ?? '').includes('membres_ids')
+const COLONNES_RECENTES_CHANTIER: Readonly<Record<string, string>> = {
+  membres_ids: 'chantier enregistré sans ses employés (migration 20261116 à appliquer)',
+  alerte_meteo: 'chantier enregistré sans son alerte météo (migration 20261126b à appliquer)',
+}
+
+/** Colonne récente absente de la base que nomme l'erreur, si la ligne la porte ; sinon null. */
+function colonneRecenteAbsente(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): string | null {
+  if (!error || table !== 'chantiers_btp' || (error.code !== 'PGRST204' && error.code !== '42703')) return null
+  const message = error.message ?? ''
+  return Object.keys(COLONNES_RECENTES_CHANTIER).find(col => col in ligne && message.includes(col)) ?? null
+}
+
+/** Case « Alerte météo » cochée alors que la colonne manque : toute l'écriture est refusée, plutôt que perdue en silence. */
+const MESSAGE_ALERTE_METEO_EN_ATTENTE = 'Chantier non enregistré : l’alerte météo attend une mise à jour de la base. Décochez-la pour '
+  + 'enregistrer le reste, ou réessayez plus tard. — Obra não guardada: o alerta meteorológico aguarda uma atualização da '
+  + 'base de dados. Desmarque-o para guardar o resto, ou tente mais tarde.'
+
+/**
+ * Rejoue l'écriture sans chaque colonne récente absente de la base (une à la fois, deux au plus). Exception : une
+ * alerte météo demandée (case cochée) n'est jamais retirée en silence, l'écriture est refusée (409) et la fiche reste
+ * ouverte ; décochée, elle vaut la valeur par défaut de la colonne et peut être retirée.
+ */
+async function ecrireSansColonnesAbsentes<R extends { error: ErreurBase | null }>(
+  table: TableEcrivable, ligne: Ligne, ecrire: () => PromiseLike<R>,
+): Promise<R> {
+  let resultat = await ecrire()
+  for (let essai = 0; essai < Object.keys(COLONNES_RECENTES_CHANTIER).length; essai++) {
+    const absente = colonneRecenteAbsente(table, ligne, resultat.error)
+    if (!absente) break
+    if (absente === 'alerte_meteo' && ligne.alerte_meteo === true) {
+      throw new ErreurEcriture(resultat.error as ErreurBase, MESSAGE_ALERTE_METEO_EN_ATTENTE, 409)
+    }
+    logger.warn(`[btp] chantiers_btp.${absente} absente : ${COLONNES_RECENTES_CHANTIER[absente]}`)
+    delete ligne[absente]
+    resultat = await ecrire()
+  }
+  return resultat
 }
 
 async function creer(userId: string, table: TableEcrivable, donnees: unknown): Promise<NextResponse> {
@@ -446,12 +492,7 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
   if (etrangeres.length > 0) return refus(`Enregistrement refusé : ${messageReferences(etrangeres)}.`)
 
   const inserer = () => supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
-  let { data: inseree, error } = await inserer()
-  if (affectationSansColonne(table, ligne, error)) {
-    logger.warn('[btp] chantiers_btp.membres_ids absente : chantier créé sans ses employés (migration 20261116 à appliquer)')
-    delete ligne.membres_ids
-    ;({ data: inseree, error } = await inserer())
-  }
+  const { data: inseree, error } = await ecrireSansColonnesAbsentes(table, ligne, inserer)
   if (error) throw new ErreurEcriture(error)
   if (membres && membres.length > 0) await lierMembresDeLaNouvelleEquipe(userId, inseree.id, membres)
   return NextResponse.json({ row: inseree }, { status: 201 })
@@ -506,12 +547,7 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   const ecrire = () => Object.keys(ligne).length === 0
     ? supabaseAdmin.from(table).select().eq('id', id).eq('owner_id', userId).single()
     : supabaseAdmin.from(table).update(ligne).eq('id', id).eq('owner_id', userId).select().single()
-  let { data: modifiee, error } = await ecrire()
-  if (affectationSansColonne(table, ligne, error)) {
-    logger.warn('[btp] chantiers_btp.membres_ids absente : chantier modifié sans ses employés (migration 20261116 à appliquer)')
-    delete ligne.membres_ids
-    ;({ data: modifiee, error } = await ecrire())
-  }
+  const { data: modifiee, error } = await ecrireSansColonnesAbsentes(table, ligne, ecrire)
   if (error) throw new ErreurEcriture(error)
 
   if (membres !== undefined) await mettreAJourMembres(id, membres)
@@ -669,7 +705,7 @@ function reponseEchecEcriture(err: unknown, table: TableEcrivable, action: strin
   const erreurBase = err instanceof ErreurEcriture ? err.erreurBase : null
   logger.error(`[btp] POST ${table} ${action} error`, { code: erreurBase?.code, error: detailPourLeJournal(err, erreurBase) })
   if (err instanceof ErreurEcriture && err.messageUtilisateur) {
-    return NextResponse.json({ error: err.messageUtilisateur }, { status: 500 })
+    return NextResponse.json({ error: err.messageUtilisateur }, { status: err.statut })
   }
   const { status, message } = traduireErreurBase(erreurBase, action, table)
   return NextResponse.json({ error: message }, { status })

@@ -492,15 +492,17 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
     expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Mon profil', 'Aide']))
   })
 
-  it('en portugais aussi, sans le dictionnaire de matériaux', async () => {
+  // Le dictionnaire de matériaux, ouvert à tous les employés le 26/11/2026, n'existe qu'au Portugal
+  // (lib/dictionnaire-materiaux/disponibilite.ts) : au menu en portugais seulement, et c'est voulu.
+  it('en portugais, avec le dictionnaire de matériaux', async () => {
     await monter({ isPt: true, isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
-    expect(new Set(modulesAffiches())).toEqual(new Set(['Registo de horas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Registo de horas', 'Obras', 'Meteorologia', 'Dicionário de materiais', 'O meu perfil', 'Ajuda']))
   })
 
   it('un encarregado voit en plus « Ferramentas e viaturas », juste sous le registo de horas', async () => {
     await monter({ isPt: true, isProGerant: false, proCanAccess: chefDeChantier, salarieDeTerrain: true })
     const affiches = modulesAffiches()
-    expect(new Set(affiches)).toEqual(new Set(['Registo de horas', 'Ferramentas e viaturas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
+    expect(new Set(affiches)).toEqual(new Set(['Registo de horas', 'Ferramentas e viaturas', 'Obras', 'Meteorologia', 'Dicionário de materiais', 'O meu perfil', 'Ajuda']))
     expect(affiches.indexOf('Ferramentas e viaturas')).toBe(affiches.indexOf('Registo de horas') + 1)
   })
 
@@ -538,15 +540,15 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
   })
 
   // Le gérant peut rouvrir un module à un employé (Gestion des comptes → Modifier) : il apparaît alors au menu.
-  // Le dictionnaire de matériaux n'existe que dans les pays qui en ont un, c'est-à-dire le Portugal
-  // (lib/dictionnaire-materiaux/disponibilite.ts) : en français il n'est pas au menu, et c'est voulu.
-  it('un module rouvert par le gérant apparaît : le dictionnaire, en portugais seulement', async () => {
-    const avecDictionnaire = (id: string) => salarieDeTerrain(id) || id === 'dictionnaire_materiaux'
-    const francais = await monter({ isProGerant: false, proCanAccess: avecDictionnaire, salarieDeTerrain: true })
+  it('un module rouvert par le gérant apparaît : les photos de chantier', async () => {
+    const avecPhotos = (id: string) => salarieDeTerrain(id) || id === 'photos_chantier'
+    await monter({ isProGerant: false, proCanAccess: avecPhotos, salarieDeTerrain: true })
+    expect(modulesAffiches()).toContain('Photos Chantier')
+  })
+
+  it('le dictionnaire de matériaux n’est pas au menu en français, même accordé', async () => {
+    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
     expect(modulesAffiches()).not.toContain('Dictionnaire matériaux')
-    francais.demonter()
-    await monter({ isPt: true, isProGerant: false, proCanAccess: avecDictionnaire, salarieDeTerrain: true })
-    expect(modulesAffiches()).toContain('Dicionário de materiais')
   })
 
   it('le gérant garde le menu complet, quelles que soient les permissions lues', async () => {

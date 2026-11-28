@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, getUserRole, isProGerant, resolveCompanyId, societeDunAutreCompte } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isProGerant, societeDunAutreCompte } from '@/lib/auth-helpers'
+import { resoudreSocieteDuCompte } from '@/lib/btp/perimetre-compte'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import {
@@ -61,7 +62,7 @@ import { ecritDe } from '@/lib/btp/pointage-rejeu'
 // gardée dans created_at) : changer le fuseau du téléphone ne change pas une durée. Un départ oublié un jour précédent
 // est refermé sans heures, « à régulariser » par le gérant. Le mode automatique est refusé tant que le gérant ne l'a pas
 // activé (pointage_reglages_btp, migration 20261116).
-// Toutes les écritures visent la société résolue côté serveur (resolveCompanyId), jamais une société désignée par
+// Toutes les écritures visent la société résolue côté serveur (resoudreSocieteDuCompte), jamais une société désignée par
 // le client. Aucun pointage existant n'est réécrit, sauf la clôture des pointages ouverts de l'employé lui-même.
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -91,15 +92,20 @@ const refus = (status: number, error: string) => NextResponse.json({ error }, { 
 /**
  * Société du compte (gérant : lui-même ; sous-compte actif : sa société), ses employés, chantiers en cours, équipes
  * et l'interrupteur du pointage automatique. null pour un compte qui n'est pas une société BTP.
+ * `panneToleree` : une ligne d'équipe illisible est traitée comme avant le 27/11/2026, comme une ligne absente, au lieu
+ * de lever une erreur. Seul « Couper » le demande.
  */
-async function lireContexte(user: User): Promise<Contexte | null> {
+async function lireContexte(user: User, panneToleree = false): Promise<Contexte | null> {
   const role = getUserRole(user)
   if (role !== 'pro_societe' && role !== 'super_admin') return null
-  const societeId = await resolveCompanyId(user, supabaseAdmin)
-  if (!societeId) return null
-  // Co-gérant rattaché à une autre société sans ligne d'équipe active (désactivé) : resolveCompanyId retombe sur
-  // lui ; il n'a pas de société à son nom, et il y aurait écrit des réglages de pointage (25/11/2026). Un salarié
-  // désactivé garde sa réponse vide d'avant (aucune donnée de la société).
+  const resolution = await resoudreSocieteDuCompte(user, supabaseAdmin)
+  // Ligne d'équipe illisible (panne) : erreur à réessayer. Le salarié recevait « compte non relié à une fiche
+  // employé », sur l'écran où s'ouvre son appli (signalement du 27/11/2026).
+  if (resolution.etat === 'illisible' && !panneToleree) throw new Error('ligne d’équipe du compte illisible')
+  const societeId = resolution.etat === 'resolue' ? resolution.societeId : user.id
+  // Co-gérant rattaché à une autre société sans ligne d'équipe active (désactivé) : la résolution retombe sur lui ; il
+  // n'a pas de société à son nom, et il y aurait écrit des réglages de pointage (25/11/2026). Un salarié désactivé
+  // garde sa réponse vide d'avant (aucune donnée de la société).
   if (isProGerant(user) && societeDunAutreCompte(user) && societeId === user.id) return null
   const donnees = await lireDonneesSociete(societeId)
   return { ...donnees, gerant: isProGerant(user), resolution: membreDuCompte(donnees.membres, user.email) }
@@ -329,7 +335,8 @@ export async function POST(request: NextRequest) {
   const corps = lu.data
 
   try {
-    const ctx = await lireContexte(user)
+    // « Couper » tolère une ligne d'équipe illisible, comme avant le 27/11/2026 : il ne touche que ce téléphone-là.
+    const ctx = await lireContexte(user, corps.action === 'appareil_retirer')
     if (!ctx) return refus(403, 'Accès réservé aux sociétés BTP')
     if (corps.action === 'reglage_auto') return await reglerPointageAuto(ctx, user, corps.actif, corps.confirmation)
     // Couper le pointage en arrière-plan reste possible même sans fiche employé reliée (compte détaché entre-temps) ;

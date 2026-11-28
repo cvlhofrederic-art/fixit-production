@@ -391,8 +391,11 @@ export function enregistrerPolice(pdf: Pdf, octets: OctetsPolice | null, avertir
   }
 }
 
-/** Photo du chantier en JPEG (navigateur seulement) ; null si elle ne se charge pas en 20 s. */
-export async function chargerImageJpeg(url: string, avertir: Avertir): Promise<{ donnees: string; largeur: number; hauteur: number } | null> {
+/**
+ * Photo du chantier en JPEG (navigateur seulement) ; null si elle ne se charge pas en 20 s. `recadrage` (largeur sur
+ * hauteur) : photo recadrée au centre à ce rapport, comme object-fit: cover ; sans lui, la photo entière.
+ */
+export async function chargerImageJpeg(url: string, avertir: Avertir, recadrage?: number): Promise<{ donnees: string; largeur: number; hauteur: number } | null> {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return null
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -403,14 +406,23 @@ export async function chargerImageJpeg(url: string, avertir: Avertir): Promise<{
       img.onerror = () => { clearTimeout(minuterie); reject(new Error('image illisible')) }
       img.src = url
     })
-    const echelle = Math.min(1, 2000 / Math.max(image.width, image.height, 1))
+    // Zone source : l'image entière, ou sa partie centrale au rapport demandé.
+    let sl = image.width
+    let sh = image.height
+    if (recadrage && recadrage > 0 && sl > 0 && sh > 0) {
+      if (sl / sh > recadrage) sl = sh * recadrage
+      else sh = sl / recadrage
+    }
+    const sx = (image.width - sl) / 2
+    const sy = (image.height - sh) / 2
+    const echelle = Math.min(1, 2000 / Math.max(sl, sh, 1))
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(image.width * echelle))
-    canvas.height = Math.max(1, Math.round(image.height * echelle))
+    canvas.width = Math.max(1, Math.round(sl * echelle))
+    canvas.height = Math.max(1, Math.round(sh * echelle))
     const contexte = canvas.getContext('2d')
     if (!contexte) return null
     fondBlancAvantJpeg(contexte, canvas.width, canvas.height)
-    contexte.drawImage(image, 0, 0, canvas.width, canvas.height)
+    contexte.drawImage(image, sx, sy, sl, sh, 0, 0, canvas.width, canvas.height)
     return { donnees: canvas.toDataURL('image/jpeg', 0.9), largeur: canvas.width, hauteur: canvas.height }
   } catch (erreur) {
     avertir('photo non chargée', erreur)
