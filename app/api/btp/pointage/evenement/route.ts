@@ -212,8 +212,11 @@ async function contexteDuTelephone(appareil: Ligne, maintenant: number): Promise
 }
 
 /** Chantier en cours affecté à l'employé et localisé ; sinon la raison d'ignorer l'arrivée. */
-function chantierPointable(ctx: Contexte, chantierId: string): ChantierBtp | string {
-  const chantier = chantiersAffectes(ctx.membre, ctx.donnees.chantiersEnCours, ctx.donnees.equipes).find(c => c.id === chantierId)
+function chantierPointable(ctx: Contexte, chantierId: string, instant: number): ChantierBtp | string {
+  // Jour de l'ARRIVÉE (heure murale du téléphone), pas de la réception : une entrée à 23 h 50 reçue après minuit
+  // compte pour la veille, où le renfort était inscrit.
+  const jour = heureLocale(instant, ctx.fuseau).date
+  const chantier = chantiersAffectes(ctx.membre, ctx.donnees.chantiersEnCours, ctx.donnees.equipes, jour).find(c => c.id === chantierId)
   if (!chantier) return 'chantier_non_affecte'
   if (chantierPourTelephone(chantier).latitude === null) return 'chantier_sans_position'
   return chantier
@@ -447,7 +450,7 @@ async function traiter(appareil: Ligne, evenement: EvenementZone, instant: numbe
   if (typeof ctx === 'string') return ctx
   let nom: string | null = null
   if (evenement.transition === 'enter') {
-    const chantier = chantierPointable(ctx, evenement.identifier)
+    const chantier = chantierPointable(ctx, evenement.identifier, instant)
     if (typeof chantier === 'string') return chantier
     nom = typeof chantier.titre === 'string' ? chantier.titre : null
   }

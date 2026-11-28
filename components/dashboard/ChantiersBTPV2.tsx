@@ -16,6 +16,18 @@ import type { Artisan } from '@/lib/types'
 import { estSousCompteSociete } from '@/lib/documents/identite-documents'
 import { lierDevisAuChantierSociete, lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
 import { messageRefusDocuments } from '@/lib/documents/messages-refus'
+import {
+  equipeDuJour, figerJoursPasses, joursEntre, lireEquipeParJour, periodeTronquee, simplifierEquipeParJour, type EquipeParJour,
+} from '@/lib/btp/equipe-par-jour'
+import { jourLocal } from '@/lib/btp/accueil'
+import {
+  TAUX_MATERIAUX_ESTIME_PCT, compositionDuJour, dateFinProlongee, debutPointagesFiables, depensesDeLObra, lirePointages,
+  nomsDesPointes, pointagesParJour, rentabiliteObra, totalAutresDepensesHT, totalMateriauxHT, type DepenseObra,
+} from '@/lib/btp/rentabilite-obra'
+import { jourOuvreDans, nomFerie, paysDuCodePostal, type PaysObra } from '@/lib/btp/jours-feries'
+import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
+import { EquipeParJourEditeur } from '@/components/dashboard/btp/EquipeParJourEditeur'
+import { DepensesObraEditeur } from '@/components/dashboard/btp/DepensesObraEditeur'
 import { toast } from 'sonner'
 import {
   PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
@@ -38,6 +50,8 @@ interface ChantierForm {
   membres_ids?: string[]
   /** Chantier exposé aux intempéries : alerte météo de la veille aux salariés affectés (26/11/2026). */
   alerteMeteo: boolean
+  /** Jours où l'équipe diffère de l'équipe habituelle (28/11/2026, lib/btp/equipe-par-jour.ts). */
+  equipe_par_jour?: EquipeParJour
 }
 
 const EMPTY_FORM: ChantierForm = {
@@ -45,7 +59,20 @@ const EMPTY_FORM: ChantierForm = {
   dateDebut: '', dateFin: '',
   budget: '', statut: 'En attente', description: '', equipe: '',
   latitude: null, longitude: null, geoRayonM: 100,
-  devis_id: null, membres_ids: [], alerteMeteo: false,
+  devis_id: null, membres_ids: [], alerteMeteo: false, equipe_par_jour: {},
+}
+
+/** « AAAA-MM-JJ » du jour, dans le fuseau du navigateur (celui du gérant). */
+const aujourdhuiLocal = () => jourLocal(new Date())
+
+/**
+ * Période proposée dans « Équipe par jour » : de la date de début à la date de fin ; pour une obra en cours dont la fin
+ * est dépassée, jusqu'à aujourd'hui (les jours de retard ont aussi une équipe).
+ */
+function periodeDeLaFiche(f: Pick<ChantierForm, 'dateDebut' | 'dateFin' | 'statut'>): { debut: string; fin: string } {
+  const aujourdhui = aujourdhuiLocal()
+  const fin = f.statut === 'En cours' && f.dateFin && aujourdhui > f.dateFin ? aujourdhui : f.dateFin
+  return { debut: f.dateDebut, fin }
 }
 
 /**
@@ -71,6 +98,10 @@ const COLONNES_DEVIS_IMPORT = 'id, numero, client_name, total_ht_cents, items, c
 interface MembreSummary {
   id: string; prenom: string; nom: string; role: string
   daily_cost: number; actif: boolean
+  /** Coût horaire chargé (moteur de paie), pour les heures pointées. */
+  cout_heure: number
+  /** Indemnités d'une journée (panier, trajet), hors coût horaire : ajoutées une fois par jour pointé. */
+  indemnite_jour: number
 }
 
 type DocLie = { id: string; type: 'devis' | 'facture'; numero: string; client_name: string; total_ht: number | null; status: string }
@@ -183,7 +214,14 @@ function sousTitreChantiers(actifs: number, isPt: boolean, lectureSeule: boolean
  * client ni montant — sans aucun bouton de création, de modification, de statut, de suppression ni de liaison de
  * devis : le serveur les lui refuserait tous (403).
  */
-export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { artisan: Artisan; orgRole?: string; lectureSeule?: boolean }) {
+export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false, gestionMateriaux = !lectureSeule }: {
+  artisan: Artisan; orgRole?: string; lectureSeule?: boolean
+  /**
+   * Saisie des achats de matériaux dans la fiche (28/11/2026). Ils s'enregistrent comme dépenses de l'obra, qui relèvent
+   * du module Comptabilité BTP (lib/btp/perimetre-compte.ts) : le tableau de bord passe le droit d'écriture sur ce module.
+   */
+  gestionMateriaux?: boolean
+}) {
   const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -216,6 +254,21 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
     userId: artisan?.user_id || '',
   })
   const { settings } = useBTPSettings()
+  // Achats de matériaux des obras (dépenses de catégorie « materiaux », montants hors IVA). Pas de reprise des anciennes
+  // dépenses du navigateur depuis cet écran : l'accueil s'en charge déjà.
+  const { items: depenses, add: ajouterDepense, remove: retirerDepense } = useBTPData<DepenseObra>({
+    table: 'depenses',
+    artisanId: artisan?.id || '',
+    userId: artisan?.user_id || '',
+    autoImport: false,
+  })
+  // Pointages de la société (les plus récents) : un jour passé pointé sur une obra compte ses heures réelles.
+  const { items: pointages } = useBTPData<Record<string, unknown>>({
+    table: 'pointages',
+    artisanId: artisan?.id || '',
+    userId: artisan?.user_id || '',
+    autoImport: false,
+  })
 
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
@@ -231,6 +284,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   // Devis + Membres pour l'import
   const [devisList, setDevisList] = useState<DevisSummary[]>([])
   const [membresList, setMembresList] = useState<MembreSummary[]>([])
+  /** Tous les employés, anciens compris : un ancien employé a coûté les jours où il était sur l'obra. */
+  const [membresTous, setMembresTous] = useState<MembreSummary[]>([])
   const [loadingDevis, setLoadingDevis] = useState(false)
   /** Liste des devis ouverte sous « Adresse du chantier » (bouton « Importer depuis un devis »). */
   const [choixAdresseOuvert, setChoixAdresseOuvert] = useState(false)
@@ -278,7 +333,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       if (devisLus) setDevisList(devisLus)
       if (membresRes.ok) {
         const j = await membresRes.json()
-        const membres = (j.membres || []).filter((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; daily_cost?: number }) => m.actif !== false)
+        // Tous les employés (le coût d'un ancien employé compte encore les jours où il était là) ; seuls les actifs se choisissent.
+        const membres = j.membres || []
         // Calculer le coût journalier via payroll engine
         const { calculateEmployeeCost } = await import('@/lib/payroll/engine')
         const country = (settings.country || 'FR') as 'FR' | 'PT'
@@ -286,6 +342,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
         const mapped: MembreSummary[] = membres.map((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; poste?: string; salaire_net_mensuel?: number; salaire_net?: number; heures_hebdo?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number; prime_mensuelle?: number; charges_salariales_pct?: number; charges_patronales_pct?: number; cout_horaire?: number; id: string }) => {
           const netSalary = m.salaire_net_mensuel || m.salaire_net || 0
           let dailyCost = 0
+          let coutHeure = 0
+          let indemniteJour = 0
           if (netSalary > 0) {
             const b = calculateEmployeeCost({
               country, company_type: companyType, net_salary: netSalary,
@@ -299,19 +357,25 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
               },
             })
             dailyCost = b.cost_per_day
+            coutHeure = b.cost_per_hour
+            indemniteJour = b.indemnites_jour
           } else {
             const ch = m.cout_horaire || settings.cout_horaire_ouvrier || 15
             const cp = (m.charges_patronales_pct || settings.charges_patronales_pct || 45) / 100
             dailyCost = ch * (1 + cp) * 7
+            coutHeure = ch * (1 + cp)
           }
           return {
             id: m.id, prenom: m.prenom || '', nom: m.nom || '',
             role: m.role || m.poste || 'Ouvrier',
             daily_cost: Math.round(dailyCost * 100) / 100,
+            cout_heure: Math.round(coutHeure * 100) / 100,
+            indemnite_jour: Math.round(indemniteJour * 100) / 100,
             actif: m.actif !== false,
           }
         })
-        setMembresList(mapped)
+        setMembresTous(mapped)
+        setMembresList(mapped.filter(m => m.actif))
       }
     } catch (e) { console.error('loadDevisAndMembres:', e) }
     setLoadingDevis(false)
@@ -479,6 +543,26 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
     void geocodeAdresse(form, garde)
   }
 
+  /** Employés de l'équipe habituelle qui ne sont plus actifs (désactivés ou supprimés) : affichés pour être retirés. */
+  const partisCoches = (f: ChantierForm): string[] => (f.membres_ids || []).filter(id => !membresList.some(m => m.id === id))
+
+  /**
+   * Coche ou décoche un employé de l'équipe habituelle. Sur une obra existante, les jours passés sans liste à eux
+   * gardent l'équipe d'avant (figerJoursPasses) : changer l'équipe ne réécrit pas qui était là ces jours-là. La route
+   * fait de même pour l'onglet Affectations du pointage.
+   */
+  const basculerHabituel = (id: string) => {
+    const ids = form.membres_ids || []
+    const nouveaux = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+    const equipeParJour = editId
+      ? figerJoursPasses({
+        debut: form.dateDebut, aujourdhui: aujourdhuiLocal(), ancienneEquipe: ids, nouvelleEquipe: nouveaux,
+        equipeParJour: form.equipe_par_jour ?? {}, ouvre: jourOuvreDans(paysObra(form.codePostal)),
+      })
+      : form.equipe_par_jour ?? {}
+    setForm({ ...form, membres_ids: nouveaux, equipe_par_jour: equipeParJour })
+  }
+
   // ── Save ──
   const handleSave = async () => {
     if (!form.titre.trim()) return
@@ -490,6 +574,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       if (!window.confirm(questionRetirerPosition(form.titre, isPt))) return
       fiche = { ...form, ...SANS_POSITION }
     }
+    // Seuls les jours qui diffèrent de l'équipe habituelle s'enregistrent (une retouche redevenue identique disparaît).
+    fiche = { ...fiche, equipe_par_jour: simplifierEquipeParJour(fiche.equipe_par_jour ?? {}, fiche.membres_ids ?? [], aujourdhuiLocal(), jourOuvreDans(paysObra(fiche.codePostal))) }
     setSaving(true)
     // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
     let enregistre: boolean
@@ -518,6 +604,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       latitude: c.latitude, longitude: c.longitude, geoRayonM: c.geoRayonM || 100,
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
       alerteMeteo: c.alerteMeteo === true,
+      // Sous la forme où l'enregistrement la renvoie : rouvrir puis enregistrer sans rien toucher n'envoie rien.
+      equipe_par_jour: simplifierEquipeParJour(lireEquipeParJour(c.equipe_par_jour), c.membres_ids || [], aujourdhuiLocal(), jourOuvreDans(paysObra(c.codePostal))),
     }
     ficheOuverteRef.current = fiche
     setForm(fiche)
@@ -539,81 +627,67 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   const handleProlong = async () => {
     if (!prolongModal) return
     const c = prolongModal.chantier
-    const newEnd = new Date(c.dateFin)
-    newEnd.setDate(newEnd.getDate() + prolongDays)
     // Fenêtre gardée si la prolongation n'est pas enregistrée (le hook en affiche la raison).
-    if (await update(c.id, { dateFin: newEnd.toISOString().split('T')[0] } as any)) setProlongModal(null)
+    if (await update(c.id, { dateFin: dateFinProlongee(c.dateFin, prolongDays, aujourdhuiLocal()) } as any)) setProlongModal(null)
   }
 
-  // ── Rentabilité par chantier ──
-  const getRenta = useCallback((c: ChantierForm & { id: string; statut?: string }) => {
-    const budget = Number(c.budget) || 0
-    if (!budget || !c.dateDebut || !c.dateFin) return null
-
-    const d0 = new Date(c.dateDebut)
-    const d1 = new Date(c.dateFin)
-    const now = new Date()
-    const joursPrevu = Math.max(1, Math.ceil((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)))
-
-    // Jours écoulés (si en cours)
-    const joursEcoules = c.statut === 'En cours'
-      ? Math.max(0, Math.ceil((now.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)))
-      : c.statut === 'Terminé' ? joursPrevu : 0
-
-    // Coût MO par jour (employés assignés ou moyenne)
-    const membresIds: string[] = c.membres_ids || []
-    const membresAssignes = membresIds.length > 0
-      ? membresList.filter(m => membresIds.includes(m.id))
-      : []
-    const nbEmployes = membresAssignes.length || Number(c.equipe) || 1
-    const coutMOJour = membresAssignes.length > 0
-      ? membresAssignes.reduce((s, m) => s + m.daily_cost, 0)
-      : nbEmployes * (settings.cout_horaire_ouvrier || 15) * (1 + (settings.charges_patronales_pct || 45) / 100) * 7
-
-    const marginPct = settings.objectif_marge_pct || 30
-    const materiauxPct = 15 // 15% du budget pour matériaux
-    const coutMateriaux = budget * materiauxPct / 100
-    const coutMOTotal = coutMOJour * joursPrevu
-    const coutTotal = coutMOTotal + coutMateriaux
-    const beneficePrevu = budget - coutTotal
-    const margePrevu = budget > 0 ? (beneficePrevu / budget) * 100 : 0
-
-    // Retard
-    const enRetard = c.statut === 'En cours' && joursEcoules > joursPrevu
-    const joursRetard = enRetard ? joursEcoules - joursPrevu : 0
-    const perteParJourRetard = coutMOJour
-    const perteRetardTotal = joursRetard * perteParJourRetard
-    const beneficeActuel = beneficePrevu - perteRetardTotal
-
-    // Status
-    const status: 'profit' | 'warning' | 'loss' =
-      beneficeActuel > 0 && margePrevu >= 25 ? 'profit'
-        : beneficeActuel > 0 ? 'warning'
-          : 'loss'
-
-    // Fin prévue dépassée ?
-    const finDepassee = c.statut === 'En cours' && now > d1
-
-    return {
-      budget,
-      joursPrevu,
-      joursEcoules,
-      nbEmployes,
-      coutMOJour: Math.round(coutMOJour),
-      coutMOTotal: Math.round(coutMOTotal),
-      coutMateriaux: Math.round(coutMateriaux),
-      coutTotal: Math.round(coutTotal),
-      beneficePrevu: Math.round(beneficePrevu),
-      margePrevu: Math.round(margePrevu * 10) / 10,
-      enRetard,
-      joursRetard,
-      perteParJourRetard: Math.round(perteParJourRetard),
-      perteRetardTotal: Math.round(perteRetardTotal),
-      beneficeActuel: Math.round(beneficeActuel),
-      status,
-      finDepassee,
-    }
-  }, [membresList, settings])
+  // ── Rentabilité par chantier (hors IVA, équipe jour par jour, matériaux saisis : lib/btp/rentabilite-obra.ts) ──
+  const coutJourParMembre = useMemo(() => new Map(membresTous.map(m => [m.id.toLowerCase(), m.daily_cost])), [membresTous])
+  // Employés actifs, une fois les fiches chargées : un employé parti ne coûte plus rien à partir d'aujourd'hui.
+  const actifs = useMemo(
+    () => (membresTous.length > 0 ? new Set(membresList.map(m => m.id.toLowerCase())) : undefined),
+    [membresTous, membresList],
+  )
+  const coutHeureParMembre = useMemo(
+    () => new Map(membresTous.filter(m => m.cout_heure > 0).map(m => [m.id.toLowerCase(), m.cout_heure])),
+    [membresTous],
+  )
+  const indemniteJourParMembre = useMemo(
+    () => new Map(membresTous.filter(m => m.indemnite_jour > 0).map(m => [m.id.toLowerCase(), m.indemnite_jour])),
+    [membresTous],
+  )
+  /**
+   * Pays de l'obra : son code postal le dit (4050-262, 13008), sinon la langue de l'écran — le même signal que la route
+   * qui fige le passé pour l'onglet Affectations (cookie « locale »), pour que les deux appliquent les mêmes fériés.
+   */
+  const paysSociete: PaysObra = isPt ? 'PT' : 'FR'
+  const paysObra = useCallback((codePostal: unknown): PaysObra => paysDuCodePostal(codePostal) ?? paysSociete, [paysSociete])
+  // Pointages de la société : une liste coupée par le plafond de lecture n'est fiable qu'après son jour le plus ancien.
+  const pointagesLus = useMemo(() => lirePointages(pointages), [pointages])
+  const pointagesDepuis = useMemo(
+    () => debutPointagesFiables(pointagesLus, pointages.length >= PLAFONDS_LECTURE_BTP.pointages),
+    [pointagesLus, pointages.length],
+  )
+  const pointesSociete = useMemo(
+    () => pointagesParJour(pointagesLus, aujourdhuiLocal(), pointagesDepuis),
+    [pointagesLus, pointagesDepuis],
+  )
+  const pointesDeLObra = useCallback(
+    (chantierId: string) => pointagesParJour(pointagesLus.filter(p => p.chantierId === chantierId), aujourdhuiLocal(), pointagesDepuis),
+    [pointagesLus, pointagesDepuis],
+  )
+  /** Coût d'une journée d'ouvrier par défaut (réglages), celui de l'ancien calcul. */
+  const coutJourParDefaut = (settings.cout_horaire_ouvrier || 15) * (1 + (settings.charges_patronales_pct || 45) / 100) * 7
+  const getRenta = useCallback((c: ChantierForm & { id: string; statut?: string }, dateFin?: string) => rentabiliteObra({
+    valeurHT: Number(c.budget) || 0,
+    dateDebut: c.dateDebut,
+    dateFin: dateFin ?? c.dateFin,
+    statut: c.statut || '',
+    membresIds: c.membres_ids || [],
+    equipeParJour: lireEquipeParJour(c.equipe_par_jour),
+    coutJourParMembre,
+    coutJourParDefaut,
+    nbEmployesSansEquipe: Number(c.equipe) || 1,
+    materiauxHT: totalMateriauxHT(depenses, c.id),
+    autresDepensesHT: totalAutresDepensesHT(depenses, c.id),
+    pointesIci: pointesDeLObra(c.id),
+    pointesSociete,
+    coutHeureParMembre,
+    indemniteJourParMembre,
+    ouvre: jourOuvreDans(paysObra(c.codePostal)),
+    actifs,
+    aujourdhui: aujourdhuiLocal(),
+  }), [coutJourParMembre, coutHeureParMembre, indemniteJourParMembre, coutJourParDefaut, depenses, pointesDeLObra, pointesSociete, paysObra, actifs])
 
   // ── Charger membres au mount ──
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
@@ -972,23 +1046,31 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, color: renta.beneficeActuel >= 0 ? '#2E7D32' : '#C62828' }}>
                         {renta.status === 'profit' ? <CheckCircle2 size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : renta.status === 'warning' ? <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : <AlertCircle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />}
-                        {' '}{c.titre}: {renta.beneficeActuel >= 0 ? '+' : ''}{fmt(renta.beneficeActuel, dl)} €
+                        {' '}{c.titre}: {renta.beneficeActuel >= 0 ? '+' : ''}{fmt(renta.beneficeActuel, dl)} € {isPt ? 's/ IVA' : 'HT'}
                       </span>
                       <span style={{ color: '#666' }}>
-                        ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevu}%)
+                        ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevuePct.toLocaleString(dl)}{isPt ? '%' : ' %'})
                       </span>
+                      {/* Détail du calcul, tout hors IVA : valeur − matériaux − autres dépenses − main-d'œuvre. */}
                       <span style={{ color: '#666' }}>
-                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? ' dias' : 'j'}
+                        {isPt ? 'Valor' : 'Budget'} {fmt(renta.valeurHT, dl)} €
+                        {' · '}{isPt ? 'Materiais' : 'Matériaux'} {fmt(renta.materiauxHT, dl)} €
+                        {renta.materiauxEstimes && (isPt ? ` (estimativa ${TAUX_MATERIAUX_ESTIME_PCT}%)` : ` (estimation ${TAUX_MATERIAUX_ESTIME_PCT} %)`)}
+                        {renta.autresDepensesHT > 0 && <>{' · '}{isPt ? 'Outras despesas' : 'Autres dépenses'} {fmt(renta.autresDepensesHT, dl)} €</>}
+                        {' · '}{isPt ? 'Mão de obra' : 'Main-d’œuvre'} {fmt(renta.coutMOPrevu, dl)} € ({renta.joursTravailles} {isPt ? 'dias de trabalho' : 'jours travaillés'}
+                        {renta.joursPointes > 0 && (isPt ? `, dos quais ${renta.joursPointes} com registo de ponto` : `, dont ${renta.joursPointes} pointé${renta.joursPointes > 1 ? 's' : ''}`)}
+                        {renta.equipeEstimee && (isPt ? ', equipa estimada' : ', équipe estimée')}
+                        {renta.coutsParDefaut && (isPt ? ', custo por defeito' : ', coût par défaut')})
                       </span>
                     </div>
 
                     {renta.enRetard && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600, color: '#C62828' }}>
-                          <Siren size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {renta.joursRetard}{isPt ? ' dias de atraso' : 'j retard'} = -{fmt(renta.perteRetardTotal, dl)} €
+                          <Siren size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {renta.joursRetard}{isPt ? ' dias de atraso' : 'j retard'} = -{fmt(renta.coutRetard, dl)} €
                         </span>
                         <span style={{ color: '#E53935' }}>
-                          (-{fmt(renta.perteParJourRetard, dl)} €/{isPt ? 'dia' : 'jour'})
+                          (-{fmt(renta.coutJourEquipe, dl)} €/{isPt ? 'dia' : 'jour'})
                         </span>
                       </div>
                     )}
@@ -1013,13 +1095,10 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       {prolongModal && (() => {
         const c = prolongModal.chantier
         const renta = getRenta(c)
-        const newRenta = renta ? {
-          ...renta,
-          joursPrevu: renta.joursPrevu + prolongDays,
-          coutMOTotal: renta.coutMOJour * (renta.joursPrevu + prolongDays),
-          coutTotal: renta.coutMOJour * (renta.joursPrevu + prolongDays) + renta.coutMateriaux,
-          beneficePrevu: renta.budget - (renta.coutMOJour * (renta.joursPrevu + prolongDays) + renta.coutMateriaux),
-        } : null
+        // Même calcul avec la date de fin repoussée : l'équipe des jours ajoutés est celle de chaque jour (habituelle en
+        // semaine, retouches comprises), et la main-d'œuvre compte les jours de retard déjà écoulés.
+        const newRenta = renta ? getRenta(c, dateFinProlongee(c.dateFin, prolongDays, aujourdhuiLocal())) : null
+        const coutMO = (r: NonNullable<typeof renta>) => r.coutMOPrevu + r.coutRetard
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480 }}>
@@ -1031,7 +1110,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', fontSize: 13 }}>
-                  <strong>{c.titre}</strong>{isPt ? ' · ' : ' — '}{isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
+                  <strong>{c.titre}</strong>{isPt ? ' · ' : ' — '}{isPt ? 'Previsto' : 'Prévu'}: {renta?.joursCalendrier}{isPt ? ' dias' : ' jours'}
                 </div>
 
                 {/* Option 1: Clôturer */}
@@ -1063,16 +1142,16 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                     <div className={isV5 ? "v5-fr" : "v22-form-row"} style={{ marginTop: 10, padding: 10, background: '#fff', borderRadius: 6 }}>
                       <div>
                         <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Novo custo M.O.' : 'Nouveau coût M.O.'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#C62828' }}>{fmt(newRenta.coutMOTotal, dl)} €</div>
-                        <div style={{ fontSize: 10, color: '#C62828' }}>+{fmt(newRenta.coutMOTotal - renta.coutMOTotal, dl)} €</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#C62828' }}>{fmt(coutMO(newRenta), dl)} €</div>
+                        <div style={{ fontSize: 10, color: '#C62828' }}>+{fmt(coutMO(newRenta) - coutMO(renta), dl)} €</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Nova rentabilidade' : 'Nouvelle rentabilité'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: newRenta.beneficePrevu >= 0 ? '#2E7D32' : '#C62828' }}>
-                          {newRenta.beneficePrevu >= 0 ? '+' : ''}{fmt(newRenta.beneficePrevu, dl)} €
+                        <div style={{ fontSize: 14, fontWeight: 600, color: newRenta.beneficeActuel >= 0 ? '#2E7D32' : '#C62828' }}>
+                          {newRenta.beneficeActuel >= 0 ? '+' : ''}{fmt(newRenta.beneficeActuel, dl)} € {isPt ? 's/ IVA' : 'HT'}
                         </div>
-                        <div style={{ fontSize: 10, color: newRenta.beneficePrevu < renta.beneficePrevu ? '#C62828' : '#999' }}>
-                          {fmt(newRenta.beneficePrevu - renta.beneficePrevu, dl)} €
+                        <div style={{ fontSize: 10, color: newRenta.beneficeActuel < renta.beneficeActuel ? '#C62828' : '#999' }}>
+                          {fmt(newRenta.beneficeActuel - renta.beneficeActuel, dl)} €
                         </div>
                       </div>
                     </div>
@@ -1269,7 +1348,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
               {/* ── Équipe / Employés assignés ── */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Colaboradores atribuídos' : 'Employés assignés'}</label>
-                {membresList.length === 0 ? (
+                {membresList.length === 0 && partisCoches(form).length === 0 ? (
                   <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Nenhum colaborador. Adicione-os em "Equipas".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
                   </div>
@@ -1283,14 +1362,26 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                           background: selected ? '#E8F5E9' : '#fff', border: `1px solid ${selected ? '#81C784' : '#E0E0E0'}`,
                           fontSize: 12,
                         }}>
-                          <input type="checkbox" checked={selected}
-                            onChange={() => {
-                              const ids = form.membres_ids || []
-                              setForm({ ...form, membres_ids: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] })
-                            }} />
+                          <input type="checkbox" checked={selected} onChange={() => basculerHabituel(m.id)} />
                           <span style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</span>
                           <span style={{ color: '#999' }}>{isPt ? ROLE_PT[m.role] ?? m.role : m.role}</span>
                           <span style={{ color: '#C62828', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
+                        </label>
+                      )
+                    })}
+                    {/* Employé désactivé ou supprimé resté dans l'équipe : visible pour pouvoir le retirer (il ne compte plus
+                        à partir d'aujourd'hui ; ses jours passés restent). */}
+                    {partisCoches(form).map(id => {
+                      const ancien = membresTous.find(m => m.id === id)
+                      return (
+                        <label key={id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 4, cursor: 'pointer',
+                          background: '#FAFAFA', border: '1px dashed #BDBDBD', fontSize: 12, color: '#777',
+                        }}>
+                          <input type="checkbox" checked onChange={() => basculerHabituel(id)} />
+                          <span style={{ fontWeight: 600 }}>{ancien ? `${ancien.prenom} ${ancien.nom}` : (isPt ? 'Colaborador removido' : 'Employé supprimé')}</span>
+                          <span>{ancien ? (isPt ? 'inativo' : 'inactif') : ''}</span>
+                          <span style={{ marginLeft: 'auto', fontSize: 11 }}>{isPt ? 'desmarque para o retirar' : 'décochez pour le retirer'}</span>
                         </label>
                       )
                     })}
@@ -1303,6 +1394,44 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                   </div>
                 )}
               </div>
+
+              {/* ── Équipe jour par jour (28/11/2026) : l'équipe habituelle ci-dessus, retouchée un jour donné ── */}
+              {(() => {
+                const { debut, fin } = periodeDeLaFiche(form)
+                const pays = paysObra(form.codePostal)
+                const ouvre = jourOuvreDans(pays)
+                // Jours passés pointés sur l'obra ouverte : pointés à leurs heures, prévus sans pointage (même règle que le calcul).
+                const compositions = new Map([...(editId ? pointesDeLObra(editId) : new Map<string, Map<string, number | null>>())]
+                  .map(([jour, ici]) => [jour, compositionDuJour(
+                    equipeDuJour(jour, form.membres_ids || [], form.equipe_par_jour ?? {}, ouvre), ici, pointesSociete.get(jour),
+                  )]))
+                return (
+                  <EquipeParJourEditeur
+                    jours={joursEntre(debut, fin)} tronque={periodeTronquee(debut, fin)} aujourdhui={jourLocal(new Date())}
+                    ouvre={ouvre} ferie={jour => nomFerie(jour, pays, isPt)} compositions={compositions} noms={nomsDesPointes(pointagesLus)}
+                    membres={membresList} membresTous={membresTous}
+                    membresIds={form.membres_ids || []} equipeParJour={form.equipe_par_jour ?? {}}
+                    onChange={equipeParJour => setForm(f => ({ ...f, equipe_par_jour: equipeParJour }))}
+                    isPt={isPt} isV5={isV5} dl={dl}
+                  />
+                )
+              })()}
+
+              {/* ── Dépenses de l'obra, hors IVA (28/11/2026) : enregistrées tout de suite comme dépenses de l'obra ── */}
+              {gestionMateriaux && (editId ? (
+                <DepensesObraEditeur
+                  depenses={depensesDeLObra(depenses, editId)}
+                  onAjouter={async depense => (await ajouterDepense({ ...depense, chantierId: editId })) !== null}
+                  onRetirer={retirerDepense}
+                  isPt={isPt} isV5={isV5} dl={dl}
+                />
+              ) : (
+                <div className={isV5 ? "v5-fg" : "v22-form-group"} style={{ fontSize: 11, color: '#999' }}>
+                  {isPt
+                    ? 'Despesas da obra: crie a obra e depois abra-a para registar materiais e outras despesas (valores s/ IVA).'
+                    : 'Dépenses du chantier : créez le chantier, puis rouvrez-le pour saisir matériaux et autres dépenses (montants HT).'}
+                </div>
+              ))}
 
               {/* Alerte météo par notification (26/11/2026) : seulement pour un chantier exposé aux intempéries. Placée sous les
                   employés affectés, ceux qu'elle prévient. */}
