@@ -1,6 +1,6 @@
 // tests/api/aj-signalement-diffusion-fin-mission.test.ts
 //
-// AJ Signalement, PR 3, lot 8 — RELECTURE de la fin de mission prévue (décision H7 de Hugo du 11/11/2026, cahier § 3.5,
+// AJ Signalement, PR 3, lot 8 — RELECTURE de la fin de mission prévue (décision H7 du 11/11/2026, cahier § 3.5,
 // § 7.4) : la date écrite par la fiche de la copropriété (PATCH /coproprietes/[id], diffusionFinGestionLe, super admin)
 // n'était relue par aucune route. D-R1 (GET /coproprietes/[id]/diffusions/valeurs) la rend désormais (finMissionLe) :
 // la fiche de la copropriété la lit pour l'afficher, la fenêtre « Diffuser un message » pour la rappeler. Une date, et

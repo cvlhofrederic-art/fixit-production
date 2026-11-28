@@ -401,7 +401,7 @@ describe('confirmation au déclarant', () => {
   })
 })
 
-// ── Demandes de Hugo du 06/11/2026 : champs obligatoires, qualité, adresse proposée, même problème ──
+// ── Demandes du 06/11/2026 : champs obligatoires, qualité, adresse proposée, même problème ──
 
 type ChargeEmail = { to: string[]; html: string; tags?: Array<{ name: string; value: string }> }
 const emailAdmin = () => h.sendEmail.mock.calls.map((c) => c[0] as ChargeEmail).find((c) => c.tags?.[0]?.value === 'aj-signalement')
@@ -781,9 +781,9 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
   }
 
   const ENTETE = ['AJ SIGNALEMENT', 'Votre signalement est enregistré']
-  // R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric) : un signalement URGENT porte
+  // R70 du dossier téléphonie (14/11/2026, brouillon : textes du référent métier, présentation Frédéric) : un signalement URGENT porte
   // en tête la consigne d'appel aux secours (ni lien, ni bouton, aucune information sur l'immeuble) ; les autres
-  // priorités gardent l'accusé d'avant. Bloc ajouté : note juridique (droit § 5.4) à relire par Hugo.
+  // priorités gardent l'accusé d'avant. Bloc ajouté : note juridique (droit § 5.4) à relire par le référent métier.
   const CONSIGNE_112 = [
     'Danger immédiat ?',
     'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis à l’administrateur de la copropriété.',
@@ -893,7 +893,7 @@ describe('formulaire public : information à la collecte (cahier § 6, HF3)', ()
 })
 
 describe('logo du cabinet : accusé en pièce jointe en ligne, e-mails de signalement sans image (13/11/2026)', () => {
-  // Demande de Hugo du 13/11/2026. L'accusé part seul (sendEmail) : le logo y est une pièce jointe EN LIGNE (cid). Les
+  // Demande du 13/11/2026. L'accusé part seul (sendEmail) : le logo y est une pièce jointe EN LIGNE (cid). Les
   // e-mails aux destinataires partent en lot (sendBatchEmails), qui n'accepte aucune pièce jointe chez Resend : sans
   // logo, jamais d'image distante. Image synthétique.
   type Envoi = { html: string; tags?: Array<{ name: string; value: string }>; attachments?: Array<Record<string, unknown>> }

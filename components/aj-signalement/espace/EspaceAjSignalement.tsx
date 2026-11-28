@@ -2,7 +2,7 @@
 
 // ── Espace « AJ Signalement » (/fr/aj-signalement/) ───────────────────────────
 //
-// Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) : son
+// Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande du 10/11/2026) : son
 // adresse, son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/, 11/11/2026). La garde
 // (useAccesEspaceQr) passe avant tout : aucune donnée n'est chargée tant que le rôle n'est pas vérifié ; sans session
 // ou sans accès, renvoi vers la page de connexion de l'espace (message neutre là-bas pour un compte sans accès).
@@ -12,7 +12,7 @@
 // Le contenu (TableauSignalementsQr) reste monté d'une vue à l'autre : un seul chargement. Socle visuel du portail
 // copropriétaire (components/coproprietaire-dashboard/ui), comme les composants de components/aj-signalement/.
 // Pas de <main> ici : la coquille racine en pose déjà un (#main-content).
-// Depuis le 11/11/2026 (demandes de Hugo du 10/11) : vues Gestionnaires (liste, puis page profil à l'ancre
+// Depuis le 11/11/2026 (demandes du 10/11) : vues Gestionnaires (liste, puis page profil à l'ancre
 // #gestionnaire/<uuid>), Cabinets et Journal. Le tableau, chargé une fois par TableauSignalementsQr (caché hors de ses
 // trois vues), leur est partagé ; cabinets et fiches sont chargés une fois, à la première vue qui en a besoin.
 // PR 2, lot 4 : la même coquille sert l'espace de chaque cabinet (vitfix.io/<identifiant>/suivi/), avec le cabinet de la
@@ -26,13 +26,13 @@
 // démontée à chaque changement de vue) est portée ici, par la coquille, qui reste montée. Un changement de vue lui
 // demande de fermer, avec sa protection (saisie : « Abandonner ce message ? » ; envoi : aucune fermeture, la reprise
 // automatique continue), comme TableauSignalementsQr pour les fenêtres de ses cartes ; rien à protéger : fermée.
-// Correctif du 13/11/2026 (Hugo : « les listes ne se rafraîchissent pas » ; ≈ 2,4 s par appel en production) : le
+// Correctif du 13/11/2026 (Référent métier : « les listes ne se rafraîchissent pas » ; ≈ 2,4 s par appel en production) : le
 // rechargement demandé après une modification rend une promesse, tenue quand cabinets, fiches ET tableau sont à jour
 // (ou leur échec affiché) ; chaque action l'attend avant de fermer sa fenêtre et d'annoncer son succès. Relecture du
 // correctif : cette attente est bornée (attenteListesQr) ; une lecture sans réponse ne bloque plus l'action. Et un
 // tableau relu en échec est montré hors des vues du tableau (son encadré y est caché) : encadré d'erreur des vues
 // Cabinets et Gestionnaires, toast sur la page profil.
-// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : dans l'espace d'un cabinet, le logo
+// Logo du cabinet (demande du 13/11/2026, brouillon soumis à Frédéric) : dans l'espace d'un cabinet, le logo
 // de SON cabinet (GET /moi) est posé dans l'en-tête blanc de la page, à gauche du nom de la vue, à partir de 640 px de
 // large ; jamais sur la barre latérale bleu nuit (un logo sombre y serait illisible), ni sur téléphone (le titre de la
 // vue y serait tronqué : essai à 375 px ; le nom du cabinet reste dans l'en-tête). Sans logo, l'en-tête est celui

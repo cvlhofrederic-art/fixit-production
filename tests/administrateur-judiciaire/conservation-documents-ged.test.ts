@@ -110,7 +110,7 @@ describe('durée fixée par le texte', () => {
   it('en-tête : la question « quels types sont des pièces justificatives » est tranchée (J67, R118), les deux autres aussi (F126, F127)', () => {
     const { texte } = enTeteDuModule('conservation-documents-ged')
     expect(texte).not.toContain('« Quels types GED sont des pièces justificatives comptables au sens du D. 2005-240 art. 6 ? »')
-    expect(texte).toMatch(/Décision J67, R118 de Hugo .* : tout document lié à une écriture comptable \(un traitement\) comme sa pièce/)
+    expect(texte).toMatch(/Décision J67, R118 .* : tout document lié à une écriture comptable \(un traitement\) comme sa pièce/)
     expect(texte).not.toMatch(/court-il, pour le cabinet/)
     expect(texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F126\).*Décision du 20\/11\/2026 \(partie C, F127\)/)
   })

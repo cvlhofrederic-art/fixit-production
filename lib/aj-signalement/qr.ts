@@ -4,7 +4,7 @@
 // fait en React (un seul <path>), sans HTML injecté. Le PNG et l'affiche A4 (jsPDF) ne tournent que
 // dans le navigateur (canvas) et ne sont chargés qu'au clic. Depuis le 11/11/2026 : toutes les affiches d'un import en
 // un seul PDF (affichesPdfQr, une page par copropriété, même mise en page).
-// Depuis le 13/11/2026 (demande de Hugo) : logo du cabinet de la copropriété, quand il en a un (OptionsAfficheQr.logo, PNG
+// Depuis le 13/11/2026 (demande du référent métier) : logo du cabinet de la copropriété, quand il en a un (OptionsAfficheQr.logo, PNG
 // lu par la route publique du logo) : posé dans une zone BLANCHE sous le bandeau bleu nuit (un logo sombre y reste
 // lisible), au-dessus du nom de la copropriété, centré, proportions gardées, dans un cadre de 80 × 20 mm ; le reste de la
 // page descend de la hauteur du logo (+ 2 mm), l'adresse du lien et le pied de page restent en place. Sans logo, la page

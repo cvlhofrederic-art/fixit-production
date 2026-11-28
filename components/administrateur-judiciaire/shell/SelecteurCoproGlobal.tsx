@@ -15,7 +15,7 @@ import {
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Sélecteur de copropriété du haut de page (demande de Hugo du 29/10/2026). Combobox ARIA : le champ garde le focus,
+ * Sélecteur de copropriété du haut de page (demande du 29/10/2026). Combobox ARIA : le champ garde le focus,
  * l'option active est désignée par aria-activedescendant et ramenée dans la zone visible de la liste ; ↑ ↓ Entrée
  * Échap au clavier, clic extérieur pour refermer ; tout le cadre est cliquable. Au repos : nom, code, fondement et
  * rappel de fin de mission de la copropriété choisie. Sur une page générale (tableau de bord, page d'accueil ; pages

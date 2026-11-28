@@ -13,7 +13,7 @@ import {
 import { creerTraitement, type SaisieTraitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
- * Décision D1 (Hugo Carvalho, 27/10/2026) — trois entités : Immeuble (bâtiment), Copropriété = syndicat, Mandat
+ * Décision D1 (27/10/2026) — trois entités : Immeuble (bâtiment), Copropriété = syndicat, Mandat
  * judiciaire. Les COMPTES appartiennent au SYNDICAT : ils survivent au changement de mandataire ; chaque opération
  * garde le mandat qui l'a faite (reddition des comptes).
  *

@@ -1,6 +1,6 @@
 // app/api/aj-signalement/adresse/route.ts
 //
-// POST — adresse proposée d'après la position de la personne qui a scanné le QR code (demande de Hugo du 06/11/2026),
+// POST — adresse proposée d'après la position de la personne qui a scanné le QR code (demande du 06/11/2026),
 // pour une copropriété dont l'adresse n'est pas renseignée. Sans session : la copropriété est désignée par son jeton.
 // Corps { jeton, latitude, longitude } validé par adresseQrSchema ; la position part dans le corps, jamais dans l'URL.
 // Géocodage inverse auprès du service de l'État (lib/aj-signalement/geocodage.ts, data.geopf.fr) ; seul le libellé de

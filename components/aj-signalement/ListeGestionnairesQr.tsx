@@ -2,7 +2,7 @@
 
 // ── Vue « Gestionnaires » de l'espace AJ Signalement (super admin) : la liste ─────────────────────────────────────
 //
-// Demandes de Hugo du 10/11/2026 : des fiches par gestionnaire (pages profil), qui reçoivent AUTOMATIQUEMENT par e-mail
+// Demandes du 10/11/2026 : des fiches par gestionnaire (pages profil), qui reçoivent AUTOMATIQUEMENT par e-mail
 // les signalements de leurs copropriétés, sur un domaine e-mail de LEUR cabinet. Liste dans l'ordre du serveur (adresse
 // contestée en tête, à traiter), état, domaine forcé, compteurs ; « Ajouter un gestionnaire » (SPEC § 1.8) : adresse
 // hors des domaines → avertissement puis « Créer quand même », sauf domaine d'un AUTRE cabinet client (refus, sans

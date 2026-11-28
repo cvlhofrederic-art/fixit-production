@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-import.test.ts
 //
-// Import des copropriétés depuis un fichier Excel (.xlsx) ou CSV (SPEC § 1.9, demande de Hugo du 10/11/2026 : « créer
+// Import des copropriétés depuis un fichier Excel (.xlsx) ou CSV (SPEC § 1.9, demande du 10/11/2026 : « créer
 // les copropriétés à partir d'un tableau Excel fourni par le client »). Fichier lu dans le navigateur, jamais envoyé :
 //   - lecteur .xlsx (fflate chargé à l'appel) sur des archives construites ici par zipSync, stockées et deflate :
 //     chaînes partagées, texte riche, inlineStr, formules (valeur en cache), feuilles masquées, cellules fusionnées,

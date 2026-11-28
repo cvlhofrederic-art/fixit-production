@@ -800,7 +800,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
   const deduit = entete.slice(entete.indexOf('🔵 Déduit'), entete.indexOf('🔴 Non établi'))
-  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
+  const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
   it('Gestéam : l’absence de calcul de ces échéances est une observation (🔵), pas un fait lu (🟢)', () => {
     const lu = entete.slice(entete.indexOf('Gestéam —'), entete.indexOf('Le droit —'))
@@ -809,7 +809,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   })
 
   it('J67, R33 : l’exonération est tranchée (les provisions comptent : BOFiP § 180) ; seule la pratique du cabinet reste en 🔴', () => {
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔵 Déduit'))
     expect(j67).toMatch(/J67, R33 : .*§ 180/)
     expect(j67).toMatch(/CIBS art\. L\. 233-9 et L\. 233-10/)
     expect(nonEtabli).not.toMatch(/§ 180/)
@@ -841,7 +841,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     )
     expect(deduit).toMatch(/R4624-17 : « selon une périodicité qui n'excède pas une durée de trois ans »/)
     expect(decisions).toMatch(/plafond du seul suivi individuel simple \(R4624-16\)/)
-    expect(nonEtabli).toMatch(/9\. Frédéric ou Hugo : la catégorie de suivi du salarié/)
+    expect(nonEtabli).toMatch(/9\. Frédéric ou le référent métier : la catégorie de suivi du salarié/)
   })
 
   it('visite initiale : R4624-18 et R4624-24 cités exactement ; les trois mois, plafond du seul suivi simple, à confirmer (🔴 9)', () => {
@@ -853,7 +853,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     )
     expect(deduit).toMatch(/sans visite connue : visite d'information et de prévention au plus tard trois mois après l'entrée, « à confirmer » \(🔴 9\)/)
     expect(nonEtabli).toMatch(/la date à trois mois de l'entrée reste « à confirmer », elle aussi/)
-    // Une déduction, pas une décision de Hugo : la rubrique J26 à J28 n'en dit rien.
+    // Une déduction, pas une décision du référent métier : la rubrique J26 à J28 n'en dit rien.
     expect(decisions).not.toMatch(/R4624-24|trois mois de l'entrée/)
   })
 
@@ -884,7 +884,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   })
 
   it('J67, R34 à R37 : décisions citées dans l’en-tête, avec leurs textes', () => {
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔵 Déduit'))
     expect(j67).toMatch(/J67, R34 : .*CSS L130-1/)
     expect(j67).toMatch(/J67, R35 : .*arrêté du 2 juillet 2013, art\. 1/)
     expect(j67).toMatch(/J67, R36 : .*décret n° 2022-372, art\. 6/)

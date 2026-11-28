@@ -34,7 +34,7 @@ import {
  * - D. 1967 art. 64-5 et 64-8 : le prestataire de lettre recommandée électronique conserve les preuves de dépôt et de
  *   transmission et l'historique « pendant une durée minimale d'un an » ; obligation du prestataire, pas du syndic
  *   (🔵 déduit : pour garder la preuve plus longtemps, le cabinet l'archive lui-même dans la GED).
- * Décision J67, R118 de Hugo (17/11/2026 ; D. 2005-240 art. 6, al. 1 et arrêté du 14/03/2005, art. 4 relus le
+ * Décision J67, R118 (17/11/2026 ; D. 2005-240 art. 6, al. 1 et arrêté du 14/03/2005, art. 4 relus le
  * 17/11/2026 : le texte donne un critère, pas une liste) : tout document lié à une écriture comptable (un traitement)
  * comme sa pièce est une pièce justificative, quel que soit son type (entrée rattacheAUnTraitement ; le lien entre un
  * document et un traitement n'est pas encore enregistré : à brancher) ; liste par type (MODELES_PIECES_JUSTIFICATIVES) :

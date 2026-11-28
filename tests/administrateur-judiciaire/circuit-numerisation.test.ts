@@ -144,7 +144,7 @@ describe('référentiel des statuts OCR (🟢 tranche 43 § 20 : huit valeurs re
     expect(texte).toMatch(/Hors périmètre : moteur OCR \(prestataire à choisir/)
     expect(texte).toContain('écrans (Frédéric)')
     expect(item('⚪ tranches 33, 37 et 39')).toContain('« OCR-RAD »')
-    expect(item('Hugo : sens de « À scanner »')).toContain('« OCR-RAD »')
+    expect(item('Référent métier : sens de « À scanner »')).toContain('« OCR-RAD »')
   })
 })
 

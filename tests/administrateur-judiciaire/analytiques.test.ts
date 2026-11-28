@@ -170,7 +170,7 @@ describe('J67, R38 — part récupérable d’une analytique de personnel (décr
       ' ',
     )
     expect(source).not.toMatch(/\(i\) Part récupérable : la limiter aux pourcentages du décret/)
-    expect(source).toMatch(/J67, R38 \(décision de Hugo du 17\/11\/2026\) : part récupérable laissée libre, de 0 à 100 %/)
+    expect(source).toMatch(/J67, R38 \(décision du 17\/11\/2026\) : part récupérable laissée libre, de 0 à 100 %/)
   })
 })
 

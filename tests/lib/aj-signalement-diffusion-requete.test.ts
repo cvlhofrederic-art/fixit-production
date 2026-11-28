@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/lib/aj-signalement-diffusion-requete.test.ts
 //
-// Décision de Hugo du 16/11/2026 : « je ne veux pas que mes copropriétaires puissent répondre ». Les tests du gabarit
+// Décision du 16/11/2026 : « je ne veux pas que mes copropriétaires puissent répondre ». Les tests du gabarit
 // (aj-signalement-diffusion-email.test.ts) et de l'envoi (aj-signalement-diffusion-envoi.test.ts) contrôlent l'objet
 // passé au service d'e-mail, qu'ils simulent ; ici, la chaîne entière est réelle (messageDiffusionQr, puis
 // sendBatchEmailsDetaille et le VRAI SDK resend) et seul `fetch` est simulé : on lit la requête HTTP réellement émise.
@@ -64,7 +64,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('requête réellement émise vers le service d’e-mail (décision de Hugo du 16/11/2026)', () => {
+describe('requête réellement émise vers le service d’e-mail (décision du 16/11/2026)', () => {
   it('message aux déclarants (FR et PT, diffusion et annonce) : aucun reply_to ; désinscription transmise', async () => {
     for (const langue of ['fr', 'pt'] as const) {
       for (const modele of ['coupure_eau', 'annonce'] as const) {

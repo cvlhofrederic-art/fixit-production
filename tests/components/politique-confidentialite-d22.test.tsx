@@ -1,6 +1,6 @@
 // tests/components/politique-confidentialite-d22.test.tsx
 //
-// D22 (décision de Hugo du 17/11/2026, au nom de VitFix, point 6 — page seulement) sur la politique de confidentialité
+// D22 (décision du 17/11/2026, au nom de VitFix, point 6 — page seulement) sur la politique de confidentialité
 // de VitFix (/fr/confidentialite/ et /pt/privacidade/, components/legal/PolitiqueConfidentialite.tsx) :
 //   - ligne Supabase : base hébergée à Francfort, dans l'Union européenne (région eu-central-1 du projet, lue le
 //     17/11/2026 dans l'interface de gestion de Supabase ; le code ne fixe pas la région), avec l'accès possible de son

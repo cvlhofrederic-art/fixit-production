@@ -1,6 +1,6 @@
 // ── Libellés et calculs d'affichage de l'espace d'un cabinet, vu par un gestionnaire (PR 2, lot 5) ─────────────
 //
-// vitfix.io/<identifiant>/suivi/ (SPEC § 2.8, décisions de Hugo du 11/11/2026) : la même coquille et les mêmes vues que
+// vitfix.io/<identifiant>/suivi/ (SPEC § 2.8, décisions du 11/11/2026) : la même coquille et les mêmes vues que
 // l'espace global (Tableau de bord, Copropriétés, Signalements), limitées par le serveur à la portée du gestionnaire.
 // Fonctions pures, sans React ; textes en français (tout l'espace est en français). Aucun texte ne parle du super admin
 // ni d'une migration : un gestionnaire n'a pas à le savoir (« Fonction pas encore activée. »). Textes d'écran : PR en

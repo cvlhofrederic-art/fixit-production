@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-logo-pages.test.ts
 //
-// Logo d'un cabinet client sur ses pages (demande de Hugo du 13/11/2026) : espace du cabinet (connexion, suivi,
+// Logo d'un cabinet client sur ses pages (demande du 13/11/2026) : espace du cabinet (connexion, suivi,
 // invitation, confirmation d'adresse) et page publique ouverte par le QR code.
 //   - dimensionsLogoQr : taille affichée dans un cadre, proportions gardées, jamais agrandie au-delà de l'image ;
 //   - logoPageQr : adresse versionnée de la route publique (identifiant du chemin public et version, rien d'autre),

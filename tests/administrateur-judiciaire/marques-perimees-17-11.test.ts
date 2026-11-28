@@ -53,13 +53,13 @@ describe('marques périmées retirées des en-têtes', () => {
   it('D7 — relance de l’accusé et du rapport (relance-demandes.ts) : J13 citée, la question retirée', () => {
     const { texte } = enTeteDuModule('relance-demandes')
     expect(apres(texte, '🔴 Non établi')).not.toContain('la relance vise-t-elle aussi')
-    expect(texte).toMatch(/Décision J13 de Hugo \(03\/11\/2026\) : la relance vise aussi l'« Accusé demandé » et le « Rapport demandé »/)
+    expect(texte).toMatch(/Décision J13 \(03\/11\/2026\) : la relance vise aussi l'« Accusé demandé » et le « Rapport demandé »/)
   })
 
   it('D9 — espèces refusées à l’encaissement (encaissements-pieces.ts) : J29 citée, la puce 🔴 retirée', () => {
     const { texte } = enTeteDuModule('encaissements-pieces')
     expect(apres(texte, '🔴 Non établi')).not.toMatch(/espèces : refusées/)
-    expect(texte).toMatch(/Décisions J25 et J29 de Hugo \(03\/11\/2026\) : espèces refusées/)
+    expect(texte).toMatch(/Décisions J25 et J29 \(03\/11\/2026\) : espèces refusées/)
   })
 
   it('D10 — étapes (etapes-dossier.ts) : le point de départ d’un délai légal renvoie à J3 et J50, le report à J67 (R41) ; seul l’affichage reste à Frédéric', () => {
@@ -68,20 +68,20 @@ describe('marques périmées retirées des en-têtes', () => {
     const apresHuit = apres(texte, '8. Point de départ tranché (J3, J50)')
     const huit = apresHuit.slice(0, apresHuit.indexOf(' 9. '))
     expect(huit).toMatch(/recouvrement\.ts.*CPC art\. 642.*J67, R41/)
-    // la question de droit n'est plus posée, et jamais à Frédéric (R41 : « Décide : Hugo »)
+    // la question de droit n'est plus posée, et jamais à Frédéric (R41 : « Décide : le référent métier »)
     expect(huit).not.toMatch(/s'applique-t-elle/)
     const frederic = apres(huit, 'Reste à Frédéric')
     expect(frederic).toBe("Reste à Frédéric : afficher ou non cette limite légale dans l'étape.")
   })
 
-  it('D10 — recouvrement.ts : report tranché (J67, R41) et voie du débiteur contrôlée (J52, J53) ; seule la borne reste à Hugo', () => {
+  it('D10 — recouvrement.ts : report tranché (J67, R41) et voie du débiteur contrôlée (J52, J53) ; seule la borne reste au référent métier', () => {
     const { texte } = enTeteDuModule('recouvrement')
     expect(texte).toMatch(/décisions J3, J50 et J67 \(R41\)/)
     expect(texte).toContain('controle-voie-notification.ts')
     const nonEtabli = apres(texte, '🔴 Non établi')
     expect(nonEtabli).not.toContain('CPC art. 642')
     expect(nonEtabli).not.toMatch(/J52, J53\) n'est pas contrôlée/)
-    expect(nonEtabli).toMatch(/borne à confirmer par Hugo/)
+    expect(nonEtabli).toMatch(/borne à confirmer par le référent métier/)
   })
 
   it('D11 — suivi « à faire » (suivi-a-faire.ts) : le jour de fin de la garantie est tranché (J67, R63), aConfirmer gardé', () => {
@@ -89,7 +89,7 @@ describe('marques périmées retirées des en-têtes', () => {
     expect(texte).toContain(
       "échéance au même quantième un an après la réception (J67, R63 ; code gardé) ; aConfirmer gardé, comme R63 le demande",
     )
-    expect(texte).not.toContain('est une question ouverte pour Hugo, le calcul du module est gardé')
+    expect(texte).not.toContain('est une question ouverte pour le référent métier, le calcul du module est gardé')
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'suivi-a-faire.ts'), 'utf8')
     expect(source).not.toContain('le jour exact de fin du délai reste ouvert')
   })

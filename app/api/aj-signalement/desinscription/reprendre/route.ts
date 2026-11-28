@@ -1,6 +1,6 @@
 // app/api/aj-signalement/desinscription/reprendre/route.ts
 //
-// POST (D-P3, PUBLIQUE, cahier PR 3 § 4.1, § 7.5, § 8.1 ; décision H5 de Hugo) — « Recevoir à nouveau ces informations ».
+// POST (D-P3, PUBLIQUE, cahier PR 3 § 4.1, § 7.5, § 8.1 ; décision H5) — « Recevoir à nouveau ces informations ».
 // Jeton de PAGE seulement (un jeton un clic, qui circule en clair dans les journaux et chez le service d'e-mail, ne
 // permet jamais de réinscrire : 404 sans aucune lecture), lien NON expiré ; puis signalements_qr_diffusion_lever, qui ne
 // lève que l'opposition ACTIVE faite avec CE lien (page ou un clic du même message) dans les 24 h, sans écriture sinon

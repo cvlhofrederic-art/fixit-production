@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-affiches-logo.test.ts
 //
-// Logo du cabinet sur les affiches PDF (demande de Hugo du 13/11/2026 ; lib/aj-signalement/qr.ts) :
+// Logo du cabinet sur les affiches PDF (demande du 13/11/2026 ; lib/aj-signalement/qr.ts) :
 //   - SANS logo, l'affiche est identique au pixel près à celle d'avant : la suite COMPLÈTE des appels jsPDF (méthode et
 //     arguments) est comparée à celle relevée sur le code d'avant le logo (instantané écrit sur ce code-là) ;
 //   - AVEC logo : le logo est posé dans une zone BLANCHE sous le bandeau bleu nuit (un logo sombre y reste lisible), au-

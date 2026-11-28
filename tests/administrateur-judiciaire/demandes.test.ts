@@ -633,7 +633,7 @@ describe('phaseSuggereeParExecution (exécution forcée reliée au contentieux, 
   })
 })
 
-describe('J67 — recommandations validées par Hugo le 17/11/2026 (R48, R67, R68, R75)', () => {
+describe('J67 — recommandations validées le 17/11/2026 (R48, R67, R68, R75)', () => {
   it('R75 : contrôle déclaratif avant l’OS sous urgence constatée : la vigilance donne une alerte forte au lieu d’un blocage', () => {
     const gros = demande({ prix: { montantTtcCentimes: 660_000, remiseCentimes: 0, tauxTvaPct: 10, baseHtCentimes: 600_000 } })
     const sansPieces = {

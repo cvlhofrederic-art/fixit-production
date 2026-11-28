@@ -17,7 +17,7 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  * lu sur Légifrance le 30/10/2026, version en vigueur depuis le 11/04/2024 : compte séparé rémunéré au nom du syndicat, sans fusion ni compensation), jamais
  * confondu avec la trésorerie courante ; l'art. 14-2-1 fixe l'objet du fonds, pas son compte (voir fonds-travaux.ts, J4).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J37 ; question 23 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J37 ; question 23 de la liste) :
  * - J37 : dans la pratique du cabinet, le compte de l'administrateur provisoire est un compte à la Caisse des dépôts, pas
  *   un compte centralisateur du cabinet. La pratique est consignée (MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE, mode
  *   « caisse_depots »), sans rien imposer : D-BANQUE n'est pas remise en cause, le réglage du cabinet garde son défaut et
@@ -25,7 +25,7 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  *   Légifrance le 30/10/2026 : compte séparé rémunéré, sans fusion ni compensation) : à la Caisse des dépôts aussi, sans
  *   IBAN propre, il exige son compte de nature « fonds_travaux » (anomalie fonds_travaux_manquant).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 et J71 ; recommandations validées en bloc) :
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 et J71 ; recommandations validées en bloc) :
  * - J67, R94 : le fondement probable du dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire est C. com.
  *   R. 814-41 (lu sur Légifrance le 17/11/2026, en vigueur depuis le 27/03/2007) : dans les mandats « en matière
  *   civile », les administrateurs judiciaires déposent à la Caisse des dépôts, sur un compte ouvert à leur nom, dès

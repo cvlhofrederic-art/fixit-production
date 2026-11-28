@@ -40,7 +40,7 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *   depuis la création (🔵 : la date vide du Flux n'est pas celle de création, connue par la tranche 42).
  * 🟢 Tranche 38, réglage du suivi : famille Étapes « À faire · Relance d'étape · Dossier (filtre) ».
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J20 à J24 ; questions 10 à 15 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J20 à J24 ; questions 10 à 15 de la liste) :
  * - J20 : une étape issue d'un « Enchaînement » porte comme créateur le collaborateur qui a déclenché l'enchaînement :
  *   « Créée par » affiche ce collaborateur, jamais « Automatique ». enchainerEtapeDossier reçoit son identifiant
  *   (obligatoire) et crée une étape d'origine « manuelle ». Conséquence : la règle « étape automatique non réalisée après
@@ -56,7 +56,7 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  * - J24 : l'étape automatique « Copie au CS pour info » relève d'un usage du cabinet, pas d'une obligation du contrat de
  *   syndic : réglage activable (UsagesEtapesCabinet, etapeCopieAuCsPourInfo).
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J41 et J44 ; anciennes questions du 🔴 n° 11, de
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J41 et J44 ; anciennes questions du 🔴 n° 11, de
  * la PR #642, et n° 5, question 13 de la liste) :
  * - J41 : l'usage « Copie au CS pour info » est INACTIF par défaut, réglage activable par le cabinet :
  *   USAGES_ETAPES_CABINET_PAR_DEFAUT le désactive ; sans réglage qui l'active (UsagesEtapesCabinet), etapeCopieAuCsPourInfo
@@ -96,11 +96,11 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *    présentation ou de la transmission de l'avis électronique (D. 1967 art. 64 et 64-1), calculé par le module qui
  *    porte ce délai (recouvrement.ts pour les trente jours de L. 1965 art. 19-2), jamais par l'étape : la limite d'une
  *    étape reste un délai « de gestion ». Report au premier jour ouvrable (CPC art. 642) tranché pour ces trente jours
- *    par Hugo (J67, R41 : deux fins, exigibilité le lendemain de la fin avec report, calculée dans recouvrement.ts) ; la
+ *    par le référent métier (J67, R41 : deux fins, exigibilité le lendemain de la fin avec report, calculée dans recouvrement.ts) ; la
  *    limite de gestion d'une étape reste sans report. Reste à Frédéric : afficher ou non cette limite légale dans l'étape.
  * 9. Frédéric : dans « à compter de la demande » (L. 1965 art. 8-2 et 21), compte-t-on de l'envoi ou de la réception
  *    par le syndic ? La date de création d'une étape n'est pas, à ce jour, la date de la demande.
- * 10. Frédéric ou Hugo (suite de J22) : demandeur extérieur sans adresse électronique connue : quel canal de repli
+ * 10. Frédéric ou le référent métier (suite de J22) : demandeur extérieur sans adresse électronique connue : quel canal de repli
  *    (courrier, appel) ? L'accusé décrit « E-mail » ; l'envoi relève de l'écran.
  *
  * Le droit (relevé sur Légifrance le 29/10/2026) :

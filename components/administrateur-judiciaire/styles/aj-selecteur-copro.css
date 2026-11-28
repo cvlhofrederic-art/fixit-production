@@ -1,5 +1,5 @@
 /*
- * Sélecteur de copropriété et barre de recherche du haut de page (demande de Hugo du 29/10/2026).
+ * Sélecteur de copropriété et barre de recherche du haut de page (demande du 29/10/2026).
  * Feuille écrite à la main, chargée après aj.css (app/administrateur-judiciaire/layout.tsx) : aj.css est générée par
  * scripts/administrateur-judiciaire/extraire-maquette.mjs et réécrite à chaque extraction.
  * Tous les sélecteurs sont scopés sous #aj-root.

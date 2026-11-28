@@ -88,7 +88,7 @@ const codes = (liste: { code: string }[]) => liste.map((a) => a.code)
 /** Source du module, et en-tête mis à plat (sans les « * » de début de ligne). */
 const SOURCE = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'decisions-annuelles-ag.ts'), 'utf8')
 const EN_TETE = SOURCE.slice(0, SOURCE.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
-/** Points 🔴 de l'en-tête (à trancher par Frédéric ou Hugo). */
+/** Points 🔴 de l'en-tête (à trancher par Frédéric ou le référent métier). */
 const NON_ETABLI = EN_TETE.slice(EN_TETE.indexOf('🔴 Non établi'))
 
 describe('règles des décisions annuelles', () => {

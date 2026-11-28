@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-api-logo.test.ts
 //
-// Appels du navigateur pour le logo d'un cabinet (demande de Hugo du 13/11/2026 ; lib/aj-signalement/api.ts) :
+// Appels du navigateur pour le logo d'un cabinet (demande du 13/11/2026 ; lib/aj-signalement/api.ts) :
 //   - chargerLogoAfficheQr : l'image du logo pour une affiche PDF, lue par la route PUBLIQUE versionnée (aucun cookie
 //     envoyé), revérifiée (PNG conforme, dimensions lues dans l'en-tête) ; échec → un code, jamais d'exception ;
 //   - envoyerLogoCabinetQr / retirerLogoCabinetQr : PUT (PNG en base64) et DELETE …/cabinets/[id]/logo ;

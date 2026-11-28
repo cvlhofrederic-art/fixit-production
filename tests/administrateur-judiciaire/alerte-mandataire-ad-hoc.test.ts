@@ -13,7 +13,7 @@ import { creerDecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/de
 import { creerExercice, type SaisieExercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 
 /**
- * Alerte de l'art. 29-1 A de la loi du 10 juillet 1965 (décision J7 de Hugo du 30/10/2026). Textes relus sur Légifrance le
+ * Alerte de l'art. 29-1 A de la loi du 10 juillet 1965 (décision J7 du 30/10/2026). Textes relus sur Légifrance le
  * 30/10/2026 :
  * - L. 1965 art. 29-1 A (version du 11/04/2024), al. 1 : « Lorsqu'à la clôture des comptes les impayés atteignent 25 % des
  *   sommes exigibles en vertu des articles 14-1 et 14-2-1 ou en l'absence de vote de l'assemblée générale sur
@@ -680,7 +680,7 @@ describe('en-tête du module', () => {
     const nonEtabli = EN_TETE.slice(EN_TETE.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/administrateur provisoire de l'art\. 29-1 : il a reçu tous les pouvoirs du syndic/)
     expect(nonEtabli).not.toMatch(/administrateur provisoire de l'art\. 47 \(syndicat dépourvu de syndic\)/)
-    expect(EN_TETE).toMatch(/Décision J67, R30 de Hugo \(17\/11\/2026 ;.*aConfirmer gardé.*\(D\. 1967 art\. 62-11\).*\(D\. 1967 art\. 62-2\)/)
+    expect(EN_TETE).toMatch(/Décision J67, R30 \(17\/11\/2026 ;.*aConfirmer gardé.*\(D\. 1967 art\. 62-11\).*\(D\. 1967 art\. 62-2\)/)
   })
 
   it('administrateur provisoire de l’art. 29-1 : tout ou partie des pouvoirs de l’assemblée selon l’ordonnance, pas tous (art. 29-1, I)', () => {

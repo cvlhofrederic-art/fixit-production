@@ -32,7 +32,7 @@ export const NB_TACHES_ECHEANCE_PROCHE: number = DEMO_TACHES.filter((tache) => {
 }).length
 
 /**
- * Page d'accueil, affichée sans ancre : le Tableau de bord depuis la décision de Hugo du 29/10/2026 (« enlève le
+ * Page d'accueil, affichée sans ancre : le Tableau de bord depuis la décision du 29/10/2026 (« enlève le
  * Aujourd'hui, c'est le doublon de la page d'accueil ») ; il reprend le contenu de l'ancienne page « Aujourd'hui ».
  */
 export const ROUTE_ACCUEIL = 'dashboard'

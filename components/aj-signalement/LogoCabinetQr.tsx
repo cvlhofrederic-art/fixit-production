@@ -2,7 +2,7 @@
 
 // ── Logo d'un cabinet client (fenêtre de la vue « Cabinets », super admin) ───────────────────────────────────────────
 //
-// Demande de Hugo du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». BROUILLON pour Frédéric : composants
+// Demande du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». BROUILLON pour Frédéric : composants
 // et couleurs de l'espace (Bouton, Champ, Encadre), aucune nouvelle charte.
 //   - logo actuel, lu par sa route publique versionnée (cheminLogoCabinetQr), ou « Aucun logo » ;
 //   - fichier SVG, PNG, JPEG ou WebP converti en PNG SUR L'APPAREIL (convertirLogoQr : canvas, 800 × 400 px et 200 Ko au

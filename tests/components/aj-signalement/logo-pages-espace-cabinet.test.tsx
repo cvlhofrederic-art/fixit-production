@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/logo-pages-espace-cabinet.test.tsx
 //
-// Logo d'un cabinet client (demande de Hugo du 13/11/2026), côté pages serveur de l'espace du cabinet (servies par
+// Logo d'un cabinet client (demande du 13/11/2026), côté pages serveur de l'espace du cabinet (servies par
 // réécriture depuis vitfix.io/<identifiant>/…) :
 //   - connexion : le logo lu par lireLogoPageCabinetQr({ identifiant }) entre dans le contexte du composant, APRÈS la
 //     lecture du cabinet (cabinet inconnu → 404 sans lecture du logo) ;

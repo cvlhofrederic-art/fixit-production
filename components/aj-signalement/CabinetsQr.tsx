@@ -2,7 +2,7 @@
 
 // ── Vue « Cabinets » de l'espace AJ Signalement (super admin) ────────────────────────────────────────────────────
 //
-// Demandes de Hugo du 10/11/2026 : le premier cabinet client n'est qu'un client parmi d'autres (d'autres domaines
+// Demandes du 10/11/2026 : le premier cabinet client n'est qu'un client parmi d'autres (d'autres domaines
 // viendront) et chaque client a son adresse, vitfix.io/<identifiant>/… Chaque cabinet est une ligne saisie ici (jamais dans le
 // code) : nom, identifiant du chemin (proposé depuis le nom, aperçu de l'adresse, réservés refusés ; figé dès qu'il a
 // une copropriété ou un gestionnaire), langue de la page de signalement, domaines e-mail des gestionnaires (messageries
@@ -15,7 +15,7 @@
 // la liste rechargée (onModifie) avant de fermer la fenêtre et d'annoncer leur succès, occupés jusque-là ; rechargement
 // en échec : le succès reste annoncé au-dessus de l'erreur de chargement. Les réglages de diffusion n'en ont pas besoin :
 // leur fenêtre affiche les réglages rendus par le serveur, que la liste des cabinets ne montre pas.
-// Logo du cabinet (demande de Hugo du 13/11/2026, BROUILLON pour Frédéric) : « Logo » sur chaque cabinet ouvre sa
+// Logo du cabinet (demande du 13/11/2026, BROUILLON pour Frédéric) : « Logo » sur chaque cabinet ouvre sa
 // fenêtre (LogoCabinetQr : logo actuel, nouveau fichier converti en PNG sur l'appareil, retrait) ; une ligne de la carte
 // dit s'il en a un.
 // Bureaux du cabinet (migration 20261119, écran E1 du plan des bureaux, BROUILLON soumis avant fusion) : « Bureaux (n) » sur

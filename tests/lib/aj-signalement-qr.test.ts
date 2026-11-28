@@ -10,7 +10,7 @@ import { urlSignalementQr } from '@/lib/aj-signalement/types'
 const URL_TEST = 'https://vitfix.io/fr/signalement/0123456789abcdef0123456789abcdef/'
 const JETON = '0123456789abcdef0123456789abcdef'
 
-describe('adresse encodée dans le QR code (chemin par client, choix de Hugo du 10/11/2026)', () => {
+describe('adresse encodée dans le QR code (chemin par client, choix du 10/11/2026)', () => {
   it('copropriété rattachée à un cabinet : vitfix.io/<identifiant>/signalement/<jeton>/', () => {
     expect(urlSignalementQr(JETON, 'https://vitfix.io', 'cabinet-exemple')).toBe(`https://vitfix.io/cabinet-exemple/signalement/${JETON}/`)
     expect(urlSignalementQr(JETON, 'https://vitfix.io/', 'cabinet-exemple')).toBe(`https://vitfix.io/cabinet-exemple/signalement/${JETON}/`)

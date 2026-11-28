@@ -59,7 +59,7 @@ import {
  *   notification, le mode de notification du courrier (J50 : lre, prestataire_qualifie, ou null pour un envoi électronique
  *   sans valeur de notification), figé à la création ; un courrier « AR » (LRAR) ou dont le mode est incohérent avec la
  *   forme d'envoi est refusé ; une seule tentative en cours par courrier et par console, plus aucune après « Reçu »,
- *   « Échec » (décision de Hugo du 17/11/2026 (J58), ci-dessous) ou « Stocké, signé », et une nouvelle tentative ne
+ *   « Échec » (décision du 17/11/2026 (J58), ci-dessous) ou « Stocké, signé », et une nouvelle tentative ne
  *   remonte pas avant le dernier changement de la précédente ;
  * - le statut de l'envoi est un champ à part du statut du courrier (STATUT_COURRIER) : deux champs nommés « Statut » ne
  *   se fondent jamais (06_PIEGES § 4), même si « Préparation » figure dans les deux listes ;
@@ -70,7 +70,7 @@ import {
  *   huitième jour suivant leur réception) : le refus en donne la date d'effet et sa justification (retourPasEncoreEnVigueur).
  *   Le calcul du délai (statut-assemblee.ts) reste seul juge, à la date du dépôt (J50).
  *
- * Valeur de notification, telle que 07_DECISIONS_JURIDIQUES.md la fixe (J50, décision de Hugo du 11/11/2026, textes lus
+ * Valeur de notification, telle que 07_DECISIONS_JURIDIQUES.md la fixe (J50, décision du 11/11/2026, textes lus
  * sur Légifrance le 11/11/2026) : une notification électronique est acquise à la transmission, par le prestataire, de
  * l'avis électronique (D. 1967 art. 64, dernier al.), que le contenu soit téléchargé ou non ; ni la date du dépôt, ni
  * celle du téléchargement. Cette date est Courrier.dateAvisElectronique, contrôlée par controlerAvisElectronique
@@ -80,25 +80,25 @@ import {
  * (etatNotificationCourrier, inchangé), jamais le statut de la console, et signale les incohérences entre les deux par des
  * alertes, sans effet sur le délai ni sur l'ordre de service (J51 inchangé).
  *
- * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations validées en bloc ;
+ * Décisions du 17/11/2026 (notes de décision du 17/11/2026, section « Suite » : recommandations validées en bloc ;
  * numéros de registre proposés ; D. 1967 art. 64 et 64-4 relus sur Légifrance le 17/11/2026) :
- * - J57 (décision de Hugo du 17/11/2026 (J57)) : une LRE, ou un envoi par le procédé d'un prestataire qualifié, refusé ou
+ * - J57 (décision du 17/11/2026 (J57)) : une LRE, ou un envoi par le procédé d'un prestataire qualifié, refusé ou
  *   non réclamé fait quand même courir le délai, du lendemain de la transmission de l'avis électronique ; l'acceptation,
  *   le refus ou la non-réclamation sont sans effet (D. 1967 art. 64, dernier al. ; même logique que la LRAR non retirée,
  *   Cass. 3e civ., 16/04/2026, n° 24-18.842). « Reçu en erreur » ne lève donc pas la date d'avis saisie
  *   (retour_en_erreur_apres_avis : elle reste seule retenue). Il reste distinct d'un défaut de transmission de l'avis,
  *   qui ne fait pas courir le délai : aucune date d'avis n'est affirmée tant que le justificatif de transmission ne
  *   l'établit pas (avis_a_saisir) ;
- * - J58 (décision de Hugo du 17/11/2026 (J58)) : après un « Échec », une nouvelle tentative sur le même courrier est
+ * - J58 (décision du 17/11/2026 (J58)) : après un « Échec », une nouvelle tentative sur le même courrier est
  *   refusée : un envoi en échec n'a rien notifié (D. 1967 art. 64, 64-1) ; pour un nouvel envoi, créer un nouveau
  *   courrier (nouveau dépôt). Le refus après « Reçu » est inchangé ; « Reçu en erreur » relève de J66 (ci-dessous).
- * - J66 (décision de Hugo du 17/11/2026, sur recommandation de Claude) : après « Reçu en erreur », le même courrier ne
+ * - J66 (décision du 17/11/2026, sur recommandation de Claude) : après « Reçu en erreur », le même courrier ne
  *   repart pas non plus : avis transmis, la notification est acquise (J57) et aucun nouvel envoi n'est utile ; avis non
  *   transmis, rien n'est notifié et un nouvel envoi se fait sur un nouveau courrier (J58).
  * - J57 et J66 : aucun statut de la console ne fait courir le délai : seule la date d'avis saisie sur le courrier compte
  *   (J50). Le module ne déduit ni date de notification ni délai d'un statut (valeurDuStatut : non_etablie), ni la date
  *   de dépôt.
- * - J67, R16 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance et EUR-Lex le 17/11/2026) : la valeur probante
+ * - J67, R16 (décision du 17/11/2026 ; textes lus sur Légifrance et EUR-Lex le 17/11/2026) : la valeur probante
  *   d'une signature électronique dépend de son niveau, donné par le prestataire (valeurProbanteSignature) : qualifiée,
  *   présumée fiable ; simple, avancée ou inconnue, recevable mais à prouver. Un écrit électronique vaut un écrit papier si
  *   son auteur est identifié et son intégrité garantie (C. civ. art. 1366) ; la fiabilité n'est présumée que pour une
@@ -115,10 +115,10 @@ import {
  *   événement précis de l'envoi : « Envoyé OK » peut être le dépôt ou la transmission, « Reçu » la réception ou le
  *   téléchargement (qui ne compte pas), « Reçu en erreur » un refus ou un rejet. Pour l'établir : la documentation du
  *   prestataire branché (correspondance entre ses statuts et la preuve de dépôt, l'avis, le téléchargement), puis une
- *   décision de Hugo.
+ *   décision du référent métier.
  * - 🔴 Signature électronique et procès-verbal : « Signé » ne pose pas le statut d'AG « PV signé » (J2,
  *   statut-assemblee.ts) : lien à décider (relevé du 17/11/2026, partie C, F8).
- * - 🔴 Questions à Hugo : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
+ * - 🔴 Questions au référent métier : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
  *   après « Envoyé OK », « Expiré » sans prolongation, « À relever » avant « Signé » et non l'inverse) sont-ils ceux du
  *   prestataire retenu ? Un envoi abandonné en « Préparation » ne se clôt qu'en passant par « Attente d'envoi » puis
  *   « Échec », sans motif (Gestéam n'a pas d'« Annulé » dans la console Notifications ; depuis J58, cet « Échec » impose
@@ -413,11 +413,11 @@ const MACHINE_SIGNATURE: MachineEnvoi<StatutSignatureElectronique> = {
 const closLeCourrier = <S extends string>(machine: MachineEnvoi<S>, statut: S): boolean =>
   statut === machine.abouti || statut === machine.echec || statut === machine.erreurApresEnvoi
 
-/** Refus d'une nouvelle tentative après un « Échec » (décision de Hugo du 17/11/2026, J58). */
+/** Refus d'une nouvelle tentative après un « Échec » (décision du 17/11/2026, J58). */
 const RAISON_NOUVEAU_COURRIER_APRES_ECHEC =
   "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; J58)"
 
-/** Refus d'une nouvelle tentative après « Reçu en erreur » (décision de Hugo du 17/11/2026, J66). */
+/** Refus d'une nouvelle tentative après « Reçu en erreur » (décision du 17/11/2026, J66). */
 const RAISON_APRES_RECU_EN_ERREUR =
   "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (J66)"
 

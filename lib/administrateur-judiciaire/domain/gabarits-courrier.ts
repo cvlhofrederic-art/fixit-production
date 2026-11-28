@@ -55,7 +55,7 @@ import {
  * réception + 15 jours, avertissement si elle tombe un jour non ouvrable (report non établi) ; attestation de non-recours
  * délivrable sans opposant ni défaillant.
  *
- * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R108 : la variante « débiteur » du certificat 2° de Gestéam n'est pas reprise : L. 1965 art. 20, II ne prévoit
  *   aucun certificat négatif. Quand le certificat n'est pas délivrable, le notaire reçoit quand même dans le mois un
  *   courrier d'information, sans détail de la dette (information_notaire_art20_ii, proposé par controlerCertificatArt20,
@@ -79,15 +79,15 @@ import {
  * sans désigner de syndic, dont le procès-verbal ordinaire se notifie (D. 1967 art. 18).
  *
  * 🔴 Non établi : PV de carence et attestation de non-recours n'ont pas de texte propre (pratiques) ; rubriques du
- * modèle annexé à l'arrêté du 2 juillet 2020 non relevées (publié en image au JO du 03/07/2020 ; J67, R25 : Hugo les lit,
+ * modèle annexé à l'arrêté du 2 juillet 2020 non relevées (publié en image au JO du 03/07/2020 ; J67, R25 : le référent métier les lit,
  * puis on les code comme mentions obligatoires).
  * Formes d'envoi : liste Gestéam inchangée ; mode de notification propre à VitFix (J50) ; remise contre émargement :
  * option de l'appelant (remiseContreEmargement), admise pour la convocation seulement (remiseContreEmargementAdmise), le
  * texte la limitant aux convocations et à l'avis de l'art. 59 (D. 1967 art. 64-3). « AR » reste le défaut des
  * notifications ; le mode (modeNotification de courriers.ts) porte la LRE et le prestataire qualifié (ci-dessous).
  *
- * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
- * decisions-1111/questions-hugo.md et j50-textes.md, textes lus sur Légifrance le 11/11/2026) : sous voie électronique, une
+ * Décisions du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
+ * decisions-1111 (questions du 11/11/2026) et j50-textes.md, textes lus sur Légifrance le 11/11/2026) : sous voie électronique, une
  * notification par LRE ou par le procédé d'un prestataire qualifié est valable (D. 1967 art. 64, 1° et 2°) ; une forme
  * sans mode de notification (envoi simple), ou un mode incohérent avec la forme (LRAR hors « AR », envoi électronique en
  * « AR » : message propre depuis la relecture du 14/11/2026), reste « envoi_non_qualifie » ; sous voie postale, la LRAR

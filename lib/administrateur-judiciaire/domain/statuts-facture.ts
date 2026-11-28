@@ -23,7 +23,7 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  * Le compte bancaire payeur (syndicat, compte séparé, fonds de travaux — D-BANQUE, J4) est choisi par l'appelant, qui ne
  * passe que les factures de ce compte et son solde disponible.
  *
- * Décision J9 de Hugo du 30/10/2026 — virement rejeté ou retourné après émission : la facture qu'il réglait revient à
+ * Décision J9 du 30/10/2026 — virement rejeté ou retourné après émission : la facture qu'il réglait revient à
  * l'état d'avant le paiement, avec la date et le motif du rejet (retourFactureApresRejet) ; le règlement, lui, passe
  * « Annulé » sous une écriture contraire (reglements-fournisseurs.ts, rejeterVirement). Hors de ce retour, « Réglée »
  * reste sans transition à la main.

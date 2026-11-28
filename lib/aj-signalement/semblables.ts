@@ -1,6 +1,6 @@
 // ── Signalements déjà faits au même endroit : règles pures, partagées par le navigateur et le serveur ──
 //
-// Demande de Hugo du 06/11/2026 : pendant la rédaction, montrer à la personne les signalements déjà faits par
+// Demande du 06/11/2026 : pendant la rédaction, montrer à la personne les signalements déjà faits par
 // d'autres dans la même copropriété, le même bâtiment et la même zone des parties communes, pour qu'elle voie si
 // c'est le même problème. Sans compte, on ne sait pas qui a fait quoi : la liste peut contenir un signalement
 // précédent de la même personne (limite connue).
@@ -20,7 +20,7 @@ import {
 export { STATUTS_OUVERTS_QR } from '@/lib/aj-signalement/types'
 
 /**
- * Règle de gestion (Hugo, 06/11/2026) : un signalement est « récent » pendant 60 jours après son dépôt. Au-delà,
+ * Règle de gestion (06/11/2026) : un signalement est « récent » pendant 60 jours après son dépôt. Au-delà,
  * il n'est plus proposé comme « déjà fait au même endroit », même s'il est encore ouvert.
  */
 export const DELAI_SEMBLABLES_JOURS = 60

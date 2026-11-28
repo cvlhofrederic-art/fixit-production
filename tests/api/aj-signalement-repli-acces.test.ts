@@ -1,6 +1,6 @@
 // tests/api/aj-signalement-repli-acces.test.ts
 //
-// Règle de sûreté de la PR 2 (Hugo fusionne lui-même) : une fusion AVANT les migrations 20261111 et 20261112 ne casse
+// Règle de sûreté de la PR 2 (le référent métier fusionne lui-même) : une fusion AVANT les migrations 20261111 et 20261112 ne casse
 // AUCUN parcours qui marche aujourd'hui.
 //   - sans la 20261112 (20261111 appliquée) : l'espace du super admin répond comme en PR 1 (liste et page profil des
 //     gestionnaires SANS les champs d'accès, départ, réactivation, tableau, statut) et le dépôt public par QR aussi ; un

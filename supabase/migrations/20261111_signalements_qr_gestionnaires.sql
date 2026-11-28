@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AJ Signalement (10/11/2026) — cabinets clients, gestionnaires, attributions, journal, création unique et import.
 --
--- Demandes de Hugo du 10/11/2026 : chaque cabinet client a sa ligne (le premier client n'est qu'un cabinet parmi
+-- Demandes du 10/11/2026 : chaque cabinet client a sa ligne (le premier client n'est qu'un cabinet parmi
 -- d'autres) : son nom, l'identifiant de son chemin public (vitfix.io/<identifiant>/signalement/<jeton>/), la langue de
 -- ses pages et les domaines e-mail de ses gestionnaires. Chaque gestionnaire reçoit par e-mail les signalements des
 -- copropriétés qui lui sont attribuées, une fois son adresse confirmée. Tout se saisit dans l'espace AJ Signalement par

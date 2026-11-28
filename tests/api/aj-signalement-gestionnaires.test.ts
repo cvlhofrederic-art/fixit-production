@@ -1,6 +1,6 @@
 // tests/api/aj-signalement-gestionnaires.test.ts
 //
-// Fiches gestionnaires vues du super admin (PR 1 ; demandes de Hugo du 10/11/2026 : chaque gestionnaire reçoit
+// Fiches gestionnaires vues du super admin (PR 1 ; demandes du 10/11/2026 : chaque gestionnaire reçoit
 // automatiquement les signalements de ses copropriétés, une fois son adresse confirmée, et seulement sur un domaine
 // e-mail de SON cabinet) :
 //   GET   /gestionnaires                     P1-R8  liste, état calculé, jamais invite_token

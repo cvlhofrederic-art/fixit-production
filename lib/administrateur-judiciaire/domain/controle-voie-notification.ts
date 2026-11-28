@@ -20,7 +20,7 @@ import {
  * Code sorti de statut-assemblee.ts le 17/11/2026 (relecture des marques périmées), sans changement de règle ni de
  * message ; les décisions et leurs fondements restent décrits dans l'en-tête de statut-assemblee.ts (J50, J52, J53) et
  * dans celui de voie-notification.ts.
- * 🔵 Lecture de Claude, à confirmer par Hugo : J52 et J53, prises pour la notification du procès-verbal, valent aussi
+ * 🔵 Lecture de Claude, à confirmer par le référent métier : J52 et J53, prises pour la notification du procès-verbal, valent aussi
  * pour la mise en demeure, que les mêmes textes visent.
  */
 

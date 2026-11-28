@@ -872,7 +872,7 @@ describe('en-tête : textes cités et questions ouvertes', () => {
     // le pouvoir de décider les travaux eux-mêmes : décision du 20/11/2026 (partie C, F69), sauf l'étendue non saisie
     expect(nonEtabli).not.toContain("Faut-il vérifier que l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ?")
     expect(nonEtabli).toContain('étendue des pouvoirs non saisie au mandat')
-    const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('Règles :'))
+    const j67 = texte.slice(texte.indexOf('Décisions du 17/11/2026'), texte.indexOf('Règles :'))
     for (const attendu of ['J67, R60', 'J67, R61', 'J67, R81', '67300', '10200', 'Report de soldes comptables']) expect(j67).toContain(attendu)
   })
 

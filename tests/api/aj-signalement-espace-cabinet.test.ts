@@ -2,7 +2,7 @@
 //
 // Espace de chaque cabinet (PR 2, lot 4) : lecture serveur du cabinet du chemin pour les pages /<identifiant>/connexion/
 // et /<identifiant>/suivi/ (lireCabinetDuCheminQr, lib/aj-signalement/serveur.ts), sur la base simulée.
-// Règle de sûreté (Hugo fusionne lui-même) : fusionnée AVANT la migration 20261111, la table des cabinets manque
+// Règle de sûreté (le référent métier fusionne lui-même) : fusionnée AVANT la migration 20261111, la table des cabinets manque
 // (PGRST205, ou 42703 sur une colonne) : aucun cabinet ne peut exister, la page répond 404 (« aucun cabinet »), le repli est
 // journalisé une seule fois par isolat ; rien d'autre ne change (aucune page existante ne lit cette table ainsi).
 // Toute autre erreur est rendue (la page lève : page d'erreur), journalisée sans donnée personnelle.

@@ -58,7 +58,7 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * - C. trav. L7211-3, 6° : sont applicables aux salariés définis à l'art. L7211-2 les dispositions relatives « Au mode de
  *   paiement des salaires prévu par les articles L. 3241-1 et suivants » (L3241-1 relu le 03/11/2026 : voir J25).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J25 ; question 16 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J25 ; question 16 de la liste) :
  * - J25 : aucun paiement en espèces, ni des salaires ni des fournisseurs ; le compte 53 « Caisse » n'est pas tenu. Le
  *   refus des espèces (anomalie « especes », bloquante) devient une décision du cabinet, et non plus un choix provisoire
  *   de VitFix ; son fondement reste vide, car c'est la décision, et non un texte, qui fonde le refus. Pour un salaire, le
@@ -72,7 +72,7 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   ce module : la remise d'espèces REÇUES (ordres de banque, types-ordres-banque.ts, inchangé), tranchée à part (J29 du
  *   registre : refusée) ; reglements-fournisseurs.ts applique aussi J25 : le mode « Espèces » y est refusé par décision.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J40 ; PR #642, ancienne question 🔴 n° 10) :
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J40 ; PR #642, ancienne question 🔴 n° 10) :
  * - J40 : aucun paiement en espèces, même pour un salarié payé sous le seuil de C. trav. L3241-1 qui le demande : choix
  *   du cabinet, plus strict que la loi. L'anomalie « especes » reste bloquante, sans réserve ouverte ; son message dit
  *   le choix et le texte qu'il écarte. Risque : C. trav. L3241-1 donne ce droit au salarié qui le demande, sous le
@@ -81,7 +81,7 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   droit. Le décret qui fixe ce montant n'a pas été lu : la règle n'en dépend plus, le refus valant quel que soit le
  *   salaire.
  *
- * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
  * - J67, R38 : la part récupérable sur le locataire d'un logement est celle du décret n° 87-713, art. 2 (version du
  *   01/01/2009) : gardien ou concierge qui assure, d'après son contrat, l'entretien des parties communes et
  *   l'élimination des rejets, 75 % de sa rémunération et des charges sociales et fiscales (c), 40 % s'il n'assure qu'une
@@ -176,12 +176,12 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   mise à 0 % (J67, R38) ; sans analytique fournie, rien n'est forcé : une seule ligne au 641 ;
  * - tout le 644 est tenu pour jamais récupérable, par son compte, faute de nature saisie sur la cotisation (J67, R39 : « le
  *   644 reste entièrement non récupérable ») : une prévoyance que le cabinet y passerait (comptePatronal) perdrait sa part
- *   récupérable ; c'est la lecture prudente pour le locataire, et Hugo choisira si Gestéam la met au 644 (question 3) ;
+ *   récupérable ; c'est la lecture prudente pour le locataire, et le référent métier choisira si Gestéam la met au 644 (question 3) ;
  *   les frais remboursés, débités au 644 (décision du 20/11/2026, partie C, F42), sont donc à 0 % eux aussi ;
  * - SIRET attendu dès qu'un salarié est en poste (la DSN porte le numéro d'identité de l'employeur : CSS art. R133-14, V,
  *   1°, a) ; les autres identifiants employeur : alerte de gestion, jamais bloquante.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 7 et 10 sont tranchés : J25 et J40, et les n° 6 et 8 :
+ * 🔴 Non établi (questions exactes pour Frédéric ou le référent métier ; les n° 7 et 10 sont tranchés : J25 et J40, et les n° 6 et 8 :
  *   J67, R38 et R39, ci-dessus ; les n° 4, 5 et 9, et la seconde question du n° 1 : décisions du 20/11/2026, partie C,
  *   F41, F42, F43 et F39, ci-dessus) :
  * 1. Frédéric : la pratique Gestéam (salaire réglé comme une facture, 401 au nom du salarié, contrat « Prestation »)
@@ -192,11 +192,11 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *    dédiée ?
  * 3. Quels sont, dans Gestéam, les codes à 5 caractères des comptes 421, 431, 432, 442, 642, 643 et 644 ? Et sous quel
  *    code est l'entrée « prévoyance » des 64xxx (642xx ou 644xx ; relevé L3-12) ? Un 644xx voudrait dire que le cabinet
- *    suit l'autre lecture que J67, R39 : Hugo choisira.
+ *    suit l'autre lecture que J67, R39 : le référent métier choisira.
  *    Décision du 20/11/2026 (partie C, F42) : quels sont aussi les codes du sous-compte « acomptes » du 421 (plage 42000 à
  *    42150 : Acomptes, Avances sur salaires) et du sous-compte du 462 « Créditeurs divers » des saisies sur salaire
  *    (compteAcomptes, compteSaisiesSalaire) ?
- * 11. Hugo (J67, R38, points restés ouverts) : la participation au comité d'entreprise et à l'effort de construction,
+ * 11. Référent métier (J67, R38, points restés ouverts) : la participation au comité d'entreprise et à l'effort de construction,
  *    jamais récupérable (décret n° 87-713, art. 2, c), n'est pas modélisée ; passée en cotisation au 642, elle garde le
  *    taux de l'analytique. Pour la mettre à 0 %, il faudrait la nature de chaque cotisation sur le bulletin (donnée du
  *    prestataire de paie). Le décret de la part récupérable dans les logements sociaux n'a pas été lu : le module ne vaut

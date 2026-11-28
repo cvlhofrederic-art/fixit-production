@@ -380,7 +380,7 @@ describe('PATCH coproprietes/[id] (P1-R4)', () => {
     expect((await modifier('pas-un-uuid', { nom: 'X' })).status).toBe(404)
   })
 
-  // Décision H7 de Hugo (cahier § 14) : « copropriété active + date facultative « fin de mission » sur la fiche ; la
+  // Décision H7 (cahier § 14) : « copropriété active + date facultative « fin de mission » sur la fiche ; la
   // diffusion s'arrête seule à cette date ». La règle SQL (signalements_qr_diffusion_raison_inactive → fin_gestion, dès le
   // jour même, heure de Paris) est exécutée sur PGlite (tests/migrations/signalements_qr_diffusion.execution.test.ts) ;
   // ici, la route qui écrit la date (relecture 2 de la PR 3 : aucune route ne l'écrivait).

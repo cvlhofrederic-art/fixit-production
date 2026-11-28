@@ -62,7 +62,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (signataire pour le cabinet), Délai (ex. Urgent), Envoi (ex. E-mail), Relance (date), bouton Diffuser ; § Onglet Suivi,
  *   bloc Diffusion : Diffusable, Fax / SMS envoyés, journal horodaté des envois (date, heure, collaborateur, canal,
  *   destinataire) ; critères de recherche Visa de sortie et Référence diffusion. Les listes Délai, Envoi et Signature n'ont
- *   pas été ouvertes (valeurs de Délai et d'Envoi : décision de Hugo du 03/11/2026 ; de Signature : décision de Hugo du
+ *   pas été ouvertes (valeurs de Délai et d'Envoi : décision du 03/11/2026 ; de Signature : décision du
  *   17/11/2026, J56), le bouton Délégation n'a pas été cliqué ;
  * - référentiel STATUT_DEMANDE (Gestéam, module Demandes ; demandes.ts) : la demande peut être « Accusé demandé » ou
  *   « Rapport demandé » ;
@@ -103,7 +103,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   seuil de consultation du conseil syndical et seuil de mise en concurrence fixés par l'assemblée, obligatoires « à
  *   partir » de ces montants (L. 1965 art. 21, al. 2 ; sans conditions fixées par l'assemblée, la mise en concurrence
  *   résulte de la demande de plusieurs devis ou d'un devis descriptif soumis à plusieurs entreprises : D. 1967 art. 19-2),
- *   comparés au prévu TTC (décision J6 de Hugo du 30/10/2026 ; seuilsAtteints de decisions-annuelles-ag.ts, lu sans
+ *   comparés au prévu TTC (décision J6 du 30/10/2026 ; seuilsAtteints de decisions-annuelles-ag.ts, lu sans
  *   modification) ; convention à autoriser spécialement par l'assemblée : avec le syndic, ses préposés, son conjoint, le
  *   partenaire lié à lui par un pacte civil de solidarité, son concubin, ses parents ou alliés jusqu'au deuxième degré
  *   inclus, avec une entreprise dont ces personnes sont propriétaires ou associées, qu'elles dirigent ou contrôlent, ou
@@ -130,7 +130,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   du devis un an après sa date (J47) : règles de gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS
  *   (🔵 : les formes de D. 1967 art. 64 visent les notifications et mises en demeure).
  *
- * Décisions de Hugo du 03/11/2026 (questions « Ordres de service » 1 à 9 ; registre des décisions : J11 à J19) :
+ * Décisions du 03/11/2026 (questions « Ordres de service » 1 à 9 ; registre des décisions : J11 à J19) :
  * - 1. N° : séquence PAR MANDAT (plus grand rang du segment mandat + 1, tous plans confondus : rangOsSuivant) ; moment de
  *   l'attribution, rang et segment plan : J56 (décisions du 17/11/2026, ci-dessous) ;
  * - 2. listes de la tranche 34 : Délai = UrgenceOrdreAJ (normale, prioritaire, urgence), Envoi = CANAUX_ENVOI_OS ;
@@ -149,7 +149,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   pour des travaux décidés au titre des pouvoirs de l'assemblée. Le moment du constat est fixé par J46 (décisions du
  *   06/11/2026, ci-dessous) ;
  * - 7 (J17). L. 1965 art. 42, al. 3 : « oui », compris comme la CONFIRMATION des trois choix du code, compréhension
- *   confirmée par Hugo le 06/11/2026 (ci-dessous) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
+ *   confirmée le 06/11/2026 (ci-dessous) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
  *   « bloquant ou alerte ? » ; registre : « envoi bloqué pendant le délai de contestation ») : execution_suspendue_art42
  *   quand l'intervention prévue (à défaut, l'envoi) tombe au plus tard le dernier jour du délai, sauf urgence retenue
  *   (décision 6) ; étendu par J48 (décisions du 10/11/2026, ci-dessous) à tout envoi pendant le délai, même pour une
@@ -170,7 +170,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   « L'assemblée générale peut seule autoriser, à la majorité prévue par l'article 25, une délégation de pouvoir à une
  *   fin déterminée. » ; à l'art. 29-1, I, « Il peut toutefois, lorsque le bon déroulement de la mission le requiert, se
  *   faire assister par un tiers désigné par le président du tribunal judiciaire sur sa proposition et rétribué sur sa
- *   rémunération. », le seul concours que cet alinéa prévoit ; lecture de ces textes, à confirmer par Hugo (🔵) : la
+ *   rémunération. », le seul concours que cet alinéa prévoit ; lecture de ces textes, à confirmer par le référent métier (🔵) : la
  *   signature d'un collaborateur, au nom et sous la responsabilité de l'administrateur provisoire, n'est pas une
  *   substitution, ni une délégation de pouvoir, et le collaborateur n'est pas le tiers qui assiste l'administrateur
  *   provisoire (aucune désignation par le président du tribunal judiciaire n'est demandée ici) : ces points sont tranchés
@@ -188,7 +188,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   présentation du pli si elle est connue, comme la décision J1, et date de remise, J67, R74) ; « AR caduc après 1 an » :
  *   précisé par J47 (ci-dessous), c'est le devis qui devient caduc un an après sa date.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques : J46 et J47, suites de J16 et J19 ; confirmation
+ * Décisions du 06/11/2026 (registre des décisions juridiques : J46 et J47, suites de J16 et J19 ; confirmation
  * de J17) :
  * - J17 confirmée : envoi de l'OS bloqué pendant le délai de contestation (L. 1965 art. 42, al. 3), exécution d'une
  *   résolution des art. 25 ou 26 = « travaux », unanimité non suspendue ; la compréhension de la réponse « oui » (décision
@@ -206,9 +206,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - J47 (« AR caduc après 1 an », suite de J19) : c'est le DEVIS qui devient caduc UN AN APRÈS SA DATE
  *   (MOIS_CADUCITE_DEVIS_OS, 12 mois : règle du cabinet, aucun texte, fondement null). Un OS qui accepte un devis daté de
  *   plus d'un an à la date de l'envoi est refusé (devis_trop_ancien, bloquant : un nouveau devis est nécessaire). Bornes :
- *   un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire (décision J49 de Hugo du
+ *   un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire (décision J49 du
  *   10/11/2026, ci-dessous, avec l'alerte devis_revalorisation_a_demander) ; sans quantième identique, le dernier jour du
- *   mois (lecture de dates.ajouterMois, confirmée par la décision de Hugo du 17/11/2026, J54, ci-dessous) :
+ *   mois (lecture de dates.ajouterMois, confirmée par la décision du 17/11/2026, J54, ci-dessous) :
  *   le devis du 29 février a un an le 28 février suivant, il est refusé dès le 1er mars. Le devis associé de la demande
  *   (DevisAssocie, demandes.ts) ne porte que son identifiant et ses montants : sa date (dateDevis) est fournie par
  *   l'appelant, comme sa fin de validité (validiteDevisAu, lue par devisCaducALaReception) ; inconnue, l'OS n'est pas
@@ -216,7 +216,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   Contrôlé avant l'envoi (controlerAvantEnvoiOs), d'une intervention seulement (🔵 : une demande de devis n'accepte
  *   aucun devis) ; ni l'OS ni l'AR ne deviennent caducs.
  *
- * Décisions de Hugo du 10/11/2026 (registre des décisions juridiques : J48 et J49, précisions de J17 et J47) :
+ * Décisions du 10/11/2026 (registre des décisions juridiques : J48 et J49, précisions de J17 et J47) :
  * - J48 (précision de J17 ; à la question « un OS envoyé pendant le délai de contestation, pour des travaux prévus après
  *   la fin du délai, peut-il partir ? », réponse « voir la législation ») : l'OS envoyé au plus tard le dernier jour du
  *   délai de contestation est BLOQUÉ (execution_suspendue_art42, bloquant, à confirmer), même pour une intervention
@@ -231,7 +231,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   « exécution » ?) ; sur le risque, l'exécution d'une décision d'assemblée ne fait pas obstacle à son annulation
  *   (Cass. 3e civ., 24/11/2021, n° 20-22.487) et une notification irrégulière ne fait pas courir le délai (Cass. 3e civ.,
  *   28/01/2015, n° 13-23.552). 🔵 Interprétation protectrice, confiance moyenne : le texte ne règle pas ce cas, la
- *   lecture littérale (laisser partir l'OS) reste défendable ; à confirmer par Hugo (aConfirmer). Inchangés : intervention
+ *   lecture littérale (laisser partir l'OS) reste défendable ; à confirmer par le référent métier (aConfirmer). Inchangés : intervention
  *   prévue au plus tard le dernier jour du délai (bloquant, même quand l'OS est envoyé après lui), unanimité et art. 24
  *   non suspendus, demande de devis non contrôlée (elle ne conclut aucun marché), majorité inconnue (alerte) ; la fin du
  *   délai inconnue, alors en alerte, est bloquante depuis J51 (11/11/2026, ci-dessous) ;
@@ -243,11 +243,11 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   maintenu ou révisé avant d'envoyer l'OS. Seuil : MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet, aucun
  *   texte : l'alerte vaut dès que le devis a ce nombre de mois à l'envoi, tant que J47 ne le refuse pas ; à 12, seul le
  *   jour anniversaire la déclenche, et le cabinet peut l'avancer en baissant ce seuil. Le cas du 29 février, lecture du
- *   code, est confirmé par la décision de Hugo du 17/11/2026 (J54, ci-dessous) : le devis du 29 février a l'alerte le 28
+ *   code, est confirmé par la décision du 17/11/2026 (J54, ci-dessous) : le devis du 29 février a l'alerte le 28
  *   février suivant.
  *
- * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50 et J51, suites de J1 et de J48 ; notes
- * decisions-1111 : questions-hugo.md, recommandations et contre-vérification, j50-textes.md, j50-j51-jurisprudence.md,
+ * Décisions du 11/11/2026 (registre des décisions juridiques : J50 et J51, suites de J1 et de J48 ; notes
+ * decisions-1111 : questions du 11/11/2026, recommandations et contre-vérification, j50-textes.md, j50-j51-jurisprudence.md,
  * code-actuel.md ; textes et arrêts lus sur Légifrance le 11/11/2026) :
  * - J50 (« Oui, calcul électronique ») : la fin du délai de contestation se calcule aussi pour une notification
  *   électronique (lendemain de la transmission de l'avis par le prestataire, D. 1967 art. 64, dernier al.), pour chaque
@@ -275,7 +275,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   demande reçue juste avant le 25/12/2025 ne sont plus calculées depuis les décisions du 17/11/2026, J52 et J53,
  *   ci-dessous) laisse partir l'OS avec une alerte qui reprend ces points
  *   (delai_contestation_a_confirmer, à confirmer, L. 1965 art. 42, al. 2 ; D. 1967 art. 64, dernier al., 64-1 ; pas de
- *   blocage : réponse de Hugo, « calcul électronique » avec avertissement). Le droit : L. 1965 art. 42, al. 3 (version en vigueur depuis le 01/06/2020, citée plus haut),
+ *   blocage : réponse du référent métier, « calcul électronique » avec avertissement). Le droit : L. 1965 art. 42, al. 3 (version en vigueur depuis le 01/06/2020, citée plus haut),
  *   l'exécution des travaux « est suspendue jusqu'à l'expiration du délai de deux mois » : si l'on ne peut pas montrer que
  *   le délai a commencé, on ne peut pas montrer qu'il a expiré ; la preuve de la régularité de la notification est à la charge du
  *   syndicat (Cass. 3e civ., 17/12/2015, n° 14-24.630, Bull.), dont l'administrateur provisoire a les pouvoirs (L. 1965
@@ -288,7 +288,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   saisie et le fondement non saisi, alors en alerte, l'assignation reçue et l'aide juridictionnelle sont tranchés par la
  *   décision du 20/11/2026 (partie C, F82), ci-dessous.
  *
- * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md ; numéros de registre proposés : J52 à J54, J56 et J61) :
+ * Décisions du 17/11/2026 (notes de décision du 17/11/2026 ; numéros de registre proposés : J52 à J54, J56 et J61) :
  * - J52 et J53 (suites de J50, statut-assemblee.ts) : la demande de voie postale, le refus ou le retrait reçu avant le
  *   25/12/2025 prend effet dès sa réception, et la LRE à un non-professionnel sans consentement enregistré (CPCE art.
  *   L. 100) ne vaut pas notification : le délai ne court pas pour ce copropriétaire. Pour le contrôle de l'OS (J51), la
@@ -308,13 +308,13 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (J11, rangOsSuivant) ; un rang repris de Gestéam avec des zéros est lu sans eux (lireNumeroOs, 🔵) ; (4) la liste
  *   « Signature » est celle des signataires habilités réglée par le cabinet (signatairesHabilites, J18), et rien
  *   d'autre : déjà en place, comportement inchangé ;
- * - J61 (décision de Hugo du 17/11/2026 (J61), section « Suite » des notes : recommandations validées en bloc ; suite de
+ * - J61 (décision du 17/11/2026 (J61), section « Suite » des notes : recommandations validées en bloc ; suite de
  *   J56 ; règle de gestion, sans texte) : la date du segment <plan> est celle du PREMIER ENVOI, non celle de la création
  *   de la demande (segmentPlanOs, numeroterAuPremierEnvoi : comportement inchangé, lecture désormais décidée). Limite
  *   connue : un N° de ce format dont la date diffère de celle de l'envoi (attribué pour un envoi qui a échoué, repris un
  *   autre jour) n'est pas signalé ; l'appelant l'attribue le jour de l'envoi et ne l'enregistre qu'une fois l'envoi fait.
  *
- * Recommandations validées par Hugo le 17/11/2026 (J67 ; QUESTIONS-OUVERTES-DU-CODE-2026-11-17.md, partie A, R67 à R75 ;
+ * Recommandations validées le 17/11/2026 (J67 ; QUESTIONS-OUVERTES-DU-CODE-2026-11-17.md, partie A, R67 à R75 ;
  * textes lus sur Légifrance le 17/11/2026) :
  * - J67, R67 (avis du conseil syndical sous administration provisoire ; code confirmé) : quand il a les pouvoirs de
  *   l'assemblée, l'administrateur provisoire « doit avant de prendre à ce titre les décisions qui lui paraissent
@@ -552,14 +552,14 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   25-1.
  *
  * 🔴 Non établi — questions :
- * - Hugo, avec un juriste (J67, R72 appliquée ; marque gardée, comme R72 le demande) : aucun texte ni arrêt lu ne dit
+ * - Référent métier, avec un juriste (J67, R72 appliquée ; marque gardée, comme R72 le demande) : aucun texte ni arrêt lu ne dit
  *   qu'un salarié qui n'est pas administrateur judiciaire engage le syndicat en signant l'OS « pour ordre » ; avis d'un
  *   juriste à demander avant de retirer cette marque.
  * - Frédéric : quand un visa de gestion est-il nécessaire (seuil, natures, exécution forcée : aucun par défaut) et quels
  *   rôles visent (Direction par défaut ; Juridique ?) ; le rédacteur ou le signataire peut-il viser ; un visa donné
  *   tombe-t-il quand l'OS change (oui ici) ? Pour les courriers (même circuit, décision 4) : quels motifs déclenchent leur
  *   visa, et sur quels champs porte-t-il (empreinte) ?
- * - Frédéric ou Hugo : les seuils de L. 1965 art. 21, al. 2 déclenchent-ils le visa automatiquement (oui ici) ? Sans montant
+ * - Frédéric ou le référent métier : les seuils de L. 1965 art. 21, al. 2 déclenchent-ils le visa automatiquement (oui ici) ? Sans montant
  *   fixé par l'assemblée, la consultation n'est pas obligatoire : faut-il un seuil par défaut du cabinet
  *   (seuilPrevuTtcCentimes, règle de gestion) ?
  * - Frédéric : la fiche entreprise portera-t-elle le lien avec le cabinet ou le syndic ? Sinon entrepriseLiee se déclare à
@@ -610,7 +610,7 @@ export type VisaSortie = (typeof VISAS_SORTIE)[number]
 export const VISAS_PERMETTANT_ENVOI: ReadonlySet<VisaSortie> = new Set<VisaSortie>(['Visa donné', 'Sortie libre'])
 
 /**
- * Canal d'envoi : valeurs de la liste « Envoi » de la tranche 34 (décision de Hugo du 03/11/2026) ; la messagerie VitFix,
+ * Canal d'envoi : valeurs de la liste « Envoi » de la tranche 34 (décision du 03/11/2026) ; la messagerie VitFix,
  * puis les formes d'envoi des courriers.
  */
 export const CANAUX_ENVOI_OS = ['messagerie_vitfix', 'courriel', 'courrier', 'courrier_ar', 'sms'] as const
@@ -663,7 +663,7 @@ const CADRE_PAR_FONDEMENT: Readonly<Record<FondementOs, { libelle: string; texte
 
 /**
  * Majorités dont les travaux ne s'exécutent pas pendant le délai de contestation (L. 1965 art. 42, al. 3), et leur article ;
- * l'unanimité n'en est pas (décision 7 (c), confirmée par Hugo le 06/11/2026 : ni opposant ni défaillant, donc aucune
+ * l'unanimité n'en est pas (décision 7 (c), confirmée le 06/11/2026 : ni opposant ni défaillant, donc aucune
  * action de l'al. 2).
  */
 const MAJORITES_SUSPENSIVES: ReadonlyMap<TypeMajorite, string> = new Map<TypeMajorite, string>([
@@ -682,13 +682,13 @@ export const LONGUEUR_MAX_OBJET_OS = 200
 /** « Plusieurs devis », ou « plusieurs entreprises » pour un devis descriptif (D. 1967 art. 19-2) : au moins deux (J67, R70). */
 export const NOMBRE_MIN_DEVIS_CONCURRENCE = 2
 /**
- * Durée au-delà de laquelle le devis accepté par l'OS est caduc, comptée de sa date (décision J47 de Hugo du 06/11/2026) :
+ * Durée au-delà de laquelle le devis accepté par l'OS est caduc, comptée de sa date (décision J47 du 06/11/2026) :
  * règle du cabinet, aucun texte.
  */
 export const MOIS_CADUCITE_DEVIS_OS = 12
 /**
  * Ancienneté du devis, comptée de sa date, à partir de laquelle le contrôle avant l'envoi recommande de demander à
- * l'entreprise si son prix est maintenu ou révisé (décision J49 de Hugo du 10/11/2026 : « oui mais peut-être une
+ * l'entreprise si son prix est maintenu ou révisé (décision J49 du 10/11/2026 : « oui mais peut-être une
  * revalorisation est à demander à l'entreprise ») : règle du cabinet, aucun texte. À 12, seul le jour anniversaire
  * déclenche l'alerte (au-delà, J47 refuse le devis) ; le cabinet peut l'avancer en baissant ce seuil.
  */
@@ -752,10 +752,10 @@ const horodatageFr = (e: { date: string; heure: string }): string => `${fr(e.dat
 // ─── Numérotation <mandat>.<plan>.<rang> ──────────────────────────────────────────────────────
 
 export interface SegmentsNumeroOs {
-  /** Code du mandat dans le N° : la séquence est celle du mandat (décision de Hugo du 03/11/2026). */
+  /** Code du mandat dans le N° : la séquence est celle du mandat (décision du 03/11/2026). */
   mandat: string
   /**
-   * Segment <plan> du N° : la date du premier envoi, au format AAAAMMJJ (décisions de Hugo du 17/11/2026, J56 et J61 :
+   * Segment <plan> du N° : la date du premier envoi, au format AAAAMMJJ (décisions du 17/11/2026, J56 et J61 :
    * segmentPlanOs) ; il ne découpe pas la séquence (J11). Un N° repris de Gestéam garde le segment lu.
    */
   plan: string
@@ -769,8 +769,8 @@ const SEGMENT_NUMERO = /^[^.\s]+$/
 const NUMERO_OS = /^([^.\s]+)\.([^.\s]+)\.(\d{1,9})$/
 
 /**
- * Segment <plan> du N° attribué au premier envoi : la date de cet envoi au format AAAAMMJJ (décision de Hugo du
- * 17/11/2026, J56 : « le plan, c'est la date » ; date du premier envoi, puisque le N° lui est attribué : décision de Hugo
+ * Segment <plan> du N° attribué au premier envoi : la date de cet envoi au format AAAAMMJJ (décision du
+ * 17/11/2026, J56 : « le plan, c'est la date » ; date du premier envoi, puisque le N° lui est attribué : décision
  * du 17/11/2026, J61).
  */
 export function segmentPlanOs(premierEnvoiLe: string): string {
@@ -779,7 +779,7 @@ export function segmentPlanOs(premierEnvoiLe: string): string {
 }
 
 /**
- * N° « mandat.plan.rang » : segments non vides sans point ni espace, rang entier ≥ 1 écrit sans zéros (décision de Hugo
+ * N° « mandat.plan.rang » : segments non vides sans point ni espace, rang entier ≥ 1 écrit sans zéros (décision
  * du 17/11/2026, J56 : 125.20261117.7), au plus 50 caractères.
  */
 export function formaterNumeroOs({ mandat, plan, rang }: NumeroOs): string {
@@ -809,7 +809,7 @@ export function lireNumeroOs(numero: string | null): NumeroOs | null {
 }
 
 /**
- * Rang suivant dans la séquence du mandat (décision de Hugo du 03/11/2026 : séquence par mandat) : le plus grand rang de
+ * Rang suivant dans la séquence du mandat (décision du 03/11/2026 : séquence par mandat) : le plus grand rang de
  * ce segment mandat, tous plans confondus (toutes dates de premier envoi confondues depuis J56), + 1. Seuls les N°
  * attribués comptent : une demande abandonnée avant l'envoi n'a pas consommé de numéro (J56).
  */
@@ -830,7 +830,7 @@ export interface AttributionNumeroOs {
 }
 
 /**
- * Numérote la demande (copie) AU PREMIER ENVOI de son OS, dans la séquence de son mandat (décision de Hugo du
+ * Numérote la demande (copie) AU PREMIER ENVOI de son OS, dans la séquence de son mandat (décision du
  * 17/11/2026, J56 ; pas à la création : une demande abandonnée avant l'envoi ne consomme pas de numéro) : N°
  * <mandat>.<AAAAMMJJ du premier envoi>.<rang suivant du mandat, toutes dates confondues, sans zéros>, ex. 125.20261117.7.
  * L'appelant l'attribue le jour de l'envoi, juste avant le corps de la messagerie VitFix (reference_aj) et envoyerOs, et
@@ -904,7 +904,7 @@ export interface EvenementDiffusion {
 }
 
 /**
- * Accusé de réception (AR) qui fait preuve de la réception de l'OS (décision de Hugo du 03/11/2026 : « l'AR fait preuve ») :
+ * Accusé de réception (AR) qui fait preuve de la réception de l'OS (décision du 03/11/2026 : « l'AR fait preuve ») :
  * l'avis de réception du courrier AR qui a porté l'OS à l'entreprise, envoi ou rediffusion (🔵). Aucune caducité n'est
  * attachée à l'AR : « AR caduc après 1 an » vise le devis, caduc un an après sa date (J47, MOIS_CADUCITE_DEVIS_OS).
  */
@@ -990,7 +990,7 @@ export type SourceAutorisationConvention = (typeof SOURCES_AUTORISATION_CONVENTI
 const SOURCES_AUTORISATION: ReadonlySet<string> = new Set(SOURCES_AUTORISATION_CONVENTION)
 
 /**
- * Constat de l'urgence par l'administrateur provisoire lui-même (décision de Hugo du 03/11/2026 : « nous constatons
+ * Constat de l'urgence par l'administrateur provisoire lui-même (décision du 03/11/2026 : « nous constatons
  * l'urgence ») : daté, motivé, attribué au collaborateur qui agit en son nom.
  */
 export interface ConstatUrgence {
@@ -1011,17 +1011,17 @@ export interface RapportRecu {
 export interface SortieOrdreService extends CircuitVisa<CodeMotifVisa> {
   demandeId: string
   /**
-   * Signature : collaborateur qui signe pour le cabinet (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
+   * Signature : collaborateur qui signe pour le cabinet (décision du 03/11/2026 : un collaborateur peut signer,
    * pas seulement l'administrateur désigné ; habilités : ContexteEnvoiOs.administrateurDesigneId et
    * signatairesHabilites) ; la liste « Signature » est celle des signataires habilités réglée par le cabinet, et rien
-   * d'autre (décision de Hugo du 17/11/2026, J56).
+   * d'autre (décision du 17/11/2026, J56).
    */
   signataireId: string | null
-  /** Délai : liste « Délai » de la tranche 34 = UrgenceOrdreAJ (décision de Hugo du 03/11/2026). */
+  /** Délai : liste « Délai » de la tranche 34 = UrgenceOrdreAJ (décision du 03/11/2026). */
   delai: UrgenceOrdreAJ
   /** Constat de l'urgence par l'administrateur provisoire ; null : aucun constat. */
   constatUrgence: ConstatUrgence | null
-  /** Envoi : canal choisi pour le premier envoi (liste « Envoi » = CANAUX_ENVOI_OS, décision de Hugo du 03/11/2026). */
+  /** Envoi : canal choisi pour le premier envoi (liste « Envoi » = CANAUX_ENVOI_OS, décision du 03/11/2026). */
   canal: CanalEnvoiOs | null
   diffusable: boolean
   relanceLe: string | null
@@ -1165,7 +1165,7 @@ function appliquerLien(s: SortieOrdreService, saisie: SaisieSortieOs, prestatair
   }
 }
 
-/** Éléments du constat d'urgence et leur présence (décision de Hugo du 03/11/2026 : daté, motivé, attribué). */
+/** Éléments du constat d'urgence et leur présence (décision du 03/11/2026 : daté, motivé, attribué). */
 const ELEMENTS_CONSTAT: readonly (readonly [string, (c: ConstatUrgence) => boolean])[] = [
   ['date', (c) => estDateIsoValide(c.constateLe)],
   ['motif', (c) => texteOuNull(c.motif) !== null],
@@ -1327,7 +1327,7 @@ export type CadreVisa = Pick<SortieOrdreService, 'fondement' | 'constatUrgence' 
 /** Urgence demandée : délai « urgence » ou fondement « urgence de sauvegarde » (un délai « prioritaire » n'en est pas une). */
 const urgenceDemandee = (c: Pick<SortieOrdreService, 'delai' | 'fondement'>): boolean => c.delai === 'urgence' || c.fondement === 'urgence_sauvegarde'
 
-/** Urgence retenue : demandée, et constatée par l'administrateur provisoire (constat complet ; décision de Hugo du 03/11/2026). */
+/** Urgence retenue : demandée, et constatée par l'administrateur provisoire (constat complet ; décision du 03/11/2026). */
 const urgenceConstatee = (c: Pick<SortieOrdreService, 'delai' | 'fondement' | 'constatUrgence'>): boolean =>
   urgenceDemandee(c) && constatComplet(c.constatUrgence)
 
@@ -1502,7 +1502,7 @@ export const marquerDiffusable = (s: SortieOrdreService, diffusable: boolean): S
 // ─── Circuit du visa (commun aux pièces de sortie) ────────────────────────────────────────────
 
 /**
- * Visa d'une pièce de sortie : l'ordre de service ici ; le courrier (tranche 20) suit le MÊME circuit (décision de Hugo du
+ * Visa d'une pièce de sortie : l'ordre de service ici ; le courrier (tranche 20) suit le MÊME circuit (décision du
  * 03/11/2026, branchement à faire). M : codes des motifs propres à la pièce.
  */
 export interface CircuitVisa<M extends string = string> {
@@ -1877,7 +1877,7 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   /** L'entreprise a communiqué un numéro pour recevoir des SMS (canal sms) ; null ou absent : on ne sait pas. */
   smsCommunique?: boolean | null
   /**
-   * Collaborateurs habilités par le cabinet à signer un OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
+   * Collaborateurs habilités par le cabinet à signer un OS (décision du 03/11/2026 : un collaborateur peut signer,
    * pas seulement l'administrateur désigné) : réglage du cabinet, fourni par l'appelant ; absent : non contrôlé. Fournie,
    * la liste vaut pour tout signataire autre que l'administrateur désigné (administrateurDesigneId) : vide, elle ne laisse
    * signer que lui, et bloque tout envoi quand il n'est pas fourni. Avec leur qualité (J67, R72) : AJ salarié, qui signe
@@ -2118,8 +2118,8 @@ function urgenceNonRetenue(d: Demande, s: SortieOrdreService): string {
 }
 
 /**
- * Constat lisible daté après l'envoi : le jour de l'envoi, il n'existe pas encore et ne dispense de rien (décision J46 de
- * Hugo du 06/11/2026, tous fondements et tous délais : constat_urgence_posterieur_envoi, bloquant).
+ * Constat lisible daté après l'envoi : le jour de l'envoi, il n'existe pas encore et ne dispense de rien (décision J46
+ * du 06/11/2026, tous fondements et tous délais : constat_urgence_posterieur_envoi, bloquant).
  */
 const constatApresEnvoi = (c: ConstatUrgence | null, date: string): c is ConstatUrgence =>
   c !== null && estDateIsoValide(c.constateLe) && c.constateLe > date
@@ -2127,7 +2127,7 @@ const constatApresEnvoi = (c: ConstatUrgence | null, date: string): c is Constat
 /**
  * Constat qui tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de l'assemblée, avis non
  * enregistré à temps) daté après la décision au registre (borneAvisAj), au plus tard le jour de l'envoi : alerte à
- * confirmer (décision J46 de Hugo du 06/11/2026). Daté après l'envoi, il bloque celui-ci
+ * confirmer (décision J46 du 06/11/2026). Daté après l'envoi, il bloque celui-ci
  * (anomaliesChronologie) ; ailleurs, sa date n'est comparée qu'à celle de l'envoi.
  */
 function constatTardif(d: Demande, s: SortieOrdreService, constat: ConstatUrgence, date: string): AnomalieEnvoiOs[] {
@@ -2147,7 +2147,7 @@ function constatTardif(d: Demande, s: SortieOrdreService, constat: ConstatUrgenc
 }
 
 /**
- * Urgence (décision de Hugo du 03/11/2026) : retenue avec le délai « urgence » (ou le fondement « urgence de sauvegarde »)
+ * Urgence (décision du 03/11/2026) : retenue avec le délai « urgence » (ou le fondement « urgence de sauvegarde »)
  * ET le constat complet de l'administrateur provisoire ; un constat sans délai « urgence » ne lève rien. Un constat fait
  * hors des signataires habilités ne vaut pas constat (Décision du 20/11/2026, partie C, F77) : il ne tient pas lieu de
  * l'avis, d'où aucune alerte « constat postérieur » (anomaliesAuteurConstat le signale).
@@ -2258,7 +2258,7 @@ function anomaliesAccordAdministrateurs(s: SortieOrdreService, contexte: Context
 }
 
 /**
- * Signataire de l'OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer, pas seulement l'administrateur
+ * Signataire de l'OS (décision du 03/11/2026 : un collaborateur peut signer, pas seulement l'administrateur
  * désigné ; décision rendue sur L. 1965 art. 18, IV et art. 29-1, I, lus comme ne faisant pas de cette signature une
  * substitution, 🔵) : absent, bloquant ; ni administrateur désigné ni dans la liste du cabinet (horsDesHabilites ; liste
  * non fournie : non contrôlé), bloquant ; le contrôle par la liste du cabinet est une règle de gestion, sans texte
@@ -2725,7 +2725,7 @@ function anomaliesDelegationCs(d: Demande, s: SortieOrdreService, contexte: Cont
 }
 
 /**
- * Ce qui tombe dans le délai de contestation qui finit le `fin` (décision J48 de Hugo du 10/11/2026, précision de J17) :
+ * Ce qui tombe dans le délai de contestation qui finit le `fin` (décision J48 du 10/11/2026, précision de J17) :
  * l'envoi de l'OS, qui conclut le marché dès qu'il parvient à l'entreprise (C. civ. art. 1121), même pour une
  * intervention prévue après la fin du délai ; il ne part qu'à partir du lendemain de `fin`, date écrite dans le message ;
  * quand l'OS est envoyé après le délai, l'intervention prévue au plus tard son dernier jour ; null : rien n'y tombe.
@@ -2783,7 +2783,7 @@ const ACTION_FIN_DELAI_INCONNUE: Readonly<Record<CauseDelaiNonCalcule | 'pv_non_
   voie_postale_demandee:
     'notifier de nouveau par lettre recommandée avec avis de réception le copropriétaire qui a demandé la voie postale (D. 1967 art. 64-1, 64-4)',
   accord_electronique_absent: "saisir l'accord exprès du copropriétaire à la voie électronique s'il existe, sinon le notifier de nouveau (D. 1967 art. 64)",
-  // décision de Hugo du 17/11/2026 (J53) : LRE à un non-professionnel sans consentement enregistré
+  // décision du 17/11/2026 (J53) : LRE à un non-professionnel sans consentement enregistré
   consentement_lre_absent:
     "enregistrer le consentement du copropriétaire aux envois recommandés électroniques (CPCE art. L. 100 ; accord du critère LRE de Gestéam) s'il l'a donné avant l'envoi, sinon le notifier de nouveau par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)",
   opposants_non_saisis: "saisir le nombre d'opposants et de défaillants de la résolution (D. 1967 art. 18)",
@@ -3026,12 +3026,12 @@ function anomaliesDevisAssocie(d: Demande, s: SortieOrdreService, contexte: Cont
 }
 
 /**
- * Ancienneté du devis accepté par l'OS (décision J47 de Hugo du 06/11/2026) : le devis devient caduc un an après sa date
+ * Ancienneté du devis accepté par l'OS (décision J47 du 06/11/2026) : le devis devient caduc un an après sa date
  * (MOIS_CADUCITE_DEVIS_OS, règle du cabinet, fondement null) ; daté de plus d'un an à la date de l'envoi, l'OS est refusé
  * (bloquant : un nouveau devis est nécessaire). Bornes : un devis daté d'un an pile (même quantième) est encore accepté le
- * jour anniversaire (décision J49 de Hugo du 10/11/2026), avec une alerte qui recommande de demander à l'entreprise si son
+ * jour anniversaire (décision J49 du 10/11/2026), avec une alerte qui recommande de demander à l'entreprise si son
  * prix est maintenu ou révisé, dès MOIS_ALERTE_REVALORISATION_DEVIS mois (règle du cabinet, fondement null) ; sans
- * quantième identique, le dernier jour du mois (lecture de dates.ajouterMois, confirmée par la décision de Hugo du
+ * quantième identique, le dernier jour du mois (lecture de dates.ajouterMois, confirmée par la décision du
  * 17/11/2026, J54 ; par analogie, CPC art. 641) : le devis du 29 février a un an le 28 février suivant. Date du devis
  * inconnue : alerte, sans blocage. Intervention seulement : une
  * demande de devis n'accepte aucun devis (🔵).
@@ -3472,7 +3472,7 @@ function verifierCourrierDeReception(reception: EvenementDiffusion, courrier: Co
  * l'acceptation parvient (C. civ. art. 1121) ; pour un écrit électronique hors des cas des art. 1125 et 1126, la remise
  * est effective à l'accusé de réception (art. 1127-4). Toute réception par courrier AR, AR saisi ou non, est celle du
  * pli qui a porté l'OS à l'entreprise (envoi ou rediffusion par courrier AR, même courrierId), sinon refusée
- * (pliDeLaReception) ; elle peut porter son AR, qui en fait preuve (décision de Hugo du 03/11/2026), rapproché du
+ * (pliDeLaReception) ; elle peut porter son AR, qui en fait preuve (décision du 03/11/2026), rapproché du
  * courrier lié quand il est fourni (courrier : forme « AR » exigée, déposé, première présentation tirée de lui ou comparée
  * à lui) ; l'AR saisi sur une réception par un autre canal est refusé ; sans AR, la réception est admise, « sans preuve »
  * (preuveDeReception). Le journal ne se réécrit pas : un AR revenu après une réception déjà enregistrée passe par une
@@ -3595,7 +3595,7 @@ export function fixerRelance(s: SortieOrdreService, date: string | null): Sortie
   return { ...s, relanceLe: date }
 }
 
-// ─── Ce que l'entreprise doit faire parvenir (relance : décision de Hugo du 03/11/2026) ───────
+// ─── Ce que l'entreprise doit faire parvenir (relance : décision du 03/11/2026) ───────
 
 /** La relance vise la réponse à l'OS, et aussi l'accusé et le rapport quand ils sont demandés. */
 export const ATTENDUS_OS = ['reponse', 'accuse', 'rapport'] as const
@@ -3658,7 +3658,7 @@ export function enregistrerRapport(d: Demande, s: SortieOrdreService, saisie: Sa
 export type PreuveReception = 'ar' | 'sans_preuve'
 
 /**
- * Preuve d'une réception portée par sa ligne (décision de Hugo du 03/11/2026 : l'AR fait preuve) : « ar » quand elle porte
+ * Preuve d'une réception portée par sa ligne (décision du 03/11/2026 : l'AR fait preuve) : « ar » quand elle porte
  * son AR, sinon « sans_preuve » (ligne sans la clé « ar », écrite avant la décision 9, comprise) : la réception reste
  * admise, sans blocage (🔵). Pour une réception par courrier AR, preuveDeDiffusion lit aussi le courrier lié et le
  * journal de la sortie.
@@ -3768,7 +3768,7 @@ function relanceDue(d: Demande, s: SortieOrdreService): RelanceOsAFaire | null {
 }
 
 /**
- * Relances dues (décision de Hugo du 03/11/2026) : UN élément par OS envoyé, ni terminé ni refusé, tant qu'un élément manque
+ * Relances dues (décision du 03/11/2026) : UN élément par OS envoyé, ni terminé ni refusé, tant qu'un élément manque
  * (attendusOs), date de relance fixée ou non (relanceDue : relancer, ou fixer la prochaine relance) ; il liste ce qui
  * manque. Tout reçu : rien n'est dû. Triées par date.
  */

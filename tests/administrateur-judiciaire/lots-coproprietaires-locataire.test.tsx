@@ -7,7 +7,7 @@ import { ToastProvider } from '@/components/administrateur-judiciaire/ui/toast'
 /**
  * Lots & copropriétaires : fiche du compte copropriétaire sur le modèle de la fiche client de Gestéam (identité,
  * personnes du compte, télécoms, rattachement, lots et tantièmes, notification, conseil syndical, extranet, notes),
- * avec le locataire du lot (nom, prénom, téléphone, courriel), demande de Hugo du 29/10/2026.
+ * avec le locataire du lot (nom, prénom, téléphone, courriel), demande du 29/10/2026.
  */
 
 async function monter() {

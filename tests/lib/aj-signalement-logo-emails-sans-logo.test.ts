@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-logo-emails-sans-logo.test.ts
 //
-// Logo d'un cabinet client (demande de Hugo du 13/11/2026), non-régression des e-mails : SANS logo (cabinet qui n'en a
+// Logo d'un cabinet client (demande du 13/11/2026), non-régression des e-mails : SANS logo (cabinet qui n'en a
 // pas, copropriété sans cabinet, migration 20261114 non appliquée), l'accusé de réception au déclarant et les e-mails
 // de signalement aux destinataires sont OCTET POUR OCTET ceux d'avant le logo, et leur envoi est le même (mêmes champs,
 // aucune pièce jointe). Les empreintes SHA-256 et les instantanés ci-dessous ont été écrits sur le code d'avant le logo

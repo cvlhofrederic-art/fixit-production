@@ -81,7 +81,7 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  * - 🟢 La désignation d'un AP met fin de plein droit au contrat de syndic (contrat type, point 10). 🔵 Par mandat, une
  *   ligne relève d'un seul régime ; par responsable, une ligne peut mêler syndic et administration provisoire.
  *
- * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc) :
+ * Décision du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc) :
  * - J67, R4 : par prudence, les règles 810.4, 900.2 et 900.3 valent en administration provisoire. Elles « régissent
  *   l'activité de tous » les AJ et leurs missions de C. com. L. 811-1 ; la loi impose à l'administrateur provisoire non
  *   AJ « les mêmes obligations que celles qui s'imposent aux administrateurs judiciaires » (L. 1965 art. 29-1, III,
@@ -104,7 +104,7 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   ordonnance qui les couvre (preparerFacture, J67, R3). Ils ne vont pas au compte provisoire détaillé des émoluments
  *   (61-1-5, II, qui ne vise que les émoluments) : ils iront dans son annexe « frais et débours exposés », demandés au
  *   juge avec la rémunération (Cass. 3e civ., 21 mai 2026, n° 24-20.377 ; Cass. 2e civ., 3 mars 2016, n° 15-12.129).
- *   L'annexe viendra avec le compte provisoire, qui n'existe pas encore dans le code. J72 (décision de Hugo du
+ *   L'annexe viendra avec le compte provisoire, qui n'existe pas encore dans le code. J72 (décision du
  *   18/11/2026) : (a) l'envoi de la mise en demeure ou d'une relance d'un copropriétaire en retard est une dépense du
  *   syndicat, payée sur la pièce du prestataire postal et imputée au copropriétaire (L. 1965 art. 10-1, a ; R6) : pas
  *   un élément facturable du cabinet ; sa trace éventuelle, en Contrôle coûts (etapes-courrier.ts), reste hors des
@@ -133,7 +133,7 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de
  *   l'imputation ? Et sa source : les éléments (choix actuel), les factures, ou les comptes (critère « Compte du / au ») ?
- * - 🔴 (Frédéric ou Hugo) Le regroupement « Responsable » vise-t-il le responsable du mandat (choix actuel, RolesMandat)
+ * - 🔴 (Frédéric ou le référent métier) Le regroupement « Responsable » vise-t-il le responsable du mandat (choix actuel, RolesMandat)
  *   ou le Collaborateur de la fiche élément (tranche 27) ? Est-il réservé au contrôle interne, sans jamais être présenté
  *   au juge (L. 1965 art. 29-1, I, al. 2) ? Faut-il y séparer syndic et administration provisoire ?
  * - 🔴 (Frédéric) Sens de « Pas de mandat exclu », « Liste de contrôle », « Produire une liste de … », Source, Cabinet
@@ -145,7 +145,7 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  * - 🔴 (Frédéric) Le contrôle des coûts doit-il être valorisé au prix de l'élément ? Choix actuel : oui.
  * - 🔴 (Frédéric) Les échéances du scénario de gestion courante (echeancesScenario) entrent-elles dans le tableau ?
  *   Choix actuel : non, seuls les éléments.
- * - 🔴 (Frédéric ou Hugo) Les déductions (réduction de 25 % après un mandat ad hoc, arrêté du 8 octobre 2015, art. 2 ;
+ * - 🔴 (Frédéric ou le référent métier) Les déductions (réduction de 25 % après un mandat ad hoc, arrêté du 8 octobre 2015, art. 2 ;
  *   sommes de l'assureur et pénalités du contrat type, 6.1, 6.2, 7.2.4) doivent-elles figurer au tableau ? Non modélisé.
  *
  * Branchements à faire plus tard (fichiers hors de ce point) : etats-comptables.ts, « Tableau des honoraires » passe à

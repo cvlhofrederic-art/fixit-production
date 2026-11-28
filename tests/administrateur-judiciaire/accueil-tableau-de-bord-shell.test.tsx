@@ -22,7 +22,7 @@ import { ROUTES_CABINET, porteeRoute } from '@/lib/administrateur-judiciaire/dom
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Décision de Hugo du 29/10/2026 : « enlève le Aujourd'hui, c'est le doublon de la page d'accueil ». Le Tableau de bord
+ * Décision du 29/10/2026 : « enlève le Aujourd'hui, c'est le doublon de la page d'accueil ». Le Tableau de bord
  * devient la page d'accueil (route par défaut) ; « Aujourd'hui » (route « cockpit ») quitte le menu, la palette ⌘K et
  * le fil d'Ariane ; un ancien lien #cockpit ouvre le Tableau de bord au lieu d'un écran mort.
  */
@@ -271,7 +271,7 @@ describe('Shell — le Tableau de bord, page d’accueil', () => {
 })
 
 /**
- * « AJ Signalement » sort de l'AJ (demande de Hugo du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
+ * « AJ Signalement » sort de l'AJ (demande du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
  * palette, le fil d'Ariane et le registre ; l'espace indépendant (/fr/aj-signalement/) n'a plus qu'un lien au pied de
  * la barre latérale, pour le seul super admin (tests/components/panneau-admin-liens.test.tsx). Une ancre, un favori ou
  * un récent hérités ne mènent à rien de mort.

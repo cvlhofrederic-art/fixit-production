@@ -2,7 +2,7 @@
 // tests/lib/email-pieces-jointes-en-ligne.test.ts
 //
 // lib/email.ts (partagé) : pièce jointe EN LIGNE (logo d'un cabinet dans l'accusé de réception d'AJ Signalement,
-// demande de Hugo du 13/11/2026). Documentation officielle de Resend, relue le 13/11/2026 :
+// demande du 13/11/2026). Documentation officielle de Resend, relue le 13/11/2026 :
 //   - resend.com/docs/dashboard/emails/embed-inline-images : champ `contentId` dans le SDK Node.js, `content_id` dans
 //     l'API, image appelée dans le HTML par `<img src="cid:…">` ; pièces jointes, images en ligne comprises, NON
 //     prises en charge par l'envoi par lot ;

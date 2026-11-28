@@ -531,8 +531,8 @@ describe('relecture 71 — libellé « Associé » : déduit (🔵), non relevé
     expect(EN_TETE).not.toMatch(/le libellé exact de la grille/)
   })
 
-  it('🔴 question à Hugo sur la forme exacte du libellé', () => {
-    expect(EN_TETE).toContain('Hugo : libellé exact de la fonction associé dans la grille : Associé, Associé(e) ?')
+  it('🔴 question au référent métier sur la forme exacte du libellé', () => {
+    expect(EN_TETE).toContain('Référent métier : libellé exact de la fonction associé dans la grille : Associé, Associé(e) ?')
   })
 
   it('la liste des fonctions ne présente plus « Associé » comme un libellé de la tranche 41', () => {

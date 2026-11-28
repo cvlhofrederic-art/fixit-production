@@ -1,7 +1,7 @@
 // ── Consigne d'appel aux secours de la page publique « AJ Signalement » ───────────
 //
 // R70 du dossier téléphonie (14/11/2026) : une urgence déclarée par QR code n'alerte aucun secours. BROUILLON (textes à
-// valider par Hugo, présentation par Frédéric, portugais H4), composant du socle seulement (Encadre, tons existants) :
+// valider par le référent métier, présentation par Frédéric, portugais H4), composant du socle seulement (Encadre, tons existants) :
 //   - ConsigneSecoursQr : consigne permanente, en tête du formulaire, avant les coordonnées (ton « info ») ;
 //   - ConsigneSecoursUrgenteQr : consigne renforcée (ton « avertissement »), sous le choix d'urgence quand « urgent »
 //     est choisi et sur la confirmation d'un signalement urgent.

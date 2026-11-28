@@ -27,7 +27,7 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   traitement qui l'a produit, avec ses pièces ; il passe d'« Enregistré » à « Émis » quand le fichier part ; le virement
  *   de banque à banque est un traitement distinct (virement-interne.ts).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J29 ; question 20 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J29 ; question 20 de la liste) :
  * - J29 : la « Remise d'espèces » reçues est refusée. Le compte 53 « Caisse » (arrêté du 14 mars 2005, art. 7) n'est pas
  *   tenu et aucun paiement ne se fait en espèces (J25 : ni salaires ni fournisseurs). Le refus (prise en charge
  *   « refuse ») devient une décision du cabinet, et non plus un choix provisoire de VitFix : la question est fermée. Le
@@ -53,10 +53,10 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   (reglements-fournisseurs.ts : « référence du paiement », arrêté du 14 mars 2005, art. 4) ;
  * - les six types sans constructeur dans ordres-banque.ts sont CONSTATÉS (aucun fichier produit par VitFix) ;
  * - rangs, traitement unique et syndicat unique d'un lot : règles de GESTION (Gestéam), aucun texte.
- * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
+ * 🔴 Non établi (à trancher par Frédéric ou le référent métier) :
  * - Frédéric (relevé Gestéam) : « Prélèvement » et « Prélèvement émis », « TIP émis » et « TIP encaissé » ont-ils bien
  *   le sens déduit ci-dessus (sortie subie, puis encaissement présenté par le syndicat) ? Quel traitement produit chacun ?
- * - Frédéric ou Hugo : « Virement CAF » existe-t-il en copropriété, ou relève-t-il de la gérance (allocations de logement
+ * - Frédéric ou le référent métier : « Virement CAF » existe-t-il en copropriété, ou relève-t-il de la gérance (allocations de logement
  *   versées au bailleur) ? Refusé ici tant que ce n'est pas établi ;
  * - Frédéric : un ordre sans fichier (chèque émis, virement reçu) passe-t-il « Émis » ? Non observé ;
  *   emettreOrdreConstate l'accepte, sans l'exiger ;

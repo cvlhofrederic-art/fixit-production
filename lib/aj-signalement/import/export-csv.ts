@@ -1,7 +1,7 @@
 // ── AJ Signalement : export CSV des copropriétés importées (navigateur ; pur) ─────────────────────────────────────
 //
 // SPEC § 1.9.7 : « Exporter la liste (CSV) » après un import — nom, adresse, CP, ville, gestionnaires, lien public du QR
-// code (chemin du cabinet client vitfix.io/<identifiant>/signalement/<jeton>/, choix de Hugo du 10/11/2026). Généré dans
+// code (chemin du cabinet client vitfix.io/<identifiant>/signalement/<jeton>/, choix du 10/11/2026). Généré dans
 // le navigateur, conservé nulle part. Les noms viennent du fichier d'un tiers et la liste s'ouvre dans Excel : toute
 // cellule qui commence par =, +, -, @, une tabulation ou un retour chariot est préfixée d'une apostrophe (injection de
 // formule), AVANT la mise entre guillemets. UTF-8 avec BOM, séparateur « ; », fins de ligne CRLF.

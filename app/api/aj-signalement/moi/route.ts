@@ -6,7 +6,7 @@
 //     (celui de sa fiche, relue à chaque appel), et ses domaines e-mail (adresses qu'il peut ajouter aux destinataires).
 // Jamais d'identifiant (ni de compte, ni de fiche, ni de cabinet). 401 sans session · 403 interdit (autre compte) ou
 // acces_retire (fiche désactivée, bloquée, absente) · 503 base_absente (migration à appliquer). Jamais en cache.
-// Logo du cabinet (migration 20261114, demande de Hugo du 13/11/2026) : cabinet.logo { version, largeur, hauteur } quand
+// Logo du cabinet (migration 20261114, demande du 13/11/2026) : cabinet.logo { version, largeur, hauteur } quand
 // SON cabinet en a un (affiches PDF préparées dans l'espace) ; clé absente sinon, et tant que la migration manque
 // (réponse identique à avant). Jamais l'image : elle est lue par sa route publique.
 

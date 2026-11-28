@@ -2,7 +2,7 @@
 
 // ── Page profil d'un gestionnaire (espace AJ Signalement, #gestionnaire/<uuid>) ──────────────────────────────────────
 //
-// Demandes de Hugo du 10/11/2026 : une page profil par gestionnaire, avec ses copropriétés en tableau de bord et sa
+// Demandes du 10/11/2026 : une page profil par gestionnaire, avec ses copropriétés en tableau de bord et sa
 // page de suivi des signalements par copropriété (SPEC § 1.8). En-tête (nom modifiable, adresse, état, envois), « Sa
 // page de suivi » (SuiviGestionnaireQr, ce qu'il verra en PR 2), copropriétés attribuées (origine, retrait, ajout),
 // communes à tous (lecture), créations (PR 2), activité (journal de la fiche), export RGPD, départ (successions),

@@ -11,7 +11,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Sélecteur de copropriété du haut de page (demande de Hugo du 29/10/2026) : Alfredo ne montre que les courriels de
+ * Sélecteur de copropriété du haut de page (demande du 29/10/2026) : Alfredo ne montre que les courriels de
  * la copropriété choisie (compteur de non-lus recalculé, premier courriel ouvert si le message ouvert n'en fait pas
  * partie). Sans copropriété choisie (écran rendu seul), toute la boîte, comme avant.
  *

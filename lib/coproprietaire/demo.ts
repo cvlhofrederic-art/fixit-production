@@ -238,7 +238,7 @@ export function espaceDemo(chargeLe = '2026-10-17T09:00:00+02:00'): EspaceCopro 
       nbLots: 48,
       anneeConstruction: 1972,
       typeImmeuble: 'Copropriété',
-      gestionnaire: 'Hugo Carvalho',
+      gestionnaire: 'Camille Martin',
       budgetAnnuel: 45000,
       depensesAnnee: 31200,
       reglement: {

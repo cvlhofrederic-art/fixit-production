@@ -103,12 +103,12 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  * l'absence de fiche (ni diligence au forfait, ni acte hors tarif, ni rémunération à soumettre au juge), et le solde
  * l'ignore (hors base, hors frais, hors écartés). L'élément créé à l'ouverture reste « Facturable » (🟢 tranche 42).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J38 ; question 30 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J38 ; question 30 de la liste) :
  * - J38 : l'élément d'honoraires créé à l'ouverture d'un sinistre compte 1 heure, comme Gestéam
  *   (HEURES_A_L_OUVERTURE_SINISTRE) ; le temps passé se corrige ensuite (corrigerHeures). Choix actuel confirmé : il
  *   n'est plus « à trancher », et creerElement continue de refuser une quantité nulle.
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026 ; lecture des textes, pas un avis d'avocat) :
  * - J67, R1 : cadre « rémunération fixée par le président » (remuneration_fixee_par_le_president, ci-dessus), pour l'AP
  *   de l'art. 47, l'administrateur ad hoc et le syndic judiciaire (C. com. R. 814-27 et R. 814-28) ; le mandataire ad
@@ -132,8 +132,8 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  *   l'envoi est remboursé à part (7.2.1) ; anomalieDeReprographie devra alors les signaler et le solde les écarter.
  *   Hors contrat type, une copie est un frais (J72, b, ci-dessous).
  *
- * Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J72 ; question Q5, conflit R5 / R6) :
- * - J72 (décision de Hugo du 18/11/2026) : frais d'envoi. (b) Les envois du cabinet pour un dossier sinistre (timbre,
+ * Décision du 18/11/2026 (registre des décisions juridiques, J72 ; question Q5, conflit R5 / R6) :
+ * - J72 (décision du 18/11/2026) : frais d'envoi. (b) Les envois du cabinet pour un dossier sinistre (timbre,
  *   AR, copie, envois, diffuseurs) sont des frais du cabinet, à part de sa rémunération, présentés au juge en annexe
  *   « frais et débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5) : hors contrat type,
  *   chaque frais du dossier Sinistre est signalé « à présenter au juge » (anomalie frais_a_presenter_au_juge, avec la
@@ -162,7 +162,7 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  * Questions ouvertes :
  * - 🔴 (Frédéric) Le cabinet gère-t-il dans VitFix des mandats de syndic conventionnels (seul cas où l'élément est créé) ?
  *   Question F6 ; pour le cabinet, C. com. L. 811-10 (J67, R14 et R15).
- * - 🔴 (Frédéric ou Hugo) Quel arrondi pour taux horaire × durée ? Choix actuel : durée en minutes exactes, heures au
+ * - 🔴 (Frédéric ou le référent métier) Quel arrondi pour taux horaire × durée ? Choix actuel : durée en minutes exactes, heures au
  *   centième (comme le « Nbre d'heure » Gestéam), montant arrondi au centime par totalElement.
  * - 🔴 (Frédéric) Taux horaire et taux de TVA par défaut : réglages du cabinet, non relevés (passés par l'appelant).
  * - 🔴 (Frédéric) Administration provisoire de 500 lots et plus : le juge fixe la rémunération « en fonction des frais

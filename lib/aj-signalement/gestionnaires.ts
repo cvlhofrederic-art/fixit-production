@@ -1,6 +1,6 @@
 // ── AJ Signalement : fiches gestionnaires, règles pures (navigateur, serveur, tests) ────────────────────────────
 //
-// Demandes de Hugo du 10/11/2026 : chaque gestionnaire reçoit automatiquement les signalements de ses copropriétés,
+// Demandes du 10/11/2026 : chaque gestionnaire reçoit automatiquement les signalements de ses copropriétés,
 // une fois son adresse confirmée ; une fiche n'est acceptée que sur un domaine e-mail de SON cabinet (réglé par client
 // dans l'espace, jamais dans le code). Aucune donnée réelle ici : les domaines se saisissent à l'écran.
 //   - emailCanoniqueQr / domaineDeEmailQr / emailDansDomainesQr : même règle que la fonction SQL

@@ -27,7 +27,7 @@ import { NATURE_PLAN_COMPTABLE } from '@/lib/data/referentiels-gesteam-judiciair
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * Décision J4 (Hugo Carvalho, 09/10/2026), tranchée sur Légifrance le 28/10/2026 et relue sur le texte officiel le
+ * Décision J4 (09/10/2026), tranchée sur Légifrance le 28/10/2026 et relue sur le texte officiel le
  * 29/10/2026 — le fonds de travaux (L. 1965 art. 14-2-1, créé par la loi n° 2021-1104, art. 171, jamais modifié).
  * - Obligation : immeuble à destination totale ou partielle d'habitation, dix ans après la réception ; entrée en vigueur
  *   échelonnée selon le nombre de lots (2023, 2024, 2025) ; plus aucune dispense.
@@ -162,7 +162,7 @@ describe('J4 — contrôle d’affectation (art. 14-2-1, I et art. 29-14, 2°)',
 })
 
 /**
- * Décision J30 de Hugo (03/11/2026) : l'ordonnance de l'art. 29-14, 2° n'est plus un texte libre. Forme exigée :
+ * Décision J30 (03/11/2026) : l'ordonnance de l'art. 29-14, 2° n'est plus un texte libre. Forme exigée :
  * juridiction, date et n° de l'ordonnance, chacun obligatoire, date ISO jamais après aujourd'hui. Décision d'affectation
  * de l'assemblée : date de l'AG et n° de la résolution, déclinaison confirmée par la décision J42 du 06/11/2026. Une
  * valeur ancienne en texte libre reste lisible et admise, signalée « forme incomplète » ; une nouvelle saisie en texte
@@ -305,9 +305,9 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
     expect(lireDecisionAffectationAg('Résolution 12')).toMatchObject({ forme: 'incomplete', texte: 'Résolution 12' })
   })
 
-  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » avec J30 ; rubrique du 06/11/2026 : J42 confirme la déclinaison de l’AG', () => {
+  it('en-tête : rubrique « Décisions du 03/11/2026 » avec J30 ; rubrique du 06/11/2026 : J42 confirme la déclinaison de l’AG', () => {
     const { texte: entete, item } = enTeteDuModule('fonds-travaux')
-    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit du texte'))
+    const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔵 Déduit du texte'))
     expect(decisions).toMatch(/J30/)
     expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
     expect(decisions).not.toMatch(/à confirmer/)
@@ -331,7 +331,7 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
 })
 
 /**
- * J67, R58 (décision de Hugo du 17/11/2026) : l'art. 29-14, 2° ne fixe aucun montant ; l'ordonnance porte un montant
+ * J67, R58 (décision du 17/11/2026) : l'art. 29-14, 2° ne fixe aucun montant ; l'ordonnance porte un montant
  * facultatif et son objet ; si un montant est écrit, aucun emploi ne le dépasse (bloquant).
  */
 describe('J67, R58 — montant et objet de l’ordonnance de l’art. 29-14, 2°', () => {
@@ -886,7 +886,7 @@ describe('J4 — « Montant bloqué » : un garde-fou de gestion, pas une règle
 
 describe('J67, R84 à R86 — en-tête : décisions inscrites, questions fermées', () => {
   const { texte: entete } = enTeteDuModule('fonds-travaux')
-  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit du texte'))
+  const decisions = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔵 Déduit du texte'))
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
 
   it('R84 : assiette des 2,5 % = montant total des travaux de la partie du plan adoptée, toutes années ; entrée renommée', () => {

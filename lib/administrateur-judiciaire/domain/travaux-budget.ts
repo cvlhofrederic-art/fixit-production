@@ -86,7 +86,7 @@ import {
  *   mandats qui leur sont confiés en matière civile » est fixée sur justification par le président de la juridiction qui
  *   les a désignés.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J39 ; question de la PR #651, point 31) :
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J39 ; question de la PR #651, point 31) :
  * - J39 : le barème du droit proportionnel de l'administrateur provisoire sur travaux (arrêté du 8 octobre 2015, art. 11 ;
  *   D. 1967 art. 61-1-5, I, 2°) s'applique opération par opération. Chaque opération a son propre calcul par tranches
  *   (droitProportionnelTravauxAdministrateurProvisoire, sur le montant hors taxes d'une seule opération) ; le droit de
@@ -94,7 +94,7 @@ import {
  *   au cumul de leurs montants. La question « opération par opération, ou une seule fois au montant total » est
  *   tranchée ; l'assiette et la présentation au juge, restées ouvertes, sont tranchées par J55 (ci-dessous).
  *
- * Décisions de Hugo du 17/11/2026 (numéro de registre proposé : J55, suite de J39 ; notes DECISIONS-HUGO-2026-11-17.md,
+ * Décisions du 17/11/2026 (numéro de registre proposé : J55, suite de J39 ; notes de décision du 17/11/2026,
  * recommandations suivies ; textes relus sur Légifrance le 17/11/2026 : arrêté du 8 octobre 2015, JORFTEXT000031289440,
  * art. 11, en vigueur depuis le 12/10/2015 ; D. 1967 art. 44, en vigueur depuis le 04/06/2004, décret n° 2004-479 ;
  * D. 1967 art. 61-1-5, II, en vigueur depuis le 01/01/2020, décret n° 2019-966) :
@@ -108,13 +108,13 @@ import {
  *   opération par opération, jamais au cumul (J39) ; non applicable en administration provisoire renforcée (art. 11,
  *   dernier al.) ni à 500 lots et plus (art. 3), d'après cadreHonorairesTravaux.
  *
- * Suite, décision de Hugo du 17/11/2026 (J60) (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
+ * Suite, décision du 17/11/2026 (J60) (notes de décision du 17/11/2026, section « Suite » : recommandations
  * validées en bloc, numéro de registre proposé) : les « autres honoraires » (contrôle technique, coordonnateur sécurité)
  * sont exclus de l'assiette du droit proportionnel, comme ceux que J55 nomme : prestations intellectuelles, pas des
  * travaux (arrêté du 8 octobre 2015, art. 11 : « montant total hors taxes des travaux ») ; nature « honoraires_autres »,
  * exclue (comportement inchangé, lecture désormais décidée).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026 : L. 1965 art. 14-2-1, I, 18, I, 18-1 A, III, 29-1, I et 29-14 ; D. 1967 art. 44,
  * 46, 61-1-5, 62-7 et 62-8 ; arrêté du 8 octobre 2015, art. 11 et 14 ; arrêté du 14 mars 2005, art. 3 et 7) :
  * - J67, R12 : syndic désigné par le président du tribunal (D. 1967 art. 46) : honoraires de travaux votés selon l'art.
@@ -152,7 +152,7 @@ import {
  *   l'assemblée (travaux-operations.ts) ; aucun, ou étendue non saisie : emploi refusé et part bloquante ; une partie :
  *   alerte « à vérifier dans l'ordonnance ».
  *
- * Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J73 ; question Q6, conflit R1 / R12 ; C. com.
+ * Décision du 18/11/2026 (registre des décisions juridiques, J73 ; question Q6, conflit R1 / R12 ; C. com.
  * R. 814-27, en vigueur depuis le 25/05/2008, lu le 18/11/2026) : R1 l'emporte sur R12. La rémunération de
  * l'administrateur provisoire de l'art. 47 est fixée, sur justification de l'accomplissement de la mission, par le
  * président de la juridiction qui l'a désigné (C. com. R. 814-27 ; recours : CPC art. 714 à 718), comme pour les
@@ -258,7 +258,7 @@ import {
  * - la rémunération de l'administrateur provisoire ne se vote pas : des honoraires votés sous ce régime sont signalés
  *   (art. 29-1 et, depuis J73, art. 47).
  *
- * 🔴 Non établi (questions pour Frédéric ou Hugo) :
+ * 🔴 Non établi (questions pour Frédéric ou le référent métier) :
  * - « La ligne "Fonds de prévoyance" de l'onglet Budget porte-t-elle la part financée par le fonds de travaux (art.
  *   14-2-1), sous son ancien nom, ou un fonds de prévoyance distinct (nature "Fonds de prévoyance" du plan) ? » (VitFix :
  *   la part du fonds de travaux de l'opération, et un financement « fonds de prévoyance » distinct, jamais fusionnés) ;
@@ -1605,10 +1605,10 @@ export function droitsProportionnelsTravauxParOperation(operations: readonly Mon
 
 /**
  * Nature d'une dépense hors taxes de l'opération, pour l'assiette du droit proportionnel de l'administrateur provisoire
- * (décision de Hugo du 17/11/2026, J55) : les travaux de D. 1967 art. 44, 1°, 2°, 3° et 5° et les travaux urgents de
+ * (décision du 17/11/2026, J55) : les travaux de D. 1967 art. 44, 1°, 2°, 3° et 5° et les travaux urgents de
  * l'art. 37 sont retenus ; les études techniques (art. 44, 4°), l'assurance dommages-ouvrage et les honoraires (maître
  * d'œuvre, bureau d'études, syndic) sont exclus, comme les autres honoraires (contrôle technique, coordonnateur sécurité :
- * décision de Hugo du 17/11/2026, J60). Les quatre postes TTC du budget (POSTES_BUDGET_TRAVAUX) ne distinguent
+ * décision du 17/11/2026, J60). Les quatre postes TTC du budget (POSTES_BUDGET_TRAVAUX) ne distinguent
  * pas les études des travaux et ne portent pas le hors taxes : cette nature est le moyen minimal de les porter, sans
  * table (l'appelant la donne pour chaque marché, devis ou facture HT de l'opération).
  */
@@ -1674,7 +1674,7 @@ export interface AssietteDroitProportionnelTravaux {
 
 /**
  * Assiette du droit proportionnel d'UNE opération (arrêté du 8 octobre 2015, art. 11 : « le montant total hors taxes des
- * travaux » de D. 1967 art. 44 ou des travaux urgents de l'art. 37 ; décision de Hugo du 17/11/2026, J55) : la somme hors
+ * travaux » de D. 1967 art. 44 ou des travaux urgents de l'art. 37 ; décision du 17/11/2026, J55) : la somme hors
  * taxes de ses dépenses de nature « travaux » ou « travaux urgents ». Refus : nature inconnue, montant qui n'est pas en
  * centimes entiers positifs ou nuls.
  */
@@ -1782,7 +1782,7 @@ function detailDeLaLigne(numero: string, decision: string, assiette: AssietteDro
 /**
  * Compte provisoire détaillé des émoluments, partie droit proportionnel sur travaux (D. 1967 art. 61-1-5, II : acomptes
  * fixés chaque année par le président du tribunal judiciaire « au vu d'un compte provisoire détaillé des émoluments » ;
- * décision de Hugo du 17/11/2026, J55) : pour chaque opération, la décision qui la fonde (résolution d'AG ou décision de
+ * décision du 17/11/2026, J55) : pour chaque opération, la décision qui la fonde (résolution d'AG ou décision de
  * l'administrateur provisoire), le montant hors taxes retenu (assietteDroitProportionnelTravaux : travaux seuls), le
  * calcul par tranches et le droit ; barème appliqué opération par opération, jamais au cumul (J39 :
  * droitsProportionnelsTravauxParOperation). Administrateur provisoire de L. 1965 art. 29-1 seulement : non applicable en

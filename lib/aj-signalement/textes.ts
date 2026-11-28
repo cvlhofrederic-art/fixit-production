@@ -7,16 +7,16 @@
 // super admin) sont en français seulement (lib/aj-signalement/affichage.ts).
 // PR 3, lot 7 (cahier § 6, droit § 4.5 et art. 13 du RGPD ; décision HF3) : information à la collecte sous le bouton
 // d'envoi — qui traite les coordonnées, pourquoi, et le lien vers la politique de confidentialité du cabinet ; la partie
-// « diffusion » seulement quand la copropriété peut diffuser. TEXTE PROPOSÉ, à valider par Frédéric et Hugo (HF3 ;
+// « diffusion » seulement quand la copropriété peut diffuser. TEXTE PROPOSÉ, à valider par Frédéric et le référent métier (HF3 ;
 // portugais : H4) ; brouillon. Copropriété sans cabinet ou cabinet sans politique : rien ne s'affiche.
 // R70 du dossier téléphonie (14/11/2026) : une urgence déclarée par QR code n'alerte aucun secours. Consigne d'appel au 112
 // (consigneSecours, en tête du formulaire) et consigne renforcée (consigneSecoursUrgente : sous le choix « urgent », sur
 // la confirmation d'un signalement urgent et dans son accusé de réception, lib/aj-signalement/email.ts). TEXTES PROPOSÉS,
-// brouillon : textes à valider par Hugo, présentation par Frédéric, portugais à relire (H4). Fondement (note juridique du
+// brouillon : textes à valider par le référent métier, présentation par Frédéric, portugais à relire (H4). Fondement (note juridique du
 // dossier) : numéros d'urgence français fixés par l'annexe de la décision ARCEP n° 2022-2372 (112, 15, 17, 18, 114…) ;
 // 114 pour les personnes sourdes, malentendantes, sourdaveugles et aphasiques (CPCE, art. D. 98-8-1) ; au Portugal, le 112
 // seul. Aucun texte n'impose cet affichage sur un formulaire privé : mesure de prudence. Ni délai ni intervention promis.
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026, lib/aj-signalement/batiments.ts) : liste à choix au lieu
+// Bâtiments saisis par le cabinet (demande du 17/11/2026, lib/aj-signalement/batiments.ts) : liste à choix au lieu
 // du texte libre (choisirBatiment, batimentListeAide) et refus d'un bâtiment absent de la liste (erreurs.batiment_inconnu,
 // rendu aussi par la route du dépôt, dans la langue de la page). TEXTES PROPOSÉS, brouillon (portugais à relire, H4).
 
@@ -237,8 +237,8 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
     pt: 'Os seus dados são tratados por {cabinet} para tratar a sua ocorrência e informá-lo dos incidentes do seu prédio; pode opor-se a qualquer momento.',
   },
   politiqueConfidentialite: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
-  // R70 (dossier téléphonie) : TEXTES PROPOSÉS, brouillon (textes : Hugo ; présentation : Frédéric ; portugais : H4).
-  // Décisions de Hugo du 14/11/2026 : vocabulaire de la page (« administrateur de la copropriété » ; PT « ocorrência »,
+  // R70 (dossier téléphonie) : TEXTES PROPOSÉS, brouillon (textes : le référent métier ; présentation : Frédéric ; portugais : H4).
+  // Décisions du 14/11/2026 : vocabulaire de la page (« administrateur de la copropriété » ; PT « ocorrência »,
   // « administrador do condomínio ») ; l'accroche et la confirmation ne promettent plus ni réception immédiate ni rappel.
   consigneSecours: {
     fr: 'En cas de danger immédiat (incendie, odeur de gaz, fumée, personne blessée ou en danger), appelez d’abord le 112. Ce signalement est transmis à l’administrateur de la copropriété ; il n’alerte pas les secours.',

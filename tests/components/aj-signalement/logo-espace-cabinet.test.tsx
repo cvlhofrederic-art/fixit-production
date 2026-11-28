@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/logo-espace-cabinet.test.tsx
 //
-// Logo d'un cabinet client dans l'espace du cabinet (demande de Hugo du 13/11/2026 ; brouillon soumis à Frédéric) :
+// Logo d'un cabinet client dans l'espace du cabinet (demande du 13/11/2026 ; brouillon soumis à Frédéric) :
 //   - connexion professionnelle (vitfix.io/<identifiant>/connexion/) : le logo À LA PLACE de l'icône dorée, en haut de
 //     la carte blanche ; nom du cabinet et titre inchangés ;
 //   - ouverture de l'accès (/invitation/) et confirmation d'adresse (/confirmation-adresse/) : le logo en haut de la

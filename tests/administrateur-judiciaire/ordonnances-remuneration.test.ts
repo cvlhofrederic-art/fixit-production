@@ -14,7 +14,7 @@ import { AP_120_LOTS, finDeMission, ordonnance } from './donnees-ordonnances-rem
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * J67, R3 et R4 (décision de Hugo du 17/11/2026) — ordonnances de rémunération de l'administrateur : hors le droit fixe
+ * J67, R3 et R4 (décision du 17/11/2026) — ordonnances de rémunération de l'administrateur : hors le droit fixe
  * de 1 500 € HT (art. 29-1, moins de 500 lots), il n'est payé qu'en vertu des ordonnances du juge (D. 1967 art. 61-1-5 ;
  * C. com. R. 814-27 et R. 814-28) ; l'ordonnance de fin de mission n'est exécutoire qu'après le mois de recours, sans
  * recours pendant, et seulement si sa notification indique le recours (CPC art. 714 ; Cass. 2e civ., 3/03/2016).

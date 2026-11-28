@@ -5,14 +5,14 @@
 // Nom (obligatoire), adresse, e-mails destinataires (séparés par des virgules ; vides = administrateur),
 // QR code actif. En modification : « Remplacer le QR code » tire un nouveau jeton après confirmation
 // (l'affiche imprimée ne répond plus). Erreurs persistantes dans la fenêtre ; rien n'est fermé sur échec.
-// Depuis le 11/11/2026 (SPEC § 1.8, demandes de Hugo du 10/11) : cabinet client à la création (sinon « sans cabinet »,
+// Depuis le 11/11/2026 (SPEC § 1.8, demandes du 10/11) : cabinet client à la création (sinon « sans cabinet »,
 // l'ancienne adresse ; le rattachement d'une copropriété existante se fait depuis la vue Cabinets), code postal, ville,
 // immatriculation, référence, bâtiments, gestionnaires du cabinet et « Attribuer à tous » (rappel de la règle) ;
 // doublon (« Ce n'est pas un doublon, créer » / « Créer quand même »), adresse saisie hors des domaines du cabinet
 // (confirmation), adresse d'un gestionnaire refusée ; suppression d'une copropriété sans signalement (nom ressaisi).
 // Les champs nouveaux ne partent que remplis ou changés : sans eux, le corps est celui d'avant (la route répond 503 à un
 // champ nouveau tant que la migration du 11/11/2026 manque).
-// PR 3, lot 8 (décision H7 de Hugo, cahier § 7.4 ; BROUILLON pour Frédéric) : en modification d'une copropriété rattachée
+// PR 3, lot 8 (décision H7, cahier § 7.4 ; BROUILLON pour Frédéric) : en modification d'une copropriété rattachée
 // à un cabinet, date facultative « Fin de mission prévue » (à partir de ce jour, plus aucune diffusion), RELUE par la
 // route des valeurs de diffusion (D-R1, finMissionLe) ; le champ n'apparaît que si elle a répondu (migration du
 // 13/11/2026 appliquée) et ne part que changé (diffusionFinGestionLe, null pour l'effacer).

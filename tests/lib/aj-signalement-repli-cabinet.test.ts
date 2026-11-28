@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-repli-cabinet.test.ts
 //
-// D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : repli vers les boîtes de VitFix COUPÉ. Quand une
+// D9 (décision du 17/11/2026, au nom de VitFix, point 7) : repli vers les boîtes de VitFix COUPÉ. Quand une
 // copropriété n'a aucun destinataire (ni adresse saisie, ni gestionnaire) :
 //   - copropriété d'un cabinet client : le signalement part à l'adresse de contact du cabinet (diffusion_contact_email),
 //     seule adresse du cabinet que le code connaît, pour qu'il ne reste jamais sans lecteur ; type « cabinet », sans

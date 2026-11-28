@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/lib/aj-signalement-diffusion-lien.test.ts
 //
-// Liens de désinscription d'une diffusion (cahier PR 3 § 8.1, décision H5 de Hugo appliquée par défaut) :
+// Liens de désinscription d'une diffusion (cahier PR 3 § 8.1, décision H5 appliquée par défaut) :
 //   - deux liens par message, même forme `<id du destinataire, 32 hex>.<HMAC-SHA-256, 64 hex>`, signés pour deux usages
 //     distincts : la PAGE (bouton du corps, jeton dans le fragment « # ») et le UN CLIC (en-tête List-Unsubscribe, jeton
 //     dans le chemin, RFC 8058) ; un jeton d'un usage ne vaut rien pour l'autre ;

@@ -494,7 +494,7 @@ describe('voies d’exécution — contrôle de fond de l’autorisation de la s
 })
 
 /**
- * Décision J35 de Hugo (03/11/2026), confirmée le 06/11/2026 : l'Assemblée et la Résolution du dossier autorisent aussi
+ * Décision J35 (03/11/2026), confirmée le 06/11/2026 : l'Assemblée et la Résolution du dossier autorisent aussi
  * une action en justice hors recouvrement (D. 1967 art. 55, al. 1). Le recouvrement de créance n'en demande pas (al. 3).
  * Décision J45 (06/11/2026) : le syndicat se défend à une contestation d'assemblée sans autorisation (al. 3).
  */
@@ -589,7 +589,7 @@ describe('J35 — autorisation d’une action en justice hors recouvrement (D. 1
 })
 
 /**
- * J67, R47 (décision de Hugo du 17/11/2026) : la souscription d'une police impayés au nom du syndicat suit la mission de
+ * J67, R47 (décision du 17/11/2026) : la souscription d'une police impayés au nom du syndicat suit la mission de
  * l'ordonnance (L. 1965 art. 29-1, I, al. 2) ; mêmes règles de pouvoirs que la saisie, sans contrôle de date. Une
  * alerte, jamais un refus.
  */
@@ -814,7 +814,7 @@ describe('voies d’exécution — exécution engagée et phase « Exécution en
 })
 
 /**
- * Décision J43 de Hugo (06/11/2026) : case « Échéancier » cochée (échéancier fixé par décision du juge, C. civ. art.
+ * Décision J43 (06/11/2026) : case « Échéancier » cochée (échéancier fixé par décision du juge, C. civ. art.
  * 1343-5) et exécution déjà engagée sur le même dossier : signalée. « La décision du juge suspend les procédures
  * d'exécution qui auraient été engagées par le créancier. » (al. 4, relu sur Légifrance le 06/11/2026).
  */
@@ -942,15 +942,15 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
   it('pose la question 🔴 du zéro euro ; celles de la majorité, des montants de l’administrateur provisoire et du plafond de l’hypothèque sont fermées (J67)', () => {
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('Branchements à faire plus tard'))
     expect(nonEtabli).toMatch(/égales à 0 € sont-elles admises/)
-    expect(nonEtabli).not.toMatch(/ 1\. \(Frédéric ou Hugo\) La décision qui autorise la saisie/)
+    expect(nonEtabli).not.toMatch(/ 1\. \(Frédéric ou le référent métier\) La décision qui autorise la saisie/)
     expect(nonEtabli).not.toMatch(/ 2\. \(Frédéric\) L'administrateur provisoire/)
     expect(nonEtabli).not.toMatch(/ 4\. \(Frédéric\) Quel plafond/)
     expect(source).not.toMatch(/🔴 [1249]\b/)
     expect(source).not.toMatch(/MAJORITE_A_CONFIRMER|majoriteADouter/)
   })
 
-  it('rubrique « Décisions de Hugo du 17/11/2026 » : J67, R43 à R47, avec les textes relus', () => {
-    const decisions1711 = source.slice(source.indexOf('Décisions de Hugo du 17/11/2026'), source.indexOf('🔵 Déduit :'))
+  it('rubrique « Décisions du 17/11/2026 » : J67, R43 à R47, avec les textes relus', () => {
+    const decisions1711 = source.slice(source.indexOf('Décisions du 17/11/2026'), source.indexOf('🔵 Déduit :'))
     expect(decisions1711).toMatch(/J67, R43 \(question 9 fermée\) : /)
     expect(decisions1711).toMatch(/Cass\. com\., 17\/01\/2024, n° 22-20\.185/)
     expect(decisions1711).toMatch(/Cass\. 2e civ\., avis du 05\/03\/2026, n° 25-70\.021/)
@@ -969,11 +969,11 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(branchements).toMatch(/décision de souscription \(J67, R47\)/)
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33, J35 et J36 inscrites, J35 et J36 confirmées le 06/11/2026 ; questions 3 et 5 fermées', () => {
-    const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('🔵 Déduit :'))
+  it('rubrique « Décisions du 03/11/2026 » : J33, J35 et J36 inscrites, J35 et J36 confirmées le 06/11/2026 ; questions 3 et 5 fermées', () => {
+    const decisions = source.slice(source.indexOf('Décisions du 03/11/2026'), source.indexOf('🔵 Déduit :'))
     expect(decisions).toMatch(/J33/)
     expect(decisions).toMatch(/C\. civ\. art\. 1343-5/)
-    expect(decisions).toMatch(/J35 \(confirmée par Hugo le 06\/11\/2026\)/)
+    expect(decisions).toMatch(/J35 \(confirmée le 06\/11\/2026\)/)
     expect(decisions).toMatch(/controlerAutorisationActionEnJustice/)
     expect(decisions).toMatch(/D\. 2025-1292, art\. 12/)
     expect(decisions).toMatch(/recharge normale des véhicules électriques \(CCH art\. R\. 113-8\)/)
@@ -981,7 +981,7 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).not.toMatch(/04\/11\/2026/)
     expect(decisions).toMatch(/Contestation d'assemblée.*L\. 1965 art\. 42, al\. 2/)
     expect(decisions).not.toMatch(/les mesures conservatoires, les demandes qui relèvent des pouvoirs du juge des référés et la défense aux actions intentées contre le syndicat n'en demandent pas \(al\. 3\), ce que/)
-    expect(decisions).toMatch(/J36 \(confirmée par Hugo le 06\/11\/2026\)/)
+    expect(decisions).toMatch(/J36 \(confirmée le 06\/11\/2026\)/)
     expect(decisions).toMatch(/audience d'orientation \(CPCE R\. 322-15\)/)
     expect(decisions).toMatch(/commandement de payer valant saisie \(CPCE R\. 321-1\)/)
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'))
@@ -996,8 +996,8 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).not.toMatch(/case « Échéancier » est conservée sans effet/)
   })
 
-  it('rubrique « Décisions de Hugo du 06/11/2026 » : J45 (contestation d’assemblée) et confirmation de J35 et J36 ; plus aucune marque « à confirmer » de ces décisions', () => {
-    const decisions0611 = source.slice(source.indexOf('Décisions de Hugo du 06/11/2026'), source.indexOf('🔵 Déduit :'))
+  it('rubrique « Décisions du 06/11/2026 » : J45 (contestation d’assemblée) et confirmation de J35 et J36 ; plus aucune marque « à confirmer » de ces décisions', () => {
+    const decisions0611 = source.slice(source.indexOf('Décisions du 06/11/2026'), source.indexOf('🔵 Déduit :'))
     expect(decisions0611).toMatch(/J45 \(contestation d'assemblée, point 56, suite de J35\) : /)
     expect(decisions0611).toMatch(/action intentée contre le syndicat/)
     expect(decisions0611).toMatch(/s'y défend sans autorisation de l'assemblée \(D\. 1967 art\. 55, al\. 3\)/)
@@ -1024,8 +1024,8 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).toMatch(/en vigueur à la date de la décision/)
   })
 
-  it('rubrique « Décisions de Hugo du 06/11/2026 » : J43, art. 1343-5 relu sur Légifrance le 06/11/2026, gravité justifiée', () => {
-    const decisions0611 = source.slice(source.indexOf('Décisions de Hugo du 06/11/2026'), source.indexOf('🔵 Déduit :'))
+  it('rubrique « Décisions du 06/11/2026 » : J43, art. 1343-5 relu sur Légifrance le 06/11/2026, gravité justifiée', () => {
+    const decisions0611 = source.slice(source.indexOf('Décisions du 06/11/2026'), source.indexOf('🔵 Déduit :'))
     expect(decisions0611).toMatch(/J43 : /)
     expect(decisions0611).toMatch(/relu sur Légifrance le 06\/11\/2026/)
     expect(decisions0611).toMatch(/En vigueur au 06\/11\/2026/)
@@ -1040,7 +1040,7 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(decisions0611).toMatch(/la case ne porte ni la date de la décision ni les délais accordés/)
     // Question 9 (suite de J43, jalon « Commandement ») : fermée par J67, R43, le commandement est signalé aussi.
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('Branchements à faire plus tard'))
-    expect(nonEtabli).not.toMatch(/9\. \(Frédéric ou Hugo, suite de J43\) Le jalon « Commandement » du dossier/)
+    expect(nonEtabli).not.toMatch(/9\. \(Frédéric ou le référent métier, suite de J43\) Le jalon « Commandement » du dossier/)
     expect(source).not.toMatch(/VitFix : non, seules les mesures du bloc Voie d'exécution \(executionEngagee\)/)
   })
 

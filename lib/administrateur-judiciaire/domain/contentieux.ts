@@ -86,7 +86,7 @@ import {
  *   suspend les exécutions (C. consom. art. L. 722-2 et L. 722-5) : un échéancier d'une autre origine que
  *   'surendettement' devrait alors cesser d'être actif. La recevabilité n'est pas le plan (origine 'surendettement') :
  *   faut-il, en plus de l'origine, un fait daté « recevabilité du surendettement » sur le contentieux ?
- * - 🟢 J67, R40 (décision de Hugo du 17/11/2026) : un échéancier amiable en cours ne bloque pas l'exigibilité des
+ * - 🟢 J67, R40 (décision du 17/11/2026) : un échéancier amiable en cours ne bloque pas l'exigibilité des
  *   provisions qui échoient ensuite. La provision est exigible le premier jour de chaque trimestre ou de la période fixée
  *   par l'AG, sans exception pour un copropriétaire qui a un échéancier (L. 1965 art. 14-1) ; l'art. 19-2 ne prévoit aucun
  *   accord qui l'écarte. relanceDepuisEtape garde donc l'étape « exigibilite » avec le groupe 6. L'échéancier ne couvre que
@@ -100,7 +100,7 @@ import {
  *   impayés est datée sur un dossier de recouvrement ? Aujourd'hui cette phase ne se déduit d'aucune date (un test le
  *   garde) : la date « Déclaré le » n'est pas lue par `phaseSuggeree`.
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J33 ; question 26 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J33 ; question 26 de la liste) :
  * - J33 : la case « Échéancier » du bloc Voie d'exécution (tranche 42) désigne l'échéancier fixé par décision du juge
  *   (délais de grâce, C. civ. art. 1343-5). 🟢 Art. 1343-5 relu sur Légifrance le 03/11/2026 (bandeau « En vigueur au
  *   03/11/2026 » ; créé par l'ordonnance n° 2016-131 du 10 février 2016, art. 3, en vigueur depuis le 01/10/2016, sans
@@ -113,7 +113,7 @@ import {
  *   délais prennent fin. Les deux ans de l'al. 1 se contrôlent sur la grille (decompte-contentieux.controlerEcheancier,
  *   origine 'delais_grace'). La « Particularité » (question 25) est supprimée : J44, ci-dessous.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J43 et J44 ; PR #643, J33, et question 25 de la
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J43 et J44 ; PR #643, J33, et question 25 de la
  * liste) :
  * - J43 : case « Échéancier » cochée (échéancier fixé par décision du juge, C. civ. art. 1343-5) et exécution déjà
  *   engagée sur le même dossier (saisie cochée, saisie immobilière engagée, expulsion datée : executionEngagee) :

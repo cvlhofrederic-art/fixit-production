@@ -3,7 +3,7 @@
 // Envoyés par Resend (lib/email.ts). Module serveur (il importe Resend) : les libellés partagés sont dans
 // affichage.ts. Tout ce que le déclarant a saisi est échappé avant d'entrer dans le HTML.
 //   - administrateur : destinataires de la copropriété, en français ; « répondre » écrit directement au déclarant
-//     (replyTo). D9 (décision de Hugo du 17/11/2026, au nom de VitFix) : plus jamais ADMIN_EMAIL ; copropriété sans
+//     (replyTo). D9 (décision du 17/11/2026, au nom de VitFix) : plus jamais ADMIN_EMAIL ; copropriété sans
 //     destinataire → l'adresse de contact de son cabinet reçoit le signalement (type « cabinet ») s'il y en a une, et
 //     VitFix une alerte sans aucune donnée (alerteSignalementEnAttenteQr) ;
 //   - déclarant : récapitulatif dans la langue de la page (FR / PT), envoyé à sa seule adresse, sans adresse de
@@ -21,12 +21,12 @@
 // /<identifiant>/suivi/#signalements, aucun jeton) au lieu de la phrase « Le cabinet suit ce signalement… ».
 // PR 3, lot 4 (diffusion aux déclarants) : message d'information sur l'immeuble AU NOM DU CABINET, avec ses en-têtes de
 // désinscription, et copie au cabinet (section « Diffusion aux déclarants », en fin de fichier).
-// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : dans l'ACCUSÉ DE RÉCEPTION seulement,
+// Logo du cabinet (demande du 13/11/2026, brouillon soumis à Frédéric) : dans l'ACCUSÉ DE RÉCEPTION seulement,
 // en pièce jointe EN LIGNE (cid, envoi unitaire sendEmail), dans une rangée blanche au-dessus du bandeau bleu nuit ;
 // jamais une image distante (aucun suivi d'ouverture possible). Les e-mails de signalement aux destinataires partent en
 // lot (sendBatchEmails), que Resend ne laisse porter aucune pièce jointe : ils restent SANS logo. Les messages de
 // diffusion et leur copie restent sans aucune image (garantie « pas de promotion », droit § 4.1).
-// R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : l'accusé de
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes du référent métier, présentation Frédéric, portugais H4) : l'accusé de
 // réception d'un signalement URGENT commence par la consigne renforcée d'appel aux secours (blocConsigneSecoursQr), dans
 // la langue du signalement ; autres priorités : accusé octet pour octet celui d'avant.
 
@@ -99,7 +99,7 @@ function ligne(libelle: string, valeurHtml: string): string {
     </tr>`
 }
 
-// GARDE — D8 (décision de Hugo du 17/11/2026, au nom de VitFix, point 8) : l'e-mail aux gestionnaires ne sera réduit à un
+// GARDE — D8 (décision du 17/11/2026, au nom de VitFix, point 8) : l'e-mail aux gestionnaires ne sera réduit à un
 // lien (numéro, type, urgence, lien vers l'espace) que quand TOUS ses destinataires auront un accès à l'espace. Vérifié
 // le 17/11/2026 : il porte aujourd'hui le signalement complet, pour chaque type de destinataire. Les adresses saisies, les
 // gestionnaires sans accès ouvert et l'adresse de contact du cabinet (D9) n'ont que cet e-mail pour le lire : ne pas le
@@ -400,7 +400,7 @@ const PHRASES_ATTENTE_QR: Record<SituationAttenteQr, string> = {
 }
 
 /**
- * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : copropriété sans aucun destinataire. Le signalement
+ * D9 (décision du 17/11/2026, au nom de VitFix, point 7) : copropriété sans aucun destinataire. Le signalement
  * ne part plus vers les boîtes de VitFix : VitFix reçoit cette alerte, SANS AUCUNE DONNÉE du signalement ni de la
  * copropriété (ni texte, ni nom, ni adresse, ni téléphone, ni urgence), seulement son numéro (celui du tableau) et son
  * identifiant technique, et elle dit qui l'a reçu. Relecture du 17/11/2026 : VitFix est sous-traitant ; il ne choisit
@@ -673,7 +673,7 @@ function ligneInformationConfirmationQr(t: TextesConfirmationQr, politique: Poli
 }
 
 /**
- * R70 du dossier téléphonie (14/11/2026 ; brouillon, textes à valider par Hugo, présentation par Frédéric, portugais H4) :
+ * R70 du dossier téléphonie (14/11/2026 ; brouillon, textes à valider par le référent métier, présentation par Frédéric, portugais H4) :
  * consigne renforcée d'appel aux secours en tête de l'accusé d'un signalement URGENT, dans la langue du signalement.
  * Mêmes textes que la page publique (TEXTES_SIGNALEMENT_QR.consigneSecoursUrgente), échappés ; même style que le bandeau
  * « urgence » de l'e-mail aux destinataires. Ni lien, ni numéro cliquable, ni bouton : l'accusé garde au plus un href
@@ -697,7 +697,7 @@ export function blocConsigneSecoursQr(langue: LangueSignalementQr): string {
  * ces deux options, la sortie est identique à celle d'avant la PR 3.
  * R70 (14/11/2026, brouillon) : signalement de priorité « urgente » seulement, la consigne d'appel aux secours en tête du
  * corps (blocConsigneSecoursQr ; ni lien, ni bouton, aucune information sur l'immeuble ; relecture du droit § 5.4 par
- * Hugo). Autres priorités : sortie identique à celle d'avant.
+ * le référent métier). Autres priorités : sortie identique à celle d'avant.
  * Logo du cabinet (13/11/2026) : rangée blanche au-dessus du bandeau, image appelée par cid (pièce jointe en ligne
  * d'envoyerConfirmationQr) ; sans logo, sortie identique à celle d'avant ; avec, rien d'autre ne change.
  */
@@ -763,7 +763,7 @@ export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promis
 //
 // Cahier PR 3 § 5.1 (enveloppe), § 5.2 (gabarit), § 5.6 (copie au cabinet), § 3.8 et décision H1 (message d'annonce
 // unique, même gabarit). Le message est écrit AU NOM DU CABINET : bandeau, signature, pied et nom d'affichage sont ceux
-// du cabinet. AUCUNE adresse de réponse (décision de Hugo du 16/11/2026 : « je ne veux pas que mes copropriétaires
+// du cabinet. AUCUNE adresse de réponse (décision du 16/11/2026 : « je ne veux pas que mes copropriétaires
 // puissent répondre ») : le pied dit que le message est automatique et qu'il ne faut pas y répondre ; il garde
 // l'identité du cabinet, sa politique de confidentialité et son adresse de contact, qui reçoit toujours la copie de
 // chaque envoi (§ 5.6). VitFix et « AJ Signalement » n'y sont nommés nulle part (droit § 4.1 : ni auteur apparent, ni
@@ -776,7 +776,7 @@ export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promis
 // Exactement deux liens : le bouton de désinscription (jeton de PAGE, dans le fragment) et la politique de
 // confidentialité du cabinet ; le jeton UN CLIC n'est que dans l'en-tête List-Unsubscribe (RFC 8058). Aucune image,
 // aucun pixel. Toute valeur est échappée ; le texte est échappé PUIS ses retours deviennent <br/>.
-// Textes portugais proposés, à relire par Hugo (H4) ; tant que H9 est ouverte, seul le français est activé (D-R8).
+// Textes portugais proposés, à relire par le référent métier (H4) ; tant que H9 est ouverte, seul le français est activé (D-R8).
 // Brouillon : gabarit et copie soumis à l'accord de Frédéric (F1).
 
 /** Portées d'une diffusion (colonne signalements_qr_diffusions.portee). */
@@ -886,7 +886,7 @@ export interface TextesDiffusionQr {
   traitesPar: string
   politique: string
   contact: string
-  /** Dernière phrase du pied : message automatique, ne pas y répondre (décision de Hugo du 16/11/2026). */
+  /** Dernière phrase du pied : message automatique, ne pas y répondre (décision du 16/11/2026). */
   pasDeReponse: string
   /** Séparateur avant une adresse dans la version texte (« : » précédé d'une espace en français). */
   deuxPoints: string
@@ -1079,7 +1079,7 @@ export function templateDiffusionQr(diffusion: DiffusionFigeeQr, jetonPage: stri
 
 /**
  * Message d'un destinataire (ligne rendue par signalements_qr_diffusion_lot) : un seul `to`, ni cc ni bcc ; expéditeur
- * figé ; AUCUNE adresse de réponse (décision de Hugo du 16/11/2026 ; le contact du cabinet n'est écrit que dans le
+ * figé ; AUCUNE adresse de réponse (décision du 16/11/2026 ; le contact du cabinet n'est écrit que dans le
  * pied et reçoit la copie) ; en-têtes List-Unsubscribe et List-Unsubscribe-Post (RFC 8058) avec le jeton UN
  * CLIC ; bouton du corps avec le jeton de PAGE ; étiquettes lues par le webhook (type, diffusion, destinataire).
  * Jetons : signerLiensDiffusionQr(destinataire.id). Lève DiffusionInvalideQr si une valeur sort de sa forme (filtrer

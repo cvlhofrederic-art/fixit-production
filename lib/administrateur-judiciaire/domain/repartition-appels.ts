@@ -23,12 +23,12 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * Arrondi : plus forts restes, la somme des quotes-parts égale exactement l'échéance (aucun centime perdu ni créé).
  * 🔵 Comptes de contrepartie par défaut : 70100 (provisions, budget), 10500 (fonds de travaux, compte observé tranche
  *    25) ; remplaçables par échéance. Travaux : 10200, le 102 « crédité des provisions appelées par le débit du compte
- *    450 » (arrêté du 14 mars 2005, art. 10 ; décision de Hugo du 17/11/2026, J67, R61), viré au 702 au fil des charges
+ *    450 » (arrêté du 14 mars 2005, art. 10 ; décision du 17/11/2026, J67, R61), viré au 702 au fil des charges
  *    (travaux-operations.ts).
  * 🔵 Une échéance à 0 centime (tranche de travaux entièrement financée par le fonds de travaux) reste dans l'avis (l'avis
  *    du n° 17 y rattache l'emploi du fonds) mais n'écrit aucune ligne : débits et crédits nuls sont omis de l'écriture.
  *
- * Mutation du lot le jour de l'exigibilité — décision de Hugo Carvalho du 30/10/2026 : l'appel est dû par le VENDEUR.
+ * Mutation du lot le jour de l'exigibilité — décision du 30/10/2026 : l'appel est dû par le VENDEUR.
  * 🟢 Relu sur Légifrance le 30/10/2026 :
  * - D. 1967 art. 6-2 (en vigueur depuis le 25/12/2025, modifié par le décret n° 2025-1292, art. 3 ; même texte, au renvoi
  *   près — « troisième alinéa de l'article 14-1 » —, du 01/09/2004 au 25/12/2025) : « A l'occasion de la mutation à titre
@@ -48,7 +48,7 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * Règle, par nature d'échéance :
  * - budget : vendeur (art. 6-2, 1°) 🟢 ;
  * - fonds de travaux : vendeur, la cotisation suivant le régime des provisions du budget (art. 14-2-1, I, al. 6) 🔵 ;
- * - travaux hors budget (art. 6-2, 2°) : vendeur, 🔵 déduit et décision de Hugo — la somme est exigible dès le début du
+ * - travaux hors budget (art. 6-2, 2°) : vendeur, 🔵 déduit et décision du référent métier — la somme est exigible dès le début du
  *   jour fixé, quand le vendeur est encore copropriétaire.
  * 🔵 Mutation, dans le modèle (identites-positions.muterLot, positions semi-ouvertes) : sur le même lot, une position de
  * copropriété en place la veille sort le jour même et une autre y entre ; les comptes redevables sont alors ceux des
@@ -59,7 +59,7 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * avec fonds-travaux-lots.fondsTravauxALaMutation (vendeur en place la veille, appels du fonds exigibles au plus tard le
  * jour de la mutation dus par lui) ; postesDepuisAvis et l'imputation des encaissements lisent le compte porté par l'avis.
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026) :
  * - J67, R87 : cotisation au fonds exigible du 01/01/2017 au 25/11/2018 : même règle qu'ensuite (ancien art. 14-2,
  *   rédaction du 01/01/2017 au 25/11/2018 ; pour un appel exigible au plus tard le jour de la mutation, les 1° et 2° de

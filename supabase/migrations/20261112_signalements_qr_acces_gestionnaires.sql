@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AJ Signalement (12/11/2026) — accès de chaque gestionnaire à l'espace de son cabinet (vitfix.io/<identifiant>/suivi/).
 --
--- Demandes de Hugo du 10 et du 11/11/2026 : chaque gestionnaire a un compte VitFix professionnel (rôle serveur
+-- Demandes du 10 et du 11/11/2026 : chaque gestionnaire a un compte VitFix professionnel (rôle serveur
 -- gestionnaire_signalement, posé par le serveur à l'acceptation d'une invitation signée envoyée par e-mail) ; un compte
 -- existant n'est jamais converti. Le compte est relié à sa fiche (user_id) par le trigger ci-dessous, à l'acceptation
 -- d'un envoi « acces » ; les droits suivent la fiche ACTIVE et ses attributions, relues par le serveur à chaque appel.

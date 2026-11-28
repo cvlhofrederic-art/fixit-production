@@ -650,24 +650,24 @@ describe('suivi « à faire » — étapes', () => {
       ['etapes:e-1:a_faire', '2026-10-27'],
       ['etapes:e-2:a_faire', '2026-10-25'],
       // Sans aucune date : à la date de référence, marquée « sans délai » (J76, question n° 6 de modeles-etapes.ts ;
-      // proposition de Hugo du 19/11/2026, à valider par Frédéric).
+      // proposition du 19/11/2026, à valider par Frédéric).
       ['etapes:e-3:a_faire', '2026-10-29'],
     ])
     expect(elements[2].libelle).toBe('Lettre de mise en demeure — sans délai')
   })
 })
 
-describe('en-tête du module : décisions de Hugo du 03/11/2026 (J20 à J24) et 🔴 restants', () => {
+describe('en-tête du module : décisions du 03/11/2026 (J20 à J24) et 🔴 restants', () => {
   const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-dossier.ts'), 'utf8')
   const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
-  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduits'))
+  const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔵 Déduits'))
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'), entete.indexOf('Le droit'))
 
   /** Ligne « - Jxx : … » de la rubrique, seule : l'intro (« J20 à J24 ») et les renvois (« usage du cabinet : J24 ») n'y comptent pas. */
   const ligneDecision = (j: string) => decisions.split(/ - (?=J\d{2} : |Question \d+ )/).find((ligne) => ligne.startsWith(`${j} : `)) ?? ''
 
   it('rubrique des décisions : une ligne par décision, J20 à J24, chacune avec sa teneur', () => {
-    expect(entete).toContain('Décisions de Hugo du 03/11/2026')
+    expect(entete).toContain('Décisions du 03/11/2026')
     expect(ligneDecision('J20')).toMatch(/^J20 : une étape issue d'un « Enchaînement » porte comme créateur le collaborateur qui a déclenché l'enchaînement/)
     expect(ligneDecision('J20')).toMatch(/jamais « Automatique »/)
     expect(ligneDecision('J20')).toMatch(/crée une étape d'origine « manuelle »/)
@@ -686,10 +686,10 @@ describe('en-tête du module : décisions de Hugo du 03/11/2026 (J20 à J24) et 
     expect(nonEtabli).toMatch(/quelle valeur de N/)
     expect(nonEtabli).toMatch(/première présentation/)
     expect(nonEtabli).toMatch(/à compter de la demande/)
-    expect(nonEtabli).toMatch(/10\. Frédéric ou Hugo \(suite de J22\) : demandeur extérieur sans adresse électronique/)
+    expect(nonEtabli).toMatch(/10\. Frédéric ou le référent métier \(suite de J22\) : demandeur extérieur sans adresse électronique/)
     // J41 et J44 (06/11/2026) : valeur par défaut de l'usage et case « Fixe » tranchées.
     expect(nonEtabli).not.toMatch(/case « Fixe »/)
-    expect(nonEtabli).not.toMatch(/11\. Hugo : l'usage « Copie au CS pour info » est-il actif par défaut/)
+    expect(nonEtabli).not.toMatch(/11\. Référent métier : l'usage « Copie au CS pour info » est-il actif par défaut/)
     expect(source).not.toMatch(/🔴 11/)
     expect(source).not.toMatch(/🔴 5\b/)
     expect(nonEtabli).not.toMatch(/« Automatique » ou le collaborateur/)
@@ -699,8 +699,8 @@ describe('en-tête du module : décisions de Hugo du 03/11/2026 (J20 à J24) et 
     expect(nonEtabli).not.toMatch(/usage du cabinet ou du contrat de syndic/)
   })
 
-  it('rubrique « Décisions de Hugo du 06/11/2026 » : J41 (usage inactif par défaut) et J44 (case « Fixe » supprimée)', () => {
-    const decisions0611 = entete.slice(entete.indexOf('Décisions de Hugo du 06/11/2026'), entete.indexOf('🔵 Déduits'))
+  it('rubrique « Décisions du 06/11/2026 » : J41 (usage inactif par défaut) et J44 (case « Fixe » supprimée)', () => {
+    const decisions0611 = entete.slice(entete.indexOf('Décisions du 06/11/2026'), entete.indexOf('🔵 Déduits'))
     expect(decisions0611).toMatch(/J41 : l'usage « Copie au CS pour info » est INACTIF par défaut/)
     expect(decisions0611).toMatch(/USAGES_ETAPES_CABINET_PAR_DEFAUT/)
     expect(decisions0611).toMatch(/J44 : la case « Fixe » de « À faire le » et de « Prévue le » est supprimée/)

@@ -57,7 +57,7 @@ import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/doma
  *   « Virements internes » ; seuls ces comptes et leurs subdivisions sont utilisables ; art. 10 : le compte 105 « Fonds de
  *   travaux » est crédité des cotisations et débité par le 705 « Affectation du fonds de travaux ».
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30, J31 et J37 ; questions 21 à 23 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J30, J31 et J37 ; questions 21 à 23 de la liste) :
  * - J30 : l'ordonnance de l'art. 29-14, 2° (autorisationJuge) se saisit en forme structurée : juridiction, date et n° de
  *   l'ordonnance, chacun obligatoire, date jamais postérieure à aujourd'hui (fonds-travaux.ts, OrdonnanceJuge). La
  *   décision d'affectation de l'assemblée (decisionAg) : date de l'AG et n° de la résolution (DecisionAffectationAg ;
@@ -75,13 +75,13 @@ import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/doma
  *   reste sur un compte distinct (L. 1965 art. 18, II, al. 4) : nature « fonds_travaux », identifiant et 512 propres,
  *   même sans IBAN (verifierPaire). D-BANQUE est inchangée : aucun mode n'est imposé.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
  * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
  *   libre est refusé pour toute nouvelle saisie (creerVirementInterne, creerLotVirementsInternes). L'interprétation de
  *   J30 est confirmée : sa marque de doute est retirée, comportement inchangé (mêmes refus, mêmes motifs :
  *   fonds-travaux.ts).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67, J68 et J71 ; validées en bloc ; textes lus sur
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67, J68 et J71 ; validées en bloc ; textes lus sur
  * Légifrance le 17/11/2026) :
  * - J67, R82 : le syndic ne prend jamais seul sur le fonds pour des travaux urgents. L'art. 14-2-1, I, 3° dit à quoi le
  *   fonds peut servir ; c'est l'assemblée qui l'affecte (al. 7). En urgence, le syndic n'a qu'un pouvoir propre : une
@@ -183,7 +183,7 @@ import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/doma
  * - même IBAN pour deux comptes : un seul compte bancaire ; avec le fonds de travaux, il serait confondu (art. 18, II,
  *   al. 4).
  *
- * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
+ * 🔴 Non établi (à trancher par Frédéric ou le référent métier) :
  * - Frédéric : un compte repris qui tenait le fonds de travaux se distingue-t-il dans Gestéam (tranche 29 : un seul
  *   libellé « Banque ancien AJ / ancien syndic ») ? VitFix le marque à la saisie du compte (tenaitFondsTravaux) ;
  * - Frédéric : Gestéam rattache-t-il le virement de banque à banque à un ordre de type « Ordre de virement », le syndicat

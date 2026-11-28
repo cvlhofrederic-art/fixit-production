@@ -11,7 +11,7 @@ import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-dem
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Shell — sélecteur de copropriété et barre de recherche du haut de page (demande de Hugo du 29/10/2026) :
+ * Shell — sélecteur de copropriété et barre de recherche du haut de page (demande du 29/10/2026) :
  * la copropriété par défaut est le choix courant, sinon le choix mémorisé, sinon la première, une fois la base lue ;
  * chaque choix valide est mémorisé (clé « vitfix.aj.dossierEnCours »), un code absent des copropriétés affichées est
  * remplacé ; la barre de recherche (bouton) ouvre la palette ⌘K, qui rend le focus à sa fermeture.

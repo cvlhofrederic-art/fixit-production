@@ -52,7 +52,7 @@ import type { SourceComptable } from '@/lib/data/referentiels-gesteam-judiciaire
  *   double) : le numéro de compte (formaterNumeroCompte) ne porte que le code, d'où une collision possible dans un même
  *   mandat.
  *
- * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R107 ; arrêté du 14/03/2005, art. 7 à 10, et
+ * Décision du 17/11/2026 (registre des décisions juridiques, J67, R107 ; arrêté du 14/03/2005, art. 7 à 10, et
  * C. com. art. R. 814-37, relus le 17/11/2026) : (1) à la reprise, le type « Bascule gérance copropriété » reçoit un
  * numéro de subdivision du 471 distinct de 47150, pour ne jamais confondre deux comptes : importerPlanComptable le
  * propose (renumerotations : premier 4715x libre, ou le code réglé par le cabinet), sans l'appliquer ; (2) un solde
@@ -62,7 +62,7 @@ import type { SourceComptable } from '@/lib/data/referentiels-gesteam-judiciaire
  * mouvement de fonds : les fonds d'un mandat ne servent pas un autre mandat (R. 814-37). Application de la renumérotation
  * en base et appel du contrôle à la procédure de clôture : à brancher.
  *
- * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
+ * 🔴 Non établi (à trancher par Frédéric ou le référent métier) :
  * - tant que la renumérotation proposée n'est pas appliquée, comment relier un compte à son entrée de plan pour
  *   distinguer les deux 47150 (la table des comptes ne porte que le numéro) ?
  * - un même code peut-il porter à la fois une entrée sans sous-compte et des entrées à sous-compte (40100 générique à

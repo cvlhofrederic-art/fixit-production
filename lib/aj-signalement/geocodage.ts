@@ -1,6 +1,6 @@
 // ── Géocodage inverse : adresse proposée d'après la position d'un déclarant (serveur seulement) ──
 //
-// Demande de Hugo du 06/11/2026 : quand l'adresse d'une copropriété n'est pas renseignée, la position de la personne
+// Demande du 06/11/2026 : quand l'adresse d'une copropriété n'est pas renseignée, la position de la personne
 // qui scanne le QR code sert seulement à proposer l'adresse. Le service appelé est celui de l'État :
 //
 //   https://data.geopf.fr/geocodage/reverse — Géoplateforme de l'IGN, qui reprend l'API Adresse de la Base Adresse

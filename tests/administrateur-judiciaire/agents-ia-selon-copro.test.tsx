@@ -16,7 +16,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Sélecteur de copropriété du haut de page (demande de Hugo du 29/10/2026) : la page de conversation des agents
+ * Sélecteur de copropriété du haut de page (demande du 29/10/2026) : la page de conversation des agents
  * (AgentChatPage, partagée par Fixy, Max, Léa et Tempo) suit la copropriété choisie ; son sélecteur « Copropriété »
  * en reprend le nom et, changé sur la page, change la copropriété choisie. Sans copropriété choisie (écran rendu
  * seul), la première copropriété de la liste, comme avant.

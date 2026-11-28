@@ -40,7 +40,7 @@ import { normaliserEspaces, normaliserTexte } from '@/lib/administrateur-judicia
  * - 🔴 non établi : À scanner. Le relevé ne dit pas s'il s'agit d'un papier à numériser ou d'un fichier en attente de
  *   lecture. VitFix n'en retient que « texte pas encore lu ».
  *
- * 🔵 Règles déduites (choix de ce module, à valider par Hugo) :
+ * 🔵 Règles déduites (choix de ce module, à valider par le référent métier) :
  * - chemin : À scanner → Extrait → Identifié → (Traduit) → Associé ou Non associé. En erreur et Reporté sont des
  *   branches. En erreur reste possible jusqu'à l'association (relevé : « ou non associée, reportée, en erreur »).
  *   Associé est le seul statut final ;
@@ -95,7 +95,7 @@ import { normaliserEspaces, normaliserTexte } from '@/lib/administrateur-judicia
  *   structurées remplaceraient l'OCR pour ces factures. Aucune règle n'en est tirée ici.
  *
  * 🔴 Questions ouvertes :
- * - Hugo : sens de « À scanner » ; « Non associé » est-il final dans Gestéam ? Une association erronée se défait-elle
+ * - Référent métier : sens de « À scanner » ; « Non associé » est-il final dans Gestéam ? Une association erronée se défait-elle
  *   (ici : non, Associé est final) ? Faut-il une tolérance sur le montant ou la date ? « Traduit » est-il exigé avant
  *   l'association ? Un avoir se saisit-il bien en négatif ? Sans SIRET lu, faut-il que le gestionnaire confirme le
  *   fournisseur ? Un doublon probable (SIREN ou nom seuls, numéros découpés autrement) peut-il s'associer avec un motif ?

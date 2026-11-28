@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-budget-emails.test.ts
 //
-// Budget d'e-mails (RG-06 ter, SPEC § 1.7.2, Q6 retenue par Hugo le 10/11/2026 : 60 messages par heure et par
+// Budget d'e-mails (RG-06 ter, SPEC § 1.7.2, Q6 retenue le 10/11/2026 : 60 messages par heure et par
 // copropriété, 300 par heure et par cabinet). La réservation atomique est faite en base par
 // signalements_qr_reserver_emails, seule à décider (aucune copie TypeScript : relecture 10) ; ce module porte les
 // plafonds et les textes : mention des signalements retenus, erreur enregistrée, alerte au super admin (sans nom ni

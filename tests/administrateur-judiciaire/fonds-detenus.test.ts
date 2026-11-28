@@ -755,7 +755,7 @@ describe('fonds détenus — en-tête et vocabulaire', () => {
   })
 
   it('J67, R90 à R93 : décisions inscrites ; leurs questions ne sont plus en 🔴', () => {
-    const decisions = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('🔵 Déduit'))
+    const decisions = texte.slice(texte.indexOf('Décisions du 17/11/2026'), texte.indexOf('🔵 Déduit'))
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(decisions).toMatch(/J67, R90 : .*tout inclus.*J65/)
     expect(decisions).toMatch(/J67, R91 : .*réglage du cabinet.*creerCategoriesMission/)

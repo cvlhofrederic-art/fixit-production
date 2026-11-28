@@ -20,7 +20,7 @@ import { creerElement } from '@/lib/administrateur-judiciaire/domain/honoraires-
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * Réponse de Frédéric du 17/11/2026 (page de validation), registre J77, avec la précision de Hugo du 18/11/2026 :
+ * Réponse de Frédéric du 17/11/2026 (page de validation), registre J77, avec la précision du 18/11/2026 :
  * imputation du forfait selon le cas du courrier (comme les frais d'envoi de J72) ; un montant de 0 vaut « non saisi ».
  * Montants : valeurs de test, en dix-millièmes d'euro.
  */
@@ -199,14 +199,14 @@ describe('J77 (a) — forfait de mise en demeure : imputé au copropriétaire po
     for (const cas of [...CAS, undefined])
       for (const regime of REGIMES)
         expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime, cas }).observation, `${String(cas)}, ${String(regime)}`).not.toMatch(
-          /Hugo|Frédéric/,
+          /[Rr]éférent métier|Frédéric/,
         )
   })
 })
 
 describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la règle ne propose aucune ligne', () => {
   it('forfait à 0 : aucune ligne de la règle proposée, frais d’envoi compris ; un seul écart dit quoi saisir', () => {
-    // Frédéric : « la proposition de lignes reste désactivée tant que ce montant n'est pas saisi » ; Hugo : « aucune
+    // Frédéric : « la proposition de lignes reste désactivée tant que ce montant n'est pas saisi » ; le référent métier : « aucune
     // proposition tant que le montant n'est pas saisi ».
     const r = regle([ligneAr, { ...ligneForfait, prixUnitaireHtDixMilliemes: 0 }])
     const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [r], contexte({ recouvrementContreUnCoproprietaire: true }))
@@ -221,7 +221,7 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la 
         ),
       },
     ])
-    expect(ecartees[0].message).not.toMatch(/Hugo|Frédéric/)
+    expect(ecartees[0].message).not.toMatch(/[Rr]éférent métier|Frédéric/)
   })
 
   it('deux forfaits sans montant dans la règle : un seul écart, qui cite les deux lignes', () => {
@@ -296,7 +296,7 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la 
     expect(creerElement(frais.saisie, 'judiciaire').prixUnitaireHtDixMilliemes).toBe(0)
   })
 
-  it('décision de Hugo du 19/11/2026 (i) : la règle entière attend le montant du forfait, frais d’envoi compris, qu’ils aient un montant ou 0', () => {
+  it('décision du 19/11/2026 (i) : la règle entière attend le montant du forfait, frais d’envoi compris, qu’ils aient un montant ou 0', () => {
     for (const prixEnvoi of [61_000, 0]) {
       const r = regle([{ ...ligneAr, prixUnitaireHtDixMilliemes: prixEnvoi }, { ...ligneForfait, prixUnitaireHtDixMilliemes: 0 }])
       const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [r], contexte({ recouvrementContreUnCoproprietaire: true }))
@@ -309,7 +309,7 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la 
     }
   })
 
-  it('décision de Hugo du 19/11/2026 (ii) : un frais d’envoi à 0 reste proposé, y compris dans une règle dont le forfait a un montant saisi', () => {
+  it('décision du 19/11/2026 (ii) : un frais d’envoi à 0 reste proposé, y compris dans une règle dont le forfait a un montant saisi', () => {
     const r = regle([{ ...ligneAr, prixUnitaireHtDixMilliemes: 0 }, ligneForfait])
     const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [r], contexte({ recouvrementContreUnCoproprietaire: true }))
     expect(ecartees).toEqual([])
@@ -325,10 +325,10 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la 
     expect(proposerHonorairesDuCourrier(courrier(), [r], contexte()).ecartees.map((e) => e.motif)).toEqual(['inactive'])
   })
 
-  it('en-tête d’etapes-courrier.ts : J77 cité, avec la précision de Hugo du 18/11/2026', () => {
+  it('en-tête d’etapes-courrier.ts : J77 cité, avec la précision du 18/11/2026', () => {
     const { item } = enTeteDuModule('etapes-courrier')
     const j77 = item('- J77 (réponse de Frédéric du 17/11/2026')
-    expect(j77).toMatch(/précision de Hugo du 18\/11\/2026/)
+    expect(j77).toMatch(/précision du 18\/11\/2026/)
     expect(j77).toMatch(/casDesFraisDEnvoi/)
     expect(j77).toMatch(/locataire/)
     expect(j77).toMatch(/à confirmer/)
@@ -336,26 +336,26 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la 
     expect(j77).toMatch(/montant_non_saisi/)
     expect(j77).toMatch(/la règle ne propose aucune ligne, frais d'envoi compris/)
     expect(j77).not.toMatch(/les autres lignes de la règle restent proposées/)
-    // Les deux questions du (b) sont décidées par Hugo le 19/11/2026 : écrites comme décisions, plus comme questions,
+    // Les deux questions du (b) sont décidées le 19/11/2026 : écrites comme décisions, plus comme questions,
     // et à valider par Frédéric avant fusion (registre J77).
     expect(j77).toMatch(
-      /Décisions de Hugo du 19\/11\/2026, à valider par Frédéric avant fusion : \(i\) le texte de Frédéric est gardé : tant que le montant du forfait n'est pas saisi, toute la règle attend, frais d'envoi compris ; \(ii\) un frais d'envoi à 0 reste proposé \(J77 ne parle que du forfait\), y compris dans une règle dont le forfait a un montant saisi/,
+      /Décisions du 19\/11\/2026, à valider par Frédéric avant fusion : \(i\) le texte de Frédéric est gardé : tant que le montant du forfait n'est pas saisi, toute la règle attend, frais d'envoi compris ; \(ii\) un frais d'envoi à 0 reste proposé \(J77 ne parle que du forfait\), y compris dans une règle dont le forfait a un montant saisi/,
     )
-    expect(j77).not.toMatch(/Décisions de Hugo du 19\/11\/2026 :/)
-    expect(j77).not.toMatch(/🔵 À confirmer \(Hugo, puis Frédéric\)/)
+    expect(j77).not.toMatch(/Décisions du 19\/11\/2026 :/)
+    expect(j77).not.toMatch(/🔵 À confirmer \(Référent métier, puis Frédéric\)/)
     expect(j77).not.toMatch(/Un frais d'envoi à 0 vaut-il aussi « non saisi » \?/)
     expect(j77).not.toMatch(/faut-il proposer les autres lignes de la règle/)
     expect(j77).toMatch(/cas du courrier non fourni/)
   })
 
-  it('docs du prix (LigneHonorairesCourrier, prixDeLaLigne) : la décision (ii) de Hugo du 19/11/2026 reste à valider par Frédéric', () => {
+  it('docs du prix (LigneHonorairesCourrier, prixDeLaLigne) : la décision (ii) du 19/11/2026 reste à valider par Frédéric', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-courrier.ts'), 'utf8')
       .replaceAll('\r\n', '\n')
       .replaceAll(/\n\s*\*\s+/g, ' ')
-    expect(source).toMatch(/Frais d'envoi : nombre entier, positif ou nul, obligatoire ; 0 reste proposé \(décision de Hugo du 19\/11\/2026, à valider par Frédéric\)/)
+    expect(source).toMatch(/Frais d'envoi : nombre entier, positif ou nul, obligatoire ; 0 reste proposé \(décision du 19\/11\/2026, à valider par Frédéric\)/)
     expect(source).toMatch(
-      /Un frais d'envoi à 0 reste un prix saisi, proposé \(décision de Hugo du 19\/11\/2026, à valider par Frédéric : J77 ne parle que du forfait\)/,
+      /Un frais d'envoi à 0 reste un prix saisi, proposé \(décision du 19\/11\/2026, à valider par Frédéric : J77 ne parle que du forfait\)/,
     )
-    expect(source.match(/décision de Hugo du 19\/11\/2026(?!, à valider par Frédéric)/g)).toBeNull()
+    expect(source.match(/décision du 19\/11\/2026(?!, à valider par Frédéric)/g)).toBeNull()
   })
 })

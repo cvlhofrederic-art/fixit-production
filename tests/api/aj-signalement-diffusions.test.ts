@@ -1,7 +1,7 @@
 // tests/api/aj-signalement-diffusions.test.ts
 //
 // AJ Signalement, PR 3, lot 5 — routes de diffusion de messages d'exploitation aux déclarants (cahier § 4, § 5.5, § 5.6,
-// § 9 ; décisions de Hugo du 11/11/2026, H1 = C, H2, H7, H9 ; HF4) :
+// § 9 ; décisions du 11/11/2026, H1 = C, H2, H7, H9 ; HF4) :
 //   D-R1 GET  /coproprietes/[id]/diffusions/valeurs        D-R2 POST /coproprietes/[id]/diffusions/apercu
 //   D-R3 POST /coproprietes/[id]/diffusions                D-R5 GET  /coproprietes/[id]/diffusions?avant=
 //   D-R4 POST /diffusions/[id]/reprendre                   D-R6 GET  /diffusions/[id]

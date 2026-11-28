@@ -670,10 +670,10 @@ describe('en-tête du module', () => {
     expect(texte).toMatch(/Courrier ≠ Document/)
   })
 
-  it('chaque question ouverte est adressée à Hugo ou à Frédéric', () => {
+  it('chaque question ouverte est adressée au référent métier ou à Frédéric', () => {
     const bloc = texte.slice(texte.indexOf('🔴 Non établi'), texte.indexOf('Le droit'))
     const numeros = [...bloc.matchAll(/(?<=\s)(\d+)\. /g)].map((m) => Number(m[1]))
-    const adressees = [...bloc.matchAll(/(?<=\s)(\d+)\. (?:Hugo|Frédéric)(?: ou (?:Hugo|Frédéric))? :/g)].map((m) => Number(m[1]))
+    const adressees = [...bloc.matchAll(/(?<=\s)(\d+)\. (?:[Rr]éférent métier|Frédéric)(?: ou (?:[Rr]éférent métier|Frédéric))? :/g)].map((m) => Number(m[1]))
     expect(numeros).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
     expect(adressees).toEqual(numeros)
     expect(texte).toMatch(/5\. Frédéric : le statut d'un document/)

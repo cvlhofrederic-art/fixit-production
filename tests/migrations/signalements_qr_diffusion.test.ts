@@ -1,7 +1,7 @@
 // tests/migrations/signalements_qr_diffusion.test.ts
 //
 // Migration 20261113_signalements_qr_diffusion.sql (AJ Signalement, PR 3 : diffusion de messages d'exploitation aux
-// déclarants d'une copropriété ; cahier des charges du 11/11/2026, § 2 et § 3, décisions de Hugo du 11/11 : H1 = option C,
+// déclarants d'une copropriété ; cahier des charges du 11/11/2026, § 2 et § 3, décisions du 11/11 : H1 = option C,
 // H7 = date facultative de fin de mission). Le TEXTE SQL est contrôlé ici (liste du § 10.1) ; les règles elles-mêmes
 // (oppositions, lots, annonce, purge) sont exécutées sur un vrai PostgreSQL par signalements_qr_diffusion.execution.test.ts.
 
@@ -415,7 +415,7 @@ describe(`Migration ${FICHIER} : tables de la diffusion`, () => {
     expect(blocTable('signalements_qr_diffusion_oppositions')).toMatch(/levee_destinataire_id = destinataire_id/)
   })
 
-  it('aucune adresse en clair hors de signalements_qr (J24) ; aucun canal autre que l’e-mail (décision de Hugo)', () => {
+  it('aucune adresse en clair hors de signalements_qr (J24) ; aucun canal autre que l’e-mail (décision du référent métier)', () => {
     for (const t of TABLES_NOUVELLES) expect(blocTable(t), t).not.toMatch(/\b(email|telephone)\s+TEXT\b/i)
     expect(sql).not.toMatch(/\bsms\b/i)
   })

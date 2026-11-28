@@ -11,10 +11,10 @@ import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
 // jeton suffit. Composant serveur : la copropriété est lue par son jeton (clé service) ; un jeton inconnu,
 // mal formé ou désactivé donne la page 404 du site. La langue vient du chemin (x-locale posé par le
 // middleware) : /fr/ en pratique, /pt/ possible. Le formulaire lui-même est un composant client.
-// Copropriété rattachée à un cabinet client (choix de Hugo du 10/11/2026) : redirection permanente (308) vers
+// Copropriété rattachée à un cabinet client (choix du 10/11/2026) : redirection permanente (308) vers
 // vitfix.io/<identifiant>/signalement/<jeton>/. Les QR codes déjà imprimés continuent donc de marcher ; le 308 peut être
 // gardé par les navigateurs sans risque, car le rattachement est définitif et l'identifiant figé (triggers en base).
-// Bâtiments saisis (demande de Hugo du 17/11/2026) : comme la page du chemin client, seuls leurs noms nettoyés sont passés
+// Bâtiments saisis (demande du 17/11/2026) : comme la page du chemin client, seuls leurs noms nettoyés sont passés
 // au formulaire (liste à choix) ; aucun : texte libre.
 
 export const dynamic = 'force-dynamic'

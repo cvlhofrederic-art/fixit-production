@@ -1,6 +1,6 @@
 // tests/components/consent-analytics-formulaire-qr.test.tsx
 //
-// D24 (et D10) — décision de Hugo du 17/11/2026, au nom de VitFix, point 4 : « mesure d'audience retirée du formulaire ».
+// D24 (et D10) — décision du 17/11/2026, au nom de VitFix, point 4 : « mesure d'audience retirée du formulaire ».
 // La mesure d'audience de VitFix (components/common/ConsentAnalytics.tsx : balise Cloudflare Web Analytics, Google
 // Analytics 4, page vue envoyée à /api/analytics/track) ne se charge JAMAIS sur le formulaire public d'AJ Signalement,
 // même après « Tout accepter » : adresse affichée (/<identifiant>/signalement/<jeton>/, ancienne /fr/signalement/<jeton>/)

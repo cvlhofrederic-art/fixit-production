@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AJ Signalement (13/11/2026) — diffusion de messages d'exploitation de l'immeuble aux déclarants d'une copropriété.
 --
--- Demandes et décisions de Hugo du 11/11/2026 (cahier des charges de la PR 3, § 2, § 3 et § 14) : messages
+-- Demandes et décisions du 11/11/2026 (cahier des charges de la PR 3, § 2, § 3 et § 14) : messages
 -- d'EXPLOITATION seulement (« fuite en cours », « coupure d'eau demain de 9 h à 10 h »), par e-mail seulement ; ciblage :
 -- toute la copropriété, un bâtiment, un étage d'un bâtiment, ou les déclarants d'un signalement précis ; désinscription
 -- immédiate, pour CETTE copropriété, sans aucune exception (même urgente) ; destinataire tant que le cabinet gère la
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_diffusions (
   cle_etage                TEXT CHECK (cle_etage IS NULL OR char_length(cle_etage) BETWEEN 1 AND 60),
   signalement_id           UUID REFERENCES signalements_qr(id) ON DELETE SET NULL,
   libelle_perimetre        TEXT NOT NULL CHECK (char_length(libelle_perimetre) BETWEEN 1 AND 200 AND libelle_perimetre !~ '[[:cntrl:]]'),
-  nb_destinataires         INTEGER NOT NULL CHECK (nb_destinataires >= 1),   -- aucun plafond (décision de Hugo)
+  nb_destinataires         INTEGER NOT NULL CHECK (nb_destinataires >= 1),   -- aucun plafond (décision du référent métier)
   nb_exclus_opposition     INTEGER NOT NULL DEFAULT 0 CHECK (nb_exclus_opposition >= 0),
   dernier_lot              INTEGER NOT NULL DEFAULT 0 CHECK (dernier_lot >= 0),   -- numérotation des lots (clé d'idempotence)
   copie_cabinet_le         TIMESTAMPTZ,                         -- copie envoyée au contact du cabinet

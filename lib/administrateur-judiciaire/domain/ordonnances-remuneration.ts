@@ -9,7 +9,7 @@ import {
 import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 
 /**
- * Ordonnances de rémunération de l'administrateur (J67, R3 et R4 : recommandations validées par Hugo le 17/11/2026,
+ * Ordonnances de rémunération de l'administrateur (J67, R3 et R4 : recommandations validées le 17/11/2026,
  * registre des décisions juridiques). Fonctions pures, montants HT en CENTIMES ENTIERS, dates ISO, sans écran ni table :
  * l'enregistrement des ordonnances est à brancher (écran : Frédéric). Utilisé par honoraires-facturation.ts (contrôle de
  * la facture, J67, R3) et honoraires-tableau.ts (émoluments taxés, perçus et restant à percevoir, J67, R4).

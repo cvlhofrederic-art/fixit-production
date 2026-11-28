@@ -1,7 +1,7 @@
 // tests/components/aj-signalement/import.test.tsx
 //
-// Assistant d'import des copropriétés (espace AJ Signalement, vue Copropriétés, super admin ; SPEC § 1.9, demande de
-// Hugo du 10/11/2026). PR brouillon pour Frédéric : composants et styles de l'espace.
+// Assistant d'import des copropriétés (espace AJ Signalement, vue Copropriétés, super admin ; SPEC § 1.9, demande
+// du 10/11/2026). PR brouillon pour Frédéric : composants et styles de l'espace.
 //   - cabinet client obligatoire (choisi d'office s'il est seul ; aucun cabinet → renvoi vers la vue Cabinets) ;
 //   - fichier lu sur l'appareil (jamais envoyé), modèle Excel ou CSV à télécharger ;
 //   - correspondance des colonnes proposée d'après les en-têtes, 5 premières valeurs en regard ;

@@ -835,7 +835,7 @@ describe('mutation d’un lot', () => {
   })
 
   it('J2 — appel émis après l’enregistrement de la mutation : avisDAppel porte au vendeur l’appel exigible le jour même, dû par lui', () => {
-    // Décision de Hugo du 30/10/2026 (D. 1967 art. 6-2) : mutation le 01/04/2026, jour de l'exigibilité de FT-2.
+    // Décision du 30/10/2026 (D. 1967 art. 6-2) : mutation le 01/04/2026, jour de l'exigibilité de FT-2.
     const vente = [...cession('2026-04-01'), positions[1]]
     const postesVente = postesDepuisAvis(avisDAppel({ echeances, cles: [cle], positions: vente, comptes }), [cle])
     expect(postesVente.filter((p) => p.lotId === 'lot-1').map((p) => [p.id, p.compteId])).toEqual([
@@ -1228,7 +1228,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   })
 
   it('3 — « dernière cotisation versée » : 🔴 laissée ouverte (le notaire choisit), deux lectures exposées, plus en 🔵', () => {
-    expect(nonEtabli).toMatch(/« dernière cotisation versée » \(L\. 721-2, II, 2°, d\) — laissée ouverte \(Hugo, 30\/10\/2026 : le notaire choisit la/)
+    expect(nonEtabli).toMatch(/« dernière cotisation versée » \(L\. 721-2, II, 2°, d\) — laissée ouverte \(30\/10\/2026 : le notaire choisit la/)
     expect(nonEtabli).toMatch(/cotisation ANNUELLE \(art\. 14-2-1, I, al\. 6\)/)
     // J67, R109 : la lecture « cotisation annuelle », plus proche du mot de la loi, est présentée en premier, sans être choisie.
     expect(nonEtabli).toMatch(/J67, R109/)
@@ -1238,7 +1238,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   })
 
   it('J67, R87 à R89 et R110 : décisions inscrites ; leurs questions ne sont plus en 🔴', () => {
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'))
     expect(j67).toMatch(/J67, R87 : .*01\/01\/2017.*aucun fonds de travaux légal/)
     expect(j67).toMatch(/J67, R88 : .*intérêts.*acquis au syndicat.*hors des parts des lots/)
     expect(j67).toMatch(/J67, R89 : .*réunion.*division.*division_sans_repartition/)
@@ -1252,8 +1252,8 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(nonEtabli).not.toMatch(/rédactions de L\. 721-2 antérieures au 29\/08\/2015/)
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J30, forme structurée, texte libre signalé, aucune date du jour', () => {
-    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'))
+  it('rubrique « Décisions du 03/11/2026 » : J30, forme structurée, texte libre signalé, aucune date du jour', () => {
+    const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'))
     expect(decisions).toMatch(/J30/)
     expect(decisions).toMatch(/emploi_forme_incomplete/)
     expect(decisions).toMatch(/emploiDepuisOperation/)
@@ -1268,7 +1268,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(entete).toMatch(/l'alerte « date non\s+contrôlée » est gardée \(emploi_forme_incomplete\)/)
     // J42 (06/11/2026) : la déclinaison de la décision d'affectation de l'AG est confirmée, sans changement de comportement.
     expect(decisions).not.toMatch(/n° de la résolution, 🔵 à confirmer/)
-    expect(decisions).toMatch(/Décisions de Hugo du 06\/11\/2026/)
+    expect(decisions).toMatch(/Décisions du 06\/11\/2026/)
     expect(decisions).toMatch(/J42 : la décision d'affectation de l'AG prend la forme date de l'AG \+ n° de la résolution, obligatoires/)
   })
 })

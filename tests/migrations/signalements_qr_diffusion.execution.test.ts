@@ -6,7 +6,7 @@
 // migrations signalements_qr (20261104, 20261106 ×2, 20261111, 20261112, 20261113) est jouée DEUX fois, puis chaque cas
 // du § 10.1 est exécuté sous le rôle service_role (celui de la clé service des routes), dans une transaction annulée à la
 // fin du test. Le temps qui passe (24 h, 15 jours, 3 ans) est simulé en antidatant les lignes.
-// Décisions de Hugo du 11/11/2026 : H1 = option C (message d'annonce unique, inclusion 15 jours après si pas de refus),
+// Décisions du 11/11/2026 : H1 = option C (message d'annonce unique, inclusion 15 jours après si pas de refus),
 // H7 = date facultative de fin de mission, H11 = un gestionnaire ne diffuse que sur une copropriété attribuée nommément.
 // Aucune donnée réelle : adresses en exemple.test.
 

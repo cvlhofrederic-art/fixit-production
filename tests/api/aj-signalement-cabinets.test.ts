@@ -1,6 +1,6 @@
 // tests/api/aj-signalement-cabinets.test.ts
 //
-// Cabinets clients d'AJ Signalement (demandes de Hugo du 10/11/2026 : chaque client a son nom, son chemin
+// Cabinets clients d'AJ Signalement (demandes du 10/11/2026 : chaque client a son nom, son chemin
 // vitfix.io/<identifiant>/…, sa langue et ses domaines e-mail, saisis par le super admin dans l'espace) :
 //   GET  /api/aj-signalement/cabinets                        — liste, domaines, compteurs, identifiant figé ;
 //   POST /api/aj-signalement/cabinets                        — création (identifiant réservé → 400, pris → 409,

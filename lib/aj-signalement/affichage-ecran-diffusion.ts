@@ -1,6 +1,6 @@
 // ── AJ Signalement — diffusion : textes et calculs d'affichage des écrans de l'espace (PR 3, lot 8, BROUILLON) ───────
 //
-// Cahier PR 3 § 7.1 à 7.4 et § 7.6 ; décisions de Hugo du 11/11/2026 (messages d'exploitation seulement, aucun plafond
+// Cahier PR 3 § 7.1 à 7.4 et § 7.6 ; décisions du 11/11/2026 (messages d'exploitation seulement, aucun plafond
 // et rappel du nombre de messages du mois ; H1 = C, message d'annonce ; H7, fin de mission ; H11, droit « diffuser »
 // d'un gestionnaire sur les copropriétés qui lui sont attribuées nommément, jamais « à tous »). Fonctions pures, sans
 // React ; textes en français (tout l'espace l'est). Écrans en BROUILLON, soumis à Frédéric (F1) : aucun texte n'est
@@ -232,7 +232,7 @@ export const TEXTES_ECRAN_DIFFUSION_QR = {
     intro: 'Messages d’exploitation de l’immeuble (fuite, coupure, intervention) envoyés par e-mail aux déclarants, au nom du cabinet. Rien ne part tant que la diffusion n’est pas activée.',
     activeeLe: 'Diffusion activée le {date}',
     inactive: 'Diffusion non activée',
-    // Décision de Hugo du 16/11/2026 : les déclarants ne répondent plus aux messages. L'adresse est écrite dans le pied
+    // Décision du 16/11/2026 : les déclarants ne répondent plus aux messages. L'adresse est écrite dans le pied
     // de chaque message (et sur la page de désinscription) et reçoit la copie de chaque envoi.
     contact: 'Adresse de contact du cabinet (affichée aux déclarants, copie de chaque message)',
     politique: 'Adresse de la politique de confidentialité du cabinet',
@@ -301,7 +301,7 @@ export function aujourdhuiParisEcranQr(maintenant: Date = new Date()): string {
 export const dateNonFutureQr = (jour: string, maintenant: Date = new Date()): boolean =>
   JOUR_SEUL_QR.test(jour) && !Number.isNaN(Date.parse(`${jour}T00:00:00Z`)) && jour <= aujourdhuiParisEcranQr(maintenant)
 
-/** Rappel du mois (décision de Hugo : aucun plafond, l'écran rappelle combien de messages sont partis ce mois-ci). */
+/** Rappel du mois (décision du référent métier : aucun plafond, l'écran rappelle combien de messages sont partis ce mois-ci). */
 export function rappelMoisDiffusionQr(mois: MoisDiffusionQr): string {
   const t = TEXTES_ECRAN_DIFFUSION_QR.mois
   if (mois.nb <= 0) return t.aucun

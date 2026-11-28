@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/logo-espaces-sans-logo.test.tsx
 //
-// Logo d'un cabinet client (demande de Hugo du 13/11/2026), non-régression : SANS logo (cabinet qui n'en a pas, ou
+// Logo d'un cabinet client (demande du 13/11/2026), non-régression : SANS logo (cabinet qui n'en a pas, ou
 // migration 20261114 non appliquée), l'espace du cabinet (connexion, suivi, invitation, confirmation d'adresse) et la
 // page publique ouverte par le QR code rendent EXACTEMENT le même DOM qu'avant le logo. Les instantanés ci-dessous ont
 // été écrits sur le code d'avant le logo (commit 055e7f24) : ils ne doivent plus bouger.

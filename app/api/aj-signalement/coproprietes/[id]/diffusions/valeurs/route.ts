@@ -3,7 +3,7 @@
 // GET (D-R1, cahier PR 3 § 4.1, § 3.6, § 7.2) — ce que le formulaire « Diffuser un message » propose pour une
 // copropriété : bâtiments et étages RÉELLEMENT présents dans les signalements, regroupés (clé, libellé écrit dans
 // l'e-mail ou à saisir, variantes), déclarants sans bâtiment, portée présélectionnée (« Un bâtiment » dès deux groupes),
-// diffusion possible ou raison, compteur du mois (décision de Hugo : aucun plafond, le compteur est affiché), nombre de
+// diffusion possible ou raison, compteur du mois (décision du référent métier : aucun plafond, le compteur est affiché), nombre de
 // déclarants jamais annoncés (bouton « Annoncer la diffusion », H1 = option C), fin de mission prévue (décision H7 :
 // finMissionLe, AAAA-MM-JJ ou null ; PR 3, lot 8 : la date écrite par la fiche de la copropriété n'était relue par
 // aucune route, la fiche la lit ici pour l'afficher ; relecture 3 : prise dans la lecture du contexte, sans seconde

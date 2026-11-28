@@ -82,12 +82,12 @@ import {
  * honoraires-facturation.ts (point 66 : élément rattaché à une fiche, creerElement ; point 67 : qualification,
  * categorieDe) ; texte.ts (normaliserTexteLibre) ; dates.ts (plausibiliteDate).
  *
- * Décisions de Hugo (registre des décisions juridiques) :
+ * Décisions du référent métier (registre des décisions juridiques) :
  * - J20 : « Automatique » est réservé aux étapes que le logiciel crée seul ; l'étape née d'un courrier l'est (origine
  *   « automatique », sans créateur), donc visée par la règle des N jours ; l'étape enchaînée reste « manuelle ».
  * - J24 et J41 : « Copie au CS pour info » est un usage du cabinet, INACTIF par défaut : regleCopieAuCsPourInfo n'est
  *   active que si UsagesEtapesCabinet l'active ; les règles propres au cabinet sont, comme elle, désactivées par défaut.
- * - J64 (décision de Hugo du 17/11/2026 (J64) ; notes du 17/11/2026, section « Suite » : recommandations
+ * - J64 (décision du 17/11/2026 (J64) ; notes du 17/11/2026, section « Suite » : recommandations
  *   validées en bloc, numéro de registre proposé ; suite de J24 et J41) : la Copie au CS NAÎT DU COURRIER
  *   (NAISSANCE_COPIE_AU_CS_PAR_DEFAUT), seulement pour les mises en demeure du contentieux, procédure 19-2 comprise, pas
  *   pour les simples relances (DECLENCHEUR_MISE_EN_DEMEURE, estMiseEnDemeureDuContentieux) ; réglage désactivé par
@@ -95,7 +95,7 @@ import {
  *   ci-dessous et l'ancienne question n° 6 de modeles-etapes.ts (courrier ou enchaînement). Les honoraires de la mise en
  *   demeure, que J64 ne vise pas, gardent leur déclencheur (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE : famille
  *   Contentieux, libellé « mise en demeure »).
- * - J67, R7 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance le 17/11/2026 : L. 1965 art. 10-1, a et 29-1,
+ * - J67, R7 (décision du 17/11/2026 ; textes lus sur Légifrance le 17/11/2026 : L. 1965 art. 10-1, a et 29-1,
  *   II ; D. 1967 art. 61-1-5 et annexe 1, 9.1 ; arrêté du 08/10/2015, art. 14) : forfait de mise en demeure en deux
  *   lignes : le cabinet facture le syndicat, qui paie (repartition.payeur ; la ligne du cabinet a donc pour destinataire
  *   DESTINATAIRE_SYNDICAT, tout autre est refusé) ; le syndicat peut ensuite imputer la somme au
@@ -109,7 +109,7 @@ import {
  *   copropriétaire n'est confirmée par aucun arrêt lu. Base selon le régime : baseLigneHonorairesCourrier ; imputation
  *   selon le cas du courrier et montant non saisi : J77, ci-dessous. Le régime et la mission (J67, R9) disent le même
  *   fait : un régime donné avec une mission autre que « judiciaire » est refusé (proposerHonorairesDuCourrier).
- * - J72 (décision de Hugo du 18/11/2026 ; question Q5, conflit R5 / R6 ; textes : L. 1965 art. 10-1, a, version en
+ * - J72 (décision du 18/11/2026 ; question Q5, conflit R5 / R6 ; textes : L. 1965 art. 10-1, a, version en
  *   vigueur depuis le 01/06/2020, « frais nécessaires exposés par le syndicat, notamment les frais de mise en demeure » ;
  *   C. com. R. 814-27) : frais d'envoi, deux cas (baseLigneHonorairesCourrier, selon le cas du courrier,
  *   casDesFraisDEnvoi, et la mission). (a) mise en demeure et relances d'un copropriétaire en retard : dépense du
@@ -134,7 +134,7 @@ import {
  *   estRecouvrementContreUnCoproprietaire, « Recouvrement de charges/loyer » avec un compte débiteur). Si le dossier ne
  *   le dit pas : à confirmer, sans imputation ni refus de « Facturable » ; un frais d'envoi n'est jamais imputé au
  *   copropriétaire par défaut.
- * - J77 (réponse de Frédéric du 17/11/2026 sur sa page de validation, avec la précision de Hugo du 18/11/2026 ;
+ * - J77 (réponse de Frédéric du 17/11/2026 sur sa page de validation, avec la précision du 18/11/2026 ;
  *   registre : J77 ; suite de J67, R7, et de J72, a ; L. 1965 art. 10-1, a) : frais de la mise en demeure imputés au
  *   seul copropriétaire défaillant ; montant fixé par le cabinet ; proposition désactivée tant qu'il n'est pas saisi.
  *   (a) Imputation du forfait : même lecture du cas du courrier que pour les frais d'envoi (casDesFraisDEnvoi, J72). Le
@@ -155,7 +155,7 @@ import {
  *   désactivée. Les refus qui ne dépendent pas du montant restent levés : « Offert » en mission judiciaire (J67, R9),
  *   « Facturable » de l'envoi d'un recouvrement (J72, a). creerElement (honoraires-facturation.ts) admet toujours un
  *   prix de 0. Enregistrement de la ligne d'imputation : à brancher.
- *   Décisions de Hugo du 19/11/2026, à valider par Frédéric avant fusion : (i) le texte de Frédéric est gardé : tant que
+ *   Décisions du 19/11/2026, à valider par Frédéric avant fusion : (i) le texte de Frédéric est gardé : tant que
  *   le montant du forfait n'est pas saisi, toute la règle attend, frais d'envoi compris ; (ii) un frais d'envoi à 0 reste
  *   proposé (J77 ne parle que du forfait), y compris dans une règle dont le forfait a un montant saisi. Seul le forfait a
  *   donc un prix « non saisi » (prixDeLaLigne) ; l'écart montant_non_saisi ne cite jamais un frais d'envoi.
@@ -206,11 +206,11 @@ import {
  * 4. Fermée par J72 (ci-dessus).
  * 5. Frédéric : l'élément à facturer n'a pas de champ « courrier d'origine » : un second déclenchement propose de nouveau
  *    les lignes, sans anti-doublon. Champ et table : Frédéric.
- * 6. Frédéric ou Hugo : liste de contrôle du contentieux instanciée avec l'usage actif (modeleDuDossier) : la Copie au CS
+ * 6. Frédéric ou le référent métier : liste de contrôle du contentieux instanciée avec l'usage actif (modeleDuDossier) : la Copie au CS
  *    y figure et doublerait celle du courrier (seul un avertissement le signale au déclenchement). Faut-il toujours
  *    instancier le modèle sans elle (modeleSansEtapesNeesDuCourrier, à appeler par l'écran ou le repository ;
  *    modeleDuDossier reste inchangé) ? Lien avec la question n° 5 de modeles-etapes.ts.
- * 7. Hugo : autres modes de réalisation de Gestéam (⚪ seul « Courrier » est relevé) ; l'étape « réalisée par courrier »
+ * 7. Référent métier : autres modes de réalisation de Gestéam (⚪ seul « Courrier » est relevé) ; l'étape « réalisée par courrier »
  *    se réalise-t-elle au dépôt du courrier de copie au conseil syndical ? Non branché.
  *
  * Le droit : aucun texte lu n'impose la copie au conseil syndical d'une mise en demeure (J24 : usage du cabinet) ; ces
@@ -253,7 +253,7 @@ function sansIdentifiantEnDouble<R extends { id: string }>(regles: R[]): R[] {
 /**
  * Par modèle : les identifiants des modèles du cabinet (Courrier.modeleId) ; par famille : la famille, et au besoin un
  * libellé ; mises en demeure du contentieux : les modèles de mise en demeure de la famille Contentieux, procédure 19-2
- * comprise, hors relances (décision de Hugo du 17/11/2026, J64 : estMiseEnDemeureDuContentieux).
+ * comprise, hors relances (décision du 17/11/2026, J64 : estMiseEnDemeureDuContentieux).
  */
 export type DeclencheurEtapeCourrier =
   | { par: 'modele'; modeleIds: readonly string[] }
@@ -293,7 +293,7 @@ function controlerDeclencheur(declencheur: DeclencheurEtapeCourrier, quoi: strin
 
 /**
  * Déclencheur par défaut de la Copie au CS : les mises en demeure de la famille Contentieux, procédure 19-2 comprise, pas
- * les simples relances (décision de Hugo du 17/11/2026, J64 ; estMiseEnDemeureDuContentieux). Le cabinet peut le
+ * les simples relances (décision du 17/11/2026, J64 ; estMiseEnDemeureDuContentieux). Le cabinet peut le
  * remplacer par la liste de ses modèles. Les honoraires de la mise en demeure gardent le leur
  * (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE) : J64 ne les vise pas.
  */
@@ -344,7 +344,7 @@ function premierePosition(libelleEncadre: string, mots: readonly string[]): numb
 }
 
 /**
- * Mise en demeure du contentieux (décision de Hugo du 17/11/2026, J64) : modèle de la famille Contentieux dont le libellé
+ * Mise en demeure du contentieux (décision du 17/11/2026, J64) : modèle de la famille Contentieux dont le libellé
  * dit « mise en demeure » ou cite la procédure « 19-2 » (mots entiers, dans l'ordre ; casse, accents et ponctuation
  * ignorés), sauf une relance : le mot « relance » placé avant (« Relance mise en demeure ») ; placé après, il ne retire
  * rien (« Mise en demeure de payer - adresse relance », tranche 22 § 3). Hors famille Contentieux (« RAR mise en demeure »
@@ -478,7 +478,7 @@ export const NAISSANCES_COPIE_AU_CS = ['courrier', 'enchainement'] as const
 export type NaissanceCopieAuCs = (typeof NAISSANCES_COPIE_AU_CS)[number]
 const NAISSANCES_ADMISES: ReadonlySet<string> = new Set(NAISSANCES_COPIE_AU_CS)
 
-/** Comme Gestéam (tranche 43 § 1) : la Copie au CS naît du courrier (décision de Hugo du 17/11/2026, J64). */
+/** Comme Gestéam (tranche 43 § 1) : la Copie au CS naît du courrier (décision du 17/11/2026, J64). */
 export const NAISSANCE_COPIE_AU_CS_PAR_DEFAUT: NaissanceCopieAuCs = 'courrier'
 
 /**
@@ -970,7 +970,7 @@ const BASES_FORFAIT: Readonly<Record<CasFraisEnvoi, Readonly<BaseLigneHonoraires
 
 /**
  * J77 : forfait sans cas du courrier (baseLigneHonorairesCourrier sans cas). Rien ne dit qui le courrier poursuit : à
- * confirmer, rien n'est imputé, et aucun motif n'est supposé (Hugo : « à confirmer » si le dossier ne le dit pas).
+ * confirmer, rien n'est imputé, et aucun motif n'est supposé (Référent métier : « à confirmer » si le dossier ne le dit pas).
  */
 const BASE_FORFAIT_CAS_NON_FOURNI: Readonly<BaseLigneHonorairesCourrier> = baseDeFrais(
   true,
@@ -1097,7 +1097,7 @@ export interface LigneHonorairesCourrier {
   /**
    * Prix unitaire HT en dix-millièmes d'euro (honoraires-facturation.ts). Forfait de mise en demeure : 0, null ou absent
    * vaut « non saisi » (J77) ; la règle ne propose aucune ligne tant qu'il n'est pas saisi. Frais d'envoi : nombre
-   * entier, positif ou nul, obligatoire ; 0 reste proposé (décision de Hugo du 19/11/2026, à valider par Frédéric).
+   * entier, positif ou nul, obligatoire ; 0 reste proposé (décision du 19/11/2026, à valider par Frédéric).
    */
   prixUnitaireHtDixMilliemes: number | null
   soumisTva: boolean
@@ -1123,7 +1123,7 @@ function controlerNatureLigne(ligne: LigneHonorairesCourrier, ou: string): void 
 
 /**
  * Prix de la ligne contrôlé. J77 : pour le forfait de mise en demeure, 0, null ou absent vaut « non saisi » (null). Un
- * frais d'envoi à 0 reste un prix saisi, proposé (décision de Hugo du 19/11/2026, à valider par Frédéric : J77 ne parle
+ * frais d'envoi à 0 reste un prix saisi, proposé (décision du 19/11/2026, à valider par Frédéric : J77 ne parle
  * que du forfait). Refus : prix non entier ou négatif ; frais d'envoi sans prix (seul le forfait est visé par J77).
  */
 function prixDeLaLigne(ligne: LigneHonorairesCourrier, ou: string): number | null {

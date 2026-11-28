@@ -48,7 +48,7 @@ describe('construirePromptCopro — français, espace de démonstration', () => 
     expect(prompt).toContain('Tu es Fixy')
     expect(prompt).toContain('Géraldine Xavier, copropriétaire du lot n°12 à Résidence Le Prado (bâtiment D, 4e étage), à Marseille.')
     expect(prompt).toContain('Le syndic de l’immeuble est Cabinet Dupont.')
-    expect(prompt).toContain('Le gestionnaire de l’immeuble est Hugo Carvalho.')
+    expect(prompt).toContain('Le gestionnaire de l’immeuble est Camille Martin.')
     expect(prompt).toContain('Nous sommes le lundi 12 octobre 2026.')
     expect(prompt).toContain('Ces données sont une démonstration')
     expect(prompt).toContain('- Tantièmes : 450 (4,5 % des charges communes)')

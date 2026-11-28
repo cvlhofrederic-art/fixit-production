@@ -36,7 +36,7 @@ import type { DocumentPrestataire } from '@/lib/syndic/messagerie-pro'
  * identifiant la pièce (arrêté du 14/03/2005, art. 3 et 4) ; la charge est enregistrée dès l'engagement juridique
  * (L. 1965 art. 14-3 ; D. 2005-240 art. 2). Aucun texte ne fixe de tolérance entre le prévu et le facturé.
  *
- * Décision de Hugo du 17/11/2026 (J67, R78 ; C. com. art. L. 441-9 relu sur Légifrance le 17/11/2026 ; code confirmé) :
+ * Décision du 17/11/2026 (J67, R78 ; C. com. art. L. 441-9 relu sur Légifrance le 17/11/2026 ; code confirmé) :
  * le texte vise « Tout achat de produits ou toute prestation de service » « pour une activité professionnelle » ; la
  * facture mentionne le numéro du bon de commande quand l'acheteur en a établi un (art. L. 441-9, I). Le syndicat n'exerce
  * pas d'activité professionnelle, et cette mention pèse sur le vendeur, pas sur l'acheteur : le N° d'OS n'est jamais exigé

@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-semblables.test.ts
 //
-// Signalements déjà faits au même endroit (demande de Hugo du 06/11/2026), fonctions pures :
+// Signalements déjà faits au même endroit (demande du 06/11/2026), fonctions pures :
 //   - bâtiment comparé après normalisation (casse, accents, ponctuation, espaces, mots « bâtiment », « bât »,
 //     « bat », « bloc », « bloco »), sans couper un nom qui commence par ces lettres (« Batignolles ») ;
 //   - zones comparées par leur place dans la liste fixe (« Escalier » = « Escadas ») ;

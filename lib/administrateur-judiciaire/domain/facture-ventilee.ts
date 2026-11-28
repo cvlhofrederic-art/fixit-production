@@ -38,7 +38,7 @@ import {
  * calcul entier l'exige) ; une retenue garantit les travaux d'une opération dont relève au moins une ligne de la facture
  * (rattachement « travaux » au même n°) ; l'avancement est un pourcentage (0 à 100), contrôlé par marché dans
  * travaux-retenue-garantie.ts.
- * 🔴 Non établi (question pour Frédéric ou Hugo) : « Gestéam porte-t-il la retenue de garantie sur un compte d'attente
+ * 🔴 Non établi (question pour Frédéric ou le référent métier) : « Gestéam porte-t-il la retenue de garantie sur un compte d'attente
  * (472xx, ou le 47150 "Compte d'attente_"), sur une subdivision du 401 (arrêté, art. 8), ou la laisse-t-il au 401 du
  * fournisseur ? » (VitFix : 47200, au compte du fournisseur).
  */

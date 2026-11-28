@@ -116,7 +116,7 @@ describe('J78 — case « professionnel » sur la fiche identité, décochée pa
     expect(message({ toJSON: () => undefined })).toContain('(reçu « [object Object] »)')
   })
 
-  it('personne morale sans case cochée : non professionnelle (décision de Hugo du 19/11/2026 : jamais du seul fait d’être une personne morale)', () => {
+  it('personne morale sans case cochée : non professionnelle (décision du 19/11/2026 : jamais du seul fait d’être une personne morale)', () => {
     const societe = (surcharge: Partial<SaisieIdentite> = {}): Identite =>
       creerIdentite(saisie({ nature: 'morale', civilite: 'Société', nom: 'Exemple', prenom: null, ...surcharge }))
     for (const identite of [societe(), societe({ professionnel: false })]) {
@@ -332,27 +332,27 @@ describe('J78 — en-têtes', () => {
     )
   })
 
-  it('identites-positions.ts : J78 citée ; décisions de Hugo du 19/11/2026 à la place des deux questions, à coder avec la table des identités', () => {
+  it('identites-positions.ts : J78 citée ; décisions du 19/11/2026 à la place des deux questions, à coder avec la table des identités', () => {
     const { texte } = enTeteDuModule('identites-positions')
     expect(texte).toContain('J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json)')
     expect(texte).toContain(
-      'J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.',
+      'J78, décisions du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées au référent métier.',
     )
     // les deux questions sont fermées : plus rien sur J78 dans « Non établi »
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toContain('J78')
     expect(nonEtabli).not.toContain('ce qui justifie de cocher')
     expect(nonEtabli).not.toContain('si cette qualité doit être datée')
-    // une décision de Hugo ne vaut pas validation de Frédéric
+    // une décision du référent métier ne vaut pas validation de Frédéric
     expect(texte).not.toMatch(/validée? par Frédéric/)
   })
 
-  it('identites-positions.ts : case datée, lue à la date de l’envoi (décision de Hugo du 19/11/2026) ; le lecteur actuel reste sans date', () => {
+  it('identites-positions.ts : case datée, lue à la date de l’envoi (décision du 19/11/2026) ; le lecteur actuel reste sans date', () => {
     const datee = enTeteDuModule('identites-positions').item('- Case datée')
-    // date de lecture : « ok » de Hugo du 19/11/2026 à la recommandation de Claude (dépôt saisi, sinon événement) ;
+    // date de lecture : « ok » du 19/11/2026 à la recommandation de Claude (dépôt saisi, sinon événement) ;
     // elle reprend la lecture de J50 (statut-assemblee.ts, controlerVoie), qui reste ouverte en J50 : J50 non tranchée
     expect(datee).toContain(
-      "la qualité se lit à la date de l'envoi. Date retenue (« ok » de Hugo du 19/11/2026) : date du dépôt de l'envoi quand elle est saisie, sinon celle de l'événement.",
+      "la qualité se lit à la date de l'envoi. Date retenue (« ok » du 19/11/2026) : date du dépôt de l'envoi quand elle est saisie, sinon celle de l'événement.",
     )
     expect(datee).toContain(
       'Elle reprend la lecture de J50 (statut-assemblee.ts, controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent ensemble.',
@@ -364,8 +364,8 @@ describe('J78 — en-têtes', () => {
       "Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts, evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Codé avec la table des identités : la date est celle que ce code calcule (dateEnvoiCourrierNotification, extraite d'evaluerNotification sans recopie ; qualite-professionnelle.ts).",
     )
     expect(datee).not.toContain('Au codage de la table des identités')
-    // l'ancienne lecture (« Hugo n'a pas choisi cette date ») est remplacée par la décision
-    expect(datee).not.toContain("Hugo n'a pas choisi cette date")
+    // l'ancienne lecture (« le référent métier n'a pas choisi cette date ») est remplacée par la décision
+    expect(datee).not.toContain("le référent métier n'a pas choisi cette date")
     expect(datee).not.toContain('lecture de Claude, alignée sur J50')
     expect(datee).not.toContain('J50 la juge à la date du dépôt')
     expect(datee).toContain('Décocher la case plus tard ne change pas le calcul des envois déjà faits.')
@@ -420,14 +420,14 @@ describe('J78 — en-têtes', () => {
     )
   })
 
-  it('identites-positions.ts : accord sans date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026), consentement de J53 compris', () => {
+  it('identites-positions.ts : accord sans date valable écarté : J59, étendu par J66 (validé le 17/11/2026), consentement de J53 compris', () => {
     const { texte } = enTeteDuModule('identites-positions')
     // registre, J66 : « Validé aussi : un accord de voie électronique sans date valable est écarté partout, y compris
     // comme consentement de J53 (lecture prudente de J59). Code : PR #728. »
     expect(texte).toContain(
-      'accord sans date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ; code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728',
+      'accord sans date valable écarté : J59, étendu par J66 (validé le 17/11/2026) à tout usage, consentement de J53 compris ; code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728',
     )
-    expect(texte).not.toContain('à confirmer par Hugo')
+    expect(texte).not.toContain('à confirmer par le référent métier')
     // le fichier dont les commentaires sont à mettre à jour est nommé : voie-notification.ts, pas celui-ci
     expect(texte).toContain(
       "les commentaires de voie-notification.ts (accordElectroniqueEnVigueur, estAccordSansDateValable, en-tête) disent encore l'extension « à confirmer » : à mettre à jour à part",

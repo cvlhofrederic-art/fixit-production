@@ -7,7 +7,7 @@ import {
 
 /**
  * Écrans du patrimoine et de la conformité affichés selon la copropriété choisie dans le sélecteur du haut de page
- * (demande de Hugo du 29/10/2026) : règles communes, sans React.
+ * (demande du 29/10/2026) : règles communes, sans React.
  */
 
 const MERIDIEN = { id: 'C1', nom: 'Résidence Le Méridien' }

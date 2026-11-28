@@ -2,7 +2,7 @@
 
 // ── Ouverture de l'accès d'un gestionnaire (vitfix.io/<identifiant>/invitation/#<jeton>, PR 2) ─────────────────────
 //
-// Demandes de Hugo du 10 et du 11/11/2026 (SPEC § 2.3.2) : chaque gestionnaire a un compte VitFix professionnel ; il le
+// Demandes du 10 et du 11/11/2026 (SPEC § 2.3.2) : chaque gestionnaire a un compte VitFix professionnel ; il le
 // crée ici, depuis le lien reçu par e-mail, en choisissant son mot de passe. Même socle que la confirmation d'adresse
 // (ConfirmationAdresseQr) : le jeton du lien est lu dans l'ancre, gardé en mémoire seulement, et l'ancre est effacée de
 // l'adresse AVANT tout appel ; l'ouverture ne fait qu'une lecture sans effet (un antivirus qui ouvre le lien n'ouvre
@@ -10,7 +10,7 @@
 // confidentialité », contrôlés AVANT tout envoi ; « Ce n'est pas moi » demande une confirmation, puis conteste (aucun
 // compte créé, le cabinet est prévenu). Succès : « Accès ouvert. Connectez-vous. » et le lien vers la connexion du
 // cabinet ; aucune session n'est ouverte ici. Page publique, en français, styles de l'espace ; aucune ressource tierce.
-// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé en haut de
+// Logo du cabinet (demande du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé en haut de
 // la carte, au-dessus du titre, dès l'ouverture ; sans logo, la carte est celle d'avant.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'

@@ -4,7 +4,7 @@
 //
 // Relecture du 11/11/2026 : le lien vers la page commune /fr/auth/reset-password/ ramenait le professionnel sur la page
 // de connexion générale de VitFix par deux boutons (« Retour à la connexion », et celui du message « Email envoyé »),
-// avec le choix Particulier / Artisan / Pro et Google, ce que Hugo refuse. Le lien se demande donc ici, dans la page de
+// avec le choix Particulier / Artisan / Pro et Google, ce que le référent métier refuse. Le lien se demande donc ici, dans la page de
 // connexion de l'espace, par la route existante POST /api/auth/reset-password (3 demandes par 5 minutes et par IP, même
 // e-mail de Supabase, même lien), sans toucher aux pages communes.
 // - Message « envoyé » neutre : le même que l'adresse ait un compte ou non. Le message d'erreur du serveur n'est jamais

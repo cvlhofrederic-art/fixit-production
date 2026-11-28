@@ -5,7 +5,7 @@
 // Une seule instance, gardée montée par l'espace (components/aj-signalement/espace/EspaceAjSignalement.tsx) : un seul
 // chargement (GET /api/aj-signalement/tableau) pour les trois vues de son menu :
 //   - tableau de bord : présentation, indicateurs (tous les signalements), puis sous les quatre carrés la liste de tous
-//     les signalements reçus avec le filtre par copropriété (demande de Hugo du 11/11/2026) ;
+//     les signalements reçus avec le filtre par copropriété (demande du 11/11/2026) ;
 //   - copropriétés : cartes avec leur QR code (affiche PDF, QR PNG, lien, destinataires, modification, nouvelle
 //     copropriété, adresse proposée d'après la position d'un déclarant quand elle manque) ;
 //   - signalements : filtre par copropriété toujours visible, « même problème que le signalement n° X », détail avec
@@ -32,7 +32,7 @@
 // Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : la fin d'un rechargement demandé par l'espace
 // lui est signalée (onActualise), pour qu'une action attende la liste à jour avant d'annoncer son succès ; relecture du
 // correctif : avec son échec, que l'espace montre dans les vues où ce bloc est caché.
-// Logo du cabinet (demande de Hugo du 13/11/2026) : chaque carte reçoit les métadonnées du logo du cabinet de sa
+// Logo du cabinet (demande du 13/11/2026) : chaque carte reçoit les métadonnées du logo du cabinet de sa
 // copropriété, prises dans les données déjà chargées (liste des cabinets du super admin ; profil du gestionnaire), sans
 // requête par copropriété ; l'image n'est lue qu'au clic sur « Affiche PDF ».
 // Bureaux des cabinets (E7, migration 20261119 ; BROUILLON soumis avant fusion) : super admin seulement, filtre « Bureau »
@@ -451,8 +451,8 @@ export default function TableauSignalementsQr({
 const ID_TITRE_LISTE_TDB = 'qr-tdb-liste'
 
 /**
- * Tableau de bord : présentation, quatre carrés, puis (demande de Hugo du 11/11/2026) la liste des signalements reçus
- * avec le filtre par copropriété. Les carrés suivent le filtre (choix de Hugo du 11/11/2026) : une copropriété choisie,
+ * Tableau de bord : présentation, quatre carrés, puis (demande du 11/11/2026) la liste des signalements reçus
+ * avec le filtre par copropriété. Les carrés suivent le filtre (choix du 11/11/2026) : une copropriété choisie,
  * et les quatre carrés ne comptent qu'elle. La liste a donc toujours autant de lignes que « Reçus ».
  */
 function VueTableauDeBordQr({ liste }: Readonly<{ liste: PropsListeSignalementsQr }>) {

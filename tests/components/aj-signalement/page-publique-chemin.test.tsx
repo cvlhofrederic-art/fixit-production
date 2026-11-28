@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/page-publique-chemin.test.tsx
 //
-// Chemin par cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/, choix de Hugo du 10/11/2026), côté pages :
+// Chemin par cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/, choix du 10/11/2026), côté pages :
 // - page interne app/(commun)/cabinet/[identifiant]/signalement/[jeton] (servie par réécriture) : identifiant ou jeton
 //   mal formé → 404 SANS lecture ; copropriété inconnue, désactivée, sans cabinet ou d'un AUTRE cabinet → le même 404 ;
 //   sinon la page publique, dans la langue du cabinet (attribut lang et textes) ;

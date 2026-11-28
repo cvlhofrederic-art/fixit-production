@@ -1,6 +1,6 @@
 // ── Logo du cabinet pour une affiche PDF (carte d'une copropriété, assistant d'import) ──────────────────────────────
 //
-// Demande de Hugo du 13/11/2026. Les métadonnées du logo viennent des données déjà chargées (liste des cabinets du super
+// Demande du 13/11/2026. Les métadonnées du logo viennent des données déjà chargées (liste des cabinets du super
 // admin, profil du gestionnaire) ; l'image est lue au clic par sa route publique (chargerLogoAfficheQr). Sans logo :
 // null, sans lecture (l'affiche d'avant, à l'identique). Lecture impossible (réseau, logo retiré entre-temps, image
 // refusée par la revérification) : null et un avertissement (toast) : l'affiche est préparée sans logo plutôt que pas

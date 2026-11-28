@@ -1,6 +1,6 @@
 // tests/api/aj-signalement-logo-cabinet.test.ts
 //
-// Logo d'un cabinet client (demande de Hugo du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ») :
+// Logo d'un cabinet client (demande du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ») :
 //   PUT    /api/aj-signalement/cabinets/[id]/logo — envoi (super admin seul) : PNG en base64, revérifié par la route
 //          (signature, morceaux, en-tête, poids) avant la fonction signalements_qr_regler_logo_cabinet (journal
 //          cabinet.modifie {logo}, simulée ici) ; p_acteur = la session, jamais le corps ;

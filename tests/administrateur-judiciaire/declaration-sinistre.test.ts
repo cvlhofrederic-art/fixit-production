@@ -575,7 +575,7 @@ describe('point 58 — contrôle du délai de déclaration', () => {
 })
 
 /**
- * J67, R51 (décision de Hugo du 17/11/2026) : en principe, le courtier est le mandataire de l'assuré (Cass. 1re civ.,
+ * J67, R51 (décision du 17/11/2026) : en principe, le courtier est le mandataire de l'assuré (Cass. 1re civ.,
  * 22/10/1996, n° 94-15.613). La date de transmission à la compagnie, si elle est connue, se compare au repère ; un mandat
  * de l'assureur vu fait retenir la date du courrier au courtier ; sinon l'état reste « à vérifier ».
  */

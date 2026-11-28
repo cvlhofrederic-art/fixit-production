@@ -29,7 +29,7 @@ import { appliquerDelai, type Delai } from '@/lib/administrateur-judiciaire/doma
  * - la date de l'étape « mise en demeure » est celle où le collaborateur fait avancer le dossier (avancerRecouvrement) :
  *   elle ne fait courir aucun délai. Sans courrier, sans date de présentation ou d'avis, ou avec une date mal formée,
  *   aucune date d'exigibilité : une alerte dit la date à saisir ou à corriger (exigibiliteAnticipee) ;
- * - report au premier jour ouvrable (J67, R41, validée par Hugo le 17/11/2026 ; CPC art. 640 à 642, version du
+ * - report au premier jour ouvrable (J67, R41, validée le 17/11/2026 ; CPC art. 640 à 642, version du
  *   01/01/1976, lus le 17/11/2026) : deux fins, le trentième jour sans report et le même jour reporté au premier jour
  *   ouvrable (dates.reporterAuJourOuvrable, sans les jours propres à l'Alsace-Moselle, comme statut-assemblee.ts) ;
  *   l'exigibilité est retenue le lendemain de la fin AVEC report, la date la plus tardive, prudente pour le syndicat qui
@@ -42,9 +42,9 @@ import { appliquerDelai, type Delai } from '@/lib/administrateur-judiciaire/doma
  *   date calculée avec un avertissement (J50) ; voie non donnée : date calculée avec la réserve « voie non contrôlée ».
  * 🔵 Déduit : le lendemain de l'événement est le jour 0 du délai, comme pour J1 ; l'exigibilité est retenue le
  * lendemain du trentième jour (« passé un délai de trente jours »). J52 et J53, prises pour la notification du PV,
- * appliquées à la mise en demeure : lecture de Claude, à confirmer par Hugo (controle-voie-notification.ts).
+ * appliquées à la mise en demeure : lecture de Claude, à confirmer par le référent métier (controle-voie-notification.ts).
  * 🔴 Non établi :
- * - borne à confirmer par Hugo : exigibilité le lendemain du trentième jour compté depuis ce jour 0 (présentée le 12/05,
+ * - borne à confirmer par le référent métier : exigibilité le lendemain du trentième jour compté depuis ce jour 0 (présentée le 12/05,
  *   exigible le 13/06), ou un jour plus tôt si le lendemain de la présentation compte comme premier jour ;
  * - un paiement ou une démarche du débiteur pendant les trente jours (J3, condition 4) n'est pas contrôlé ici ;
  * - Frédéric : rattacher au dossier d'impayé le courrier de mise en demeure et la voie du débiteur (l'impayé ne les porte

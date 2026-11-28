@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/consigne-secours.test.tsx
 //
-// R70 du dossier téléphonie (14/11/2026, brouillon : textes à valider par Hugo, présentation par Frédéric, portugais H4) :
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes à valider par le référent métier, présentation par Frédéric, portugais H4) :
 // une urgence déclarée par QR code n'alerte aucun secours. La page publique le dit :
 //   - consigne permanente en tête du formulaire, avant les coordonnées (FR, PT) ;
 //   - consigne renforcée sous le choix d'urgence, seulement quand « urgent » est choisi (absente avant le choix, avec
@@ -255,10 +255,10 @@ describe('écran de confirmation', () => {
   })
 })
 
-// Décisions de Hugo du 14/11/2026 (relecture du brouillon) : vocabulaire de la page aligné (« administrateur de la
+// Décisions du 14/11/2026 (relecture du brouillon) : vocabulaire de la page aligné (« administrateur de la
 // copropriété », comme le reste de la page ; PT « ocorrência », « administrador do condomínio ») ; textes voisins sans
 // promesse (ni réception « immédiate », ni rappel certain).
-describe('vocabulaire et promesses de la page publique (décisions de Hugo du 14/11/2026)', () => {
+describe('vocabulaire et promesses de la page publique (décisions du 14/11/2026)', () => {
   const fr = TEXTES_SIGNALEMENT_QR.fr
   const pt = TEXTES_SIGNALEMENT_QR.pt
 

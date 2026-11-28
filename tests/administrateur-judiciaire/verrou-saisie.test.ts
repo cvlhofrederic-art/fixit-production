@@ -273,20 +273,20 @@ describe('verrou de saisie — en-tête (sources et marqueurs)', () => {
   it('J67, R121 : un exercice clos ne se rouvre pas ; la question quitte les points non établis', () => {
     expect(entete).not.toMatch(/réouverture lève le verrou/)
     expect(paragraphe('🔴 Non établi')).not.toMatch(/peut-il être rouvert/)
-    expect(paragraphe('Décisions de Hugo du 17/11/2026')).toMatch(/J67, R121[\s\S]*ne se rouvre pas[\s\S]*écriture contraire[\s\S]*Rouvrir/)
+    expect(paragraphe('Décisions du 17/11/2026')).toMatch(/J67, R121[\s\S]*ne se rouvre pas[\s\S]*écriture contraire[\s\S]*Rouvrir/)
   })
 
   it('J67, R122 : l’annulation par une écriture contraire datée après la borne est une règle, plus une question', () => {
     expect(paragraphe('🔴 Non établi')).not.toMatch(/lecture stricte du bilan/)
     expect(paragraphe('🔵 Déduit')).not.toMatch(/ANNULATION/)
-    expect(paragraphe('Décisions de Hugo du 17/11/2026')).toMatch(/J67, R122[\s\S]*contre-passation est contrôlée sur SA date/)
+    expect(paragraphe('Décisions du 17/11/2026')).toMatch(/J67, R122[\s\S]*contre-passation est contrôlée sur SA date/)
     const journal = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'journal-traitements.ts'), 'utf8')
     expect(journal.replaceAll(/\s*\n\s*\*\s*/g, ' ')).toMatch(/J67, R122 : une fois l'exercice clos, l'annulation d'une répartition est impossible/)
   })
 
   it('J67, R123 : la date d’une opération d’une période close est une règle ; le PCG n’est pas appliqué comme texte', () => {
     expect(paragraphe('🔴 Non établi')).not.toMatch(/À quelle date enregistrer/)
-    expect(paragraphe('Décisions de Hugo du 17/11/2026')).toMatch(/J67, R123[\s\S]*dateHorsVerrou/)
+    expect(paragraphe('Décisions du 17/11/2026')).toMatch(/J67, R123[\s\S]*dateHorsVerrou/)
     expect(paragraphe('🔵 Déduit')).toMatch(/921-4[\s\S]*non repris comme texte/)
   })
 })

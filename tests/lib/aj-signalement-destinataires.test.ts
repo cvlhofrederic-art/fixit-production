@@ -4,7 +4,7 @@
 //   - (adresses saisies MOINS les adresses de fiches inactives ou contestées) ∪ gestionnaires de la copropriété actifs
 //     à adresse confirmée (lignes de signalements_qr_emails_gestionnaires), dédoublonnés sur l'adresse canonique ;
 //   - une adresse présente des deux côtés garde le type « gestionnaire » ;
-//   - union vide : plus jamais ADMIN_EMAIL / ADMIN_EMAIL_2 (D9, décision de Hugo du 17/11/2026 ; détail dans
+//   - union vide : plus jamais ADMIN_EMAIL / ADMIN_EMAIL_2 (D9, décision du 17/11/2026 ; détail dans
 //     tests/lib/aj-signalement-repli-cabinet.test.ts) ; plafond de 100 (un lot Resend).
 // La sélection des fiches (actives, confirmées, non contestées, attribuées ou « à tous » du même cabinet) est faite par
 // la fonction SQL : ses lignes arrivent ici déjà filtrées. Adresses fictives en exemple.test.

@@ -1,6 +1,6 @@
 // ── AJ Signalement, côté serveur : logo d'un cabinet client (migration 20261114) ────────────────────────────────────
 //
-// Demande de Hugo du 13/11/2026 : le logo du cabinet sur les affiches PDF, dans l'espace du cabinet, sur la page
+// Demande du 13/11/2026 : le logo du cabinet sur les affiches PDF, dans l'espace du cabinet, sur la page
 // publique de signalement et dans l'accusé de réception envoyé au déclarant (ni dans les e-mails de signalement aux
 // gestionnaires, partis en lot sans pièce jointe possible, ni dans les messages de diffusion, ni sur la page de
 // désinscription). Lectures avec la clé service (supabaseAdmin), jamais depuis un composant client :

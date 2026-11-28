@@ -323,7 +323,7 @@ describe('confirmation au déclarant', () => {
   })
 })
 
-describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 06/11/2026)', () => {
+describe('qualité, adresse proposée et signalement lié (demandes du 06/11/2026)', () => {
   const ID_LIE = '1a2b3c4d-0000-4000-8000-000000000001'
 
   it('administrateur : qualité, « même problème que le signalement n° X », adresse proposée échappée', () => {

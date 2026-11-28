@@ -62,7 +62,7 @@ import {
  *   une pièce de reprise qu'un type candidat seul couvrirait est « à vérifier », jamais couverte ;
  * - les fenêtres « trois dernières AG », « trois dernières années », « en cours de validité » disent ce qui est mis
  *   à disposition ; ce ne sont pas des durées de conservation (voir conservation-documents-ged.ts).
- * Décisions de Hugo du 17/11/2026 (J67, recommandations validées en bloc) :
+ * Décisions du 17/11/2026 (J67, recommandations validées en bloc) :
  * - J67, R119 (textes relus le 17/11/2026 : L. 1965 art. 18, I, 18-2 et 29-1, I, al. 2 ; D. 2019-502 art. 1 à 4 ; D.
  *   2016-1822 art. 1 et 2) : le contrôle de l'extranet est gardé pour un mandat d'administration provisoire,
  *   obligation du syndic professionnel appliquée par prudence à l'administrateur provisoire : à confirmer
@@ -85,7 +85,7 @@ import {
  * 🔴 Non établi :
  * - registre des décisions de l'administrateur provisoire (D. 1967 art. 62-8) : le type « Procès-Verbal de prise de
  *   décisions par l'AJ » (tranche 18) le couvrirait, mais sa catégorie n'est relevée ni en tranche 22 ni en tranche 43
- *   (question pour Hugo, voir typologie-documents.ts) : pièce non contrôlable en attendant ;
+ *   (question pour le référent métier, voir typologie-documents.ts) : pièce non contrôlable en attendant ;
  * - diagnostics (amiante, plomb, termites, DPE, DTG) : textes non relus ; seule la PRÉSENCE est contrôlée, rien de plus
  *   avant leur lecture par un juriste (J67, R120).
  */

@@ -470,7 +470,7 @@ describe('pages partagées servies sous /fr et /pt', () => {
   it.each(['/fr/aj-signalement/connexion/', '/fr/aj-signalement/connexion', '/pt/aj-signalement/connexion/', '/pt/aj-signalement/connexion'])(
     '%s est servie par la page de connexion professionnelle de l’espace (règles exactes, sans « :path* »)',
     async (chemin) => {
-      // Connexion professionnelle de l'espace (Hugo, 11/11/2026) : e-mail et mot de passe, sans choix Particulier / Pro.
+      // Connexion professionnelle de l'espace (11/11/2026) : e-mail et mot de passe, sans choix Particulier / Pro.
       const [avantFichiers] = await reecritures()
       expect(pageExiste('/aj-signalement/connexion')).toBe(true)
       expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/aj-signalement/connexion')

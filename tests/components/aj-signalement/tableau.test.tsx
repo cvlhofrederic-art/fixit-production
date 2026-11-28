@@ -5,7 +5,7 @@
 // - un seul chargement (GET tableau, avec le jeton quand il est donné) pour les trois vues ;
 // - changement de vue (menu ou bouton Retour du navigateur) : la fenêtre ouverte se ferme, le message de succès s'efface ;
 // - tableau de bord : présentation, indicateurs, puis sous les quatre carrés la liste de tous les signalements reçus
-//   avec le filtre par copropriété (demande de Hugo du 11/11/2026 : mêmes lignes, même détail, même filtre que la vue
+//   avec le filtre par copropriété (demande du 11/11/2026 : mêmes lignes, même détail, même filtre que la vue
 //   Signalements, aucun second chargement ; les carrés restent ceux de tous les signalements) ;
 //   copropriétés : cartes (lien, QR code dessiné, destinataires), ajout, modification ;
 //   signalements : liste du plus récent au plus ancien, filtre par copropriété toujours visible ;
@@ -215,7 +215,7 @@ describe('chargement et vues', () => {
   })
 })
 
-describe('tableau de bord : liste de tous les signalements reçus sous les indicateurs (Hugo, 11/11/2026)', () => {
+describe('tableau de bord : liste de tous les signalements reçus sous les indicateurs (11/11/2026)', () => {
   const regionListe = () => screen.getByRole('region', { name: T.signalements })
   const valeur = (libelle: string) => within(indicateurs()).getByText(libelle).previousElementSibling?.textContent
   const filtre = () => within(regionListe()).getByLabelText(T.filtrerCopro)
@@ -239,7 +239,7 @@ describe('tableau de bord : liste de tous les signalements reçus sous les indic
     expect(screen.queryAllByRole('heading', { level: 1 })).toHaveLength(0)
   })
 
-  it('filtre : les lignes ET les carrés ne comptent que la copropriété choisie (demande de Hugo du 11/11/2026)', async () => {
+  it('filtre : les lignes ET les carrés ne comptent que la copropriété choisie (demande du 11/11/2026)', async () => {
     await rendrePret('tableau-de-bord')
     expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['2', '1', '0', '1'])
     fireEvent.change(filtre(), { target: { value: ID_COPRO_2 } })

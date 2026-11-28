@@ -12,7 +12,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 /**
  * Copropriétés : fiche d'une assemblée sur le modèle de la fiche assemblée de Gestéam, ouverte depuis le bloc
  * « Assemblées » de la fiche copropriété. Résultats, convocation, pouvoirs et contestation calculés par les modules de
- * droit existants. Demande de Hugo du 29/10/2026 ; données de démonstration fictives.
+ * droit existants. Demande du 29/10/2026 ; données de démonstration fictives.
  */
 
 const etat = () => useDonneesStore.getState()

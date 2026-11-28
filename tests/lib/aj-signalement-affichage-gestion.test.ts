@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-affichage-gestion.test.ts
 //
-// Libellés et calculs purs des écrans du super admin (cabinets clients, gestionnaires, journal ; demandes de Hugo du
+// Libellés et calculs purs des écrans du super admin (cabinets clients, gestionnaires, journal ; demandes du
 // 10/11/2026) : chaque valeur des listes fermées a son libellé ; filtres des copropriétés ; groupes et successions du
 // départ d'un gestionnaire (une succession par copropriété exigée) ; saisie des domaines ; aperçu de l'adresse.
 

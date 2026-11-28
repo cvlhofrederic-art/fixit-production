@@ -357,8 +357,8 @@ describe('en-tête : sources et marqueurs', () => {
     expect(nonEtabli).not.toContain("Remise d'espèces")
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J29, remise d’espèces refusée (compte 53 non tenu, J25)', () => {
-    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
+  it('rubrique « Décisions du 03/11/2026 » : J29, remise d’espèces refusée (compte 53 non tenu, J25)', () => {
+    const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔵 Déduit'))
     expect(decisions).toMatch(/J29/)
     expect(decisions).toContain("Remise d'espèces")
     expect(decisions).toMatch(/compte 53/)

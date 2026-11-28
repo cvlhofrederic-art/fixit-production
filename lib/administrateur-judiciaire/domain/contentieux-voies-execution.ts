@@ -70,13 +70,13 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   Légifrance) : le commandement valant saisie indique la date et la nature de ce titre ;
  * - L. 1965 art. 19, al. 1 : aucun délai entre la mise en demeure et l'inscription de l'hypothèque.
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J33, J35 et J36 ; questions 26, 28 et 29 de la
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J33, J35 et J36 ; questions 26, 28 et 29 de la
  * liste) :
  * - J33 : la case « Échéancier » du bloc Voie d'exécution désigne l'échéancier fixé par décision du juge (délais de
  *   grâce, C. civ. art. 1343-5, relu sur Légifrance le 03/11/2026 : voir contentieux.ts). Ce n'est pas une mesure
  *   d'exécution (executionEngagee ne la lit pas) ; cochée, elle rend l'échéancier actif, source « décision du juge »
  *   (contentieux.echeancierDuContentieux).
- * - J35 (confirmée par Hugo le 06/11/2026) : « oui », compris comme oui aux deux questions. La mise à prix (venteLot) se
+ * - J35 (confirmée le 06/11/2026) : « oui », compris comme oui aux deux questions. La mise à prix (venteLot) se
  *   saisit sans que la case Saisie immobilière soit cochée : creerVoiesExecution l'accepte, sans refus ni anomalie (choix
  *   actuel confirmé). L'Assemblée et la Résolution du dossier (decision) autorisent aussi une action en justice hors
  *   recouvrement (D. 1967 art. 55, al. 1) : controlerAutorisationActionEnJustice. Pour le recouvrement de charges,
@@ -92,13 +92,13 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   la défense aux actions intentées contre le syndicat, ainsi que la saisine du président du tribunal judiciaire en
  *   application des premiers alinéas des art. 29-1 A et 29-1 de la loi du 10 juillet 1965 ou du premier alinéa de CCH art. L. 615-6 ; le
  *   message les cite toutes, le dossier ne disant pas laquelle s'applique.
- * - J36 (confirmée par Hugo le 06/11/2026) : « oui », compris comme la confirmation des choix actuels. L'audience
+ * - J36 (confirmée le 06/11/2026) : « oui », compris comme la confirmation des choix actuels. L'audience
  *   (« Audience éventuelle ») et l'adjudication peuvent être fixées à l'avance (date future admise), pas l'expulsion (un
  *   constat) ; « Audience éventuelle » est l'audience d'orientation (CPCE R. 322-15) ; « Engagée le » est la date de
  *   signification du commandement de payer valant saisie (CPCE R. 321-1), qui engage la procédure. Textes lus sur
  *   Légifrance le 30/10/2026. Aucun comportement ne change.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J43, PR #643, suite de J33 ; J45, suite de J35 ;
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J43, PR #643, suite de J33 ; J45, suite de J35 ;
  * confirmation de J35 et J36) :
  * - J43 : quand la case « Échéancier » est cochée (échéancier fixé par décision du juge, J33), une exécution déjà engagée
  *   sur le même dossier est signalée : controlerExecutionSousEcheancierDuJuge rend une alerte qui nomme chaque mesure
@@ -126,7 +126,7 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   saisie, CPCE R. 321-1. L'admission d'une action hors recouvrement reste à confirmer pour une autre raison, inchangée :
  *   l'antériorité de la décision à l'introduction de l'action n'est pas contrôlée.
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations R43 à R47, validées en bloc ;
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations R43 à R47, validées en bloc ;
  * textes lus sur Légifrance le 17/11/2026, versions en vigueur à cette date) :
  * - J67, R43 (question 9 fermée) : sous la case « Échéancier », le jalon « Commandement » du dossier est signalé lui aussi.
  *   controlerExecutionSousEcheancierDuJuge lit les jalons et nomme le commandement en tête de l'alerte : « Commandement
@@ -963,7 +963,7 @@ const CONTESTATION_EN_DEFENSE =
   "Contestation d'assemblée : l'action est introduite contre le syndicat par les copropriétaires opposants ou défaillants (L. 1965 art. 42, al. 2) ; le syndic peut défendre aux actions intentées contre le syndicat sans autorisation de l'assemblée (D. 1967 art. 55, al. 3)."
 
 /**
- * Autorisation d'une action en justice (décisions J35 et J45 de Hugo) : non requise pour le recouvrement de charges
+ * Autorisation d'une action en justice (décisions J35 et J45) : non requise pour le recouvrement de charges
  * (art. 55, al. 3), ni pour une contestation d'assemblée, que le syndicat défend (J45 : L. 1965 art. 42, al. 2 ; art.
  * 55, al. 3) ; hors de ces deux types, l'Assemblée et la Résolution du dossier l'autorisent (art. 55, al. 1), contrôlées
  * comme pour la saisie en vue de la vente (résolution adoptée, assemblée de la même copropriété, pouvoirs de

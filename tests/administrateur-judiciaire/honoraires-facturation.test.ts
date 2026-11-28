@@ -471,7 +471,7 @@ describe('honoraires — en-tête : décisions J67 citées, questions tranchées
     for (const reference of ['62111', '6211 « Rémunération du syndic »', '62120', '6212 « Débours »', '6213 « Frais postaux »', 'L. 1965 art. 29-1, I, al. 2', 'arrêté du 14 mars 2005, art. 7 et 8'])
       expect(decision).toContain(reference)
     expect(decision).toMatch(/imputerFacture/)
-    expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Compte de charge/)
+    expect(texte).not.toMatch(/🔴 \(Frédéric ou le référent métier\) Compte de charge/)
     expect(item('🔴 (comptable du cabinet)')).toMatch(/6221 « Honoraires travaux »/)
   })
 
@@ -482,7 +482,7 @@ describe('honoraires — en-tête : décisions J67 citées, questions tranchées
     expect(decision).toMatch(/dépassement des horaires et durées[^;]*7\.1\.5/)
     expect(decision).toMatch(/L\. 1965 art\. 10-1, a et b/)
     expect(decision).toMatch(/état daté au plus 380 € TTC/)
-    expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Gestion syndic/)
+    expect(texte).not.toMatch(/🔴 \(Frédéric ou le référent métier\) Gestion syndic/)
   })
 
   it('J67, R3 et R9 : droit fixe dès que la décision est portée à la connaissance de l’AP, moins de 500 lots ; « Offert » refusé, lecture prudente', () => {
@@ -493,6 +493,6 @@ describe('honoraires — en-tête : décisions J67 citées, questions tranchées
     expect(r3).toMatch(/ordonnances-remuneration\.ts/)
     expect(r3).toMatch(/Le droit fixe ne couvre que l'élément qui le facture \(champ\s+droitFixe\), une seule fois par mandat/)
     expect(item('- J67, R9')).toMatch(/244\.1.*section sur la concurrence/)
-    expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Administration provisoire/)
+    expect(texte).not.toMatch(/🔴 \(Frédéric ou le référent métier\) Administration provisoire/)
   })
 })

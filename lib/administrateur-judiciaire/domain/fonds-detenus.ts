@@ -30,7 +30,7 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * Fonds détenus pour autrui à une date (point 72 du bilan Gestéam, « Pointe de garantie », remplacé). Fonctions pures,
  * montants en CENTIMES ENTIERS, dates ISO (AAAA-MM-JJ), sans écran, sans table, sans migration.
  *
- * Source : note de recherche du 17/11/2026, contre-vérifiée le même jour, à valider par Hugo, qui n'est pas un avis
+ * Source : note de recherche du 17/11/2026, contre-vérifiée le même jour, à valider par le référent métier, qui n'est pas un avis
  * juridique (Syndic-judiciaire/NOTE-POINT-72-POINTE-DE-GARANTIE.md, § 1, 2.2, 2.3, 2.6, 4.1 à 4.3 et 6). Elle conclut
  * que la « pointe de garantie » de Gestéam relève de la loi Hoguet (décret n° 72-678, art. 28, 29, 31 et 38), à laquelle
  * l'administrateur judiciaire inscrit n'est pas soumis : elle n'est pas calculée (etats-comptables.ts la garde « non
@@ -59,16 +59,16 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - J37 (03/11/2026) : le compte de l'administrateur provisoire est un compte à la Caisse des dépôts, le fonds de
  *   travaux sur un compte distinct ;
  * - J25 et J29 : le compte 53 « Caisse » n'est pas tenu : aucune espèce n'entre dans le calcul ;
- * - J62 (décision de Hugo du 17/11/2026 (J62), DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations validées
+ * - J62 (décision du 17/11/2026 (J62), notes de décision du 17/11/2026, section « Suite » : recommandations validées
  *   en bloc, numéro de registre proposé) : un compte sans IBAN est traité comme le compte global de l'administrateur tant
  *   que son IBAN n'est pas saisi : au solde négatif, sa couverture n'est pas vérifiable (couverture_non_verifiable,
  *   bloquant) ; saisir l'IBAN de chaque compte du mandat. C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5.
  *   Comportement inchangé (mutualise : null, jamais supposé propre au mandat), lecture désormais décidée ;
- * - J63 (décision de Hugo du 17/11/2026 (J63), même section) : « avant le 15 mars » et « avant le 15 septembre »
+ * - J63 (décision du 17/11/2026 (J63), même section) : « avant le 15 mars » et « avant le 15 septembre »
  *   (C. com. R. 814-30) = le 14 au plus tard (lecture prudente) : dates limites de l'attestation du commissaire aux
  *   comptes le 14/03 et le 14/09 (echeancesFondsDetenusDeLAnnee, comportement inchangé).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 et J71 ; validées en bloc ; C. com. relu sur
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 et J71 ; validées en bloc ; C. com. relu sur
  * Légifrance le 17/11/2026) :
  * - J67, R90 : R. 814-21 calcule la cotisation sur « les fonds non distribués » au 31 décembre, sans dire ce qu'ils
  *   comprennent ; R. 814-37 et R. 814-34 vont dans le sens d'un périmètre large. Le défaut « tout inclus » est gardé par
@@ -142,7 +142,7 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   incomplet et l'anomalie le dit. Un compte déclaré sous plusieurs mandats doit l'être à l'identique (identifiant,
  *   nature, IBAN, établissement), et un identifiant de compte ne désigne qu'un 512 : sinon les données sont refusées.
  *
- * 🔴 Non établi (note, § 4.3 et 6.6 ; à trancher par Hugo) :
+ * 🔴 Non établi (note, § 4.3 et 6.6 ; à trancher par le référent métier) :
  * - rééditer un état « dans son état de la fin du trimestre » (1033.5) : le calcul relit les écritures datées au plus
  *   tard ce jour ; une écriture passée après coup à une date antérieure le changerait. La garantie relève du verrou de
  *   saisie (verrou-saisie.ts : édition figée, arrêté des comptes), que ce module ne pose pas ;
@@ -382,7 +382,7 @@ export interface LigneFondsDetenus {
   /**
    * true : compte bancaire partagé entre mandats (sous-compte du centralisateur, IBAN ou 512 communs) ; false : compte
    * identifié par son IBAN, propre au mandat ; null : compte sans IBAN, traité comme le compte global de l'administrateur
-   * tant que son IBAN n'est pas saisi (décision de Hugo du 17/11/2026, J62) : jamais supposé propre au mandat.
+   * tant que son IBAN n'est pas saisi (décision du 17/11/2026, J62) : jamais supposé propre au mandat.
    */
   mutualise: boolean | null
 }
@@ -1083,7 +1083,7 @@ export function echeancesFondsDetenusDeLAnnee(annee: number, options: OptionsJou
       echeance(fin, 'etat_trimestriel', `États du trimestre clos le ${fr}, pour chaque mandat non clos`, { date: ajouterJours(fin, 15), acte: ACTE_ETATS }, options),
     )
     if (mois === 6 || mois === 12) {
-      // R. 814-30 : « avant le 15 mars et le 15 septembre » : le 14 au plus tard (décision de Hugo du 17/11/2026, J63).
+      // R. 814-30 : « avant le 15 mars et le 15 septembre » : le 14 au plus tard (décision du 17/11/2026, J63).
       const avantLe = mois === 6 ? composerDateIso(annee, 9, 15) : composerDateIso(annee + 1, 3, 15)
       liste.push(
         echeance(

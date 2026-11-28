@@ -15,7 +15,7 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
 
 /**
  * Alerte de l'art. 29-1 A de la loi du 10 juillet 1965 : information du conseil syndical et saisine du juge pour la
- * désignation d'un mandataire ad hoc (décision J7 de Hugo du 30/10/2026). Fonction pure, montants en CENTIMES ENTIERS,
+ * désignation d'un mandataire ad hoc (décision J7 du 30/10/2026). Fonction pure, montants en CENTIMES ENTIERS,
  * dates ISO (AAAA-MM-JJ), sans écran ni table : les sommes exigibles, les votes et la requête viennent de l'appelant.
  *
  * Le droit — 🟢 textes relus sur Légifrance le 30/10/2026 :
@@ -93,7 +93,7 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  * - syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) : il est le syndic, l'obligation lui
  *   incombe.
  *
- * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
  * - J67, R31 : période des sommes exigibles (le texte ne la fixe pas) : au dénominateur, les sommes devenues exigibles
  *   au cours de l'exercice clos (les provisions sont votées et appelées par exercice : art. 14-1, I ; art. 14-2-1, I) ;
  *   au numérateur, tous les impayés à la clôture, arriérés des exercices antérieurs compris, moins ceux du dernier mois
@@ -106,7 +106,7 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   lecture la plus prudente (plus de syndicats passent au seuil de 15 %). Le nombre saisi reste celui du seuil ; quand
  *   la liste des lots du syndicat est fournie, elle est comptée et l'écart est signalé (ecartLots).
  *
- * Décision J67, R30 de Hugo (17/11/2026 ; textes relus le 17/11/2026 : L. 1965 art. 29-1 A, 29-1 B et 29-1, I à III ;
+ * Décision J67, R30 (17/11/2026 ; textes relus le 17/11/2026 : L. 1965 art. 29-1 A, 29-1 B et 29-1, I à III ;
  * D. 1967 art. 46, 47, 61-2, 61-4, 61-5, 62-2, 62-7 et 62-11). Aucun texte ne règle le cas des administrateurs
  * provisoires : lecture déduite des textes, aConfirmer gardé (pas de texte) ; le résultat porte le régime et le cadre.
  * - administrateur provisoire de l'art. 29-1 (cadre « compte_rendu_au_juge ») : il a reçu tous les pouvoirs du syndic

@@ -12,7 +12,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 
 /**
- * Décision D2 (Hugo Carvalho, 27/10/2026) — Identité / Position / Compte copropriétaire (fiche client Gestéam,
+ * Décision D2 (27/10/2026) — Identité / Position / Compte copropriétaire (fiche client Gestéam,
  * tranche 30 ; qualités QUALITE_IDENTITE, tranche 20).
  * - Identité : la personne physique ou morale, une fois pour tout le cabinet.
  * - Position : le rôle d'une identité sur un lot (qualité, part, statut, dates).

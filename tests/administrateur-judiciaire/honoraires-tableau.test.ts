@@ -380,7 +380,7 @@ describe('tableau des honoraires — en-tête : le tableau n’est pas le compte
   })
 
   it('J67, R5 : frais à part de la rémunération (choix confirmé), jamais facturés sans ordonnance, annexe « frais et débours » ; plus de 🔴', () => {
-    expect(texte).not.toMatch(/🔴 \(Hugo\) Administration provisoire : les frais/)
+    expect(texte).not.toMatch(/🔴 \(le référent métier\) Administration provisoire : les frais/)
     const decision = item('- J67, R5 (recommandation L1-09)')
     expect(decision).toMatch(/ne sont pas remboursés automatiquement au cabinet/)
     expect(decision).toMatch(/Choix actuel confirmé : le tableau les cumule à part de la rémunération \(facturablesParCategorie\), sans rien en déduire/)
@@ -389,7 +389,7 @@ describe('tableau des honoraires — en-tête : le tableau n’est pas le compte
     expect(decision).toMatch(/61-1-5, III,\s+al\. 2, pour les seuls droits proportionnels au-delà de 75 000 € HT/)
     // J72 concilie R5 et R6 : plus de choix « resté ouvert » ; la dépense du syndicat (a) n'est pas un élément du cabinet
     expect(decision).not.toMatch(/reste ouvert/)
-    expect(decision).toMatch(/J72 \(décision de Hugo du 18\/11\/2026\) : \(a\) .*dépense du syndicat.*Contrôle coûts.*hors des facturables/)
+    expect(decision).toMatch(/J72 \(décision du 18\/11\/2026\) : \(a\) .*dépense du syndicat.*Contrôle coûts.*hors des facturables/)
     expect(decision).toMatch(/\(b\) .*frais du cabinet.*annexe « frais et débours ».*honoraires-sinistre\.ts/)
   })
 

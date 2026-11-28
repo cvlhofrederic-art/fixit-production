@@ -184,7 +184,7 @@ describe('mention et marqueurs', () => {
     expect(voie.fondement).toBe(
       "L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 ; demande reçue avant le 25/12/2025 : effet retenu à sa réception, choix prudent, plus strict que le texte : le retrait de l'accord prenait déjà effet le lendemain du huitième jour suivant sa réception (D. 1967 art. 64-4, version du 04/07/2020 au 24/12/2025 ; avant, art. 64-2 : lendemain du huitième jour du 29/06/2019 au 03/07/2020, lendemain de la réception du 24/10/2015 au 28/06/2019) ; décret n° 2025-1292 sans règle transitoire, C. civ. art. 2 ; J52 ; J67, R17",
     )
-    expect(voie.fondement).not.toMatch(/Hugo|ancienne règle/)
+    expect(voie.fondement).not.toMatch(/[Rr]éférent métier|ancienne règle/)
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'voie-notification.ts'), 'utf8')
     expect(source).not.toMatch(/ANCIENNE_REGLE|AncienneRegle/)
     const { texte, item } = enTeteDuModule('voie-notification')
@@ -210,7 +210,7 @@ describe('mention et marqueurs', () => {
     const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(ouvert).not.toMatch(/retour à la voie électronique après une DemandeVoiePostale/)
     expect(ouvert).not.toMatch(/d'ici là, le code ne change pas/)
-    const j74 = item('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J74')
+    const j74 = item('Décision du 18/11/2026 (registre des décisions juridiques, J74')
     expect(j74).toMatch(/RenonciationVoiePostale/)
     expect(j74).toMatch(/lendemain du huitième jour suivant leur réception/)
     expect(j74).toMatch(/JOURS_AVANT_EFFET_RETOUR_VOIE_ELECTRONIQUE/)
@@ -226,7 +226,7 @@ describe('mention et marqueurs', () => {
   })
 })
 
-// ─── J74 : retour à la voie électronique (décision de Hugo du 18/11/2026 ; R18) ─────────────────────────────────
+// ─── J74 : retour à la voie électronique (décision du 18/11/2026 ; R18) ─────────────────────────────────
 
 describe('J74 — renonciation à la voie postale (R18) : écrite, datée, reçue par un moyen qui prouve sa date, avec une adresse', () => {
   const saisie = {
@@ -442,7 +442,7 @@ describe('J74, relecture — accord en vigueur (accordElectroniqueEnVigueur) : l
 
   it('en-tête : l’accord en vigueur suit J74 ; la phrase « lit toujours l’accord dès sa réception » est retirée ; choix 🔵 dit', () => {
     const { item } = enTeteDuModule('voie-notification')
-    const j74 = item('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J74')
+    const j74 = item('Décision du 18/11/2026 (registre des décisions juridiques, J74')
     expect(j74).not.toMatch(/lit toujours l'accord dès sa réception/)
     expect(j74).toMatch(/accordElectroniqueEnVigueur/)
     expect(j74).toMatch(/🔵 L'accord donné après un refus ou un retrait reçu avant le 25\/12\/2025 suit aussi J74/)

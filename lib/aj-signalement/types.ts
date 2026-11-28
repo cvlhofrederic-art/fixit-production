@@ -15,7 +15,7 @@ import { urlSignalementCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 export type StatutSignalementQr = 'en_attente' | 'acceptee' | 'en_cours' | 'terminee' | 'annulee'
 export type PrioriteSignalementQr = 'urgente' | 'normale' | 'planifiee'
 export type LangueSignalementQr = 'fr' | 'pt'
-/** « Vous êtes : Propriétaire / Locataire » (demande de Hugo du 06/11/2026). */
+/** « Vous êtes : Propriétaire / Locataire » (demande du 06/11/2026). */
 export type QualiteDeclarantQr = 'proprietaire' | 'locataire'
 /** Statuts d'un signalement encore ouvert : seuls ceux-là sont proposés comme « déjà faits au même endroit ». */
 export type StatutOuvertQr = Extract<StatutSignalementQr, 'en_attente' | 'acceptee' | 'en_cours'>
@@ -74,7 +74,7 @@ export interface CoproprieteQrPublique {
   adresse: string
   /**
    * Bâtiments saisis par le cabinet, nettoyés (batimentsProposesQr), dans l'ordre saisi : liste à choix du champ
-   * « Bâtiment » (demande de Hugo du 17/11/2026). Absente ou vide : texte libre, comme avant.
+   * « Bâtiment » (demande du 17/11/2026). Absente ou vide : texte libre, comme avant.
    */
   batiments?: readonly string[]
 }
@@ -182,7 +182,7 @@ export interface SaisieCoproprieteQr {
 }
 
 /**
- * Adresse publique du QR code. Copropriété rattachée à un cabinet client (choix de Hugo du 10/11/2026) :
+ * Adresse publique du QR code. Copropriété rattachée à un cabinet client (choix du 10/11/2026) :
  * …/<identifiant>/signalement/<jeton>/ ; sans cabinet : l'ancienne adresse …/fr/signalement/<jeton>/, que gardent les
  * affiches déjà imprimées (l'ancienne page redirige vers le chemin du cabinet une fois la copropriété rattachée).
  */
@@ -203,7 +203,7 @@ export const CHEMIN_TABLEAU_QR = `${CHEMIN_ESPACE_QR}#${ANCRE_TABLEAU_QR}`
 
 // ── Cabinets clients, gestionnaires, journal (migration 20261111_signalements_qr_gestionnaires) ──────────────
 //
-// Demandes de Hugo du 10/11/2026 : chaque cabinet client a sa ligne (nom, identifiant du chemin public
+// Demandes du 10/11/2026 : chaque cabinet client a sa ligne (nom, identifiant du chemin public
 // vitfix.io/<identifiant>/…, langue, domaines e-mail), saisie par le super admin dans l'espace, jamais dans le code ;
 // ses gestionnaires reçoivent par e-mail les signalements de leurs copropriétés. Les listes fermées ci-dessous sont
 // celles des CHECK de la migration (tests/lib/aj-signalement-types-journal.test.ts les compare au texte SQL).
@@ -230,7 +230,7 @@ export interface CabinetResumeQr {
 }
 
 /**
- * Logo d'un cabinet client (migration 20261114_signalements_qr_logo_cabinet.sql, demande de Hugo du 13/11/2026) :
+ * Logo d'un cabinet client (migration 20261114_signalements_qr_logo_cabinet.sql, demande du 13/11/2026) :
  * métadonnées seulement ; l'image (PNG) est lue par sa route publique, à l'adresse cheminLogoCabinetQr
  * (lib/aj-signalement/logo.ts), jamais dans une réponse JSON.
  */
@@ -543,7 +543,7 @@ export type DecisionDoublonsQr =
   | { ok: false; doublon: DoublonQr }
 
 /**
- * « cabinet » (D9, décision de Hugo du 17/11/2026) : adresse de contact du cabinet client (diffusion_contact_email), qui
+ * « cabinet » (D9, décision du 17/11/2026) : adresse de contact du cabinet client (diffusion_contact_email), qui
  * reçoit le signalement d'une de ses copropriétés quand aucun gestionnaire ni aucune adresse saisie ne le reçoit.
  * « administrateur » : le gabarit de l'e-mail le connaît encore (bouton du tableau), mais depuis D9 aucun dépôt ne
  * l'envoie plus à ADMIN_EMAIL.
@@ -582,7 +582,7 @@ export interface CalculDestinatairesQr {
 }
 
 /**
- * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : ce que la route lit quand une copropriété n'a aucun
+ * D9 (décision du 17/11/2026, au nom de VitFix, point 7) : ce que la route lit quand une copropriété n'a aucun
  * destinataire. sans_cabinet : rattachée à aucun cabinet (ou colonne cabinet_id absente) ; cabinet : rattachée à un
  * cabinet client, avec son adresse de contact (null si aucune) ; illisible : la lecture a échoué. Dans aucun cas le
  * signalement complet ne part vers les boîtes de VitFix (relecture du 17/11/2026 : le code ne distingue pas une
@@ -812,7 +812,7 @@ export interface ReservationEmailsQr {
 
 // ── Import des copropriétés depuis un fichier Excel ou CSV (lot 5, SPEC § 1.9) ────────────────────────────────
 //
-// Demande de Hugo du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client ». Le fichier
+// Demande du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client ». Le fichier
 // est lu dans le navigateur (lib/aj-signalement/import/*), jamais envoyé ni conservé : seules les lignes normalisées
 // partent vers POST /api/aj-signalement/coproprietes/import, qui refait toute la vérification (même fonction pure).
 

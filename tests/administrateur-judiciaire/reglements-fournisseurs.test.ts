@@ -166,10 +166,10 @@ describe('objet ReglementFournisseur', () => {
   it('en-tête : la décision J25 remplace le 🔴 du paiement en espèces', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
-    expect(entete).toMatch(/Décision J25 de Hugo du 03\/11\/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs/)
+    expect(entete).toMatch(/Décision J25 du 03\/11\/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs/)
     expect(entete).toMatch(/ne vise que les salaires \(personnel-syndicat\.ts\), pas un fournisseur/)
     // J40 (06/11/2026) : la réserve est tranchée, aucun salaire n'est payé en espèces, même sous le seuil.
-    expect(entete).toMatch(/Décisions de Hugo du 06\/11\/2026 \(J40\)/)
+    expect(entete).toMatch(/Décisions du 06\/11\/2026 \(J40\)/)
     expect(entete).toMatch(/même sous le seuil/)
     expect(source).not.toMatch(/🔴 10/)
     const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
@@ -585,7 +585,7 @@ describe('paiement sur plusieurs mandats : seulement depuis le compte du cabinet
   })
 })
 
-describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hugo du 30/10/2026)', () => {
+describe('bénéficiaire indivisaire : le mandataire commun (décision J10 du 30/10/2026)', () => {
   const position = (surcharge: Partial<Position> = {}): Position => ({
     id: 'pos-1',
     identiteId: 'id-7',
@@ -691,7 +691,7 @@ describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hu
   it('en-tête : la décision J10 remplace le 🔴 du bénéficiaire indivisaire', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
-    expect(entete).toMatch(/Décision J10 de Hugo du 30\/10\/2026/)
+    expect(entete).toMatch(/Décision J10 du 30\/10\/2026/)
     const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/bénéficiaire indivisaire : à qui payer/)
     expect(source).not.toMatch(/🔴 Ne dit pas si l'indivisaire peut recevoir seul le paiement/)
@@ -701,7 +701,7 @@ describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hu
     // relecture du 17/11/2026 : seul le tiers est dispensé de position ; la fin de position ou d'indivision reste un refus
     expect(entete).toContain('mandataire_commun_position_sortie')
     expect(entete).toContain('indivision_sans_indivisaire_en_place')
-    expect(nonEtabli).toMatch(/gravité de ces deux refus \(bloquants par prudence\) à confirmer par Hugo/)
+    expect(nonEtabli).toMatch(/gravité de ces deux refus \(bloquants par prudence\) à confirmer par le référent métier/)
   })
 })
 
@@ -755,7 +755,7 @@ describe('statut « Rapproché » propagé depuis l’arrêté', () => {
   })
 })
 
-describe('virement rejeté ou retourné après émission (décision J9 de Hugo du 30/10/2026)', () => {
+describe('virement rejeté ou retourné après émission (décision J9 du 30/10/2026)', () => {
   const rA = creer()
   const rB = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
   /** Un virement par facture : deux lignes, deux virements. */
@@ -906,7 +906,7 @@ describe('virement rejeté ou retourné après émission (décision J9 de Hugo d
   it('en-tête : la décision J9 remplace le 🔴 de l’annulation après émission', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
-    expect(entete).toMatch(/Décision J9 de Hugo du 30\/10\/2026/)
+    expect(entete).toMatch(/Décision J9 du 30\/10\/2026/)
     const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/annulation après émission \(virement rejeté ou retourné\) : refusée/)
   })
@@ -915,7 +915,7 @@ describe('virement rejeté ou retourné après émission (décision J9 de Hugo d
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
     expect(entete).not.toMatch(/hypothèse de travail, voir son 🔴/)
-    expect(entete).toMatch(/au pointage, décision J8 de Hugo du 30\/10\/2026/)
+    expect(entete).toMatch(/au pointage, décision J8 du 30\/10\/2026/)
   })
 })
 

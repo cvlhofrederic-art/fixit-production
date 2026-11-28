@@ -97,7 +97,7 @@ import type {
  *    texte du délai appliqué. Choix gardé par la décision du 20/11/2026 (partie C, F53, ci-dessous), sauf police
  *    « reçue » ou « parvenue ».
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R50 : le décompte de L. 113-2, 4° est confirmé (« jours ouvrés » : lundi à vendredi hors jours fériés ; jour de
  *   la connaissance exclu, CPC art. 641, al. 1, par analogie) ; calcul inchangé. L'avertissement du droit commun rappelle
  *   de déclarer dès la connaissance : le repère n'est que le minimum légal du délai prévu au contrat
@@ -141,7 +141,7 @@ import type {
  * réception) : la décision F53 retient ici la première présentation, pour la seule déclaration de sinistre sous une
  * police « reçue » ou « parvenue ».
  *
- * 🔴 Questions pour Frédéric ou Hugo :
+ * 🔴 Questions pour Frédéric ou le référent métier :
  * - Catastrophe naturelle : la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre ?
  *   suivi-a-faire.ts applique encore à ce type cinq jours ouvrés depuis la connaissance, date marquée « à confirmer » avec
  *   sa raison (sinistres.REGIMES_A_CONFIRMER : délai compté de la publication de l'arrêté, relecture de J67, R49).

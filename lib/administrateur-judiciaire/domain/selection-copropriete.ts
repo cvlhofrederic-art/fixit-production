@@ -3,7 +3,7 @@ import { normaliserNomPersonne, sansAccentsMinuscules } from '@/lib/administrate
 import { MODE_ACTIF, type Mode } from '@/lib/administrateur-judiciaire/mode'
 
 /**
- * Sélecteur de copropriété du haut de page (demande de Hugo du 29/10/2026) : le « Tableau de bord », page d'accueil,
+ * Sélecteur de copropriété du haut de page (demande du 29/10/2026) : le « Tableau de bord », page d'accueil,
  * reste une vue de tous les mandats ; toute autre page s'affiche selon la copropriété choisie.
  */
 

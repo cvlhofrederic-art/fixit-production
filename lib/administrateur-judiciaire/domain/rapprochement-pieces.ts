@@ -35,7 +35,7 @@ import {
  *   14 mars 2005, art. 9) ; deux éléments distincts d'un même côté ne pointent jamais la même pièce ;
  * - toute pièce impliquée dans une anomalie garde son état : rien ne change sans bruit ; une pièce pointée qui n'est ni
  *   « avant » ni « rapproché » (demandée, annulée…) est signalée et laissée telle quelle.
- * Tranché par Hugo le 30/10/2026 (décision J8) : statut « Rapproché » au POINTAGE, et non à la clôture de l'arrêté (les
+ * Tranché le 30/10/2026 (décision J8) : statut « Rapproché » au POINTAGE, et non à la clôture de l'arrêté (les
  *    sources ne tranchaient pas : la tranche 36 dit seulement que le statut suit le rapprochement, et le jour observé en
  *    tranche 43 § 2 peut précéder la dernière clôture). Les arrêtés « En cours » comptent comme les « Clôturé » ; une déclôture suivie d'un dépointage rend à la pièce son statut
  *    d'avant).

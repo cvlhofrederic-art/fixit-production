@@ -138,7 +138,7 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  * - D. 1967 art. 62-9 : l'appelant porte la décision de l'administrateur provisoire sur l'échéance dont l'appel accompagne la
  *   copie (premier appel consécutif à la décision) ; le circuit Courrier ne joint pas encore de pièce : avertissement.
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
  * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, confirmée par J42) et l'ordonnance de l'art.
  *   29-14, 2° (juridiction, date, n°) de l'emploi du fonds (EmploiFondsEcheance.affectation) se reçoivent en forme
  *   structurée, aux types de DecaissementFondsTravaux (fonds-travaux.ts), ou en texte libre d'avant J30. Elles se
@@ -153,12 +153,12 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   prélèvement (instructionsHorsPrelevement : virement, à défaut chèque) et avertissement especes_refusees, qui
  *   demande de changer le mode du compte ; l'avis n'est pas bloqué (il précède l'exigibilité, D. 1967 art. 35-2).
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
  * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
  *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : sa marque de doute est retirée,
  *   comportement inchangé (l'avis reçoit des valeurs enregistrées : un texte libre d'avant J30 reste admis et signalé).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc, et J69 ;
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc, et J69 ;
  * textes relus sur Légifrance le 17/11/2026) :
  * - J69 (J67, R20 ; modifie J52 pour l'avis d'appel) : l'avis part par voie électronique « à l'adresse communiquée par le
  *   copropriétaire à cet effet », ou par lettre simple à défaut (D. 1967 art. 35-2, dernier al.) ; la demande de voie
@@ -170,7 +170,7 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   notifications, tant qu'aucune adresse n'est donnée ensuite pour les avis ; la lettre simple remplace aussi le
  *   courriel dès qu'un avis revient en erreur à cette adresse (courrielsAvis, anomalie courriel_avis_en_erreur ;
  *   enregistrement des demandes, des envois et des retours : à brancher). J52 reste valable pour les notifications.
- *   L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé. J74 (décision de Hugo du
+ *   L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé. J74 (décision du
  *   18/11/2026) : la renonciation à la voie postale (renonciations) lève la demande à son effet, le lendemain du
  *   huitième jour suivant sa réception (voieDeNotification) ; son adresse sert d'adresse des notifications ;
  * - J67, R97 : pas de prélèvement avant l'exigibilité, même si le mandat le prévoit : la provision est exigible à la date
@@ -228,7 +228,7 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   cabinet (ReglageTip, creerReglageTip ; enregistrement : à brancher) ; sans lui, le TIP reste signalé sans
  *   instructions. Le remplacement du TIP par le TIPSEPA n'est pas vérifié (à confirmer avec la banque).
  *
- * 🔴 Non établi (questions pour Hugo ou Frédéric) :
+ * 🔴 Non établi (questions pour le référent métier ou Frédéric) :
  * - pré-notification de 14 jours calendaires, séquence FRST facultative depuis 2016, caducité d'un mandat inutilisé
  *   36 mois : règles du recueil EPC SDD Core 2025 (§ 4.3 et PT-04.02 ; historique des versions, v9.3 de 2016 ; § 4.2),
  *   pas des textes de loi ; v1.1 et v1.2 non lues ;

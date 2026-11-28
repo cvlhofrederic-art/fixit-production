@@ -1,7 +1,7 @@
 // tests/lib/aj-signalement-diffusion-texte.test.ts
 //
 // PR 3 (diffusion aux déclarants), lot 2 — garantie technique « pas de promotion » (cahier § 5.3, § 10.1, décision H2
-// de Hugo du 11/11/2026) et modèles (§ 5.4, H3 ; message d'annonce figé, H1 option C) :
+// du 11/11/2026) et modèles (§ 5.4, H3 ; message d'annonce figé, H1 option C) :
 //   - refusés : liens (schémas, « www. », nom de domaine pour TOUS les domaines de premier niveau de l'IANA, y compris
 //     écrits en pleine chasse ou avec un point idéographique), adresses e-mail, caractères des catégories Unicode Cc,
 //     Cf, Zl et Zp (contrôles, invisibles), champ de modèle non rempli, termes commerciaux (dont « VitFix », « offre »,
@@ -308,7 +308,7 @@ describe('message d’annonce figé (H1, option C)', () => {
         + 'Si vous ne souhaitez pas les recevoir, utilisez le bouton ci-dessous : votre choix prend effet immédiatement. Vous continuerez à recevoir la confirmation de vos propres signalements.',
     })
   })
-  it('texte PT (à relire par Hugo, H4)', () => {
+  it('texte PT (à relire par le référent métier, H4)', () => {
     expect(annonceDiffusionQr('pt', 'Cabinet Exemple')).toEqual({
       objet: 'Informações sobre o seu prédio por e-mail',
       texte: 'Comunicou um problema neste condomínio. A partir de agora, Cabinet Exemple poderá enviar-lhe por e-mail informações sobre os incidentes que dizem respeito ao seu prédio: fuga, corte, intervenção. Nenhuma destas informações lhe será enviada nos 15 dias seguintes a esta mensagem.\n\n'
@@ -340,7 +340,7 @@ describe('messages de refus affichés sous le champ', () => {
     for (const m of motifs) expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR[m].length).toBeGreaterThan(10)
     expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR.conseilEspaceApresPoint).toContain('espace après le point')
   })
-  it('adresse e-mail refusée : le message ne dit plus que les personnes répondent (décision de Hugo du 16/11/2026)', () => {
+  it('adresse e-mail refusée : le message ne dit plus que les personnes répondent (décision du 16/11/2026)', () => {
     expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR.adresse_email)
       .toBe('Le message ne peut contenir aucune adresse e-mail : l’adresse de contact du cabinet figure déjà au bas de chaque message.')
     expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR.adresse_email).not.toMatch(/répond/i)

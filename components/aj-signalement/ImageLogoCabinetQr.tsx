@@ -1,6 +1,6 @@
 // ── Logo d'un cabinet client dans une page (AJ Signalement) ─────────────────────────────────────────────────────────
 //
-// Demande de Hugo du 13/11/2026 (brouillon soumis à Frédéric) : le logo du cabinet dans l'espace du cabinet (connexion,
+// Demande du 13/11/2026 (brouillon soumis à Frédéric) : le logo du cabinet dans l'espace du cabinet (connexion,
 // suivi, invitation, confirmation d'adresse) et sur la page publique ouverte par le QR code, toujours sur un fond BLANC
 // (un logo sombre serait illisible sur le bleu nuit). Image de la route publique versionnée (lib/aj-signalement/logo.ts,
 // PNG revérifié, jamais de SVG) ; texte alternatif : nom du cabinet ; attributs width et height calculés dans le cadre

@@ -13,7 +13,7 @@ import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
 // « # » : il n'arrive jamais au serveur, à Cloudflare ni dans l'en-tête Referer (referrer: no-referrer en plus). Le
 // composant client le lit, l'efface de l'adresse, puis appelle les routes publiques avec l'identifiant du chemin, que le
 // serveur compare au cabinet de la fiche.
-// Logo du cabinet (demande de Hugo du 13/11/2026) : seule lecture de base de la page (nom et métadonnées du logo par
+// Logo du cabinet (demande du 13/11/2026) : seule lecture de base de la page (nom et métadonnées du logo par
 // l'identifiant du chemin, jamais une condition de la page) ; cabinet inconnu ou sans logo, migration 20261114 absente,
 // erreur → la page d'avant, jamais un 404 ; un logo affiché n'apprend rien que la page de connexion du cabinet et la
 // route publique du logo ne disent déjà.

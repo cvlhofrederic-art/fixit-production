@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/migrations/signalements_qr_logo_cabinet.execution.test.ts
 //
-// EXÉCUTION RÉELLE de la migration 20261114_signalements_qr_logo_cabinet.sql (logo d'un cabinet client, demande de Hugo
+// EXÉCUTION RÉELLE de la migration 20261114_signalements_qr_logo_cabinet.sql (logo d'un cabinet client, demande
 // du 13/11/2026) sur un vrai PostgreSQL (PGlite, WebAssembly, en mémoire ; aucun service, aucune base distante) :
 //   - ordres d'application possibles en production, chacun joué DEUX fois (rejouabilité, même schéma après chaque
 //     passe) : 20261104 → 20261112 puis 20261114 (sans la 20261113, fusionnée mais pas encore appliquée) ; 20261113 puis

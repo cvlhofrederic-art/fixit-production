@@ -1,6 +1,6 @@
 // ── AJ Signalement — diffusion : contrôle du texte, garantie technique « pas de promotion » (PR 3, lot 2) ──────────
 //
-// Cahier PR 3 § 5.3, décision H2 de Hugo (11/11/2026). Un message de diffusion ne parle que de l'exploitation de
+// Cahier PR 3 § 5.3, décision H2 (11/11/2026). Un message de diffusion ne parle que de l'exploitation de
 // l'immeuble (fuite, coupure, intervention) : jamais de prospection, de publicité ni d'offre (droit § 2, J13). Fonction
 // pure, appelée par la route ET par l'écran (message immédiat sous le champ), sur l'objet, le texte et le libellé d'un
 // bâtiment ou d'un étage venu d'une saisie libre du formulaire public (§ 3.6). Refusés :

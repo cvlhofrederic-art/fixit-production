@@ -28,7 +28,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 
 /**
- * Décisions métier J1 à J3 (Hugo Carvalho, 08/10/2026).
+ * Décisions métier J1 à J3 (08/10/2026).
  * J1 — délai de l'art. 42 al. 2 : point de départ = PREMIÈRE PRÉSENTATION du pli ; échéance au même quantième deux
  *      mois plus tard ; report au jour ouvrable désactivé par défaut ; les deux dates sont exposées si elles divergent.
  * J2 — statuts d'AG : saut en avant permis mais « hors séquence » avec motif obligatoire ; retour arrière impossible ;

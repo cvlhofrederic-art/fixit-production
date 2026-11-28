@@ -103,7 +103,7 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  *   appelé sans `aujourdhui`), ni rappel ni « depuis ».
  *
  * 🔴 Non établi (questions) :
- * - Hugo : sens exact de « Sans échéance » (échéance inconnue, à obtenir — retenu — ou contrat sans terme ?) et de
+ * - Référent métier : sens exact de « Sans échéance » (échéance inconnue, à obtenir — retenu — ou contrat sans terme ?) et de
  *   « Extérieure + sans contrat » (attestation extérieure non fournie ?) ; le statut est-il saisi sur le lot, ou calculé
  *   par Gestéam (contrat d'abonnement du lot, échéance) ?
  */

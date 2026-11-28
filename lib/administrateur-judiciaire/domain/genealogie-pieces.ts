@@ -79,22 +79,22 @@ import { elementCommeFicheLiee, type FicheElementHonoraires } from '@/lib/admini
  *   clés des pièces repliées (cleDePiece), dont les descendants ne sont pas rendus en lignes.
  *
  * 🔴 Non établi (aucune fiche document ouverte en saisie, aucune Suite observée) — questions :
- * 1. Hugo : « Pièce d'origine » désigne-t-elle la fiche (courrier, demande) dont « Origine » donne la nature et la
+ * 1. Référent métier : « Pièce d'origine » désigne-t-elle la fiche (courrier, demande) dont « Origine » donne la nature et la
  *    date, ou un autre DOCUMENT (celui dont ce document est la copie) ? Elle est conservée ici, sans effet sur l'arbre.
- * 2. Hugo : la date d'Origine ou de Suite est-elle celle de la fiche liée, ou une date propre (réception, réponse) ? Et
+ * 2. Référent métier : la date d'Origine ou de Suite est-elle celle de la fiche liée, ou une date propre (réception, réponse) ? Et
  *    l'Origine peut-elle se saisir sans fiche liée (nature et date seules) ? Les deux cas sont acceptés ici.
- * 3. Hugo : la Suite d'un document apparaît-elle dans le Flux comme enfant du document ? Seule la filiation
+ * 3. Référent métier : la Suite d'un document apparaît-elle dans le Flux comme enfant du document ? Seule la filiation
  *    courrier → copie a été vue.
- * 4. Hugo : l'ordre des nœuds frères suit-il la nature puis la date (proposé), ou l'ordre de création ? Les boutons Haut
+ * 4. Référent métier : l'ordre des nœuds frères suit-il la nature puis la date (proposé), ou l'ordre de création ? Les boutons Haut
  *    et Bas réordonnent-ils l'arbre (ordre enregistré) ou déplacent-ils seulement la sélection ?
  * 5. Frédéric : le statut d'un document (« À traiter », « Terminé » vus dans le Flux) devient-il un champ de
  *    DocumentLocal, ou vient-il de la GED (point 64) ? En attendant, l'appelant le passe (null par défaut).
- * 6. Hugo : un document peut-il avoir plusieurs origines (pièce jointe à deux courriers) ou plusieurs suites ? La fiche
+ * 6. Référent métier : un document peut-il avoir plusieurs origines (pièce jointe à deux courriers) ou plusieurs suites ? La fiche
  *    ne montre qu'un champ de chaque, et un seul de chaque est porté ici. Un même courrier, une même demande peuvent-ils
  *    être la Suite de plusieurs documents ? Ils sont alors rangés sous un seul parent par Flux, les autres signalés.
- * 7. Hugo : quelle est la liste complète des statuts d'un document ? Seuls « À traiter » et « Terminé » (libellé
+ * 7. Référent métier : quelle est la liste complète des statuts d'un document ? Seuls « À traiter » et « Terminé » (libellé
  *    tronqué) ont été vus, la liste n'a pas été ouverte ; le statut reste ici une chaîne libre.
- * 8. Hugo : les lignes d'honoraires générées par un courrier (T43) restent-elles toujours sous le dossier, jamais sous le
+ * 8. Référent métier : les lignes d'honoraires générées par un courrier (T43) restent-elles toujours sous le dossier, jamais sous le
  *    courrier ? Aucun lien honoraires → courrier n'est tiré ici.
  *
  * Le droit (relevé sur Légifrance le 03/11/2026, versions en vigueur) :
