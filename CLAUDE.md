@@ -32,7 +32,9 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 - Dev : `npm run dev` — sans `.env.local`, exporter `CI=1` (`lib/env.ts` tolère alors l'absence des variables serveur ;
   les variables publiques sont dans `wrangler.toml` `[vars]`).
 - Build local : `npm run build` · Build prod (pipeline réel) : `npm run build:cloudflare` (OpenNext).
-- Lint : `npm run lint` (`--max-warnings=1011` : 0 erreur, aucun nouvel avertissement).
+- Lint : `npm run lint` (`--max-warnings` = compte exact d'avertissements, 1112 le 28/11/2026 : 0 erreur, aucun
+  nouvel avertissement). Le plafond se baisse quand on en corrige, et ne se relève que si une montée d'outillage
+  révèle de l'existant.
 - Type check : `npx tsc --noEmit` (`NODE_OPTIONS=--max-old-space-size=8192` sur une machine à 8 Go ; le contrôle de
   `next build` ne montre qu'une erreur à la fois).
 - Tests : `npm run test` · E2E : `npm run test:e2e` — détails et parcours critiques dans `.claude/rules/testing.md`.

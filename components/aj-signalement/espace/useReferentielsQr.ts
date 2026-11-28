@@ -44,7 +44,6 @@ export function useReferentielsQr(actif: boolean): ReferentielsQr {
   useEffect(() => {
     if (!actif || demande.current) return
     demande.current = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void recharger()
   }, [actif, recharger])
 
