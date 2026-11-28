@@ -32,3 +32,21 @@ export function modeleDocumentSociete(profilId: string | null | undefined): Mode
   if (!profilId) return undefined
   return Object.prototype.hasOwnProperty.call(MODELES, profilId) ? MODELES[profilId] : undefined
 }
+
+/**
+ * Modèles de relatório (module Rapports, lib/rapport-pdf.ts) propres à une société BTP :
+ *  - 'vitfix-relatorio' : gabarit « Template Relatório Vitfix » v1 du 26/11/2026, en portugais
+ *                         (lib/pdf/modele-vitfix-relatorio.ts).
+ * Toute autre fiche garde le PDF des rapports du module.
+ */
+export type ModeleRapport = 'vitfix-relatorio'
+
+const MODELES_RAPPORT: Readonly<Record<string, ModeleRapport>> = {
+  [VITFIX_SOCIETE_PROFIL_ID]: 'vitfix-relatorio',
+}
+
+/** Modèle de relatório propre à une société, ou undefined pour le PDF des rapports du module. */
+export function modeleRapportSociete(profilId: string | null | undefined): ModeleRapport | undefined {
+  if (!profilId) return undefined
+  return Object.prototype.hasOwnProperty.call(MODELES_RAPPORT, profilId) ? MODELES_RAPPORT[profilId] : undefined
+}

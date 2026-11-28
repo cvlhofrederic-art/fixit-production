@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   // Vraie fusion, et espionnee : l'ancienne simulation rendait son premier argument et jetait donc les documents
   // de la societe sans qu'aucun cas ne s'en apercoive.
   dedupeDocsByIdentity: vi.fn((prealables: unknown[], ajoutes: unknown[] = []) => [...prealables, ...ajoutes]),
+  annulerAlertes: vi.fn(async () => {}),
 }))
 
 vi.mock('@/lib/supabase', async () => {
@@ -52,6 +53,7 @@ vi.mock('@/lib/supabase', async () => {
   const { fromSimule } = await import('../helpers/tableau-de-bord-pro-simule')
   return moduleSupabaseSimule({ auth: { getSession: mocks.getSession, signOut: vi.fn() }, rappels: mocks.rappels, from: fromSimule(mocks.etat) })
 })
+vi.mock('@/lib/btp/alerte-meteo-telephone', () => ({ annulerAlertesProgrammees: mocks.annulerAlertes }))
 vi.mock('next/navigation', async () => (await import('../helpers/tableau-de-bord-pro-simule')).moduleNavigationSimule(mocks.etat, mocks.push))
 vi.mock('next/dynamic', async () => (await import('../helpers/tableau-de-bord-pro-simule')).moduleDynamicSimule(mocks.etat))
 vi.mock('@/lib/i18n/context', async () => (await import('../helpers/simulations-dashboard')).moduleI18nSimule())
@@ -566,5 +568,50 @@ describe('tableau de bord — identifiant donné à l’organisation du menu', (
     await ouvrir(utilisateur('artisan'))
     expect(mocks.useModuleCategories).toHaveBeenCalled()
     expect(mocks.useModuleCategories.mock.calls.every((appel) => appel[1] === undefined)).toBe(true)
+  })
+})
+
+// Alerte météo du téléphone (26/11/2026) : le composant qui programme les notifications est monté pour toute société
+// BTP, hors de la zone centrale (il ne dépend pas de l’écran ouvert), jamais pour l’artisan (règle n° 1).
+describe('tableau de bord — alerte météo du téléphone', () => {
+  it.each([['p=chantiers'], ['p=meteo'], ['p=pointage'], [undefined]])('société BTP, %s : monté, avec la fiche, le compte et la langue', async (adresse) => {
+    const { container } = await ouvrir(utilisateur('pro_societe'), adresse ? { adresse } : {})
+    expect(container.querySelector('[data-dynamique*="AlertesMeteoTelephone"]')).not.toBeNull()
+    expect(proprietesRecues(mocks.etat, 'AlertesMeteoTelephone')).toMatchObject({ artisanId: 'fiche-1', userId: expect.any(String), isPt: false })
+  })
+
+  it('artisan : jamais monté', async () => {
+    const { container } = await ouvrir(utilisateur('artisan'))
+    expect(container.querySelector('[data-dynamique*="AlertesMeteoTelephone"]')).toBeNull()
+  })
+
+  const seDeconnecter = async () => {
+    await act(async () => { await (proprietesRecues(mocks.etat, 'V5Sidebar')?.handleLogout as () => Promise<void>)() })
+  }
+
+  it('déconnexion d’une société BTP : les alertes programmées sur le téléphone sont annulées, avant la fin de session', async () => {
+    mocks.annulerAlertes.mockClear()
+    const { supabase } = await import('@/lib/supabase')
+    const { annulerNotification } = await import('@/lib/notifications')
+    const finDeSession = vi.mocked(supabase.auth.signOut)
+    finDeSession.mockClear()
+    let finirAnnulation: () => void = () => {}
+    mocks.annulerAlertes.mockImplementationOnce(() => new Promise<void>(r => { finirAnnulation = r }))
+    await ouvrir(utilisateur('pro_societe'))
+    let deconnexion: Promise<void> = Promise.resolve()
+    await act(async () => { deconnexion = (proprietesRecues(mocks.etat, 'V5Sidebar')?.handleLogout as () => Promise<void>)() })
+    expect(mocks.annulerAlertes).toHaveBeenCalledWith(annulerNotification)
+    // Tant que l'annulation n'est pas finie, la session n'est pas fermée.
+    expect(finDeSession).not.toHaveBeenCalled()
+    await act(async () => { finirAnnulation(); await deconnexion })
+    expect(finDeSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('déconnexion d’un artisan : rien n’est annulé (règle n° 1)', async () => {
+    mocks.annulerAlertes.mockClear()
+    await ouvrir(utilisateur('artisan'))
+    expect(proprietesRecues(mocks.etat, 'V5Sidebar')).toBeDefined()
+    await seDeconnecter()
+    expect(mocks.annulerAlertes).not.toHaveBeenCalled()
   })
 })

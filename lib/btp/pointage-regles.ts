@@ -145,6 +145,17 @@ export function equipesDuMembre(membre: MembreBtp, equipes: readonly EquipeBtp[]
   return ids
 }
 
+/**
+ * Le membre est-il affecté à ce chantier, directement (membres_ids) ou par l'une de ses équipes (chantier_id), quel que
+ * soit le statut du chantier ? Même règle que chantiersAffectes, sans la condition « En cours » : sert à l'e-mail de
+ * l'alerte météo, qui prévient aussi l'équipe d'un chantier « En attente » la veille de son premier jour.
+ */
+export function estAffecte(membre: MembreBtp, chantier: ChantierBtp, equipes: readonly EquipeBtp[]): boolean {
+  if ((chantier.membres_ids ?? []).includes(membre.id)) return true
+  const sesEquipes = equipesDuMembre(membre, equipes)
+  return equipes.some(e => sesEquipes.has(e.id) && e.chantier_id === chantier.id)
+}
+
 /** Chantiers « En cours » affectés au membre : directement (membres_ids) ou par l'une de ses équipes (chantier_id). */
 export function chantiersAffectes(
   membre: MembreBtp,

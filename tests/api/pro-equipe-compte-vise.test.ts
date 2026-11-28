@@ -419,8 +419,12 @@ describe('Co-gérant : gérant invité dans la société d’un autre compte (25
       }
       expect(appelsDe(h.base, TABLE, 'select')).toHaveLength(0)
       rienNEstEcrit()
-      // Pas de ligne GERANT « company_id = lui-même » créée par la réparation automatique du GET.
-      await GET(new NextRequest('https://vitfix.io/api/pro/team', { headers: { Authorization: 'Bearer tok' } }))
+      // Pas de ligne GERANT « company_id = lui-même » créée par la réparation automatique du GET. Sa ligne est vraiment
+      // inactive ici : le GET la relit quand resolveCompanyId retombe sur lui (27/11/2026), et la trouverait sinon.
+      h.base.lignes[TABLE] = (h.base.lignes[TABLE] ?? []).map(l => (l.id === LIGNE_COGERANT ? { ...l, is_active: false } : l))
+      const lecture = await GET(new NextRequest('https://vitfix.io/api/pro/team', { headers: { Authorization: 'Bearer tok' } }))
+      expect(lecture.status).toBe(200)
+      expect(await lecture.json()).toEqual({ members: [] })
       expect(appelsDe(h.base, TABLE, 'insert')).toHaveLength(0)
     } finally {
       vi.mocked(resolveCompanyId).mockResolvedValue(SOCIETE)
