@@ -13,6 +13,7 @@ import {
   ouvrirArreteCompte,
 } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
+import { repoEcritures } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
@@ -262,11 +263,22 @@ describe('solde compta recalculé à la clôture, puis figé (rb-01 C et rb-03 A
     expect(await ajDb.rapprochements.get(ouvert.id)).toMatchObject({ statut: 'En cours', soldeComptaCentimes: 45_000 })
   })
 
-  it('solde figé après la clôture : un relevé importé ensuite ne le change plus ; une seconde clôture est refusée', async () => {
-    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+  it('solde figé après la clôture : une écriture arrivée ensuite ne le change plus ; une seconde clôture est refusée', async () => {
+    const [encaissement] = await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
     const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
     await cloturerArreteCompte(ouvert.id)
-    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-25', libelle: 'FRAIS TENUE', montant: -12 }])
+    // Période arrêtée protégée (rb-04 A, décision du 26/11/2026) : l'import d'un relevé daté dans la période est refusé
+    // (periode-arretee.test.ts). La ligne en retard est donc écrite ici hors de l'import, comme le ferait un autre outil.
+    const frais = [{ date: '2026-05-25', libelle: 'FRAIS TENUE', montant: -12 }]
+    await expect(importerReleveSurCompte('C2', banqueId, frais)).rejects.toThrow(/^Import refusé : 1 ligne est datée au plus tard du 31\/05\/2026/)
+    await repoEcritures.create({
+      journalId: encaissement.journalId,
+      date: new Date(2026, 4, 25),
+      compte: encaissement.compte,
+      libelle: 'FRAIS TENUE',
+      montant: 12,
+      sens: 'credit',
+    })
 
     await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté déjà clôturé.')
     expect(await ajDb.rapprochements.get(ouvert.id)).toMatchObject({ statut: 'Clôturé', soldeComptaCentimes: 45_000 })
