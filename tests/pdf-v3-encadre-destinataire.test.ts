@@ -5,7 +5,7 @@
 // Côté émetteur, une adresse trop longue sortait de l'encadré (28/11/2026), et une
 // fatura portugaise y répétait registo et capital, déjà dans le pied légal.
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
+import { generateDevisPdfV3, mentionRegistoPt, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
 import fr from '@/locales/fr.json'
 
 const t = (cle: string): string => {
@@ -190,6 +190,20 @@ describe('PDF V3 — encadré émetteur', () => {
     expect(texte).not.toMatch(/SIRET|APE :/)
   })
 
+  it('registo du pied légal : cas limites', () => {
+    expect(mentionRegistoPt('')).toBe('')
+    expect(mentionRegistoPt(' . ')).toBe('')
+    expect(mentionRegistoPt('...')).toBe('')
+    expect(mentionRegistoPt('Porto 123 .')).toBe('Registo comercial : Porto 123.')
+    expect(mentionRegistoPt('CRC do Porto 123..')).toBe('Registo comercial : CRC do Porto 123.')
+    expect(mentionRegistoPt('RM CRC do Porto 123')).toBe('Registo comercial : CRC do Porto 123.')
+    expect(mentionRegistoPt('CRC Lisboa, Alvara 999')).toBe('Registo comercial : CRC Lisboa, Alvara 999.')
+    expect(mentionRegistoPt('IMPIC 12345')).toBe('Alvará : IMPIC 12345.')
+    expect(mentionRegistoPt('Conservatória do Porto 12345')).toBe('Conservatória do Porto 12345.')
+    // Linéaire : une longue suite de points ne bloque pas (l'ancienne regex /\.+$/ était quadratique)
+    expect(mentionRegistoPt(`${'.'.repeat(50_000)}x`)).toMatch(/^Registo comercial : \.+x\.$/)
+  })
+
   it('un alvará saisi à la place du registo garde son libellé dans le pied légal', async () => {
     const texte = await texteComplet(entreePt({ companyRCS: 'Alvara n.o 12345-PUB' }))
     expect(texte).toContain(' Alvara n.o 12345-PUB.')
@@ -202,6 +216,20 @@ describe('PDF V3 — encadré émetteur', () => {
     expect(page).toContain('(Capital : 10 000 EUR) Tj')
     expect(page).toContain('(Adresse : 1 rue A) Tj')
     expect(page).toContain('(Ville : 13001 Marseille) Tj')
+  })
+
+  it('document français : une adresse un peu large est rétrécie sur une ligne, comme avant', async () => {
+    const page = await page1(entree({ companyAddress: '1234 avenue du Marechal de Lattre de Tassigny 13001 Marseille' }))
+    expect(page).toContain('(Adresse : 1234 avenue du Marechal de Lattre de Tassigny) Tj')
+    expect(taillePolice(page, '(Adresse : 1234')).toBeLessThan(10)
+  })
+
+  it('document français : une adresse trop large même en 8 pt va à la ligne en 10 pt', async () => {
+    const page = await page1(entree({
+      companyAddress: 'Zone artisanale des Exemples, batiment C, lot 12, 1250 chemin du Vallon des Exemples 13001 Marseille',
+    }))
+    expect(page).toMatch(/\(Adresse : Zone artisanale[^)]*\) Tj\s*T\*/)
+    expect(taillePolice(page, '(Adresse : Zone')).toBe(10)
   })
 
   it('un nom de société sur trois lignes agrandit l\'encadré au lieu de déborder', async () => {

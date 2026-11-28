@@ -283,12 +283,15 @@ function splitAddress(addr: string): { street: string; city: string | null } {
  * Registo d'une société portugaise pour le pied légal, saisi dans le champ « RCS / RM » :
  * « CRC do Porto, matrícula n.º … » → « Registo comercial : CRC do Porto, matrícula n.º … » ;
  * un texte qui porte déjà son libellé (Alvará…, Registo…, Conservatória…, Matrícula…) reste tel quel ;
- * un alvará sans libellé (n.º IMPIC) devient « Alvará : … ».
+ * un alvará sans libellé (n.º IMPIC, hors conservatória) devient « Alvará : … ». Un « RM » de tête
+ * (préfixe français) est retiré ; un texte vide ou fait de points ne donne rien.
  */
 export function mentionRegistoPt(registo: string): string {
-  const texte = registo.trim().replace(/\.+$/, '')
+  let texte = registo.trim().replace(/^RM\s+/i, '')
+  while (texte.endsWith('.')) texte = texte.slice(0, -1).trimEnd()
+  if (!texte) return ''
   if (/^(alvar[aá]|registo|conservat[oó]ria|matr[ií]cula)/i.test(texte)) return `${texte}.`
-  if (/alvar[aá]|impic/i.test(texte)) return `Alvará : ${texte}.`
+  if (/alvar[aá]|impic/i.test(texte) && !/\bCRC\b|conservat/i.test(texte)) return `Alvará : ${texte}.`
   return `Registo comercial : ${texte}.`
 }
 
@@ -307,6 +310,37 @@ export async function generateDevisPdfV3(
       'PT fiscal data injection refused — Vitfix not AT-certified (Decreto-Lei 28/2019). ' +
       'See docs/integrations/pt-fatura-reactivation.md to lift this guard after certification.',
     )
+  }
+
+  // Dynamic imports (browser-only)
+  let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
+  // Gabarits Method Soluções et Vitfix : leur module se charge avec jsPDF (même reprise en cas d'échec de chargement).
+  // Le gabarit Vitfix ne couvre que l'orçamento : les factures de cette société gardent le modèle par défaut.
+  // Document portugais au modèle par défaut : traduction des valeurs enregistrées en français
+  // (lib/pdf/textes-pdf-v3-pt.ts) ; les deux gabarits les traduisent eux-mêmes.
+  const avecMethod = input.modele === 'method-solucoes'
+  const avecVitfix = input.modele === 'vitfix-orcamento' && input.docType === 'devis'
+  let moduleMethod: typeof import('@/lib/pdf/modele-method-solucoes') | null = null
+  let moduleVitfix: typeof import('@/lib/pdf/modele-vitfix-orcamento') | null = null
+  let moduleTextesPt: typeof import('@/lib/pdf/textes-pdf-v3-pt') | null = null
+  try {
+    [jsPDFMod, autoTableModule, moduleMethod, moduleVitfix, moduleTextesPt] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+      avecMethod ? import('@/lib/pdf/modele-method-solucoes') : Promise.resolve(null),
+      avecVitfix ? import('@/lib/pdf/modele-vitfix-orcamento') : Promise.resolve(null),
+      input.locale === 'pt' && !avecMethod && !avecVitfix ? import('@/lib/pdf/textes-pdf-v3-pt') : Promise.resolve(null),
+    ])
+  } catch (chunkErr) {
+    const retryKey = 'pdf_chunk_retry'
+    if (!sessionStorage.getItem(retryKey)) {
+      sessionStorage.setItem(retryKey, '1')
+      window.location.reload()
+    } else {
+      sessionStorage.removeItem(retryKey)
+      alert('Erreur de chargement PDF. Rechargez la page (Ctrl+R) et réessayez.')
+    }
+    throw new Error('PDF chunk load failed')
   }
 
   // Pre-sanitize : tous les champs textuels saisis par l'utilisateur passent par
@@ -416,7 +450,7 @@ export async function generateDevisPdfV3(
     signatureData, attachedRapport, selectedPhotos,
     ptFiscalData,
     svgToImageDataUrl, fetchFreshLogo,
-  } = sanitizedInput
+  } = moduleTextesPt ? moduleTextesPt.portugaliserEntreeV3(sanitizedInput) : sanitizedInput
 
   // ─── Régime TVA effectif ───
   // Source unique de vérité : `regimeTva` (nouveau champ). Fallback rétro-compat :
@@ -442,30 +476,6 @@ export async function generateDevisPdfV3(
     locale === 'pt' ? 'pt' : 'fr',
   )
 
-  // Dynamic imports (browser-only)
-  let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
-  // Gabarits Method Soluções et Vitfix : leur module se charge avec jsPDF (même reprise en cas d'échec de chargement).
-  // Le gabarit Vitfix ne couvre que l'orçamento : les factures de cette société gardent le modèle par défaut.
-  let moduleMethod: typeof import('@/lib/pdf/modele-method-solucoes') | null = null
-  let moduleVitfix: typeof import('@/lib/pdf/modele-vitfix-orcamento') | null = null
-  try {
-    [jsPDFMod, autoTableModule, moduleMethod, moduleVitfix] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable'),
-      input.modele === 'method-solucoes' ? import('@/lib/pdf/modele-method-solucoes') : Promise.resolve(null),
-      input.modele === 'vitfix-orcamento' && input.docType === 'devis' ? import('@/lib/pdf/modele-vitfix-orcamento') : Promise.resolve(null),
-    ])
-  } catch (chunkErr) {
-    const retryKey = 'pdf_chunk_retry'
-    if (!sessionStorage.getItem(retryKey)) {
-      sessionStorage.setItem(retryKey, '1')
-      window.location.reload()
-    } else {
-      sessionStorage.removeItem(retryKey)
-      alert('Erreur de chargement PDF. Rechargez la page (Ctrl+R) et réessayez.')
-    }
-    throw new Error('PDF chunk load failed')
-  }
   const { jsPDF } = jsPDFMod
   const autoTable = autoTableModule.default
 
@@ -660,7 +670,7 @@ export async function generateDevisPdfV3(
     if (factureSubType === 'acompte') {
       const base = locale === 'pt' ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE'
       const ordreSuffix = (acompteOrdre && acompteTotal)
-        ? ` N°${acompteOrdre} ${locale === 'pt' ? 'de' : 'sur'} ${acompteTotal}`
+        ? (locale === 'pt' ? ` N.º ${acompteOrdre} de ${acompteTotal}` : ` N°${acompteOrdre} sur ${acompteTotal}`)
         : ''
       // Virgule décimale, comme le titre et les lignes de l'acompte (33,33 et non 33.33).
       const pctSuffix = acomptePourcentage != null ? ` — ${String(acomptePourcentage).replace('.', ',')}%` : ''
@@ -674,9 +684,9 @@ export async function generateDevisPdfV3(
       const refSuffix = parentInvoiceNumber ? ` (${refLabel} ${parentInvoiceNumber})` : ''
       subTypeLabel = `${base}${ordreSuffix}${pctSuffix}${refSuffix}`
     } else if (factureSubType === 'situation') {
-      subTypeLabel = `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` N° ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
+      subTypeLabel = `${locale === 'pt' ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}${situationNumber ? ` ${locale === 'pt' ? 'N.º' : 'N°'} ${situationNumber}` : ''}${situationAvancement != null ? ` — ${situationAvancement}%` : ''}`
     } else if (factureSubType === 'avoir') {
-      const base = locale === 'pt' ? 'NOTA DE CRÉDITO (AVOIR)' : 'AVOIR'
+      const base = locale === 'pt' ? 'NOTA DE CRÉDITO' : 'AVOIR'
       subTypeLabel = parentInvoiceNumber
         ? `${base} ${locale === 'pt' ? 'sobre fatura' : 'sur facture'} ${parentInvoiceNumber}`
         : base
@@ -691,7 +701,7 @@ export async function generateDevisPdfV3(
     // sous le label (preuve fiscale Code commerce L123-22).
     if (factureSubType === 'avoir' && avoirMotif) {
       pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      const motifLines = pdf.splitTextToSize(`Motif : ${avoirMotif}`, pageW * 0.7) as string[]
+      const motifLines = pdf.splitTextToSize(`${locale === 'pt' ? 'Motivo' : 'Motif'} : ${avoirMotif}`, pageW * 0.7) as string[]
       pdf.text(motifLines, pageW / 2, y, { align: 'center' })
       y += motifLines.length * 2.6 + 1
     }
@@ -727,8 +737,10 @@ export async function generateDevisPdfV3(
   // ── Lignes de l'émetteur ──
   // Comme pour le destinataire, les mêmes lignes servent à mesurer l'encadré et à
   // le remplir. Avant, une adresse trop longue était rétrécie jusqu'à 8 pt puis
-  // sortait de l'encadré sur la colonne du destinataire : elle va désormais à la
-  // ligne, en 10 pt. Le nom n'était compté que sur 2 lignes (un 3e débordait).
+  // sortait de l'encadré sur la colonne du destinataire. Document portugais : elle
+  // va à la ligne en 10 pt (demande de Frédéric du 28/11/2026). Document français :
+  // rétrécie à 9 puis 8 pt comme avant, et à la ligne seulement au-delà. Le nom
+  // n'était compté que sur 2 lignes (un 3e mangeait la marge, un 4e débordait).
   let ey = boxStartY + boxPadTop
   const emTx = boxX_em + boxPadX
   const emMaxW = emBoxW - boxPadX * 2
@@ -736,12 +748,22 @@ export async function generateDevisPdfV3(
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold')
   const nameLines = pdf.splitTextToSize(`${companyName} (${getStatusLabel(companyStatus, t)})`, emMaxW) as string[]
   pdf.setFont('helvetica', 'normal')
-  const lignesAdresseEm: string[][] = []
+  const ligneAdresseEm = (texte: string): { lignes: string[]; taille: number } => {
+    if (locale !== 'pt') {
+      for (const taille of [10, 9, 8]) {
+        pdf.setFontSize(taille)
+        if (pdf.getTextWidth(texte) <= emMaxW) { pdf.setFontSize(10); return { lignes: [texte], taille } }
+      }
+      pdf.setFontSize(10)
+    }
+    return { lignes: pdf.splitTextToSize(texte, emMaxW) as string[], taille: 10 }
+  }
+  const lignesAdresseEm: Array<{ lignes: string[]; taille: number }> = []
   if (companyAddress) {
     const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
     const sp = splitAddress(addrNorm)
-    lignesAdresseEm.push(pdf.splitTextToSize(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`, emMaxW) as string[])
-    if (sp.city) lignesAdresseEm.push(pdf.splitTextToSize(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, emMaxW) as string[])
+    lignesAdresseEm.push(ligneAdresseEm(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`))
+    if (sp.city) lignesAdresseEm.push(ligneAdresseEm(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`))
   }
   // Document portugais : registo (conservatória, matrícula) et capital social sont
   // imprimés dans le pied légal (art. 171.º CSC), pas répétés dans l'encadré.
@@ -750,7 +772,7 @@ export async function generateDevisPdfV3(
 
   ey += ptToMm(18)  // label ÉMETTEUR
   ey += ptToMm(14) * Math.max(2, nameLines.length) + 1.5  // nom entreprise + espace après nom
-  for (const lignes of lignesAdresseEm) ey += lignes.length * ptToMm(14)  // Adresse, Ville
+  for (const { lignes } of lignesAdresseEm) ey += lignes.length * ptToMm(14)  // Adresse, Ville
   if (companyPhone) ey += ptToMm(14)
   if (companyEmail) ey += ptToMm(14)
   if (companySiret) ey += ptToMm(14)
@@ -806,7 +828,7 @@ export async function generateDevisPdfV3(
   // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
   if (effectiveRegime === 'autoliquidation_btp') {
     const tvaIntraDest = tvaIntraPreneur || computeFrTvaIntra(clientSiret)
-    if (tvaIntraDest) ajouterLigneDest(`TVA Intra. : ${tvaIntraDest}`)
+    if (tvaIntraDest) ajouterLigneDest(`${locale === 'pt' ? 'NIF intracom.' : 'TVA Intra.'} : ${tvaIntraDest}`)
   }
 
   dy2 += ptToMm(18)  // label DESTINATAIRE
@@ -829,8 +851,10 @@ export async function generateDevisPdfV3(
   ey2 += nameLines.length * ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
   // Ordre : Adresse → Ville → Tél → Email → SIRET → RCS → TVA → APE → Capital
-  for (const lignes of lignesAdresseEm) {
+  for (const { lignes, taille } of lignesAdresseEm) {
+    pdf.setFontSize(taille)
     pdf.text(lignes.length > 1 ? lignes : lignes[0], emTx, ey2); ey2 += lignes.length * ptToMm(14)
+    pdf.setFontSize(10)
   }
   // Helper : rendu d'une ligne d'identité avec ramping fontSize 10→9→8 si débordement
   // (évite que SIRET/RCS/TVA/APE/Email longs débordent à droite hors de l'encadré).
@@ -952,9 +976,11 @@ export async function generateDevisPdfV3(
   ].filter(l => l && (l.description || '').trim()))
   const libelleColonneRemise = locale === 'pt' ? 'Desconto' : 'Remise'
   const remiseHead = showRemiseColumn ? [libelleColonneRemise] : []
+  // « Unidade » ne tient pas dans la colonne (8 % de la largeur) : coupé en « Unida / de ».
+  const libelleColonneUnite = locale === 'pt' ? 'Unid.' : t('devis.unit')
   const tableHead = showTvaColumn
-    ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, ...remiseHead, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
-    : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, ...remiseHead, `${t('devis.total')} ${priceLabel}`]]
+    ? [[t('devis.designation'), t('devis.qty'), libelleColonneUnite, `${t('devis.unitPrice')} ${priceLabel}`, ...remiseHead, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
+    : [[t('devis.designation'), t('devis.qty'), libelleColonneUnite, `${t('devis.unitPrice')} ${priceLabel}`, ...remiseHead, `${t('devis.total')} ${priceLabel}`]]
 
   // ═══ Méthode 100% pro 2026 : étapes en sub-rows distincts ═══
   // Pattern Codial / Mediabat / Onaya (BTP français premium) : au lieu d'agréger
@@ -1244,7 +1270,7 @@ export async function generateDevisPdfV3(
   if (customTables && customTables.length > 0) {
     for (const ct of customTables) {
       if (ct && hasFilled(ct.lines)) {
-        sections.push({ name: ct.name || 'Section', rows: ct.lines as ProductLine[] })
+        sections.push({ name: ct.name || (locale === 'pt' ? 'Secção' : 'Section'), rows: ct.lines as ProductLine[] })
       }
     }
   }
@@ -1473,8 +1499,10 @@ export async function generateDevisPdfV3(
       t('devis.pdf.amendmentClause'),
       ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
       ...(paymentCondition ? [paymentCondition] : []),
-      ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
-      ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
+      ...(penaltyRate ? [`${locale === 'pt' ? 'Penalidades por atraso' : 'Pénalités de retard'} : ${penaltyRate}`] : []),
+      ...(recoveryFee && clientType !== 'particulier'
+        ? [`${locale === 'pt' ? 'Indemnização forfetária por despesas de cobrança' : 'Indemnité forfaitaire de recouvrement'} : ${recoveryFee}`]
+        : []),
     ]
     // RIB rendu comme bloc distinct sous les notes (bug 04/05/2026 : avant
     // l'IBAN était une ligne au milieu des conditions, peu lisible et peu pro).
@@ -1539,7 +1567,7 @@ export async function generateDevisPdfV3(
 
     const condStartY = y
     pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('CONDITIONS', condX, condStartY + 5)
+    pdf.text(locale === 'pt' ? 'CONDIÇÕES' : 'CONDITIONS', condX, condStartY + 5)
     let cy = condStartY + 12
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
@@ -1575,7 +1603,7 @@ export async function generateDevisPdfV3(
     pdf.rect(sigX, condStartY, sigW, sigBoxH, 'FD')
 
     pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
+    pdf.text(locale === 'pt' ? 'ACEITAÇÃO DO ORÇAMENTO' : 'BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
 
     let sy = condStartY + 12
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
@@ -1603,9 +1631,9 @@ export async function generateDevisPdfV3(
         pdf.text(signatureData.signataire, sigX + boxPadX, sy)
       }
     } else {
-      pdf.text(`Date : ___ / ___ / ______`, sigX + boxPadX, sy)
+      pdf.text(`${locale === 'pt' ? 'Data' : 'Date'} : ___ / ___ / ______`, sigX + boxPadX, sy)
       sy += ptToMm(18)
-      pdf.text(`Signature :`, sigX + boxPadX, sy)
+      pdf.text(locale === 'pt' ? 'Assinatura :' : 'Signature :', sigX + boxPadX, sy)
     }
 
     // ── ÉCHÉANCIER DE PAIEMENT (côté droit, sous BON POUR ACCORD) ──
@@ -1647,12 +1675,16 @@ export async function generateDevisPdfV3(
   } else if (docType === 'facture') {
     // ── Section RÈGLEMENT pour facture ──
     const payLines: string[] = []
-    if (paymentCondition) payLines.push(paymentCondition)
+    // Document portugais : l'escompte choisi (déjà traduit) prend la place de la phrase par défaut.
+    // Avant, la fatura imprimait les deux : « Aucun escompte accordé… » en tête puis « Sem desconto… ».
+    const escomptePt = locale === 'pt' ? paymentCondition : ''
+    if (paymentCondition && !escomptePt) payLines.push(paymentCondition)
     if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
     if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', formatPaymentDueDate(paymentDue)))
     if (iban) payLines.push(bic ? t('devis.pdf.ibanBicLabel').replace('{iban}', iban).replace('{bic}', bic) : t('devis.pdf.ibanLabel').replace('{iban}', iban))
     payLines.push(t('devis.pdf.latePenalties'))
     if (discount) payLines.push(t('devis.pdf.earlyDiscountYes').replace('{discount}', discount))
+    else if (escomptePt && !/^sem desconto/i.test(escomptePt)) payLines.push(escomptePt)
     else payLines.push(t('devis.pdf.earlyDiscountNo'))
     if (sourceDevisRef) {
       const datePart = prestationDate ? ` ${locale === 'pt' ? 'com data de' : 'en date du'} ${new Date(prestationDate).toLocaleDateString(dateLocaleStr)}` : ''
@@ -1760,7 +1792,8 @@ export async function generateDevisPdfV3(
   if (companyAPE) legal1 += locale === 'pt' ? ` CAE : ${companyAPE}.` : ` APE : ${companyAPE}.`
   // Conservatória et n.º de matrícula (art. 171.º CSC) : sur un document portugais,
   // ici seulement (plus dans l'encadré émetteur).
-  if (locale === 'pt' && companyRCS.trim()) legal1 += ` ${mentionRegistoPt(companyRCS)}`
+  const registoPt = locale === 'pt' ? mentionRegistoPt(companyRCS) : ''
+  if (registoPt) legal1 += ` ${registoPt}`
 
   // 2. Mention TVA / IVA — pilotée par le régime effectif et locale-aware
   // (source unique : lib/tva-calculator.ts/getMentionLegale). La mention est
@@ -1988,16 +2021,18 @@ export async function generateDevisPdfV3(
     ry += ptToMm(3) + 8
 
     pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('DIREITO DE LIVRE RESOLUCAO', mL, ry)
+    // Texte accentué (il était écrit sans accents : « RESOLUCAO », « dispoe », « Nao ») :
+    // ces lettres existent dans Liberation Sans comme dans la police de repli.
+    pdf.text('DIREITO DE LIVRE RESOLUÇÃO', mL, ry)
     ry += 5
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('Art. 10.o do Decreto-Lei n.o 24/2014', mL, ry)
+    pdf.text('Art. 10.º do Decreto-Lei n.º 24/2014', mL, ry)
     ry += 8
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     const ptRetTexts = [
-      'O cliente dispoe de um prazo de 14 dias de calendario, a contar da assinatura do presente orcamento, para exercer o seu direito de livre resolucao, sem necessidade de justificacao nem de pagamento de penalidades.',
-      'Para exercer este direito, o cliente pode utilizar o formulario abaixo ou enviar qualquer declaracao inequivoca em que manifeste a sua vontade de resolver o contrato.',
+      'O cliente dispõe de um prazo de 14 dias de calendário, a contar da assinatura do presente orçamento, para exercer o seu direito de livre resolução, sem necessidade de justificação nem de pagamento de penalidades.',
+      'Para exercer este direito, o cliente pode utilizar o formulário abaixo ou enviar qualquer declaração inequívoca em que manifeste a sua vontade de resolver o contrato.',
       'Nenhum pagamento pode ser exigido antes do termo do prazo de 7 dias a contar da assinatura, salvo trabalhos urgentes expressamente solicitados pelo cliente.',
     ]
     ptRetTexts.forEach(txt => {
@@ -2008,10 +2043,10 @@ export async function generateDevisPdfV3(
 
     ry += 2
     pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text('Renuncia ao prazo de livre resolucao (art. 17.o DL 24/2014)', mL, ry)
+    pdf.text('Renúncia ao prazo de livre resolução (art. 17.º DL 24/2014)', mL, ry)
     ry += 5
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-    const renunciaText = 'Caso o cliente solicite expressamente o inicio dos trabalhos antes do termo do prazo de 14 dias de livre resolucao, declara reconhecer que perdera esse direito assim que o servico for integralmente prestado (art. 17.o n.o 1 al. a) DL 24/2014).'
+    const renunciaText = 'Caso o cliente solicite expressamente o início dos trabalhos antes do termo do prazo de 14 dias de livre resolução, declara reconhecer que perderá esse direito assim que o serviço for integralmente prestado (art. 17.º n.º 1 al. a) DL 24/2014).'
     const renunciaWrapped = pdf.splitTextToSize(renunciaText, contentW)
     pdf.text(renunciaWrapped, mL, ry)
     ry += renunciaWrapped.length * ptToMm(13) + 6
@@ -2020,20 +2055,20 @@ export async function generateDevisPdfV3(
     pdf.setDrawColor(COLOR_TEXT); pdf.setLineWidth(0.3)
     pdf.rect(mL, ry - 2.5, 3, 3)
     pdf.setFontSize(9); pdf.setFont('helvetica', 'bold')
-    pdf.text('Sim, solicito o inicio imediato e renuncio ao prazo.', mL + 5, ry)
+    pdf.text('Sim, solicito o início imediato e renuncio ao prazo.', mL + 5, ry)
     pdf.rect(xRight - 18, ry - 2.5, 3, 3)
-    pdf.text('Nao.', xRight - 14, ry)
+    pdf.text('Não.', xRight - 14, ry)
     ry += 12
 
     // Formulário
     pdf.setFillColor(COLOR_ACCENT)
     pdf.rect(mL, ry, contentW, 8, 'F')
     pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_WHITE)
-    pdf.text('FORMULARIO DE LIVRE RESOLUCAO', mL + boxPadX, ry + 5.5)
+    pdf.text('FORMULÁRIO DE LIVRE RESOLUÇÃO', mL + boxPadX, ry + 5.5)
     ry += 12
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    const ptFormAttention = `A atencao de: ${companyName}, ${companyAddress}`
+    const ptFormAttention = `À atenção de: ${companyName}, ${companyAddress}`
     if (companyPhone) {
       pdf.text(`${ptFormAttention} -- Tel.: ${companyPhone}`, mL + boxPadX, ry)
       ry += 5
@@ -2043,7 +2078,7 @@ export async function generateDevisPdfV3(
     }
 
     pdf.setFont('helvetica', 'normal')
-    pdf.text('Pela presente notifico a minha resolucao do contrato relativo a prestacao de servicos supra.', mL + boxPadX, ry)
+    pdf.text('Pela presente notifico a minha resolução do contrato relativo à prestação de serviços supra.', mL + boxPadX, ry)
     ry += 8
 
     const ptFormFields = [
@@ -2206,7 +2241,7 @@ export async function generateDevisPdfV3(
         const infoY = py + photoH + 1
         pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
         const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString(dateLocaleStr) : 'N/D'
-        pdf.text(`Date : ${dateStr}`, x + 2, infoY + 2)
+        pdf.text(`${locale === 'pt' ? 'Data' : 'Date'} : ${dateStr}`, x + 2, infoY + 2)
         if (photo.lat && photo.lng) {
           pdf.text(`GPS : ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, infoY + 5.5)
         }
