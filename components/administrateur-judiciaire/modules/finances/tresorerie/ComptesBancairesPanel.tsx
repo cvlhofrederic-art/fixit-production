@@ -6,6 +6,7 @@ import {
   CompteBancaireModal,
   nomDuCompte,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
+import { eurosArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import {
   ibanGroupe,
   vueComptesBancaires,
@@ -34,6 +35,7 @@ import {
   NATURES_COMPTE_BANCAIRE,
   type ModeTenueComptes,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
@@ -44,7 +46,12 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * dans la base locale (db/comptes-bancaires.ts), comme le reste de l'écran, en démonstration aussi. Chaque écriture est
  * confirmée ou refusée par un toast. Les comptes sont lus par l'écran (useComptesBancaires), qui les partage avec l'import
  * du relevé et le rapprochement ; le solde de chaque compte est celui de son sous-compte 512 (lignes de relevé importées
- * sur ce compte).
+ * sur ce compte), avec son solde d'ouverture quand il est saisi (décision du 26/11/2026, PR 799, point 2, choix A :
+ * champs « Solde d'ouverture » et « au » des formulaires ; lignes datées avant ce solde signalées, hors du solde).
+ * Réponses du référent métier du 28/11/2026 (PR 848) : solde d'ouverture de fin de journée (point 2, choix B), les lignes
+ * datées de son jour ou d'avant sont signalées, hors du solde (point 3, choix A) ; sous le solde du tableau, une ligne
+ * grise « dont ouverture … au … » pour un compte au solde d'ouverture (point 7, choix A) ; un solde d'ouverture écrit
+ * hors de l'écran sans date ou mal formé est signalé par un bandeau, comme les arrêtés illisibles (point 8, choix A).
  */
 
 const MODES = Object.entries(MODES_TENUE_COMPTES) as [ModeTenueComptes, (typeof MODES_TENUE_COMPTES)[ModeTenueComptes]][]
@@ -118,8 +125,15 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
                   </span>
                 )}
               </td>
-              <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                {compte.soldeCentimes === null ? '—' : formatEurosCentimes(compte.soldeCentimes / 100)}
+              {/* Sous le solde, la part du solde d'ouverture du compte, quand il en a un (PR 848, point 7 ; voir l'en-tête). */}
+              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <span className="mono">{compte.soldeCentimes === null ? '—' : formatEurosCentimes(compte.soldeCentimes / 100)}</span>
+                {compte.soldeOuverture && (
+                  <span className="muted" style={STYLE_SECONDAIRE}>
+                    {/* Séparateur des milliers visible dans la police du texte, comme les montants des arrêtés (rb-c02 A). */}
+                    {`dont ouverture ${eurosArrete(compte.soldeOuverture.centimes)} au ${dateIsoVersFr(compte.soldeOuverture.au)}`}
+                  </span>
+                )}
               </td>
               <td>
                 {compte.actif && (
@@ -161,8 +175,64 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
 const SAISIE_IMMEUBLE_ABSENTE = "La saisie de la destination de l'immeuble n'existe pas encore."
 
 /**
+ * Avertissement d'un compte dont des lignes de relevé sont datées du jour de son solde d'ouverture ou d'avant (décision
+ * du 26/11/2026, PR 799, point 2 ; réponses du référent métier du 28/11/2026, PR 848, points 2 et 3 : solde de fin de
+ * journée, « Garder ainsi ») : elles restent dans « Lignes de relevé », mais n'entrent pas dans le solde du compte.
+ */
+function AlerteLignesAvantOuverture({ compte, au }: Readonly<{ compte: CompteAffiche; au: string }>) {
+  const plusieurs = compte.lignesAvantOuverture > 1
+  const lignes = plusieurs ? `${compte.lignesAvantOuverture} lignes de relevé datées` : '1 ligne de relevé datée'
+  return (
+    <Alert kind="warn" icon="alert" title={`${nomDuCompte(compte)} : ${lignes} au plus tard du ${dateIsoVersFr(au)}, date du solde d’ouverture.`}>
+      {plusieurs
+        ? 'Tenues pour déjà comprises dans ce solde, elles n’entrent pas dans le solde du compte.'
+        : 'Tenue pour déjà comprise dans ce solde, elle n’entre pas dans le solde du compte.'}
+      {' Si ce n’est pas le cas, corriger la date ou le montant du solde d’ouverture.'}
+    </Alert>
+  )
+}
+
+/**
+ * Conseil du bandeau des soldes d'ouverture illisibles. « Modifier » n'existe que sur la ligne d'un compte actif
+ * (TableauComptes), et le solde d'ouverture d'un compte clôturé ne se modifie plus (domain/solde-ouverture-compte.ts) :
+ * pour un compte clôturé, seule la base locale permet de corriger (retour de relecture du 28/11/2026, texte à valider
+ * par le référent métier). Comptes tous clôturés : déjà nommés en tête du bandeau ; sinon, les comptes clôturés sont
+ * nommés à part.
+ */
+function conseilSoldesOuvertureIllisibles(illisibles: readonly CompteAffiche[]): string {
+  const clotures = illisibles.filter((compte) => !compte.actif)
+  const pourActifs = clotures.length < illisibles.length ? ' À saisir de nouveau (« Modifier »), ou à reprendre dans la base locale.' : ''
+  if (clotures.length === 0) return pourActifs
+  const sujet = clotures.length > 1 ? 'Comptes clôturés' : 'Compte clôturé'
+  const nommes = pourActifs === '' ? '' : ` (${clotures.map(nomDuCompte).join(', ')})`
+  return `${pourActifs} ${sujet}${nommes} : à reprendre dans la base locale.`
+}
+
+/**
+ * Bandeau des soldes d'ouverture illisibles (réponse du référent métier du 28/11/2026, PR 848, point 8, choix A : « Un
+ * bandeau, comme pour les arrêtés illisibles ») : écrits hors de l'écran sans date ou mal formés, ils n'entrent dans
+ * aucun solde. Même forme que le bandeau des arrêtés illisibles (RapprochementPanel.tsx) ; les comptes sont nommés.
+ */
+function AlerteSoldesOuvertureIllisibles({ comptes }: Readonly<{ comptes: readonly CompteAffiche[] }>) {
+  const illisibles = comptes.filter((compte) => compte.soldeOuvertureIllisible)
+  if (illisibles.length === 0) return null
+  const plusieurs = illisibles.length > 1
+  return (
+    <Alert kind="rust" title={`${illisibles.length} solde${plusieurs ? 's' : ''} d’ouverture de la base non pris en compte`}>
+      {`${illisibles.map(nomDuCompte).join(', ')} : `}
+      {plusieurs
+        ? 'sans date ou mal formés, ils n’entrent ni dans le solde de ces comptes ni dans leurs arrêtés.'
+        : 'sans date ou mal formé, il n’entre ni dans le solde du compte ni dans ses arrêtés.'}
+      {conseilSoldesOuvertureIllisibles(illisibles)}
+    </Alert>
+  )
+}
+
+/**
  * Alertes du domaine : anomalies (ou comptes conformes), seulement quand le mode se résout ; information Caisse des
- * dépôts et entrées non connues, qui ne dépendent pas du mode.
+ * dépôts et entrées non connues, qui ne dépendent pas du mode ; lignes de relevé déjà comprises dans un solde
+ * d'ouverture ; soldes d'ouverture illisibles ; comptes repris actifs, avec ou sans solde d'ouverture, tant que le rappel
+ * « solder puis clôturer » n'est pas lancé.
  */
 function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
   return (
@@ -193,10 +263,28 @@ function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
           {`${vue.obligationFonds.motif} ${SAISIE_IMMEUBLE_ABSENTE} Le contrôle « fonds de travaux à ouvrir » n'est donc pas lancé.`}
         </Alert>
       )}
-      {vue.reprisActifs > 0 && (
+      {vue.comptes.map(
+        (compte) =>
+          compte.soldeOuverture !== null &&
+          compte.lignesAvantOuverture > 0 && (
+            <AlerteLignesAvantOuverture key={compte.id} compte={compte} au={compte.soldeOuverture.au} />
+          ),
+      )}
+      <AlerteSoldesOuvertureIllisibles comptes={vue.comptes} />
+      {vue.reprisSansSoldeConnu > 0 && (
         <Alert kind="" icon="info" title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : solde inconnu ici.`}>
-          Le rappel « solder puis clôturer » n’est pas lancé : le solde affiché ne reprend pas le solde du compte avant le
-          premier relevé importé.
+          Le rappel « solder puis clôturer » n’est pas lancé : sans solde d’ouverture saisi, le solde affiché ne reprend pas
+          le solde du compte avant le premier relevé importé.
+        </Alert>
+      )}
+      {vue.reprisAvecSoldeOuverture > 0 && (
+        <Alert
+          kind=""
+          icon="info"
+          title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : rappel « solder puis clôturer » non lancé.`}
+        >
+          Le solde d’ouverture est saisi, mais ce rappel ne lit pas encore le solde du compte : un compte repris qui garde
+          un solde n’est pas signalé ici.
         </Alert>
       )}
       {vue.illisibles > 0 && (
@@ -392,8 +480,10 @@ export function ComptesBancairesPanel({ copro, lus, ecrituresBanque }: Readonly<
                   <>
                     <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />
                     <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
-                      Solde par compte : solde de son sous-compte 512, somme des lignes de relevé importées sur ce compte
-                      (sans le solde d’avant le premier relevé importé) ; « — » : aucune ligne importée.
+                      Solde par compte : solde d’ouverture saisi sur le compte, plus les lignes de relevé importées sur
+                      son sous-compte 512 datées après le jour de ce solde ; sans solde d’ouverture, somme des lignes
+                      importées (sans le solde d’avant le premier relevé importé) ; « — » : ni solde d’ouverture ni ligne
+                      importée.
                     </p>
                   </>
                 )}

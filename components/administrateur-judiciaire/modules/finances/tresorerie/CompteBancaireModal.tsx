@@ -8,12 +8,18 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
 import type { SaisieCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { NATURES_COMPTE_BANCAIRE, type NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Formulaires du panneau « Comptes bancaires du mandat » (absents de la maquette, sur les composants des formulaires du
  * module : Modal, Field, case à cocher de la fiche sinistre) : « Nouveau compte » et « Modifier » (une seule modale), et
  * la confirmation « Clôturer ». Aucune règle ici : l'écriture (db/comptes-bancaires.ts) contrôle par le domaine, et
  * l'écran signale un refus par un toast, la modale restant ouverte.
+ * Décision du 26/11/2026 (PR 799, point 2, choix A) : deux champs facultatifs de plus, « Solde d'ouverture » (montant
+ * signé en euros) et « au » (date, jamais après aujourd'hui), transmis tels que saisis ; vides : aucun solde d'ouverture.
+ * Réponses du référent métier du 28/11/2026 (PR 848) : le solde vaut à la fin du jour saisi, l'aide du champ « au » le
+ * dit (point 2, choix B) ; ce champ garde son libellé « au » et porte le nom accessible « Solde d'ouverture au » (point 7,
+ * choix A).
  */
 
 const NATURES = Object.entries(NATURES_COMPTE_BANCAIRE) as [NatureCompteBancaire, { libelle: string }][]
@@ -30,7 +36,14 @@ interface ValeursCompte {
   etablissement: string
   tenaitFondsTravaux: boolean
   reserveAuFondsTravaux: boolean
+  /** Solde d'ouverture en euros, tel que saisi ; vide : aucun. */
+  soldeOuverture: string
+  /** Date du solde d'ouverture (AAAA-MM-JJ du champ date) ; vide : aucune. */
+  soldeOuvertureAu: string
 }
+
+/** Solde d'ouverture enregistré, tel que le champ le reprend : euros à deux décimales, sans séparateur de milliers (« -200,50 »). */
+const eurosSaisis = (centimes: number): string => (centimes / 100).toFixed(2).replace('.', ',')
 
 const valeursInitiales = (compte: CompteAffiche | null): ValeursCompte => ({
   nature: compte?.nature ?? 'courant',
@@ -40,6 +53,8 @@ const valeursInitiales = (compte: CompteAffiche | null): ValeursCompte => ({
   etablissement: compte?.etablissement ?? '',
   tenaitFondsTravaux: compte?.tenaitFondsTravaux ?? false,
   reserveAuFondsTravaux: compte?.reserveAuFondsTravaux ?? false,
+  soldeOuverture: compte?.soldeOuverture ? eurosSaisis(compte.soldeOuverture.centimes) : '',
+  soldeOuvertureAu: compte?.soldeOuverture?.au ?? '',
 })
 
 /** Saisie transmise : seule la marque du fonds propre à la nature choisie est envoyée. */
@@ -51,6 +66,7 @@ const saisieDepuis = (valeurs: ValeursCompte): SaisieCompteBancaire => ({
   etablissement: valeurs.etablissement,
   tenaitFondsTravaux: valeurs.nature === 'repris_ancien_gestionnaire' && valeurs.tenaitFondsTravaux,
   reserveAuFondsTravaux: valeurs.nature === 'placement' && valeurs.reserveAuFondsTravaux,
+  soldeOuverture: { montant: valeurs.soldeOuverture, au: valeurs.soldeOuvertureAu },
 })
 
 export interface CompteBancaireModalProps {
@@ -110,6 +126,23 @@ export function CompteBancaireModal({ compte, onClose, onEnregistrer }: Readonly
           </Field>
           <Field label="Établissement" name="compte-etablissement">
             <input value={valeurs.etablissement} onChange={(evenement) => changer('etablissement', evenement.target.value)} />
+          </Field>
+          <Field label="Solde d’ouverture" name="compte-solde-ouverture" hint="Vide : le compte part de zéro ; négatif : découvert." suffix="€">
+            <input
+              value={valeurs.soldeOuverture}
+              inputMode="decimal"
+              autoComplete="off"
+              onChange={(evenement) => changer('soldeOuverture', evenement.target.value)}
+            />
+          </Field>
+          <Field label="au" name="compte-solde-ouverture-au" hint="Solde à la fin de ce jour, ses mouvements compris.">
+            <input
+              type="date"
+              aria-label="Solde d’ouverture au"
+              max={AUJOURDHUI_ISO}
+              value={valeurs.soldeOuvertureAu}
+              onChange={(evenement) => changer('soldeOuvertureAu', evenement.target.value)}
+            />
           </Field>
         </FieldRow>
         {valeurs.nature === 'repris_ancien_gestionnaire' && (

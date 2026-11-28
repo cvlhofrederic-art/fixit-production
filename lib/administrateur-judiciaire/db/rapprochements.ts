@@ -2,7 +2,7 @@ import { genererId } from '@/lib/administrateur-judiciaire/db/ids'
 import { repoBanques, repoRapprochements } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
 import { ajDb, type Ecriture, type Rapprochement } from '@/lib/administrateur-judiciaire/db/schema'
-import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
+import { soldeCompteBancaireCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { refuserImportEnPeriodeArretee } from '@/lib/administrateur-judiciaire/domain/periode-arretee'
 import {
@@ -16,6 +16,11 @@ import {
   type ArreteRapprochement,
   type StatutArrete,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import {
+  refusArreteAvantOuverture,
+  soldeOuvertureEnregistre,
+  type SoldeOuverture,
+} from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -34,6 +39,14 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * l'arrêté est en cours, la valeur enregistrée n'est que celle de l'ouverture : le solde qui vaut est recalculé sur les
  * écritures connues (avecSoldeComptaCourant), à l'écran comme à la clôture, qui l'enregistre et le fige. Un relevé
  * importé après l'ouverture, daté au plus tard de l'arrêté, y entre donc.
+ * Solde d'ouverture du compte (décision du 26/11/2026, PR 799, point 2, choix A) : il entre dans le solde compta d'un
+ * arrêté daté de son jour ou d'après (soldeCompteBancaireCentimes), à l'ouverture, au recalcul et à la clôture, qui le
+ * relit sur le compte dans sa transaction. Saisi ou corrigé pendant qu'un arrêté est en cours, il y entre donc aussi ;
+ * il ne se modifie plus sous un arrêté clôturé qui couvre sa date (db/comptes-bancaires.ts).
+ * Arrêté daté avant le solde d'ouverture de son compte (réponse du référent métier du 28/11/2026, PR 848, point 5,
+ * choix A) : refusé, « solde inconnu avant le JJ/MM/AAAA » (refusArreteAvantOuverture, domain/solde-ouverture-compte.ts),
+ * à l'ouverture et à la clôture. À l'ouverture, ce refus sur la date est levé en dernier, après ceux d'ouvrirArrete : un
+ * arrêté déjà en cours ou une date non postérieure au dernier arrêté gardent leur message.
  * Arrêté abandonné (décision du 26/11/2026, rb-01 A) : la ligne reste en base avec ses montants, statut « Abandonné »,
  * l'écriture étant tracée au journal d'activité comme les autres (repository). Elle est lue à part (`abandonnes`) :
  * aucune règle ne la reçoit, elle ne compte ni comme arrêté en cours, ni comme dernier arrêté, ni dans un solde.
@@ -93,9 +106,10 @@ export async function listerArretes(banqueId: string): Promise<ArretesLus> {
  * Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours, plus récent ou clôturé. La
  * règle et son message sont ceux du domaine (refusArretesIllisibles, décision du 26/11/2026, rb-16 A) ; c'est ici, seul
  * endroit qui lit les lignes de la base, qu'elle s'applique : toute écriture sur les arrêtés d'un compte, et l'import
- * d'un relevé, passe par cette lecture.
+ * d'un relevé, passe par cette lecture ; l'enregistrement du solde d'ouverture d'un compte aussi
+ * (db/comptes-bancaires.ts), d'où l'export.
  */
-async function arretesSurs(banqueId: string): Promise<ArreteRapprochement[]> {
+export async function arretesSurs(banqueId: string): Promise<ArreteRapprochement[]> {
   const { arretes, illisibles } = await listerArretes(banqueId)
   const refus = refusArretesIllisibles(illisibles)
   if (refus) throw new Error(refus)
@@ -117,21 +131,30 @@ export async function refuserImportSurPeriodeArretee(banqueId: string, dates: re
   refuserImportEnPeriodeArretee(await arretesSurs(banqueId), banqueId, dates)
 }
 
-/** Solde compta d'un compte bancaire à une date (ce jour compris) : celui de son sous-compte 512 ; aucune écriture : 0. */
-const soldeComptaAu = (ecritures: readonly Pick<Ecriture, 'compte' | 'montant' | 'sens' | 'date'>[], banqueId: string, date: string): number =>
-  soldeCompteCentimes(ecritures, compteBanque(banqueId), date) ?? 0
+/**
+ * Solde compta d'un compte bancaire à une date (ce jour compris) : celui de son sous-compte 512, avec le solde
+ * d'ouverture du compte s'il est daté au plus tard de ce jour ; ni écriture ni solde d'ouverture : 0.
+ */
+const soldeComptaAu = (
+  ecritures: readonly Pick<Ecriture, 'compte' | 'montant' | 'sens' | 'date'>[],
+  banqueId: string,
+  ouverture: SoldeOuverture | null,
+  date: string,
+): number => soldeCompteBancaireCentimes(ecritures, banqueId, ouverture, date) ?? 0
 
 /**
  * Arrêté avec le solde compta qui vaut (décision du 26/11/2026, rb-01 C et rb-03 A) : recalculé sur les écritures
  * reçues, à la date de l'arrêté, tant qu'il est en cours ; celui enregistré, figé, une fois clôturé (l'arrêté est alors
  * rendu tel quel). Fonction pure : l'écran l'applique aux écritures qu'il affiche, la clôture à celles de la base.
+ * `ouverture` : solde d'ouverture du compte de l'arrêté (null : aucun).
  */
 export function avecSoldeComptaCourant(
   arrete: ArreteRapprochement,
   ecritures: readonly Pick<Ecriture, 'compte' | 'montant' | 'sens' | 'date'>[],
+  ouverture: SoldeOuverture | null = null,
 ): ArreteRapprochement {
   if (arrete.statut !== 'En cours') return arrete
-  return { ...arrete, soldeComptaCentimes: soldeComptaAu(ecritures, arrete.banqueId, arrete.dateArrete) }
+  return { ...arrete, soldeComptaCentimes: soldeComptaAu(ecritures, arrete.banqueId, ouverture, arrete.dateArrete) }
 }
 
 export interface SaisieArrete {
@@ -153,9 +176,14 @@ export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete,
     if (compte.actif === false) throw new Error('Compte bancaire clôturé : aucun nouvel arrêté.')
     const existants = await arretesSurs(banqueId)
     // Date invalide : solde provisoire sans objet, ouvrirArrete refuse la saisie.
-    const soldeComptaCentimes = estDateIsoValide(saisie.dateArrete) ? soldeComptaAu(await ajDb.ecritures.toArray(), banqueId, saisie.dateArrete) : 0
+    const soldeComptaCentimes = estDateIsoValide(saisie.dateArrete)
+      ? soldeComptaAu(await ajDb.ecritures.toArray(), banqueId, soldeOuvertureEnregistre(compte), saisie.dateArrete)
+      : 0
     const arrete = ouvrirArrete(existants, { id: genererId(), banqueId, ...saisie, soldeComptaCentimes }, AUJOURDHUI_ISO)
     const { id, banqueId: bancaireId, ...champs } = arrete
+    // Arrêté daté avant le solde d'ouverture du compte : refusé, la date en dernier (PR 848, point 5 ; voir l'en-tête).
+    const refus = refusArreteAvantOuverture(arrete.dateArrete, soldeOuvertureEnregistre(compte))
+    if (refus) throw new Error(refus)
     await repoRapprochements.create({ bancaireId, ...champs }, { id, actor: options.actor ?? null })
     return arrete
   })
@@ -174,12 +202,18 @@ async function arreteEtSonCompte(id: string): Promise<{ arrete: ArreteRapprochem
 
 /**
  * Clôture un arrêté en cours, à l'équilibre seulement (cloturerArrete), sur le solde compta recalculé dans la
- * transaction ; ce solde est enregistré avec la clôture, puis ne bouge plus.
+ * transaction, avec le solde d'ouverture du compte relu dans la même transaction ; ce solde est enregistré avec la
+ * clôture, puis ne bouge plus. Un arrêté en cours daté avant le solde d'ouverture de son compte (état que l'écran
+ * n'écrit plus : solde d'ouverture enregistré hors de l'écran) n'est pas clôturé : son solde compta ne dit rien, le
+ * solde du compte n'est pas connu avant cette date (réponse du référent métier du 28/11/2026, PR 848, point 5).
  */
 export async function cloturerArreteCompte(id: string, options: OptionsEcriture = {}): Promise<ArreteRapprochement> {
-  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.ecritures, ajDb.activityLog], async () => {
+  return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.ecritures, ajDb.activityLog], async () => {
     const { arrete } = await arreteEtSonCompte(id)
-    const cloture = cloturerArrete(avecSoldeComptaCourant(arrete, await ajDb.ecritures.toArray()))
+    const ouverture = soldeOuvertureEnregistre((await repoBanques.get(arrete.banqueId)) ?? {})
+    const refus = arrete.statut === 'En cours' ? refusArreteAvantOuverture(arrete.dateArrete, ouverture) : null
+    if (refus) throw new Error(refus)
+    const cloture = cloturerArrete(avecSoldeComptaCourant(arrete, await ajDb.ecritures.toArray(), ouverture))
     await repoRapprochements.update(
       id,
       { statut: cloture.statut, soldeComptaCentimes: cloture.soldeComptaCentimes },

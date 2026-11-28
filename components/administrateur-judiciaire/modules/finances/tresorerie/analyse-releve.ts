@@ -1,7 +1,7 @@
 import type { Ecriture } from '@/lib/administrateur-judiciaire/db/schema'
 import { COMPTE_BANQUE_NON_RATTACHE, compteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { ibanGroupe } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
-import { dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateIsoVersFr, dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import { dedoublonnerRelevesStructures } from '@/lib/administrateur-judiciaire/domain/import/doublons-releves'
 import { lireReleve, type FormatReleve, type LectureReleve } from '@/lib/administrateur-judiciaire/domain/import/lecture-releve'
 import {
@@ -15,6 +15,7 @@ import {
 import { designationReleve, formaterMontantMineur, type ReleveCompte } from '@/lib/administrateur-judiciaire/domain/import/releve-compte'
 import { lignesEnPeriodeArretee, motifPeriodeArretee } from '@/lib/administrateur-judiciaire/domain/periode-arretee'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import type { SoldeOuverture } from '@/lib/administrateur-judiciaire/domain/solde-ouverture-compte'
 
 /**
  * Analyse d'un relevé avant son import, pour l'écran « Banque et recouvrement » (ImportRelevePanel.tsx) : lecture,
@@ -33,6 +34,10 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  * - Import bloqué (`blocage`) : fichier structuré ou non reconnu dont la lecture a rendu une erreur (relevé refusé,
  *   fichier illisible) ; les relevés lus restent montrés. Compte choisi sans IBAN : un relevé structuré ne peut pas lui
  *   être rapproché. Un CSV garde son comportement : lignes non lues signalées, les autres importables.
+ * - Solde d'ouverture du compte choisi (décision du 26/11/2026, PR 799, point 2 ; réponses du référent métier du
+ *   28/11/2026, PR 848, points 2 et 3 : solde de fin de journée, lignes déjà comprises gardées) : une ligne retenue datée
+ *   de son jour ou d'avant est gardée, avec un avertissement : elle n'entrera pas dans le solde du compte
+ *   (db/sous-comptes-banque.ts).
  * - Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : avecPeriodeArretee ajoute le blocage d'un relevé, quel
  *   que soit son format, dont une ligne retenue est datée au plus tard du dernier arrêté clôturé du compte.
  */
@@ -102,8 +107,8 @@ export interface AnalyseReleve {
 
 export interface EntreeAnalyseReleve {
   texte: string
-  /** Compte bancaire choisi ; null : aucun. */
-  compte: { id: string; iban: string | null } | null
+  /** Compte bancaire choisi, avec son solde d'ouverture s'il en a un ; null : aucun. */
+  compte: { id: string; iban: string | null; soldeOuverture?: SoldeOuverture | null } | null
   /** Écritures de banque (« 512 » et sous-comptes) du journal de la copropriété. */
   lignesBanque: readonly Pick<Ecriture, 'compte' | 'date' | 'libelle' | 'montant' | 'sens'>[]
   personnes: readonly CoproprietaireImputable[]
@@ -209,6 +214,19 @@ function avertissementRessemblances(lignes: readonly LigneReleve[], existantes: 
   ]
 }
 
+/** Avertissement des lignes retenues datées du jour du solde d'ouverture du compte choisi, ou d'avant (gardées : voir l'en-tête). */
+function avertissementAvantOuverture(lignes: readonly LigneReleve[], ouverture: SoldeOuverture | null | undefined): string[] {
+  if (!ouverture) return []
+  const nombre = lignes.filter((ligne) => ligne.date <= ouverture.au).length
+  if (nombre === 0) return []
+  const au = dateIsoVersFr(ouverture.au)
+  return [
+    nombre > 1
+      ? `${nombre} lignes datées au plus tard du ${au}, date du solde d’ouverture du compte : tenues pour déjà comprises dans ce solde, elles n’entreront pas dans le solde du compte.`
+      : `1 ligne datée au plus tard du ${au}, date du solde d’ouverture du compte : tenue pour déjà comprise dans ce solde, elle n’entrera pas dans le solde du compte.`,
+  ]
+}
+
 type ResultatLecture = Pick<AnalyseReleve, 'retenues' | 'doublons' | 'avertissements' | 'releves' | 'limiteEmpreintes'>
 
 /** CSV : dédoublonnage de l'import existant, inchangé. */
@@ -245,6 +263,7 @@ export function analyserReleve(entree: EntreeAnalyseReleve): AnalyseReleve {
     resultat = lecture.format === 'csv' ? lectureCsv(lecture, existantes) : lectureStructuree(lecture, existantes)
   return {
     ...resultat,
+    avertissements: [...resultat.avertissements, ...avertissementAvantOuverture(resultat.retenues, entree.compte?.soldeOuverture)],
     compteId: entree.compte?.id ?? null,
     compteIban: entree.compte?.iban ?? null,
     format: lecture.format,
