@@ -355,7 +355,7 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     )
   })
 
-  it('CFONB 120, même période qu’un relevé gardé mais autre solde (réponse du 28/11/2026, point #858 · 2 A) : bandeau « à vérifier » et marche à suivre du CFONB', async () => {
+  it('CFONB 120, même période qu’un relevé gardé mais autre solde (réponse du 28/11/2026, point #858 · 2 A) : bandeau « à vérifier » et marche à suivre de ce motif', async () => {
     await importerHorsEcran(CFONB_UN_COMPTE)
     // Relevé gardé de la période du 30/09 au 05/10/2026 avec un autre nouveau solde (comme un relevé corrigé depuis par la banque).
     await ajDb.relevesImportes.filter((garde) => garde.rang === 1).modify({ soldeClotureMineur: 1 })
@@ -367,8 +367,12 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     expect(bandeau.textContent).toContain(
       'Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026) : même période qu’un relevé importé sur ce compte le 04/06/2026, mais soldes ou totaux différents ; relevé non repris, à vérifier.',
     )
-    expect(bandeau.textContent).toContain('Marche à suivre : demander à la banque un relevé sur une autre période (un relevé CFONB 120 n’a pas d’identifiant).')
+    expect(bandeau.textContent).toContain(
+      'Marche à suivre : comparer les deux relevés et demander à la banque lequel est juste ; le relevé non repris ne remplace pas l’autre.',
+    )
     expect(bandeau.textContent).not.toContain('nouvel identifiant')
+    // Retours de la relecture du 28/11/2026 : ni « CFONB 120 » (le relevé analysé peut être un camt.053), ni « autre période ».
+    expect(bandeau.textContent).not.toMatch(/CFONB|autre période/)
     expect(etatsRelevesLus()).toEqual(['Non repris, à vérifier', 'Déjà importé'])
     expect(alerte('Relevé déjà importé')?.textContent).not.toContain('Rien à importer')
     expect(boutonImporter()).toHaveTextContent('Importer 0 ligne')
@@ -380,6 +384,37 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
     // Rien n'est écrit : les 5 lignes du premier import, les 2 relevés gardés.
     expect(await lignesDuCompte()).toHaveLength(5)
     expect(await listerRelevesImportes('C2')).toHaveLength(2)
+  })
+
+  it('deux relevés du même fichier, même période et soldes différents (retour de la relecture du 28/11/2026) : le second a la pastille et le bandeau « à vérifier », jamais « Déjà dans le fichier »', async () => {
+    const lignes = CFONB_UN_COMPTE.split('\n'),
+      releve1 = lignes.slice(0, lignes.findIndex((ligne) => ligne.startsWith('07')) + 1),
+      // Même compte et même période (du 30/09 au 05/10/2026), sans mouvement : nouveau solde 1 250,00 au lieu de 472,94.
+      memePeriodeAutreSolde = [releve1[0], releve1[0].replace(/^01/, '07').replace('300926', '051026')]
+    await rendre()
+    analyser([...releve1, ...memePeriodeAutreSolde].join('\n'))
+    expect(etatsRelevesLus()).toEqual(['Contrôlé', 'Non repris, à vérifier'])
+    const bandeau = alerte('Relevé non repris, à vérifier') as HTMLElement
+    expect(bandeau).toHaveClass('rust')
+    expect(bandeau.textContent).toContain(
+      'Relevé 2 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026) : même période qu’un relevé placé plus haut dans ce fichier, mais soldes ou totaux différents ; relevé non repris, à vérifier.',
+    )
+    expect(bandeau.textContent).toContain(
+      'Marche à suivre : comparer les deux relevés et demander à la banque lequel est juste ; le relevé non repris ne remplace pas l’autre.',
+    )
+    // Dit une seule fois, et jamais « déjà importé » : aucun des deux relevés ne l'est.
+    for (const autre of alertes().filter((candidate) => candidate !== bandeau)) expect(autre.textContent).not.toContain('même période')
+    expect(panneauImport().textContent).not.toContain('qu’un relevé déjà importé')
+    expect(titresAlertes()).not.toContain('Relevé déjà importé')
+    // Le premier relevé reste importable.
+    expect(boutonImporter()).toHaveTextContent('Importer 4 lignes')
+    expect(boutonImporter()).toBeEnabled()
+    expect(annonce()).toBe(
+      'Relevé analysé (CFONB 120) : 4 lignes retenues. Relevé non repris, à vérifier : même période qu’un relevé placé plus haut dans ce fichier, soldes ou totaux différents.',
+    )
+    await importerALEcran()
+    expect(await lignesDuCompte()).toHaveLength(4)
+    expect((await listerRelevesImportes('C2')).map((garde) => [garde.dateCloture, garde.soldeClotureMineur])).toEqual([['2026-10-05', 47_294]])
   })
 
   it('fichier d’un relevé déjà importé et d’un relevé à vérifier : deux bandeaux, et aucun ne dit que tout est déjà enregistré', async () => {

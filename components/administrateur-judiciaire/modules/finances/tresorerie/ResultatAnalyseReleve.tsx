@@ -36,6 +36,9 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
  * après ses messages (une marche à suivre par motif : même identifiant, ou même période pour un relevé sans identifiant
  * commun, comme un CFONB 120) ; point #858 · 6 A, le bandeau des lignes sans relevé gardé ne s'affiche que si une de ces
  * lignes est datée dans la période d'un relevé analysé (analyse-releve.ts, `limiteEmpreintes`).
+ * Retour de la relecture du 28/11/2026 : un relevé de même période ou de même identifiant qu'un relevé placé plus haut dans
+ * le même fichier, mais d'un autre contenu, a le même bandeau et la même pastille « Non repris, à vérifier » ; « Déjà dans
+ * le fichier » ne désigne plus que le même relevé répété.
  */
 
 const STYLE_DISCRET = { fontSize: 11, color: 'var(--navy-300)' } as const

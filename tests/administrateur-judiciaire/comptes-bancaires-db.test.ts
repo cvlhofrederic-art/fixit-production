@@ -145,6 +145,9 @@ describe('Comptes bancaires — seconde fiche active du même IBAN refusée (ré
   it('création d’une seconde fiche active du même IBAN (autre casse, sans espace, autre nature) : refusée, rien n’est écrit', async () => {
     const premier = await enregistrerCompteBancaire(coproprieteId, saisie())
     await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: 'fr7630006000011234567890189' }))).rejects.toThrow(REFUS)
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second' }))).rejects.toThrow(
+      'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.',
+    )
     await expect(enregistrerCompteBancaire(coproprieteId, saisie({ nature: 'fonds_travaux', libelle: 'Fonds' }))).rejects.toThrow(REFUS)
     expect((await ajDb.banques.toArray()).map((ligne) => ligne.id)).toEqual([premier.id])
     const journal = await ajDb.activityLog.where('entite').equals('banques').toArray()
@@ -183,6 +186,10 @@ describe('Comptes bancaires — seconde fiche active du même IBAN refusée (ré
     await enregistrerCompteBancaire(coproprieteId, saisie())
     const second = await enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: IBAN_B }))
     await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: IBAN_A }), { id: second.id })).rejects.toThrow(REFUS)
+    // Retour de la relecture du 28/11/2026 : à la modification, le message ne parle pas de créer une fiche.
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: IBAN_A }), { id: second.id })).rejects.toThrow(
+      'Saisir un autre IBAN pour le compte modifié, ou clôturer d’abord « Compte courant ».',
+    )
     expect(await ajDb.banques.get(second.id)).toMatchObject({ libelle: 'Second', iban: 'FR1420041010050500013M02606' })
   })
 

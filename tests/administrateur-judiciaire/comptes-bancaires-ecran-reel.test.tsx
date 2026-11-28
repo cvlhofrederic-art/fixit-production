@@ -237,8 +237,14 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     fireEvent.click(dansPanneau().getByRole('button', { name: 'Modifier Compte travaux' }))
     fireEvent.change(dialogue().getByLabelText('IBAN'), { target: { value: IBAN_A } })
     await enregistrer()
-    expect(dernierToast(push)).toMatchObject({ kind: 'warn', title: 'Enregistrement impossible' })
-    expect(String(dernierToast(push)?.desc)).toMatch(/IBAN déjà enregistré sur un autre compte actif de la copropriété \(« Compte principal »\)/)
+    // Retour de la relecture du 28/11/2026 : on modifie une fiche, le message ne parle pas d'en créer une.
+    expect(dernierToast(push)).toMatchObject({
+      kind: 'warn',
+      title: 'Enregistrement impossible',
+      desc:
+        'IBAN déjà enregistré sur un autre compte actif de la copropriété (« Compte principal ») : un IBAN désigne un seul compte. ' +
+        'Saisir un autre IBAN pour le compte modifié, ou clôturer d’abord « Compte principal ».',
+    })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect((await ajDb.banques.get(second.id))?.iban).toBe('FR1420041010050500013M02606')
   })

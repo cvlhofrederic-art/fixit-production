@@ -25,6 +25,11 @@ import { origineDuMouvement, releveImporte, type ReleveImporte } from '@/lib/adm
  * sans identifiant (CFONB 120) de même compte et de même période qu'un relevé gardé, mais de soldes différents, est
  * traité de même ; point #858 · 6 A, la limite des lignes sans relevé gardé n'est dite que si une de ces lignes est
  * datée dans la période d'un relevé analysé.
+ * Retours de la relecture du 28/11/2026 : un relevé de même période ou de même identifiant qu'un relevé placé plus haut
+ * dans le même fichier, mais d'un autre contenu, est « à vérifier » comme face à un relevé gardé (et non « déjà dans le
+ * fichier ») ; la marche à suivre du motif « période » ne parle plus du CFONB 120 (le relevé analysé peut être un
+ * camt.053) et ne fait plus demander un relevé « sur une autre période » (une période qui chevauche la première serait
+ * acceptée, et ses mouvements sans référence repris une seconde fois).
  */
 
 const dossier = join(__dirname, 'fixtures', 'releves')
@@ -137,11 +142,25 @@ describe('relevé déjà importé sur le compte lors d’un import précédent',
     }
   })
 
-  it('marche à suivre de chaque motif (réponse du 28/11/2026, point #858 · 2 A) : nouvel identifiant en camt.053, autre période sans identifiant', () => {
+  it('marche à suivre de chaque motif (réponse du 28/11/2026, point #858 · 2 A) : nouvel identifiant ; même période : comparer et demander à la banque', () => {
     expect(MARCHES_A_SUIVRE_RELEVE_A_VERIFIER).toEqual({
       identifiant: 'Marche à suivre : demander à la banque un relevé sous un nouvel identifiant.',
-      periode: 'Marche à suivre : demander à la banque un relevé sur une autre période (un relevé CFONB 120 n’a pas d’identifiant).',
+      periode: 'Marche à suivre : comparer les deux relevés et demander à la banque lequel est juste ; le relevé non repris ne remplace pas l’autre.',
     })
+    // Retours de la relecture du 28/11/2026 : le relevé analysé peut être un camt.053 (relevé gardé d'un CFONB 120), et un
+    // relevé « sur une autre période » qui chevaucherait la première serait repris avec ses mouvements sans référence.
+    expect(MARCHES_A_SUIVRE_RELEVE_A_VERIFIER.periode).not.toMatch(/CFONB|autre période/)
+  })
+
+  it('camt.053 analysé, relevé gardé sans identifiant (lu d’un CFONB 120), même période et autre solde : motif « période »', () => {
+    const [premier] = lireReleve(CAMT_UN_RELEVE).releves
+    const analyse = analyserReleve(
+      entree(CAMT_UN_RELEVE, { relevesImportes: [{ ...garde(premier, 'R1'), identifiant: null, numeroSequence: null, soldeClotureMineur: 1 }] }),
+    )
+    expect(analyse.format).toBe('camt053')
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['a_verifier'])
+    expect(analyse.motifsAVerifier).toEqual(['periode'])
+    expect(analyse.aVerifierDansLeFichier).toBe(0)
   })
 
   it('CFONB 120, même compte et même période qu’un relevé gardé, nouveau solde différent : non repris, à vérifier, jamais dit « déjà importé »', () => {
@@ -219,8 +238,70 @@ describe('relevé déjà importé sur le compte lors d’un import précédent',
     const analyse = analyserReleve(entree([...releve1, ...releve1].join('\n')))
     expect(analyse.releves.map((releve) => releve.etat)).toEqual(['nouveau', 'deja_importe'])
     expect(analyse.relevesDejaImportes).toEqual([])
+    expect(analyse.relevesAVerifier).toEqual([])
+    expect(analyse.aVerifierDansLeFichier).toBe(0)
     expect(analyse.avertissements.some((texte) => texte.includes('déjà importé : 4 mouvements non repris'))).toBe(true)
     expect(analyse.relevesAImporter.map((aGarder) => [aGarder.releve.rang, aGarder.repris.length])).toEqual([[1, 4]])
+  })
+})
+
+describe('relevé à vérifier face à un relevé placé plus haut dans le même fichier (retour de la relecture du 28/11/2026)', () => {
+  const lignes = CFONB_UN_COMPTE.split('\n'),
+    releve1 = lignes.slice(0, lignes.findIndex((ligne) => ligne.startsWith('07')) + 1),
+    // Même compte et même période que le relevé 1 (du 30/09 au 05/10/2026), sans mouvement : nouveau solde 1 250,00 au lieu de 472,94.
+    memePeriodeAutreSolde = [releve1[0], releve1[0].replace(/^01/, '07').replace('300926', '051026')],
+    DEUX_FOIS_LA_PERIODE = [...releve1, ...memePeriodeAutreSolde].join('\n'),
+    // Second relevé du fichier camt.053 ramené sur le même compte et sous l'identifiant du premier : autre contenu.
+    CAMT_MEME_IDENTIFIANT = CAMT.replace('FR7612345000100008765432121', 'FR7612345000100001234567849').replace('RELEVE-2026-10-05-B', 'RELEVE-2026-10-05-A')
+
+  it('CFONB 120, deux relevés de même période et de soldes différents : le second est « à vérifier », avec son message et la marche à suivre', () => {
+    const analyse = analyserReleve(entree(DEUX_FOIS_LA_PERIODE))
+    // Jamais « déjà dans le fichier » : ce n'est pas le même relevé.
+    expect(analyse.releves.map((releve) => [releve.rang, releve.etat])).toEqual([
+      [1, 'nouveau'],
+      [2, 'a_verifier'],
+    ])
+    expect(analyse.relevesAVerifier).toEqual([
+      'Relevé 2 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026) : même période qu’un relevé placé plus haut dans ce fichier, mais soldes ou totaux différents ; relevé non repris, à vérifier.',
+    ])
+    expect(analyse.motifsAVerifier).toEqual(['periode'])
+    expect(analyse.aVerifierDansLeFichier).toBe(1)
+    // Dit une seule fois, et sans « déjà importé » : l'autre relevé n'est pas importé, il est plus haut dans le fichier.
+    expect(analyse.avertissements.filter((texte) => texte.includes('même période'))).toEqual([])
+    expect(analyse.relevesDejaImportes).toEqual([])
+    // Le premier relevé reste importable, lui seul est à garder.
+    expect(analyse.retenues).toHaveLength(4)
+    expect(analyse.relevesAImporter.map((aGarder) => aGarder.releve.rang)).toEqual([1])
+    expect(analyse.blocage).toBeNull()
+  })
+
+  it('camt.053, deux relevés de même identifiant et de contenu différent : le second est « à vérifier » de même', () => {
+    const analyse = analyserReleve(entree(CAMT_MEME_IDENTIFIANT))
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['nouveau', 'a_verifier'])
+    expect(analyse.relevesAVerifier).toHaveLength(1)
+    expect(analyse.relevesAVerifier[0]).toMatch(
+      /^Relevé 2 \(IBAN FR7612345000100001234567849, du .+\) : même identifiant « RELEVE-2026-10-05-A » qu’un relevé placé plus haut dans ce fichier, mais période, soldes ou totaux différents ; relevé non repris, à vérifier\.$/,
+    )
+    expect(analyse.motifsAVerifier).toEqual(['identifiant'])
+    expect(analyse.aVerifierDansLeFichier).toBe(1)
+    expect(analyse.avertissements.filter((texte) => texte.includes('même identifiant'))).toEqual([])
+  })
+
+  it('un relevé à vérifier face à un relevé gardé, un autre face à un relevé du fichier : les deux sont dits, un seul vient du fichier', () => {
+    const [premier] = lireReleve(CFONB_UN_COMPTE).releves
+    // Relevé gardé de la période du 05/10 au 06/10/2026 (relevé 2 du fichier d'origine), avec un autre nouveau solde.
+    const [, suivant] = lireReleve(CFONB_UN_COMPTE).releves
+    const analyse = analyserReleve(
+      entree([...releve1, ...memePeriodeAutreSolde, ...lignes.slice(releve1.length)].join('\n'), {
+        relevesImportes: [{ ...garde(suivant, 'R9'), soldeClotureMineur: suivant.soldeClotureMineur + 100 }],
+      }),
+    )
+    expect(premier.rang).toBe(1)
+    expect(analyse.releves.map((releve) => releve.etat)).toEqual(['nouveau', 'a_verifier', 'a_verifier'])
+    expect(analyse.relevesAVerifier.map((message) => message.includes('placé plus haut dans ce fichier'))).toEqual([true, false])
+    expect(analyse.relevesAVerifier[1]).toContain('même période qu’un relevé importé sur ce compte le 20/11/2026')
+    expect(analyse.motifsAVerifier).toEqual(['periode'])
+    expect(analyse.aVerifierDansLeFichier).toBe(1)
   })
 })
 

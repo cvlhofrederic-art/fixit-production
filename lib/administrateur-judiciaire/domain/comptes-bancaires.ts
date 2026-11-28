@@ -214,6 +214,10 @@ function nomDeLaFiche(fiche: FicheCompteIban): string | null {
  * clôturée puis recréée) ; la modification d'une fiche clôturée (elle n'est pas active, et rien ne la rouvre).
  * 🔵 Choix déduit, à valider : une fiche active dont l'IBAN ne change pas reste modifiable, même si une autre fiche
  * active le porte déjà (fiches écrites avant ce refus) ; seul le changement d'IBAN est refusé.
+ * Retour de la relecture du 28/11/2026 : la fin du message dépend du geste. À la création, « Modifier ce compte, ou le
+ * clôturer avant de créer une nouvelle fiche. » ; à la modification, on ne crée rien et « ce compte » pourrait désigner
+ * la fiche modifiée : le message dit de saisir un autre IBAN pour elle, ou de clôturer d'abord l'autre fiche, nommée
+ * (🔵 texte proposé, à valider).
  */
 export function verifierIbanSansAutreFicheActive(iban: string | null, fiches: readonly FicheCompteIban[], idModifie: string | null = null): void {
   const saisi = normaliserIban(iban ?? '')
@@ -222,10 +226,14 @@ export function verifierIbanSansAutreFicheActive(iban: string | null, fiches: re
   if (modifiee && (modifiee.actif === false || normaliserIban(modifiee.iban ?? '') === saisi)) return
   const autre = fiches.find((fiche) => fiche.id !== idModifie && fiche.actif !== false && normaliserIban(fiche.iban ?? '') === saisi)
   if (!autre) return
-  const nom = nomDeLaFiche(autre)
+  const nom = nomDeLaFiche(autre),
+    autreCompte = nom === null ? 'l’autre compte' : `« ${nom} »`,
+    quoiFaire =
+      idModifie === null
+        ? 'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.'
+        : `Saisir un autre IBAN pour le compte modifié, ou clôturer d’abord ${autreCompte}.`
   throw new Error(
-    `IBAN déjà enregistré sur un autre compte actif de la copropriété${nom === null ? '' : ` (« ${nom} »)`} : un IBAN désigne un seul compte. ` +
-      'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.',
+    `IBAN déjà enregistré sur un autre compte actif de la copropriété${nom === null ? '' : ` (« ${nom} »)`} : un IBAN désigne un seul compte. ${quoiFaire}`,
   )
 }
 

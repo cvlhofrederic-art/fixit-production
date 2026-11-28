@@ -53,9 +53,17 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  *   faire, « demander à la banque un relevé sous un nouvel identifiant » (`motifsAVerifier`,
  *   MARCHES_A_SUIVRE_RELEVE_A_VERIFIER). Un relevé sans identifiant commun avec un relevé gardé (CFONB 120), de même
  *   compte et de même période (mêmes dates de début et de fin) mais de soldes ou de totaux différents, est traité de
- *   même (domain/import/doublons-releves.ts, comparaison « periode ») : non repris, à vérifier, avec sa marche à suivre
- *   (🔵 texte proposé, à valider : un relevé sur une autre période, seule issue que le dédoublonnage laisse sans
- *   identifiant de relevé).
+ *   même (domain/import/doublons-releves.ts, comparaison « periode ») : non repris, à vérifier, avec sa marche à suivre.
+ * - Retours de la relecture du 28/11/2026. Marche à suivre du motif « periode » (🔵 texte proposé, à valider) : comparer
+ *   les deux relevés et demander à la banque lequel est juste. Elle ne parle plus du CFONB 120 : le motif vaut aussi pour
+ *   un relevé camt.053 analysé face à un relevé gardé d'un CFONB 120. Elle ne fait plus demander un relevé « sur une autre
+ *   période » : une période qui chevauche la première sans lui être égale serait acceptée comme un relevé distinct, et ses
+ *   mouvements sans référence ni numéro d'écriture repris une seconde fois (limite du dédoublonnage, voir le domaine).
+ *   Un relevé de même identifiant ou de même période qu'un relevé placé plus haut DANS LE MÊME FICHIER, mais d'un autre
+ *   contenu, est traité comme face à un relevé gardé : état « a_verifier », message parmi `relevesAVerifier` (qui dit
+ *   « un relevé placé plus haut dans ce fichier », et non « déjà importé » : l'autre relevé ne l'est pas), marche à
+ *   suivre de son motif ; il n'est plus dit « déjà dans le fichier », réservé au même relevé répété. `aVerifierDansLeFichier`
+ *   compte ces relevés, pour l'annonce aux lecteurs d'écran.
  * - Lignes sans relevé gardé (CSV, import antérieur à la table : aucune empreinte, et aucune n'est inventée) : un relevé
  *   qui les contient n'est pas reconnu ; l'analyse d'un relevé structuré le dit (`limiteEmpreintes`), en distinguant les
  *   lignes du compte choisi des lignes non rattachées à un compte (« 512 » seul). 🔴 Non traité : de telles lignes sur
@@ -113,25 +121,29 @@ export interface ReleveLu {
   mouvements: number
   /**
    * « deja_importe » : même relevé plus haut dans le fichier ; « importe_avant » : relevé gardé d'un import précédent
-   * (sur ce compte ou sur une autre fiche du même compte en banque) ; « a_verifier » : même identifiant qu'un relevé gardé,
-   * contenu différent, ou, sans identifiant commun, même période et soldes ou totaux différents. Dans les trois cas,
-   * aucun de ses mouvements n'est repris.
+   * (sur ce compte ou sur une autre fiche du même compte en banque) ; « a_verifier » : même identifiant qu'un relevé gardé
+   * ou qu'un relevé placé plus haut dans le fichier, contenu différent, ou, sans identifiant commun, même période et
+   * soldes ou totaux différents. Dans les trois cas, aucun de ses mouvements n'est repris.
    */
   etat: 'nouveau' | 'deja_importe' | 'importe_avant' | 'a_verifier'
 }
 
-/** Ce qui fait écarter un relevé « à vérifier » : l'identifiant d'un relevé gardé, ou sa période (relevé sans identifiant commun). */
+/**
+ * Ce qui fait écarter un relevé « à vérifier » : l'identifiant d'un autre relevé (gardé, ou placé plus haut dans le
+ * fichier), ou sa période (relevé sans identifiant commun).
+ */
 export type MotifAVerifier = Exclude<ComparaisonReleve, 'identique'>
 
 /**
  * Marche à suivre dite dans le bandeau « Relevé non repris, à vérifier », une par motif (réponse du référent métier du
  * 28/11/2026, point #858 · 2, choix A : « dire à l'écran quoi faire (demander à la banque un relevé sous un nouvel
- * identifiant) »). 🔵 Texte du motif « periode » proposé, à valider : sans identifiant de relevé, un relevé n'est tenu
- * pour distinct d'un relevé gardé du même compte que si sa période diffère.
+ * identifiant) »). 🔵 Texte du motif « periode » proposé, à valider (retours de la relecture du 28/11/2026, voir
+ * l'en-tête) : il vaut quel que soit le format du relevé analysé, et que l'autre relevé soit gardé ou placé plus haut dans
+ * le fichier ; il ne pousse pas à obtenir un relevé sur une période qui chevaucherait la première.
  */
 export const MARCHES_A_SUIVRE_RELEVE_A_VERIFIER: Record<MotifAVerifier, string> = {
   identifiant: 'Marche à suivre : demander à la banque un relevé sous un nouvel identifiant.',
-  periode: 'Marche à suivre : demander à la banque un relevé sur une autre période (un relevé CFONB 120 n’a pas d’identifiant).',
+  periode: 'Marche à suivre : comparer les deux relevés et demander à la banque lequel est juste ; le relevé non repris ne remplace pas l’autre.',
 }
 
 /** Ordre dans lequel les marches à suivre sont dites. */
@@ -180,12 +192,15 @@ export interface AnalyseReleve {
    */
   relevesDejaImportes: string[]
   /**
-   * Un message par relevé du fichier non repris pour son identifiant, celui d'un relevé gardé d'un autre contenu, ou pour
-   * sa période, celle d'un relevé gardé du même compte aux soldes ou aux totaux différents (relevé sans identifiant commun).
+   * Un message par relevé du fichier non repris pour son identifiant, celui d'un autre relevé d'un autre contenu, ou pour
+   * sa période, celle d'un autre relevé du même compte aux soldes ou aux totaux différents (relevé sans identifiant
+   * commun). L'autre relevé est un relevé gardé, ou un relevé placé plus haut dans le fichier.
    */
   relevesAVerifier: string[]
   /** Motifs de ces relevés, chacun une fois, « identifiant » avant « periode » : une marche à suivre par motif. */
   motifsAVerifier: MotifAVerifier[]
+  /** Parmi ces relevés, nombre de ceux écartés face à un relevé placé plus haut dans le fichier (les autres : face à un relevé gardé). */
+  aVerifierDansLeFichier: number
   /** Relevés nouveaux du fichier, chacun avec ses mouvements repris : à garder à l'import (vide pour un CSV). */
   relevesAImporter: ReleveRepris[]
 }
@@ -316,6 +331,7 @@ type ResultatLecture = Pick<
   | 'relevesDejaImportes'
   | 'relevesAVerifier'
   | 'motifsAVerifier'
+  | 'aVerifierDansLeFichier'
   | 'relevesAImporter'
 >
 
@@ -331,6 +347,7 @@ function lectureCsv(lecture: LectureReleve, existantes: LigneReleve[]): Resultat
     relevesDejaImportes: [],
     relevesAVerifier: [],
     motifsAVerifier: [],
+    aVerifierDansLeFichier: 0,
     relevesAImporter: [],
   }
 }
@@ -353,17 +370,26 @@ function ouEtQuand(garde: ReleveImporte, entree: EntreeAnalyseReleve): string {
   return `le ${le} sur un autre compte de la copropriété${nom}`
 }
 
-/** Message d'un relevé du fichier reconnu dans un relevé gardé d'un import précédent : où et quand il a été importé. */
-function messageDejaImporte({ releve, comparaison }: ReleveReconnu, garde: ReleveImporte, entree: EntreeAnalyseReleve): string {
+/** Relevé du fichier reconnu, avec le relevé gardé qui l'a fait reconnaître ; null : un relevé placé plus haut dans le fichier. */
+interface ReleveClasse {
+  reconnu: ReleveReconnu
+  garde: ReleveImporte | null
+}
+
+/**
+ * Message d'un relevé du fichier reconnu. Relevé gardé d'un import précédent : où et quand il a été importé. Relevé à
+ * vérifier face à un relevé du même fichier : « un relevé placé plus haut dans ce fichier » (il n'est pas importé).
+ */
+function messageReleveReconnu({ reconnu: { releve, comparaison }, garde }: ReleveClasse, entree: EntreeAnalyseReleve): string {
   const designation = designationReleve(releve.rang, releve.compte, releve.dateOuverture, releve.dateCloture),
-    ou = ouEtQuand(garde, entree)
+    ou = garde ? ouEtQuand(garde, entree) : '',
+    autre = garde ? `un relevé importé ${ou}` : 'un relevé placé plus haut dans ce fichier'
   if (comparaison === 'identifiant')
     return (
-      `${designation} : même identifiant « ${releve.identifiant ?? ''} » qu’un relevé importé ${ou}, mais période, soldes ou ` +
+      `${designation} : même identifiant « ${releve.identifiant ?? ''} » qu’${autre}, mais période, soldes ou ` +
       'totaux différents ; relevé non repris, à vérifier.'
     )
-  if (comparaison === 'periode')
-    return `${designation} : même période qu’un relevé importé ${ou}, mais soldes ou totaux différents ; relevé non repris, à vérifier.`
+  if (comparaison === 'periode') return `${designation} : même période qu’${autre}, mais soldes ou totaux différents ; relevé non repris, à vérifier.`
   return `${designation} : déjà importé ${ou}, ${mouvementsNonRepris(releve.mouvements.length)}.`
 }
 
@@ -389,15 +415,12 @@ function limiteDesEmpreintes(entree: EntreeAnalyseReleve, sousCompte: string | n
   return nonRattachees ? 'non_rattachees' : null
 }
 
-/** Relevés du fichier reconnus dans un relevé gardé d'un import précédent, avec ce relevé gardé (les autres : déjà dans le fichier). */
-function reconnusAvant(reconnus: readonly ReleveReconnu[], gardes: readonly ReleveImporte[]): Map<ReleveCompte, { reconnu: ReleveReconnu; garde: ReleveImporte }> {
-  const avant = new Map<ReleveCompte, { reconnu: ReleveReconnu; garde: ReleveImporte }>()
-  for (const reconnu of reconnus) {
-    const garde = gardes.find((candidat) => candidat === reconnu.connu)
-    if (garde) avant.set(reconnu.releve, { reconnu, garde })
-  }
-  return avant
-}
+/**
+ * Relevés du fichier reconnus, dans l'ordre du fichier, chacun avec le relevé gardé qui l'a fait reconnaître (null : un
+ * relevé placé plus haut dans le fichier).
+ */
+const classerReconnus = (reconnus: readonly ReleveReconnu[], gardes: readonly ReleveImporte[]): ReleveClasse[] =>
+  reconnus.map((reconnu) => ({ reconnu, garde: gardes.find((candidat) => candidat === reconnu.connu) ?? null }))
 
 /**
  * Relevés structurés : dédoublonnage par relevé et par mouvement, contre les relevés gardés de la copropriété (toutes ses
@@ -415,16 +438,22 @@ function lectureStructuree(lecture: LectureReleve, existantes: LigneReleve[], en
         entree.lignesBanque.map((ecriture) => ({ date: dateVersIso(ecriture.date) || '', releve: ecriture.releve })),
       ),
     ),
+    reconnus = classerReconnus(resultat.reconnus, gardes),
     // Relevés d'un import précédent : dits à part, avec la date et le compte de cet import, et non dans les avertissements.
-    avant = [...reconnusAvant(resultat.reconnus, gardes)],
-    etats = new Map(avant.map(([releve, { reconnu }]) => [releve, reconnu.comparaison === 'identique' ? 'importe_avant' : 'a_verifier'] as const)),
-    // Relevés à vérifier (même identifiant, ou même période sans identifiant commun), dans l'ordre du fichier.
-    aVerifier = avant.filter(([, { reconnu }]) => reconnu.comparaison !== 'identique'),
-    ditsAPart = new Set(avant.map(([, { reconnu }]) => reconnu.avertissement)),
+    importesAvant = reconnus.filter(({ reconnu, garde }) => garde !== null && reconnu.comparaison === 'identique'),
+    // Relevés à vérifier (même identifiant, ou même période sans identifiant commun), dans l'ordre du fichier : face à un
+    // relevé gardé, ou à un relevé placé plus haut dans le fichier (retour de la relecture du 28/11/2026). Dits à part aussi.
+    aVerifier = reconnus.filter(({ reconnu }) => reconnu.comparaison !== 'identique'),
+    etats = new Map<ReleveCompte, ReleveLu['etat']>([
+      ...importesAvant.map(({ reconnu }) => [reconnu.releve, 'importe_avant'] as const),
+      ...aVerifier.map(({ reconnu }) => [reconnu.releve, 'a_verifier'] as const),
+    ]),
+    ditsAPart = new Set([...importesAvant, ...aVerifier].map(({ reconnu }) => reconnu.avertissement)),
+    // Le même relevé répété dans le fichier : « déjà dans le fichier », dit dans les avertissements, comme avant.
     dejaDansLeFichier = new Set(resultat.dejaImportes),
     ecartes = new Set(resultat.doublons),
     etat = (releve: ReleveCompte): ReleveLu['etat'] => etats.get(releve) ?? (dejaDansLeFichier.has(releve) ? 'deja_importe' : 'nouveau'),
-    messages = (reconnus: typeof avant): string[] => reconnus.map(([, { reconnu, garde }]) => messageDejaImporte(reconnu, garde, entree))
+    messages = (classes: readonly ReleveClasse[]): string[] => classes.map((classe) => messageReleveReconnu(classe, entree))
   return {
     retenues: resultat.lignes,
     doublons: resultat.doublons,
@@ -437,9 +466,10 @@ function lectureStructuree(lecture: LectureReleve, existantes: LigneReleve[], en
     // Lignes du compte, ou non rattachées (compte inconnu), sans relevé gardé, datées dans la période d'un relevé lu : un
     // relevé qui les contient n'est pas reconnu. Format non reconnu : aucun relevé lu, la limite n'a rien à dire.
     limiteEmpreintes: lecture.format === 'inconnu' ? null : limiteDesEmpreintes(entree, sousCompte, lecture.releves),
-    relevesDejaImportes: messages(avant.filter(([, { reconnu }]) => reconnu.comparaison === 'identique')),
+    relevesDejaImportes: messages(importesAvant),
     relevesAVerifier: messages(aVerifier),
-    motifsAVerifier: MOTIFS_A_VERIFIER.filter((motif) => aVerifier.some(([, { reconnu }]) => reconnu.comparaison === motif)),
+    motifsAVerifier: MOTIFS_A_VERIFIER.filter((motif) => aVerifier.some(({ reconnu }) => reconnu.comparaison === motif)),
+    aVerifierDansLeFichier: aVerifier.filter(({ garde }) => garde === null).length,
     relevesAImporter: resultat.nouveaux.map((releve) => ({ releve, repris: releve.mouvements.filter((mouvement) => !ecartes.has(mouvement)) })),
   }
 }

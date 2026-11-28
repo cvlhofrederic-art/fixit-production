@@ -199,8 +199,33 @@ describe('seconde fiche active du même IBAN : refusée (réponse du référent 
   it('modification : la fiche elle-même ne compte pas ; son IBAN changé pour celui d’une autre fiche active : refusé', () => {
     const second: FicheCompteIban = { id: 'B2', iban: 'FR1420041010050500013M02606', actif: true, libelle: 'Compte travaux', nature: 'avance_travaux' }
     expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second], 'B1')).not.toThrow()
-    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second], 'B2')).toThrow(REFUS)
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second], 'B2')).toThrow(/^IBAN déjà enregistré sur un autre compte actif de la copropriété \(« Compte principal »\)/)
     expect(() => verifierIbanSansAutreFicheActive(IBAN_B, [principal, second], 'B2')).not.toThrow()
+  })
+
+  it('fin du message selon le geste (retour de la relecture du 28/11/2026) : à la création, modifier ou clôturer l’autre fiche ; à la modification, rien ne parle de créer une fiche', () => {
+    const second: FicheCompteIban = { id: 'B2', iban: 'FR1420041010050500013M02606', actif: true, libelle: 'Compte travaux', nature: 'avance_travaux' }
+    const message = (appel: () => void): string | null => {
+      try {
+        appel()
+      } catch (erreur) {
+        return erreur instanceof Error ? erreur.message : String(erreur)
+      }
+      return null
+    }
+    expect(message(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second]))).toBe(REFUS)
+    // « Modifier » du compte travaux, IBAN changé pour celui du compte principal : on ne crée rien, et « ce compte » serait ambigu.
+    expect(message(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second], 'B2'))).toBe(
+      'IBAN déjà enregistré sur un autre compte actif de la copropriété (« Compte principal ») : un IBAN désigne un seul compte. ' +
+        'Saisir un autre IBAN pour le compte modifié, ou clôturer d’abord « Compte principal ».',
+    )
+    // Autre fiche sans nom à citer.
+    expect(message(() => verifierIbanSansAutreFicheActive(IBAN_A, [{ id: 'B1', iban: IBAN_A }, second], 'B2'))).toBe(
+      'IBAN déjà enregistré sur un autre compte actif de la copropriété : un IBAN désigne un seul compte. ' +
+        'Saisir un autre IBAN pour le compte modifié, ou clôturer d’abord l’autre compte.',
+    )
+    // Fiche modifiée absente de la liste reçue : c'est toujours une modification.
+    expect(message(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal], 'B9'))).toContain('Saisir un autre IBAN pour le compte modifié')
   })
 
   it('modification d’une fiche clôturée : jamais refusée (elle n’est pas active)', () => {

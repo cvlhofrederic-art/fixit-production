@@ -173,22 +173,31 @@ function annonceDejaImportes(nombre: number): string | null {
   return nombre > 1 ? `${nombre} relevés déjà importés : leurs mouvements ne sont pas repris.` : 'Relevé déjà importé : ses mouvements ne sont pas repris.'
 }
 
+/**
+ * L'autre relevé, celui qui fait écarter les relevés à vérifier, tel que l'annonce le nomme : un relevé gardé (« déjà
+ * importé »), un relevé placé plus haut dans le fichier (retour de la relecture du 28/11/2026 : il n'est pas importé), ou
+ * l'un et l'autre selon le relevé.
+ */
+function autreReleveAnnonce(nombre: number, dansLeFichier: number): string {
+  if (dansLeFichier === 0) return 'un relevé déjà importé'
+  return dansLeFichier === nombre ? 'un relevé placé plus haut dans ce fichier' : 'un relevé déjà importé ou placé plus haut dans ce fichier'
+}
+
 /** Ce qui fait écarter les relevés à vérifier, tel que l'annonce le dit : un motif, ou les deux. */
-function motifAnnonce(motifs: readonly MotifAVerifier[]): string {
-  if (motifs.length > 1) return 'même identifiant ou même période qu’un relevé déjà importé, contenu différent'
-  return motifs[0] === 'periode'
-    ? 'même période qu’un relevé déjà importé, soldes ou totaux différents'
-    : 'même identifiant qu’un relevé déjà importé, contenu différent'
+function motifAnnonce(motifs: readonly MotifAVerifier[], autre: string): string {
+  if (motifs.length > 1) return `même identifiant ou même période qu’${autre}, contenu différent`
+  return motifs[0] === 'periode' ? `même période qu’${autre}, soldes ou totaux différents` : `même identifiant qu’${autre}, contenu différent`
 }
 
 /**
- * Relevés non repris pour leur identifiant (celui d'un relevé gardé d'un autre contenu) ou, sans identifiant commun, pour
+ * Relevés non repris pour leur identifiant (celui d'un autre relevé d'un autre contenu) ou, sans identifiant commun, pour
  * leur période (réponse du 28/11/2026, point #858 · 2 A), annoncés de même ; null : aucun.
  */
-function annonceAVerifier(nombre: number, motifs: readonly MotifAVerifier[]): string | null {
+function annonceAVerifier(analyse: AnalyseReleve): string | null {
+  const nombre = analyse.relevesAVerifier.length
   if (nombre === 0) return null
   const sujet = nombre > 1 ? `${nombre} relevés non repris` : 'Relevé non repris'
-  return `${sujet}, à vérifier : ${motifAnnonce(motifs)}.`
+  return `${sujet}, à vérifier : ${motifAnnonce(analyse.motifsAVerifier, autreReleveAnnonce(nombre, analyse.aVerifierDansLeFichier))}.`
 }
 
 /**
@@ -199,7 +208,7 @@ function annonceAnalyse(analyse: AnalyseReleve | null, motifCompte: string | nul
   if (!analyse) return ''
   const lignes = `Relevé analysé (${LIBELLES_FORMAT_RELEVE[analyse.format]}) : ${accord(analyse.retenues.length, 'ligne retenue', 'lignes retenues')}.`
   const motif = motifCompte ? `Import impossible : ${motifCompte}` : null
-  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), annonceAVerifier(analyse.relevesAVerifier.length, analyse.motifsAVerifier), analyse.blocage, motif]
+  return [lignes, annonceDejaImportes(analyse.relevesDejaImportes.length), annonceAVerifier(analyse), analyse.blocage, motif]
     .filter((texte): texte is string => texte !== null)
     .join(' ')
 }
