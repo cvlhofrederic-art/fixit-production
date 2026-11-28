@@ -51,6 +51,12 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  * courant est tenu pour un compte au nom du syndicat (auNomDuSyndicat), le titulaire d'un compte à la Caisse des dépôts
  * (R95 ci-dessus) ou d'un sous-compte du centralisateur n'étant pas établi.
  *
+ * Réponse du référent métier du 28/11/2026 (point #858 · 7, choix A) : « Refuser une seconde fiche active du même IBAN,
+ * avec un message. » Un IBAN désigne un seul compte : deux fiches actives pour le même compte sont presque toujours une
+ * erreur de saisie (verifierIbanSansAutreFicheActive, appelé à l'enregistrement d'une fiche). Une fiche clôturée puis
+ * recréée reste possible. Les contrôles qui lisent deux fiches actives d'un même IBAN (compteEncaissement, anomalie
+ * fonds_travaux_confondu) restent : des fiches écrites avant ce refus peuvent encore exister.
+ *
  * 🔴 Non établi : l'articulation entre le compte au nom de l'administrateur (C. com. R. 814-41) et le compte séparé au nom
  *    du syndicat (L. 1965 art. 18, II, al. 3) : aucun texte lu ne dit si l'une cède devant l'autre ; l'intitulé exact des
  *    comptes ouverts par la Caisse des dépôts (au nom de l'administrateur « ès qualités » ?) n'est pas vérifié. D'ici là,
@@ -179,6 +185,48 @@ export function validerIban(iban: string): boolean {
   let reste = 0
   for (const chiffre of chiffres) reste = (reste * 10 + Number(chiffre)) % 97
   return reste === 1
+}
+
+/** Fiche de compte de la copropriété lue pour refuser un IBAN en double (champs de la table « banques »). */
+export interface FicheCompteIban {
+  id: string
+  iban?: string | null
+  /** Compte clôturé = false ; absent = actif. */
+  actif?: boolean
+  libelle?: string | null
+  /** Absente pour un compte écrit avant D-BANQUE. */
+  nature?: NatureCompteBancaire
+}
+
+/** Nom d'une fiche cité dans un refus : son libellé, à défaut le libellé de sa nature ; null sans l'un ni l'autre. */
+function nomDeLaFiche(fiche: FicheCompteIban): string | null {
+  const libelle = (fiche.libelle ?? '').trim()
+  if (libelle !== '') return libelle
+  return fiche.nature !== undefined && Object.hasOwn(NATURES_COMPTE_BANCAIRE, fiche.nature) ? NATURES_COMPTE_BANCAIRE[fiche.nature].libelle : null
+}
+
+/**
+ * Réponse du référent métier du 28/11/2026 (point #858 · 7, choix A) : refuse, par une erreur, l'IBAN saisi pour une fiche
+ * active quand une autre fiche active de la copropriété le porte déjà. Les IBAN sont comparés normalisés (sans espace,
+ * en majuscules), comme partout dans ce module. `fiches` : les fiches de la copropriété, actives et clôturées ;
+ * `idModifie` : la fiche en cours de modification (null : création).
+ * Jamais refusé : une saisie sans IBAN (compte sans IBAN propre) ; un IBAN que seules des fiches clôturées portent (fiche
+ * clôturée puis recréée) ; la modification d'une fiche clôturée (elle n'est pas active, et rien ne la rouvre).
+ * 🔵 Choix déduit, à valider : une fiche active dont l'IBAN ne change pas reste modifiable, même si une autre fiche
+ * active le porte déjà (fiches écrites avant ce refus) ; seul le changement d'IBAN est refusé.
+ */
+export function verifierIbanSansAutreFicheActive(iban: string | null, fiches: readonly FicheCompteIban[], idModifie: string | null = null): void {
+  const saisi = normaliserIban(iban ?? '')
+  if (saisi === '') return
+  const modifiee = idModifie === null ? undefined : fiches.find((fiche) => fiche.id === idModifie)
+  if (modifiee && (modifiee.actif === false || normaliserIban(modifiee.iban ?? '') === saisi)) return
+  const autre = fiches.find((fiche) => fiche.id !== idModifie && fiche.actif !== false && normaliserIban(fiche.iban ?? '') === saisi)
+  if (!autre) return
+  const nom = nomDeLaFiche(autre)
+  throw new Error(
+    `IBAN déjà enregistré sur un autre compte actif de la copropriété${nom === null ? '' : ` (« ${nom} »)`} : un IBAN désigne un seul compte. ` +
+      'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.',
+  )
 }
 
 /** Compte du syndicat lu pour désigner celui qui reçoit les règlements (champs de la table « banques »). */

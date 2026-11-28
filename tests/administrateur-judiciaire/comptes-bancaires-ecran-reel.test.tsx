@@ -202,6 +202,47 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(await ajDb.banques.count()).toBe(0)
   })
 
+  it('IBAN d’un autre compte actif de la copropriété (réponse du 28/11/2026, point #858 · 7 A) : refus par toast, formulaire ouvert, rien n’est écrit', async () => {
+    await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    const { push } = await rendre()
+    await saisirCompte({ libelle: 'Second compte', iban: 'fr7630006000011234567890189' })
+    await enregistrer()
+    expect(dernierToast(push)).toMatchObject({
+      kind: 'warn',
+      title: 'Enregistrement impossible',
+      desc:
+        'IBAN déjà enregistré sur un autre compte actif de la copropriété (« Compte principal ») : un IBAN désigne un seul compte. ' +
+        'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.',
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(await ajDb.banques.count()).toBe(1)
+    expect(lignesComptes()).toHaveLength(1)
+  })
+
+  it('compte clôturé, puis « Nouveau compte » du même IBAN : enregistré', async () => {
+    const ancien = await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    await comptesDb.cloturerCompteBancaire(ancien.id)
+    const { push } = await rendre()
+    await saisirCompte({ libelle: 'Compte recréé', iban: IBAN_A })
+    await enregistrer()
+    expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Compte enregistré' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(await ajDb.banques.count()).toBe(2)
+  })
+
+  it('« Modifier » : IBAN changé pour celui d’un autre compte actif : refus par toast, la ligne garde son IBAN', async () => {
+    await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
+    const second = await ajouter({ nature: 'avance_travaux', libelle: 'Compte travaux', iban: IBAN_B })
+    const { push } = await rendre()
+    fireEvent.click(dansPanneau().getByRole('button', { name: 'Modifier Compte travaux' }))
+    fireEvent.change(dialogue().getByLabelText('IBAN'), { target: { value: IBAN_A } })
+    await enregistrer()
+    expect(dernierToast(push)).toMatchObject({ kind: 'warn', title: 'Enregistrement impossible' })
+    expect(String(dernierToast(push)?.desc)).toMatch(/IBAN déjà enregistré sur un autre compte actif de la copropriété \(« Compte principal »\)/)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect((await ajDb.banques.get(second.id))?.iban).toBe('FR1420041010050500013M02606')
+  })
+
   it('échec d’écriture de la base : toast d’avertissement, formulaire ouvert', async () => {
     const { push } = await rendre()
     await saisirCompte({ iban: IBAN_A })
@@ -212,9 +253,11 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('fonds de travaux sur le même IBAN que le compte courant : alerte bloquante et son fondement', async () => {
-    await ajouter({ nature: 'courant', iban: IBAN_A })
-    await ajouter({ nature: 'fonds_travaux', iban: 'FR7630006000011234567890189' })
+  it('fonds de travaux sur le même IBAN que le compte courant (fiches écrites avant le refus du 28/11/2026) : alerte bloquante et son fondement', async () => {
+    const courant = await ajouter({ nature: 'courant', iban: IBAN_A })
+    // Seconde fiche active du même IBAN : refusée à la saisie depuis la réponse du 28/11/2026 (point #858 · 7 A), écrite ici hors de l'écran.
+    const { id: _id, ...champs } = courant
+    await ajDb.banques.add({ ...champs, id: 'banque-fonds-meme-iban', nature: 'fonds_travaux' })
     await rendre()
     const alerte = Array.from(panneau().querySelectorAll('.alert.rust')).find((element) =>
       element.textContent?.includes("Fonds de travaux : même IBAN qu'un autre compte du mandat."),

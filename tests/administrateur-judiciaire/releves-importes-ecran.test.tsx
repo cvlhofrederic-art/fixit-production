@@ -305,7 +305,12 @@ describe('Relevé déjà importé sur le compte (point 10 B)', () => {
   })
 
   it('analyse périmée, relevé gardé entre-temps sur une autre fiche du même IBAN : refus à l’écriture, rien n’est écrit', async () => {
-    const double = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Compte en double', iban: IBAN_FIXTURE, bic: null, etablissement: null })
+    // Seconde fiche active du même IBAN : refusée à la saisie depuis la réponse du 28/11/2026 (point #858 · 7 A) ; écrite ici
+    // hors de l'écran, comme une fiche en double enregistrée avant ce refus.
+    const principal = await ajDb.banques.get(banqueId)
+    if (!principal) throw new Error('Compte principal introuvable.')
+    const double = { ...principal, id: 'banque-en-double', libelle: 'Compte en double' }
+    await ajDb.banques.add(double)
     await rendre()
     fireEvent.change(dansImport().getByLabelText('Compte bancaire du relevé'), { target: { value: banqueId } })
     analyser(CAMT_UN_RELEVE)

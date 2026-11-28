@@ -9,8 +9,10 @@ import {
   informationsComptesMandat,
   resoudreModeComptes,
   validerIban,
+  verifierIbanSansAutreFicheActive,
   verifierMarquesFondsTravaux,
   type CompteBancaireMandat,
+  type FicheCompteIban,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -162,6 +164,63 @@ describe('D-BANQUE — IBAN', () => {
     expect(validerIban('FR76 3000 6000 0112 3456 7890 188')).toBe(false)
     expect(validerIban('FR76')).toBe(false)
     expect(validerIban('')).toBe(false)
+  })
+})
+
+describe('seconde fiche active du même IBAN : refusée (réponse du référent métier du 28/11/2026, point #858 · 7 A)', () => {
+  const principal: FicheCompteIban = { id: 'B1', iban: 'FR7630006000011234567890189', actif: true, libelle: 'Compte principal', nature: 'courant' }
+  const REFUS =
+    'IBAN déjà enregistré sur un autre compte actif de la copropriété (« Compte principal ») : un IBAN désigne un seul compte. ' +
+    'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.'
+
+  it('création : même IBAN qu’une fiche active, quels que soient les espaces et la casse : refusée, la fiche est nommée', () => {
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal])).toThrow(REFUS)
+    expect(() => verifierIbanSansAutreFicheActive('fr7630006000011234567890189', [principal])).toThrow(REFUS)
+    expect(() => verifierIbanSansAutreFicheActive(' fr76 3000 6000 0112 3456 7890 189 ', [{ ...principal, iban: 'FR76 3000 6000 0112 3456 7890 189' }])).toThrow(REFUS)
+    // Fiche sans marque d'état : active (comme partout dans le domaine).
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [{ ...principal, actif: undefined }])).toThrow(REFUS)
+  })
+
+  it('fiche clôturée puis recréée : acceptée', () => {
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [{ ...principal, actif: false }])).not.toThrow()
+    // Une fiche clôturée et une fiche active du même IBAN : la fiche active fait refuser.
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [{ ...principal, actif: false }, { ...principal, id: 'B2', libelle: 'Compte recréé' }])).toThrow(
+      /« Compte recréé »/,
+    )
+  })
+
+  it('autre IBAN, fiche sans IBAN, saisie sans IBAN : rien à refuser', () => {
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_B, [principal])).not.toThrow()
+    expect(() => verifierIbanSansAutreFicheActive(null, [principal, { id: 'B2', iban: null, actif: true }])).not.toThrow()
+    expect(() => verifierIbanSansAutreFicheActive('  ', [{ id: 'B2', iban: null, actif: true }, { id: 'B3', iban: '', actif: true }])).not.toThrow()
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [])).not.toThrow()
+  })
+
+  it('modification : la fiche elle-même ne compte pas ; son IBAN changé pour celui d’une autre fiche active : refusé', () => {
+    const second: FicheCompteIban = { id: 'B2', iban: 'FR1420041010050500013M02606', actif: true, libelle: 'Compte travaux', nature: 'avance_travaux' }
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second], 'B1')).not.toThrow()
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, second], 'B2')).toThrow(REFUS)
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_B, [principal, second], 'B2')).not.toThrow()
+  })
+
+  it('modification d’une fiche clôturée : jamais refusée (elle n’est pas active)', () => {
+    const cloturee: FicheCompteIban = { id: 'B2', iban: 'FR1420041010050500013M02606', actif: false }
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, cloturee], 'B2')).not.toThrow()
+  })
+
+  it('deux fiches actives du même IBAN déjà en base (écrites avant cette règle) : chacune reste modifiable tant que son IBAN ne change pas', () => {
+    const double: FicheCompteIban = { ...principal, id: 'B2', libelle: 'Compte en double' }
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [principal, double], 'B2')).not.toThrow()
+    expect(() => verifierIbanSansAutreFicheActive('fr76 3000 6000 0112 3456 7890 189', [principal, double], 'B1')).not.toThrow()
+  })
+
+  it('nom de la fiche citée : son libellé, à défaut le libellé de sa nature, à défaut rien', () => {
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [{ ...principal, libelle: ' ' }])).toThrow(
+      'IBAN déjà enregistré sur un autre compte actif de la copropriété (« Compte courant au nom du syndicat ») : un IBAN désigne un seul compte.',
+    )
+    expect(() => verifierIbanSansAutreFicheActive(IBAN_A, [{ id: 'B1', iban: IBAN_A }])).toThrow(
+      'IBAN déjà enregistré sur un autre compte actif de la copropriété : un IBAN désigne un seul compte.',
+    )
   })
 })
 

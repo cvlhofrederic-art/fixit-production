@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
+import { cloturerCompteBancaire, enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
 import { listerRelevesImportes } from '@/lib/administrateur-judiciaire/db/releves-importes'
@@ -165,10 +165,12 @@ describe('relevé déjà importé sur le compte : refusé à l’écriture, rien
   })
 
   it('le même relevé sur une autre fiche de compte de la copropriété (même IBAN) : refusé aussi, rien n’est compté deux fois', async () => {
-    // Deux fiches du même IBAN sont un seul compte en banque (fiche clôturée puis recréée, ou saisie en double).
-    const autre = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Second compte', iban: IBAN_FIXTURE, bic: null, etablissement: null })
+    // Deux fiches du même IBAN sont un seul compte en banque : ici, fiche clôturée puis recréée (une seconde fiche active du
+    // même IBAN est refusée à la saisie depuis la réponse du référent métier du 28/11/2026, point #858 · 7 A).
     const releves = lireReleve(CAMT_UN_RELEVE).releves
     await importerReleveSurCompte('C2', banqueId, lignesDe(entiers(releves)), entiers(releves))
+    await cloturerCompteBancaire(banqueId)
+    const autre = await enregistrerCompteBancaire('C2', { nature: 'courant', libelle: 'Second compte', iban: IBAN_FIXTURE, bic: null, etablissement: null })
     const lignesAvant = await ajDb.ecritures.count()
     const copie = lireReleve(CAMT_UN_RELEVE).releves
     await expect(importerReleveSurCompte('C2', autre.id, lignesDe(entiers(copie)), entiers(copie))).rejects.toThrow(
