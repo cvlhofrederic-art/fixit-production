@@ -190,8 +190,9 @@ describe('abandon d’un arrêté en cours (rb-01 A, décision du 26/11/2026)', 
   it('arrêté abandonné absent des contrôles : ni « en cours », ni « dernier arrêté », ni clôture, ni déclôture', async () => {
     const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
     await cloturerArreteCompte(premier.id)
-    // Date erronée : arrêté ouvert au 30/06 au lieu du 31/05.
-    const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-30', soldeBanqueCentimes: 0 })
+    // Date erronée : arrêté ouvert au 03/06 au lieu du 31/05 (au plus tard le 04/06, jour figé de la démonstration :
+    // une date future est refusée, rb-16 A).
+    const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-03', soldeBanqueCentimes: 0 })
     await abandonnerArreteCompte(errone.id)
 
     // Il n'est plus « en cours » : le dernier arrêté clôturé se déclôture, puis se reclôture.

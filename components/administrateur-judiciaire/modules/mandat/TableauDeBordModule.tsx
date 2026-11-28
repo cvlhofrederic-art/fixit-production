@@ -275,6 +275,7 @@ export function TableauDeBordModule() {
       <Panel
         title="Suivi budgétaire cumulé — Exercice 2026"
         sub="Répartition par copropriété · charges engagées vs budget prévisionnel"
+        controlesALaLigne
         right={
           <>
             <Pill kind="sage">À jour</Pill>
@@ -441,13 +442,8 @@ export function TableauDeBordModule() {
           />
         </div>
       </Panel>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1.25fr',
-          gap: 16,
-        }}
-      >
+      {/* Grille dans aj-correctifs.css : une colonne sur téléphone (en-tête « État des mandats », ct-07 ; à valider). */}
+      <div className="vfx-grille-echeances-mandats">
         <Panel
           title="Échéances prioritaires"
           icon="scale"
@@ -513,6 +509,7 @@ export function TableauDeBordModule() {
         <Panel
           title="État des mandats"
           icon="clipboard"
+          controlesALaLigne
           right={
             <a
               style={{
