@@ -72,7 +72,7 @@ export function lignesEnPeriodeArretee(
   const enPeriode = dates.filter((date) => date <= dateArrete)
   if (enPeriode.length === 0) return null
   // Ligne la plus ancienne : tout arrêté clôturé daté de ce jour ou après la compte dans son solde.
-  const plusAncienne = enPeriode.reduce((min, date) => (date < min ? date : min))
+  const plusAncienne = enPeriode.reduce((min, date) => (date < min ? date : min), enPeriode[0])
   const concernes = clotures.filter((date) => date >= plusAncienne)
   const enCours = arretes.find((arrete) => arrete.banqueId === banqueId && arrete.statut === 'En cours')
   return {
