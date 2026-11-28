@@ -68,10 +68,45 @@ describe('menu latéral : focus à la fermeture', () => {
     expect(document.activeElement).toBe(main)
   })
 
+  it('palette ouverte depuis « Rechercher » du menu, puis Échap : le focus finit sur le bouton ☰, pas sur le document', async () => {
+    await monterShell()
+    fireEvent.click(bouton())
+    const rechercher = within(menu()).getByText('Rechercher…').closest('button') as HTMLElement
+    rechercher.focus()
+    fireEvent.click(rechercher)
+    const palette = screen.getByRole('dialog', { name: 'Palette de commandes' })
+    within(palette).getByRole<HTMLInputElement>('textbox', { name: 'Rechercher' }).focus()
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' })
+    })
+    expect(screen.queryByRole('dialog', { name: 'Palette de commandes' })).toBeNull()
+    expect(menu()).not.toHaveClass('is-open')
+    expect(document.activeElement).toBe(bouton())
+  })
+
+  it('focus perdu sur la page quand le menu se ferme : il revient au bouton ☰', async () => {
+    await monterShell()
+    await act(async () => {
+      fireEvent.click(bouton())
+    })
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    expect(document.activeElement).toBe(document.body)
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' })
+    })
+    expect(document.activeElement).toBe(bouton())
+  })
 })
 
 describe('menu latéral : focus à l’ouverture et lien avec le bouton ☰', () => {
   const premiereEntreeVisible = () => menu().querySelector<HTMLElement>('.nav-group:not(.collapsed) .nav-item')
+  /** Titres de groupe (h6, rôle bouton) dans l'ordre du menu, avec leur état déplié. */
+  const titresDeGroupe = () => within(menu()).getAllByRole('button').filter((el) => el.tagName === 'H6')
+  /** Groupe de l'élément focalisé, lu par son titre (aria-expanded), sans le sélecteur du code. */
+  function groupeDuFocus() {
+    const groupe = (document.activeElement as HTMLElement).parentElement?.closest('div:has(> h6)')
+    return groupe?.querySelector(':scope > h6') ?? null
+  }
 
   it('ouverture : le focus va sur la première entrée de navigation visible du menu', async () => {
     await monterShell()
@@ -83,6 +118,9 @@ describe('menu latéral : focus à l’ouverture et lien avec le bouton ☰', ()
     expect(entree).not.toBeNull()
     expect(entree).toHaveClass('nav-item')
     expect(document.activeElement).toBe(entree)
+    // Le groupe du focus est le premier groupe du menu, et il est déplié.
+    expect(groupeDuFocus()).toBe(titresDeGroupe()[0])
+    expect(groupeDuFocus()).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('premier groupe replié : le focus va sur la première entrée d’un groupe déplié', async () => {
@@ -98,6 +136,9 @@ describe('menu latéral : focus à l’ouverture et lien avec le bouton ☰', ()
     expect(entree).not.toBeNull()
     expect(premierTitre.closest('.nav-group')?.contains(entree)).toBe(false)
     expect(document.activeElement).toBe(entree)
+    // Le groupe du focus est le premier groupe déplié du menu, d'après les titres.
+    const premierDeplie = titresDeGroupe().find((titre) => titre.getAttribute('aria-expanded') === 'true')
+    expect(groupeDuFocus()).toBe(premierDeplie)
   })
 
   it('tous les groupes repliés : le focus va sur le premier élément du menu qui le reçoit (« Rechercher »)', async () => {
@@ -130,19 +171,4 @@ describe('menu latéral : focus à l’ouverture et lien avec le bouton ☰', ()
     expect(document.activeElement).toBe(bouton())
   })
 
-  it('palette ouverte depuis « Rechercher » du menu, puis Échap : le focus finit sur le bouton ☰, pas sur le document', async () => {
-    await monterShell()
-    fireEvent.click(bouton())
-    const rechercher = within(menu()).getByText('Rechercher…').closest('button') as HTMLElement
-    rechercher.focus()
-    fireEvent.click(rechercher)
-    const palette = screen.getByRole('dialog', { name: 'Palette de commandes' })
-    within(palette).getByRole<HTMLInputElement>('textbox', { name: 'Rechercher' }).focus()
-    await act(async () => {
-      fireEvent.keyDown(window, { key: 'Escape' })
-    })
-    expect(screen.queryByRole('dialog', { name: 'Palette de commandes' })).toBeNull()
-    expect(menu()).not.toHaveClass('is-open')
-    expect(document.activeElement).toBe(bouton())
-  })
 })

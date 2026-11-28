@@ -583,9 +583,10 @@ export function Shell() {
   useEffect(() => {
     // Menu ouvert : le focus va sur la première entrée de navigation visible (les entrées des groupes repliés sont
     // masquées), sinon sur le premier élément du menu qui le reçoit (décision du 27/11/2026 du référent métier, point 1
-    // de la page de #842). Menu refermé avec le focus dedans : le menu fermé est masqué (visibility:hidden,
-    // aj-correctifs.css) et le focus tomberait sur le document ; il revient au bouton ☰. Déclaré après l'effet de la
-    // palette : si elle se referme en même temps, le focus qu'elle vient de rendre à un élément du menu est repris ici.
+    // de la page de #842). Menu refermé avec le focus dedans, ou déjà perdu sur la page (élément devenu masqué) : le menu
+    // fermé est masqué (visibility:hidden, aj-correctifs.css) et le focus tomberait sur le document ; il revient au bouton
+    // ☰. Déclaré après l'effet de la palette : si elle se referme en même temps, le focus qu'elle vient de rendre à un
+    // élément du menu est repris ici.
     const etaitOuvert = menuEtaitOuvertRef.current
     menuEtaitOuvertRef.current = menuMobileOuvert
     const menu = menuRef.current
@@ -593,7 +594,7 @@ export function Shell() {
       const cible =
         menu?.querySelector<HTMLElement>('.nav-group:not(.collapsed) .nav-item') ?? menu?.querySelector<HTMLElement>(SELECTEUR_FOCUSABLES)
       cible?.focus()
-    } else if (etaitOuvert && !menuMobileOuvert && menu?.contains(document.activeElement)) {
+    } else if (etaitOuvert && !menuMobileOuvert && (menu?.contains(document.activeElement) || document.activeElement === document.body)) {
       boutonMenuRef.current?.focus()
     }
   }, [menuMobileOuvert])
