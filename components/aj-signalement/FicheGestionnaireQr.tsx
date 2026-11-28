@@ -1,0 +1,490 @@
+'use client'
+
+// ── Page profil d'un gestionnaire (espace AJ Signalement, #gestionnaire/<uuid>) ──────────────────────────────────────
+//
+// Demandes de Hugo du 10/11/2026 : une page profil par gestionnaire, avec ses copropriétés en tableau de bord et sa
+// page de suivi des signalements par copropriété (SPEC § 1.8). En-tête (nom modifiable, adresse, état, envois), « Sa
+// page de suivi » (SuiviGestionnaireQr, ce qu'il verra en PR 2), copropriétés attribuées (origine, retrait, ajout),
+// communes à tous (lecture), créations (PR 2), activité (journal de la fiche), export RGPD, départ (successions),
+// réactivation et effacement (fiche désactivée seulement). Jamais de jeton d'envoi : le serveur ne les rend pas.
+// PR 2, lot 5 : « Ouvrir l'accès à son suivi » / « Renvoyer l'accès » (actionAccesGestionnaireQr), accès ouvert le …,
+// demande d'effacement, envoi d'accès refusé pour une adresse d'un compte d'un autre espace.
+// PR 2, lot 6 : le compte VitFix relié suit la fiche ; quand l'authentification n'a pas suivi (réponse 207), la reprise
+// est proposée ici : « Connexion à bloquer » et « Bloquer la connexion » (départ), « Débloquer la connexion »
+// (réactivation), « Supprimer son compte » (effacement). Sans les champs d'accès (migration 20261112 absente) : rien.
+// PR 3, relecture 3 : « Informer les déclarants de ce signalement » du suivi est transmis à l'espace (onInformer), qui
+// porte la fenêtre de diffusion : cette page est démontée à chaque changement de vue.
+// Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : chaque action qui modifie la fiche attend la fiche
+// relue ET les listes de l'espace (onModifie) avant de fermer son panneau ou sa fenêtre et d'annoncer son succès, boutons
+// désactivés jusque-là ; fiche relue en échec : le succès reste annoncé au-dessus de l'erreur de chargement.
+// Relecture du correctif : rien ne change avant la fin de l'attente ; la fiche relue est posée en même temps que la
+// fermeture et le message (une fiche relue avant les listes réécrivait la fenêtre de départ encore ouverte) ; l'attente
+// est bornée (attenteListesQr) : une lecture sans réponse ne bloque plus l'action.
+// Bureaux des cabinets (migration 20261119, écran E4 du plan des bureaux, #768) : sous le nom, « Cabinet : … » puis, sur
+// une seconde ligne, « Bureau : … » (forme de la carte d'une copropriété, E6 ; point e-11 validé le 20/11/2026) ;
+// « Changer de bureau » (fiche qui a un bureau, ou d'un cabinet qui en a) ouvre un panneau qui lit
+// les bureaux du cabinet et propose les ouverts sauf l'actuel — jamais « aucun » (PATCH { bureauId } seul) ; refus
+// bureau_ferme ou a_reverifier : bureaux relus. Réactivation d'une fiche restée dans un bureau fermé (409 bureau_ferme) :
+// la marche à suivre. Tant qu'aucun bureau n'existe, la page est celle d'avant (aucune requête nouvelle).
+
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { remplir } from '@/lib/coproprietaire/textes'
+import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, Modale } from '@/components/coproprietaire-dashboard/ui'
+import SuiviGestionnaireQr, { type PropsSuiviGestionnaireQr } from '@/components/aj-signalement/SuiviGestionnaireQr'
+import FenetreDepartGestionnaireQr from '@/components/aj-signalement/FenetreDepartGestionnaireQr'
+import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
+import ChoixBureauQr from '@/components/aj-signalement/ChoixBureauQr'
+import { messageEchecAvecBureauQr, messageEchecQr, messageEchecReactivationQr } from '@/components/aj-signalement/messageEchecQr'
+import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
+import { useBureauxCabinetQr } from '@/components/aj-signalement/useBureauxCabinetQr'
+import {
+  attribuerCoproprietesGestionnaireQr, bloquerConnexionGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr,
+  ouvrirAccesGestionnaireQr, renvoyerConfirmationQr, type CodeErreurQr,
+} from '@/lib/aj-signalement/api'
+import { dateHeureParis } from '@/lib/aj-signalement/affichage'
+import {
+  LIBELLE_ACTION_JOURNAL_QR, LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, LIBELLE_ORIGINE_ATTRIBUTION_QR, TEXTES_GESTION_QR as G,
+  TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, auteurJournalQr, changementBureauPossibleQr, compteASupprimerQr,
+  connexionABloquerQr, connexionADebloquerQr, dateParisQr, libelleBureauQr, refusBureauARelireQr,
+} from '@/lib/aj-signalement/affichage-gestion'
+import type { BureauResumeQr } from '@/lib/aj-signalement/bureaux'
+import { telechargerFichier } from '@/lib/aj-signalement/qr'
+import type { CabinetQr, CoproprieteQr, EnvoiGestionnaireQr, FicheGestionnaireDetailQr, GestionnaireQr } from '@/lib/aj-signalement/types'
+
+const BG = G.bureaux.gestionnaire
+
+export interface PropsFicheGestionnaireQr {
+  id: string
+  /** Copropriétés du tableau de l'espace (attributions à ajouter, « communes à tous », groupes du départ). */
+  coproprietes: readonly CoproprieteQr[]
+  /** Fiches de l'espace (successeurs au départ) ; null tant qu'elles ne sont pas chargées. */
+  gestionnaires: readonly GestionnaireQr[] | null
+  /**
+   * Cabinets de l'espace (bureaux, migration 20261119 : « Changer de bureau » pour une fiche d'un cabinet qui a des
+   * bureaux) ; null ou absent : pas encore chargés, ou non transmis — la page est alors celle d'avant.
+   */
+  cabinets?: readonly CabinetQr[] | null
+  onRetour: () => void
+  /**
+   * La fiche ou ses attributions ont changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour,
+   * au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr).
+   */
+  onModifie: () => Promise<void>
+  /** PR 3 : « Informer les déclarants de ce signalement » depuis le suivi (fenêtre portée par l'espace). */
+  onInformer?: PropsSuiviGestionnaireQr['onInformer']
+}
+
+type Etat = { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; fiche: FicheGestionnaireDetailQr }
+/** Fiche relue : prête, ou son échec. */
+type EtatLu = Exclude<Etat, { statut: 'chargement' }>
+type Panneau = 'nom' | 'ajout' | 'effacer' | 'depart' | 'bureau' | null
+/** Résultat d'une action : textes de succès (et, PR 2, ce qui reste à reprendre : montré comme une erreur), ou l'échec. */
+type ResultatAction = { ok: true; textes: string[]; avertissement?: string } | { ok: false; message: string }
+
+function texteEnvoi(e: EnvoiGestionnaireQr): string {
+  const parties = [remplir(G.fiche.envoiDemande, { date: dateParisQr(e.creeLe) })]
+  parties.push(e.envoyeLe ? remplir(G.fiche.envoiParti, { date: dateHeureParis(e.envoyeLe) }) : G.fiche.envoiNonParti)
+  if (e.accepteLe) parties.push(remplir(G.fiche.envoiConfirme, { date: dateHeureParis(e.accepteLe) }))
+  if (e.refus === 'pas_moi') parties.push(G.fiche.envoiRefuse)
+  if (e.refus === 'compte_autre_espace') parties.push(G.acces.envoiRefuseAutreEspace)
+  return parties.join(' · ')
+}
+
+/**
+ * Sous le nom (E4, point e-11) : « Cabinet : … » ; fiche qui a un bureau : deux lignes, « Cabinet : … » puis
+ * « Bureau : … » (« Sud (fermé) » pour un bureau fermé), forme et espacement de la carte d'une copropriété (E6). Sans
+ * bureau : le texte d'avant, seul.
+ */
+function sousTitreFicheQr(g: Pick<GestionnaireQr, 'cabinet' | 'bureau'>): ReactNode {
+  const cabinet = remplir(G.fiche.cabinet, { nom: g.cabinet.nom })
+  if (!g.bureau) return cabinet
+  return (
+    <>
+      <span className="block">{cabinet}</span>
+      <span className="mt-1 block">{remplir(BG.ligne, { bureau: libelleBureauQr(g.bureau) })}</span>
+    </>
+  )
+}
+
+export default function FicheGestionnaireQr({
+  id, coproprietes, gestionnaires, cabinets, onRetour, onModifie, onInformer,
+}: Readonly<PropsFicheGestionnaireQr>) {
+  const idBase = useId()
+  const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
+  const [panneau, setPanneau] = useState<Panneau>(null)
+  const [messages, setMessages] = useState<string[]>([])
+  const [erreur, setErreur] = useState<string | null>(null)
+  const [occupe, setOccupe] = useState(false)
+  const [nouveauNom, setNouveauNom] = useState('')
+  const [ajout, setAjout] = useState<string[]>([])
+
+  // Numéro de la dernière lecture de la fiche : une réponse dépassée (fiche relue entre-temps, page quittée) est ignorée.
+  const derniereLecture = useRef(0)
+  /** Lecture de la fiche, sans la poser : la fiche prête ou son échec ; null si la réponse est dépassée. Jamais rejetée. */
+  const lire = useCallback(async (): Promise<EtatLu | null> => {
+    derniereLecture.current += 1
+    const lecture = derniereLecture.current
+    const r = await chargerFicheGestionnaireQr(id)
+    if (lecture !== derniereLecture.current) return null
+    return r.ok ? { statut: 'pret', fiche: r.fiche } : { statut: 'erreur', message: messageEchecQr(r.code) }
+  }, [id])
+  /** Chargement et « Réessayer » : la fiche posée dès sa réponse (ou son échec affiché) ; jamais rejetée. */
+  const relire = useCallback(async (): Promise<void> => {
+    const lue = await lire()
+    if (lue) setEtat(lue)
+  }, [lire])
+
+  // Premier chargement : l'état n'est posé qu'à la réponse (asynchrone). Page quittée : la réponse en cours est ignorée.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void relire()
+    const lectures = derniereLecture
+    return () => { lectures.current += 1 }
+  }, [relire])
+
+  // Succès d'une action (et ce qui reste à reprendre) : gardés au-dessus de l'erreur si la fiche relue échoue.
+  const annonces = (
+    <>
+      {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
+      {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
+    </>
+  )
+
+  if (etat.statut === 'chargement') return <p role="status" className="py-10 text-center text-base text-[#4A5E78]">{G.chargement}</p>
+  if (etat.statut === 'erreur') {
+    return (
+      <div className="space-y-4">
+        <Bouton variante="discret" icone="retour" onClick={onRetour}>{G.fiche.retour}</Bouton>
+        {annonces}
+        <Encadre ton="erreur">{etat.message}</Encadre>
+        <Bouton variante="principal" icone="actualiser" onClick={() => { setEtat({ statut: 'chargement' }); void relire() }}>{G.reessayer}</Bouton>
+      </div>
+    )
+  }
+
+  const { gestionnaire: g, envois, attributions, creations, journal } = etat.fiche
+  const desactive = g.etat === 'desactive'
+  const efface = g.nom === null
+  const attribuees = new Set(attributions.map((a) => a.coproprieteId))
+  const coprosCabinet = coproprietes.filter((c) => c.cabinet?.id === g.cabinet.id)
+  const communes = coprosCabinet.filter((c) => c.attribueeATous && !attribuees.has(c.id))
+  const ajoutables = coprosCabinet.filter((c) => !attribuees.has(c.id))
+  const actionAcces = actionAccesGestionnaireQr(g, envois)
+
+  /**
+   * Fait : fiche relue et listes de l'espace attendues ensemble (boutons désactivés, panneau ou fenêtre ouverts
+   * jusque-là), au plus DELAI_MAX_LISTES_QR_MS ; puis tout d'un coup : la fiche relue posée, le panneau fermé et le
+   * message. Fiche relue après ce délai : posée à son arrivée.
+   */
+  const conclure = async (textes: string[], avertissement: string | null) => {
+    setOccupe(true)
+    const attente: { finie: boolean; lue: EtatLu | null } = { finie: false, lue: null }
+    const lecture = lire().then((lue) => {
+      if (!attente.finie) attente.lue = lue
+      else if (lue) setEtat(lue)
+    })
+    await attendreAuPlusQr(Promise.all([lecture, onModifie()]))
+    attente.finie = true
+    if (attente.lue) setEtat(attente.lue)
+    setOccupe(false)
+    setPanneau(null)
+    setMessages(textes)
+    setErreur(avertissement)
+  }
+
+  /** Action qui modifie la fiche : échec affiché tout de suite ; succès annoncé une fois la fiche et les listes relues. */
+  const executer = async (action: () => Promise<ResultatAction>) => {
+    if (occupe) return
+    setOccupe(true)
+    setMessages([])
+    setErreur(null)
+    const r = await action()
+    if (!r.ok) {
+      setOccupe(false)
+      return setErreur(r.message)
+    }
+    await conclure(r.textes, r.avertissement ?? null)
+  }
+
+  const attribuer = (ids: string[]) => executer(async () => {
+    const r = await attribuerCoproprietesGestionnaireQr(g.id, ids)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    setAjout([])
+    return { ok: true, textes: [G.fiche.attributionsEnregistrees, ...(r.adressesRetirees > 0 ? [remplir(G.fiche.adressesRetirees, { n: r.adressesRetirees })] : [])] }
+  })
+
+  const renommer = () => executer(async () => {
+    const nom = nouveauNom.trim()
+    if (!nom) return { ok: false, message: G.gestionnaires.nomRequis }
+    const r = await modifierGestionnaireQr(g.id, { nom })
+    return r.ok ? { ok: true, textes: [G.fiche.nomEnregistre] } : { ok: false, message: messageEchecQr(r.code) }
+  })
+
+  const reactiver = () => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { actif: true })
+    if (!r.ok) return { ok: false, message: messageEchecReactivationQr(r.code) }
+    return { ok: true, textes: [G.gestionnaires.reactive], ...(r.incomplet ? { avertissement: G.compte.nonDebloquee } : {}) }
+  })
+
+  /** E4 : changement de bureau ({ bureauId } seul) ; refusé : `siRefus` relit les bureaux du panneau si besoin. */
+  const changerBureau = (b: BureauResumeQr, siRefus: (code: CodeErreurQr) => void) => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { bureauId: b.id })
+    if (r.ok) return { ok: true, textes: [remplir(BG.change, { bureau: libelleBureauQr(b) })] }
+    siRefus(r.code)
+    return { ok: false, message: messageEchecAvecBureauQr(r.code, true) }
+  })
+
+  const effacer = () => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { pseudonymiser: true })
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [G.fiche.efface], ...(r.incomplet ? { avertissement: G.compte.nonSupprime } : {}) }
+  })
+
+  // PR 2, lot 6 : reprises côté compte (POST …/bloquer, ou le même PATCH ; idempotents côté serveur).
+  const bloquer = () => executer(async () => {
+    const r = await bloquerConnexionGestionnaireQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return r.bloquee ? { ok: true, textes: [G.compte.bloquee] } : { ok: false, message: G.compte.bloquerEchec }
+  })
+
+  const debloquer = () => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { actif: true })
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return r.incomplet ? { ok: false, message: G.compte.nonDebloquee } : { ok: true, textes: [G.compte.debloquee] }
+  })
+
+  const supprimerCompte = () => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { pseudonymiser: true })
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return r.incomplet ? { ok: false, message: G.compte.nonSupprime } : { ok: true, textes: [G.compte.compteSupprime] }
+  })
+
+  const renvoyer = () => executer(async () => {
+    const r = await renvoyerConfirmationQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [r.emailEnvoye ? remplir(G.gestionnaires.renvoye, { email: g.email ?? '' }) : G.gestionnaires.renvoiSansEmail] }
+  })
+
+  const ouvrirAcces = () => executer(async () => {
+    const r = await ouvrirAccesGestionnaireQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [r.emailEnvoye ? remplir(G.acces.envoye, { email: g.email ?? '' }) : G.acces.nonParti] }
+  })
+
+  // L'export ne modifie rien : pas de rechargement.
+  const exporter = async () => {
+    if (occupe) return
+    setOccupe(true)
+    setErreur(null)
+    const r = await exporterGestionnaireQr(g.id)
+    setOccupe(false)
+    if (!r.ok) return setErreur(messageEchecQr(r.code))
+    telechargerFichier(r.nomFichier, r.fichier)
+    setMessages([G.fiche.exportPret])
+  }
+
+  return (
+    <div className="space-y-6">
+      <Bouton variante="discret" icone="retour" onClick={onRetour}>{G.fiche.retour}</Bouton>
+      {annonces}
+
+      <Carte
+        titre={g.nom ?? G.fiche.ancien}
+        sousTitre={sousTitreFicheQr(g)}
+        actions={<Badge ton={TON[g.etat]}>{ETAT[g.etat]}</Badge>}
+      >
+        <div className="space-y-3">
+          {g.email && <p className="break-all text-base text-[#1F2D3D]">{g.email}</p>}
+          <div className="flex flex-wrap gap-2">
+            {g.domaineForce && <Badge ton="ambre">{G.gestionnaires.domaineForce}</Badge>}
+            {g.confirmeeLe && <span className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.confirmeeLe, { date: dateParisQr(g.confirmeeLe) })}</span>}
+            {g.accesOuvertLe && <span className="text-sm text-[#4A5E78]">{remplir(G.acces.ouvertLe, { date: dateParisQr(g.accesOuvertLe) })}</span>}
+            {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
+            {connexionABloquerQr(g) && <Badge ton="ambre">{G.compte.aBloquer}</Badge>}
+            {connexionADebloquerQr(g) && <Badge ton="ambre">{G.compte.bloqueeBadge}</Badge>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!efface && <Bouton variante="secondaire" petit icone="outil" disabled={occupe} onClick={() => { setNouveauNom(g.nom ?? ''); setPanneau('nom') }}>{G.fiche.modifierNom}</Bouton>}
+            {!efface && changementBureauPossibleQr(g, cabinets) && (
+              <Bouton variante="secondaire" petit icone="outil" disabled={occupe} onClick={() => setPanneau('bureau')}>{BG.changer}</Bouton>
+            )}
+            {(g.etat === 'confirmation_envoyee' || g.etat === 'confirmation_expiree') && (
+              <Bouton variante="secondaire" petit icone="envoyer" disabled={occupe} onClick={() => { void renvoyer() }}>{G.gestionnaires.renvoyer}</Bouton>
+            )}
+            {actionAcces && (
+              <Bouton variante="secondaire" petit icone="cadenas" disabled={occupe} onClick={() => { void ouvrirAcces() }}>
+                {actionAcces === 'renvoyer' ? G.acces.renvoyer : G.acces.ouvrir}
+              </Bouton>
+            )}
+            <Bouton variante="secondaire" petit icone="documents" disabled={occupe} onClick={() => { void exporter() }}>{G.fiche.exporter}</Bouton>
+            {!desactive && <Bouton variante="danger" petit icone="deconnexion" disabled={occupe} onClick={() => setPanneau('depart')}>{G.fiche.depart}</Bouton>}
+            {desactive && !efface && <Bouton variante="secondaire" petit icone="actualiser" disabled={occupe} onClick={() => { void reactiver() }}>{G.gestionnaires.reactiver}</Bouton>}
+            {desactive && !efface && <Bouton variante="danger" petit disabled={occupe} onClick={() => setPanneau('effacer')}>{G.fiche.effacer}</Bouton>}
+            {connexionABloquerQr(g) && <Bouton variante="danger" petit icone="cadenas" disabled={occupe} onClick={() => { void bloquer() }}>{G.compte.bloquer}</Bouton>}
+            {connexionADebloquerQr(g) && <Bouton variante="secondaire" petit icone="cadenas" disabled={occupe} onClick={() => { void debloquer() }}>{G.compte.debloquer}</Bouton>}
+            {compteASupprimerQr(g) && <Bouton variante="danger" petit disabled={occupe} onClick={() => { void supprimerCompte() }}>{G.compte.supprimerCompte}</Bouton>}
+          </div>
+
+          {panneau === 'nom' && (
+            <form className="space-y-3 border-t border-[#E4DDD0] pt-3" onSubmit={(e) => { e.preventDefault(); void renommer() }}>
+              <Champ id={`${idBase}-nom`} etiquette={G.fiche.nouveauNom}>
+                <input id={`${idBase}-nom`} value={nouveauNom} onChange={(e) => setNouveauNom(e.target.value)} maxLength={120} className={CLASSES_SAISIE} />
+              </Champ>
+              <div className="flex flex-wrap gap-2">
+                <Bouton variante="principal" type="submit" petit disabled={occupe}>{G.enregistrer}</Bouton>
+                <Bouton variante="secondaire" petit disabled={occupe} onClick={() => setPanneau(null)}>{G.annuler}</Bouton>
+              </div>
+            </form>
+          )}
+          {panneau === 'bureau' && (
+            <PanneauBureauQr id={`${idBase}-bureau`} fiche={g} occupe={occupe} onEnregistrer={(b, siRefus) => { void changerBureau(b, siRefus) }} onAnnuler={() => setPanneau(null)} />
+          )}
+          {panneau === 'effacer' && (
+            <div className="space-y-3 border-t border-[#E4DDD0] pt-3">
+              <Encadre ton="avertissement">{G.fiche.effacerAvertissement}</Encadre>
+              <div className="flex flex-wrap gap-2">
+                <Bouton variante="danger" petit disabled={occupe} onClick={() => { void effacer() }}>{G.fiche.confirmerEffacer}</Bouton>
+                <Bouton variante="secondaire" petit disabled={occupe} onClick={() => setPanneau(null)}>{G.annuler}</Bouton>
+              </div>
+            </div>
+          )}
+        </div>
+      </Carte>
+
+      <Carte titre={G.fiche.envois}>
+        {envois.length === 0 ? <p className="text-sm text-[#4A5E78]">{G.fiche.aucunEnvoi}</p> : (
+          <ul className="space-y-2">
+            {envois.map((e) => (
+              <li key={`${e.objet}-${e.creeLe}`} className="text-sm text-[#1F2D3D]">
+                <span className="font-semibold">{G.fiche.objets[e.objet]}</span> — {texteEnvoi(e)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Carte>
+
+      <Carte titre={G.fiche.suivi} sousTitre={G.fiche.suiviAide}>
+        <SuiviGestionnaireQr gestionnaireId={g.id} onInformer={onInformer} />
+      </Carte>
+
+      <Carte titre={remplir(G.fiche.attribuees, { n: attributions.length })}>
+        <div className="space-y-4">
+          {attributions.length === 0 ? <p className="text-sm text-[#4A5E78]">{G.fiche.aucuneAttribuee}</p> : (
+            <ul className="space-y-2">
+              {attributions.map((a) => (
+                <li key={a.coproprieteId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#F7F4EE] px-4 py-2">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-[#0D1B2E]">{a.nom}</span>
+                    <p className="text-sm text-[#4A5E78]">{remplir(G.fiche.attribueeLe, { origine: LIBELLE_ORIGINE_ATTRIBUTION_QR[a.origine], date: dateParisQr(a.creeLe) })}</p>
+                  </div>
+                  {!desactive && (
+                    <Bouton variante="discret" petit disabled={occupe} onClick={() => { void attribuer(attributions.filter((x) => x.coproprieteId !== a.coproprieteId).map((x) => x.coproprieteId)) }}>
+                      {G.fiche.retirer}
+                    </Bouton>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!desactive && (panneau === 'ajout' ? (
+            <div className="space-y-3">
+              <ChoixCoproprietesQr legende={G.fiche.choisirCopros} coproprietes={ajoutables} selection={ajout} onChange={setAjout} />
+              <div className="flex flex-wrap gap-2">
+                <Bouton variante="principal" petit disabled={occupe || ajout.length === 0} onClick={() => { void attribuer([...attribuees, ...ajout]) }}>{G.fiche.attribuer}</Bouton>
+                <Bouton variante="secondaire" petit disabled={occupe} onClick={() => { setAjout([]); setPanneau(null) }}>{G.annuler}</Bouton>
+              </div>
+            </div>
+          ) : (
+            <Bouton variante="secondaire" petit icone="plus" disabled={occupe} onClick={() => setPanneau('ajout')}>{G.fiche.ajouterCopros}</Bouton>
+          ))}
+        </div>
+      </Carte>
+
+      {communes.length > 0 && (
+        <Carte titre={remplir(G.fiche.communes, { n: communes.length })} sousTitre={G.fiche.communesAide}>
+          <ul className="list-disc space-y-1 pl-5 text-base text-[#1F2D3D]">
+            {communes.map((c) => <li key={c.id}>{c.nom}</li>)}
+          </ul>
+        </Carte>
+      )}
+
+      {creations.length > 0 && (
+        <Carte titre={remplir(G.fiche.creations, { n: creations.length })}>
+          <ul className="list-disc space-y-1 pl-5 text-base text-[#1F2D3D]">
+            {creations.map((c) => <li key={c.id}>{c.nom}</li>)}
+          </ul>
+        </Carte>
+      )}
+
+      <Carte titre={G.fiche.activite}>
+        {journal.length === 0 ? <p className="text-sm text-[#4A5E78]">{G.fiche.aucuneActivite}</p> : (
+          <ul className="space-y-2">
+            {journal.map((e) => (
+              <li key={e.id} className="text-sm text-[#1F2D3D]">
+                {dateHeureParis(e.creeLe)} · {LIBELLE_ACTION_JOURNAL_QR[e.action]} · {auteurJournalQr(e)}{e.coproprieteNom ? ` · ${e.coproprieteNom}` : ''}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Carte>
+
+      {panneau === 'depart' && (
+        <Modale titre={remplir(G.depart.titre, { nom: g.nom ?? G.fiche.ancien })} onFermer={() => setPanneau(null)} labelFermer={G.fermer}>
+          <FenetreDepartGestionnaireQr
+            fiche={g} attributions={attributions} coproprietes={coproprietes} gestionnaires={gestionnaires ?? []}
+            onFermer={() => setPanneau(null)}
+            onFait={(bilan) => conclure(
+              [remplir(G.depart.fait, { deplacees: bilan.deplacees, sans: bilan.laisseesSansGestionnaire })],
+              bilan.connexionNonBloquee ? G.compte.nonBloquee : null,
+            )}
+          />
+        </Modale>
+      )}
+    </div>
+  )
+}
+
+// ── Panneau « Changer de bureau » (E4) ───────────────────────────────────────
+
+interface PropsPanneauBureau {
+  id: string
+  fiche: GestionnaireQr
+  occupe: boolean
+  /** Bureau choisi ; `siRefus` reçoit le code d'un refus (bureaux relus quand il le demande). */
+  onEnregistrer: (bureau: BureauResumeQr, siRefus: (code: CodeErreurQr) => void) => void
+  onAnnuler: () => void
+}
+
+/**
+ * Bureaux du cabinet de la fiche, lus à l'ouverture du panneau (même si la liste des cabinets n'est pas à jour) ; les
+ * ouverts sauf l'actuel. Aucun à proposer : le dit, « Aucun autre bureau ouvert… » pour une fiche qui a un bureau (même
+ * fermé), « Aucun bureau ouvert… » pour une fiche qui n'en a pas (point e-12). Jamais d'option « aucun » : le bureau
+ * d'une fiche se change, il ne se retire pas (choix 2 ; la route le refuse).
+ */
+function PanneauBureauQr({ id, fiche, occupe, onEnregistrer, onAnnuler }: Readonly<PropsPanneauBureau>) {
+  const [choix, setChoix] = useState('')
+  const { lecture, ouverts, recharger } = useBureauxCabinetQr({ id: fiche.cabinet.id }, { toujours: true })
+  const proposes = ouverts.filter((b) => b.id !== fiche.bureau?.id)
+  const choisi = proposes.find((b) => b.id === choix)
+  const siRefus = (code: CodeErreurQr) => {
+    if (refusBureauARelireQr(code, true)) void recharger()
+  }
+  return (
+    <form
+      className="space-y-3 border-t border-[#E4DDD0] pt-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (choisi) onEnregistrer(choisi, siRefus)
+      }}
+    >
+      <ChoixBureauQr
+        id={id} etiquette={BG.nouveauBureau} aide={BG.changerAide} lecture={lecture} bureaux={proposes} valeur={choisi?.id ?? ''} disabled={occupe}
+        vide={fiche.bureau ? BG.aucunAutre : BG.aucunOuvert} onChange={setChoix} onReessayer={() => { void recharger() }}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Bouton variante="principal" type="submit" petit disabled={occupe || !choisi}>{G.enregistrer}</Bouton>
+        <Bouton variante="secondaire" petit disabled={occupe} onClick={onAnnuler}>{G.annuler}</Bouton>
+      </div>
+    </form>
+  )
+}

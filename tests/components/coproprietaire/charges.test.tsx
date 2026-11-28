@@ -59,6 +59,7 @@ function reponseJson(corps: unknown, status = 200): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
 
@@ -228,6 +229,19 @@ describe('EcranCharges — états', () => {
     expect(carte).not.toHaveTextContent(/relance/i) // aucun retard enregistré dans la démo : pas de relance
   })
 
+  it('plusieurs appels en retard : la carte donne leur somme, depuis l’échéance du plus ancien (pas le seul plus ancien)', () => {
+    const appels = [
+      appel({ id: 't2', exercice: '2026-T2', echeance: '2026-04-01', montantTotal: 1524.6, montantPaye: 0, resteAPayer: 1524.6, statut: 'en_retard' }),
+      appel({ id: 't1', exercice: '2026-T1', echeance: '2026-01-01', montantTotal: 1524.6, montantPaye: 1209.2, resteAPayer: 315.4, statut: 'partiellement_paye' }),
+      appel({ id: 't4', exercice: '2026-T4', echeance: '2026-12-01', resteAPayer: 855, statut: 'a_payer' }),
+    ]
+    const { container } = render(<EcranCharges {...props(espaceAvec({ appels, solde: -1840 }), { miseAJourLe: APRES_ECHEANCE })} />)
+
+    const carte = carteDue(container)
+    expect(carte).toHaveTextContent(n(remplir(t.charges.retard, { montant: euros(1840), date: dateLongue('2026-01-01') })))
+    expect(carte).not.toHaveTextContent(n(euros(315.4)))
+  })
+
   it('sans IBAN communiqué : encadré « ibanInconnu », la référence reste copiable', () => {
     render(<EcranCharges {...props(espaceAvec({ appels: [appel({ iban: '' })] }))} />)
 
@@ -256,14 +270,16 @@ describe('EcranCharges — PDF d’une facture', () => {
   }
 
   it('avec jeton : demande l’URL signée en Bearer puis ouvre un nouvel onglet', async () => {
-    const fetchMock = vi.fn(async () => reponseJson({ url: 'https://exemple.test/facture-0042.pdf' }))
+    // L'URL signée vient du stockage Supabase : safeOpen n'ouvre que cette origine.
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+    const fetchMock = vi.fn(async () => reponseJson({ url: 'https://projet-test.supabase.co/storage/v1/object/sign/factures/facture-0042.pdf?token=jeton-factice' }))
     vi.stubGlobal('fetch', fetchMock)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
 
     render(<EcranCharges {...props(factureAvecPdf(), { jeton: 'jeton-test' })} />)
     fireEvent.click(screen.getByRole('button', { name: t.charges.ouvrirPdf }))
 
-    await waitFor(() => expect(open).toHaveBeenCalledWith('https://exemple.test/facture-0042.pdf', '_blank', 'noopener'))
+    await waitFor(() => expect(open).toHaveBeenCalledWith('https://projet-test.supabase.co/storage/v1/object/sign/factures/facture-0042.pdf?token=jeton-factice', '_blank', 'noopener,noreferrer'))
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/coproprietaire/factures/demo-fact-1/pdf',
@@ -318,6 +334,21 @@ describe('EcranCharges — PDF d’une facture', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(t.documents.erreurOuverture)
     expect(open).not.toHaveBeenCalled()
   })
+
+  it('URL hors du stockage Supabase : traitée comme une erreur, rien n’est ouvert', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+    vi.stubGlobal('fetch', vi.fn(async () => reponseJson({ url: 'https://evil.example/facture-0042.pdf' })))
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    render(<EcranCharges {...props(factureAvecPdf(), { jeton: 'jeton-test' })} />)
+    fireEvent.click(screen.getByRole('button', { name: t.charges.ouvrirPdf }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.documents.erreurOuverture)
+    expect(open).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith('[safe-url] URL refusée')
+    await waitFor(() => expect(screen.getByRole('button', { name: t.charges.ouvrirPdf })).toBeEnabled())
+  })
 })
 
 describe('prochainAppelCharges', () => {
@@ -341,6 +372,17 @@ describe('prochainAppelCharges', () => {
     expect(resultat?.enRetard).toBe(false)
   })
 
+  it('montantEnRetard : somme des restes des appels en retard (statut ou échéance passée), 0 sans retard', () => {
+    const resultat = prochainAppelCharges([
+      appel({ id: 'a', echeance: '2026-09-01', resteAPayer: 315.4 }),
+      appel({ id: 'b', echeance: '2026-10-01', resteAPayer: 1524.6, statut: 'en_retard' }),
+      appel({ id: 'c', echeance: '2026-12-01', resteAPayer: 855 }),
+    ], le15)
+    expect(resultat).toMatchObject({ enRetard: true, montantEnRetard: 1840 })
+    expect(resultat?.appel.id).toBe('a')
+    expect(prochainAppelCharges([appel({ echeance: '2026-12-01' })], le15)?.montantEnRetard).toBe(0)
+  })
+
   it('en retard si le statut est en_retard, même avec une échéance future', () => {
     const resultat = prochainAppelCharges([appel({ echeance: '2026-11-30', statut: 'en_retard' })], le15)
     expect(resultat?.enRetard).toBe(true)
@@ -358,7 +400,7 @@ describe('prochainAppelCharges', () => {
       appel({ id: 'date', echeance: '2027-01-15' }),
     ], le15)
     expect(resultat?.appel.id).toBe('date')
-    expect(prochainAppelCharges([appel({ id: 'sans-date', echeance: '' })], le15)).toEqual({ appel: appel({ id: 'sans-date', echeance: '' }), enRetard: false })
+    expect(prochainAppelCharges([appel({ id: 'sans-date', echeance: '' })], le15)).toEqual({ appel: appel({ id: 'sans-date', echeance: '' }), enRetard: false, montantEnRetard: 0 })
   })
 
   it('un appel partiellement payé compte pour son reste', () => {

@@ -3,6 +3,10 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
+import { toast } from 'sonner'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
+import { absencesDetaillees, lireAbsencesArtisan } from '@/lib/absences-artisan'
 
 type SlotType = 'rdv' | 'visite'
 
@@ -24,6 +28,20 @@ export function useAvailability(
 
   const toggleAutoAccept = useCallback(async () => {
     const newVal = !autoAccept
+    if (estSousCompteSociete(artisan)) {
+      // Compte invité : la fiche est celle de la société, que la RLS ne le laisse pas modifier (elle filtrait sans
+      // erreur et l'interrupteur basculait quand même). Le serveur l'écrit s'il en a le droit ; l'interrupteur ne
+      // bascule qu'une fois l'enregistrement fait.
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const res = token
+        ? await authFetch('/api/artisan-settings', token, { method: 'POST', body: JSON.stringify({ auto_accept: newVal }) }).catch(() => null)
+        : null
+      if (res?.ok) { setAutoAccept(newVal); return }
+      const corps = res ? await res.json().catch(() => ({})) as { error?: string; code?: string } : {}
+      const estPt = typeof document !== 'undefined' && document.documentElement.lang.startsWith('pt')
+      toast.error(messageRefusDocuments({ message: corps.error || (estPt ? 'Não foi possível guardar.' : 'Enregistrement impossible.'), code: corps.code }, estPt))
+      return
+    }
     setAutoAccept(newVal)
     if (artisan) {
       await supabase.from('profiles_artisan').update({ auto_accept: newVal }).eq('id', artisan.id)
@@ -181,9 +199,12 @@ export function useAvailability(
   const loadCalendarData = useCallback(async (aid: string) => {
     if (calendarDataLoadedRef.current) return
     calendarDataLoadedRef.current = true
-    const [availRes, absRes, dsRes] = await Promise.all([
+    // Avec la session : le motif et le libellé des absences ne sont rendus qu'au propriétaire de la fiche.
+    // Cette lecture attend le jeton du compte : elle part en même temps que les deux autres mais ne les retient pas
+    // (session lente à lire → les disponibilités s'affichent quand même).
+    const absencesEnCours = lireAbsencesArtisan(aid).then(r => r.json()).catch(() => ({ data: [] }))
+    const [availRes, dsRes] = await Promise.all([
       fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
       fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
     let availData = availRes.data || []
@@ -229,8 +250,11 @@ export function useAvailability(
     }
 
     setAvailability(availData)
-    const apiAbsences = absRes.data || []
     if (dsRes.data) setDayServices(dsRes.data)
+    // Une réponse « dates seules » (session illisible ou non reconnue) n'est pas reportée : l'agenda garde les
+    // absences détaillées qu'il affiche déjà.
+    const absRes = await absencesEnCours
+    const apiAbsences = absencesDetaillees(absRes?.data) || []
     return apiAbsences // Return absences so caller can update absences hook
   }, [])
 

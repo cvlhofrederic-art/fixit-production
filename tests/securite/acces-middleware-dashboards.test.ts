@@ -12,7 +12,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-type Utilisateur = { app_metadata: { role?: string; _original_role?: string } }
+type Utilisateur = { app_metadata: { role?: string; _original_role?: string; aj_signalement_cabinet?: unknown; pro_team_role?: unknown } }
 
 let utilisateurCourant: Utilisateur | null = null
 let appelsGetUser = 0
@@ -37,6 +37,7 @@ async function visiter(chemin: string) {
   return {
     statut: reponse.status,
     vers: location ? new URL(location).pathname.replace(/(.)\/$/, '$1') : null,
+    requete: location ? new URL(location).search : null,
     cookieLocale: reponse.cookies.get('locale')?.value ?? null,
     csp: reponse.headers.get('content-security-policy'),
   }
@@ -109,6 +110,42 @@ describe('/{locale}/artisan/dashboard', () => {
   })
 })
 
+// Pages communes (connexion, tableaux de bord) réécrites sous /fr/ et /pt/ seulement (next.config.ts) : depuis /en/,
+// /nl/ ou /es/, les redirections visaient /en/artisan/dashboard/… en 404 (logo, « Find a professional », avis et
+// contact des pages EN mènent à /en/, que le middleware renvoie vers l'espace d'un compte connecté).
+describe('redirections depuis EN, NL et ES : vers les pages PT', () => {
+  it.each([
+    ['/en/', 'artisan', '/pt/artisan/dashboard'],
+    ['/nl/', 'client', '/pt/client/dashboard'],
+    ['/es/', 'pro_societe', '/pt/pro/dashboard'],
+    ['/en/', 'syndic', '/pt/syndic/dashboard'],
+    ['/nl/', 'coproprio', '/pt/coproprietaire/dashboard'],
+    ['/en/auth/login', 'artisan', '/pt/artisan/dashboard'],
+  ])('compte connecté sur %s (%s) → %s', async (chemin, role, attendu) => {
+    connecte(role)
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: attendu })
+  })
+
+  it('espace d’un autre rôle : vers le sien, sous /pt/', async () => {
+    connecte('artisan')
+    expect(await visiter('/en/client/dashboard/')).toMatchObject({ statut: 307, vers: '/pt/artisan/dashboard' })
+  })
+
+  it.each([
+    ['/en/artisan/dashboard/', '/pt/auth/login'],
+    ['/nl/syndic/dashboard/', '/pt/syndic/login'],
+    ['/es/coproprietaire/dashboard/', '/pt/coproprietaire/portail'],
+  ])('sans session, %s → %s', async (chemin, attendu) => {
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: attendu })
+  })
+
+  it('FR et PT gardent leur langue', async () => {
+    connecte('artisan')
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/artisan/dashboard' })
+    expect(await visiter('/pt/')).toMatchObject({ statut: 307, vers: '/pt/artisan/dashboard' })
+  })
+})
+
 describe('/pro/dashboard (inchangé)', () => {
   it('renvoie toujours un artisan vers /artisan/dashboard', async () => {
     connecte('artisan')
@@ -126,6 +163,80 @@ describe('/pro/dashboard (inchangé)', () => {
     expect(await visiter('/fr/pro/dashboard/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
     connecte('')
     expect(await visiter('/fr/pro/dashboard/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+  })
+})
+
+// Départ de l'appli Vitfix Pro (capacitor.config.ts : server.url + appStartPath '/pro/mobile/').
+describe('/{locale}/pro/mobile — espace mobile des artisans', () => {
+  it('départ sans langue : redirige vers la langue du pays', async () => {
+    for (const [pays, attendu] of [['FR', '/fr/pro/mobile/'], ['PT', '/pt/pro/mobile/']]) {
+      const reponse = await middleware(new NextRequest('https://vitfix.io/pro/mobile/', { headers: { 'cf-ipcountry': pays } }))
+      expect(reponse.status).toBe(302)
+      expect(new URL(reponse.headers.get('location') ?? '').pathname).toBe(attendu)
+    }
+  })
+
+  it('redirige un visiteur non connecté vers la connexion', async () => {
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/auth/login' })
+  })
+
+  it('laisse passer un artisan', async () => {
+    connecte('artisan')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  // Règle n° 1 artisan / BTP : une société BTP a aussi une fiche profiles_artisan, seule vérification de la page.
+  it.each(['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'])('renvoie un compte %s vers /pro/dashboard', async (role) => {
+    connecte(role)
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard', requete: '' })
+    expect(await visiter('/pt/pro/mobile')).toMatchObject({ statut: 307, vers: '/pt/pro/dashboard', requete: '' })
+  })
+
+  // Départ de l'appli d'un salarié de terrain : le pointage, son poste de travail (23/11/2026). Même décision que la
+  // connexion (lib/auth/destination-par-role, pageAppliSocieteBtp), vérifiée là-bas rôle par rôle.
+  it.each(['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'])('ouvre le pointage pour un salarié %s d’une société BTP', async (roleEquipe) => {
+    connecte('pro_societe', { pro_team_role: roleEquipe })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard', requete: '?p=pointage' })
+    expect(await visiter('/pt/pro/mobile')).toMatchObject({ statut: 307, vers: '/pt/pro/dashboard', requete: '?p=pointage' })
+  })
+
+  it.each(['GERANT', 'SECRETAIRE', 'COMPTABLE'])('garde le tableau de bord pour un compte %s', async (roleEquipe) => {
+    connecte('pro_societe', { pro_team_role: roleEquipe })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard', requete: '' })
+  })
+
+  it('un rôle d’équipe sur un compte qui n’est pas une société BTP ne change rien', async () => {
+    for (const role of ['pro_conciergerie', 'pro_gestionnaire']) {
+      connecte(role, { pro_team_role: 'OUVRIER' })
+      expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/pro/dashboard', requete: '' })
+    }
+  })
+
+  it('un rôle d’équipe non textuel suit le tableau de bord', async () => {
+    connecte('pro_societe', { pro_team_role: 42 })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/pro/dashboard', requete: '' })
+  })
+
+  // Le pointage ne s'ouvre que depuis le départ de l'appli : /artisan/dashboard garde sa redirection d'avant.
+  it('un salarié de terrain qui visite /artisan/dashboard est renvoyé sans le pointage', async () => {
+    connecte('pro_societe', { pro_team_role: 'OUVRIER' })
+    expect(await visiter('/fr/artisan/dashboard/')).toMatchObject({ vers: '/fr/pro/dashboard', requete: '' })
+  })
+
+  // La requête d'origine reste reprise telle quelle par les autres redirections (localeRedirect).
+  it('une redirection sans requête à elle garde celle de l’adresse visitée', async () => {
+    expect(await visiter('/fr/pro/dashboard/?p=pointage')).toMatchObject({ statut: 307, vers: '/fr/auth/login', requete: '?p=pointage' })
+    connecte('client')
+    expect(await visiter('/fr/pro/mobile/?x=1')).toMatchObject({ vers: '/fr/client/dashboard', requete: '?x=1' })
+  })
+
+  it('renvoie client, syndic et copropriétaire vers leur espace', async () => {
+    connecte('client')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/client/dashboard' })
+    connecte('syndic')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/syndic/dashboard' })
+    connecte('coproprio')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/coproprietaire/dashboard' })
   })
 })
 
@@ -157,6 +268,42 @@ describe('/admin/dashboard', () => {
   })
 })
 
+// CRM du secrétariat (22/11/2026) : le compte « secretariat » n'a que l'écran /admin/crm (route interne sans langue).
+describe('compte secretariat : aiguillé vers le CRM', () => {
+  it.each(['/fr/', '/pt/', '/en/', '/fr/auth/login', '/pt/auth/login'])('%s → /admin/crm, sans préfixe de langue', async (chemin) => {
+    connecte('secretariat')
+    const r = await visiter(chemin)
+    expect(r).toMatchObject({ statut: 307, vers: '/admin/crm', cookieLocale: null })
+    expect(r.csp).toContain("default-src 'self'")
+  })
+
+  it.each([
+    '/fr/client/dashboard/',
+    '/pt/pro/dashboard/',
+    '/fr/pro/mobile/',
+    '/pt/artisan/dashboard/',
+    '/fr/syndic/dashboard/',
+    '/fr/coproprietaire/dashboard/',
+  ])('tableau de bord d’un autre compte (%s) → /admin/crm', async (chemin) => {
+    connecte('secretariat')
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: '/admin/crm' })
+  })
+
+  it('l’écran du CRM est servi (la page et les routes /api/crm décident de l’accès)', async () => {
+    connecte('secretariat')
+    expect(await visiter('/admin/crm/')).toMatchObject({ statut: 200, vers: null, cookieLocale: null })
+    utilisateurCourant = null
+    expect(await visiter('/admin/crm/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  it('un rôle voisin ou le super admin gardent leurs destinations', async () => {
+    connecte('secretariat_x')
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+    connecte('super_admin')
+    expect(await visiter('/fr/admin/crm/')).toMatchObject({ statut: 307, vers: '/admin/crm' })
+  })
+})
+
 describe('routes non concernées', () => {
   it('n’interroge pas Supabase pour les routes /api/', async () => {
     connecte('artisan')
@@ -176,5 +323,68 @@ describe('routes non concernées', () => {
     expect(await visiter('/fr/artisan/dashboard-plomberie/')).toMatchObject({ statut: 200, vers: null })
     expect(await visiter('/fr/artisan/dashboard-plomberie')).toMatchObject({ statut: 200, vers: null })
     expect(appelsGetUser).toBe(0)
+  })
+})
+
+// ── AJ Signalement, PR 2 lot 4 : un compte gestionnaire (rôle gestionnaire_signalement) n'a qu'un espace, celui de SON
+// cabinet (vitfix.io/<identifiant>/suivi/), désigné par le repère de routage app_metadata.aj_signalement_cabinet. Il y
+// est aiguillé depuis l'accueil, la connexion générale et tous les tableaux de bord, dans toute langue, jamais vers
+// /pt/<identifiant>/. Sans repère : accueil et connexion générale → connexion de l'espace (message neutre).
+describe('gestionnaire AJ Signalement : aiguillé vers l’espace de son cabinet', () => {
+  const gestionnaire = (repere?: unknown) => connecte('gestionnaire_signalement', repere === undefined ? {} : { aj_signalement_cabinet: repere })
+
+  it.each([
+    '/fr/', '/pt/', '/en/', '/nl/', '/es/', '/fr/auth/login', '/pt/auth/login', '/en/auth/login',
+    '/fr/client/dashboard/', '/pt/client/dashboard/', '/fr/pro/dashboard/', '/fr/pro/mobile/', '/fr/artisan/dashboard/',
+    '/pt/artisan/dashboard/', '/fr/syndic/dashboard/', '/fr/syndic/login/', '/fr/coproprietaire/dashboard/',
+    '/fr/administrateur-judiciaire/', '/pt/administrateur-judiciaire/',
+  ])('%s → /cabinet-exemple/suivi/', async (chemin) => {
+    gestionnaire('cabinet-exemple')
+    const r = await visiter(chemin)
+    expect(r).toMatchObject({ statut: 307, vers: '/cabinet-exemple/suivi' })
+    expect(r.csp).toContain("default-src 'self'")
+    expect(r.cookieLocale).toBeNull()
+  })
+
+  it.each(['/fr/', '/pt/', '/en/', '/fr/auth/login', '/pt/auth/login'])(
+    'sans repère (ou repère mal formé), %s → connexion de l’espace AJ Signalement (message neutre)',
+    async (chemin) => {
+      for (const repere of [undefined, 'Cabinet-Exemple', 42]) {
+        gestionnaire(repere)
+        expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: '/fr/aj-signalement/connexion' })
+      }
+    },
+  )
+
+  // La connexion générale avec sa barre finale (/fr/auth/login/, adresse servie en trailingSlash) n'est pas lue par le
+  // middleware avec la session, pour aucun rôle : inchangé. La page elle-même envoie un compte connecté vers
+  // destinationApresConnexion, qui mène un gestionnaire à /fr/aj-signalement/, d'où il est aiguillé (ci-dessus).
+  it('/fr/auth/login/ (barre finale) : servie comme aujourd’hui, sans lecture de session', async () => {
+    gestionnaire('cabinet-exemple')
+    expect(await visiter('/fr/auth/login/')).toMatchObject({ statut: 200, vers: null })
+    expect(appelsGetUser).toBe(0)
+  })
+
+  it('sans repère, tableaux de bord : comme aujourd’hui (aucun espace propre)', async () => {
+    gestionnaire()
+    expect(await visiter('/fr/client/dashboard/')).toMatchObject({ statut: 200, vers: null })
+    expect(await visiter('/fr/pro/dashboard/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+  })
+
+  it('pages publiques : aucun aiguillage (fiche artisan, blog)', async () => {
+    gestionnaire('cabinet-exemple')
+    expect(await visiter('/fr/artisan/abc123/')).toMatchObject({ statut: 200, vers: null })
+    expect(await visiter('/fr/blog/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  it('les autres rôles gardent leurs destinations (repère ignoré sans le rôle)', async () => {
+    connecte('artisan', { aj_signalement_cabinet: 'cabinet-exemple' })
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/artisan/dashboard' })
+    connecte('client', { aj_signalement_cabinet: 'cabinet-exemple' })
+    expect(await visiter('/fr/auth/login')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+    connecte('syndic')
+    expect(await visiter('/fr/client/dashboard/')).toMatchObject({ statut: 307, vers: '/fr/syndic/dashboard' })
+    connecte('super_admin')
+    expect(await visiter('/fr/syndic/dashboard/')).toMatchObject({ statut: 200, vers: null })
   })
 })

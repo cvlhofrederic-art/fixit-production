@@ -1,0 +1,903 @@
+{
+  "famille": {
+    "id": "abrasivos-limpeza",
+    "nom": "Abrasivos, decapagem e limpeza de obra",
+    "description": "Lixas manuais e de máquina, lã de aço, escovas de arame, decapantes e produtos de ferrugem, ácidos, soda e desincrustantes, produtos anti-bolor e anti-musgo, desengordurantes e os utensílios de limpeza de fim de obra.",
+    "icone": "🧽",
+    "sousFamilles": [
+      {
+        "id": "lixas-manuais",
+        "nom": "Lixas manuais e lã de aço",
+        "description": "Lixas em folha e rolo, esponjas abrasivas, blocos para lixar à mão e lã de aço."
+      },
+      {
+        "id": "lixas-maquina",
+        "nom": "Lixas e discos para máquinas",
+        "description": "Consumíveis para lixadeiras orbitais, delta, excêntricas, de cinta, de parede e para rebarbadora."
+      },
+      {
+        "id": "escovas-arame",
+        "nom": "Escovas de arame",
+        "description": "Escovas de aço manuais e para berbequim ou rebarbadora."
+      },
+      {
+        "id": "decapagem-ferrugem",
+        "nom": "Decapagem de tintas e vernizes",
+        "description": "Produtos para amolecer e remover tintas e vernizes antigos antes de repintar."
+      },
+      {
+        "id": "acidos-desincrustantes",
+        "nom": "Ácidos, soda cáustica e desincrustantes",
+        "description": "Produtos químicos fortes para remover cimento, calcário, gordura entranhada e sujidade incrustada em pavimentos, juntas, canos e louças."
+      },
+      {
+        "id": "bolor-desinfecao",
+        "nom": "Bolor, musgo e desinfeção",
+        "description": "Lixívia e produtos para eliminar bolor, fungos, algas e musgo antes de pintar ou na limpeza de telhados e fachadas."
+      },
+      {
+        "id": "desengordurantes-solventes",
+        "nom": "Desengordurantes e solventes de limpeza",
+        "description": "Produtos para tirar gordura, colas, silicone e para a limpeza final."
+      },
+      {
+        "id": "utensilios-limpeza",
+        "nom": "Panos, esponjas e baldes",
+        "description": "Utensílios para limpar durante e no fim da obra."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "lixa-madeira-folha",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Lixa de madeira em folha (grão 80 a 220)",
+      "aussiAppele": [
+        "lixa de marceneiro",
+        "lixa de papel",
+        "folha de lixa",
+        "lixa para parede"
+      ],
+      "usage": "Lixagem manual de madeira, massas e paredes antes de pintar ou envernizar.",
+      "aSavoir": "Grão baixo (40-80) desbasta, médio (100-150) alisa, fino (180-240) dá o acabamento antes da última demão.",
+      "conditionnement": "Folha avulsa 230x280 mm ou pack sortido",
+      "recherche": "lixa madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lixa-ferro-folha",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Lixa de ferro em folha (grão 60 a 240)",
+      "aussiAppele": [
+        "lixa de pano",
+        "lixa esmeril",
+        "lixa para metal",
+        "tela esmeril"
+      ],
+      "usage": "Remoção de ferrugem e de tinta velha em ferro e outros metais antes de pintar.",
+      "conditionnement": "Folha avulsa",
+      "recherche": "lixa ferro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lixa-agua",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Lixa de água (grão 240 a 2000)",
+      "aussiAppele": [
+        "lixa d'água",
+        "lixa à prova de água",
+        "lixa fina"
+      ],
+      "usage": "Lixagem fina a húmido entre demãos de esmalte ou verniz e em betumes e primários.",
+      "aSavoir": "Usa-se molhada, o que evita pó e riscos; quanto mais alto o grão, mais fino o acabamento.",
+      "conditionnement": "Folha avulsa ou pack de 5",
+      "recherche": "lixa de água",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lixa-rolo",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Lixa em rolo (115 mm de largura)",
+      "aussiAppele": [
+        "rolo de lixa",
+        "lixa a metro"
+      ],
+      "usage": "Lixa para cortar à medida, para talocha de lixar, bloco ou lixadeira orbital.",
+      "conditionnement": "Rolo de 115 mm x 2,5 m ou 5 m, grão fino, médio ou grosso",
+      "recherche": "rolo lixa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esponja-abrasiva",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Esponja abrasiva (taco de lixar)",
+      "aussiAppele": [
+        "taco abrasivo",
+        "esponja de lixar",
+        "bloco abrasivo",
+        "esponja lixa"
+      ],
+      "usage": "Lixagem de cantos, molduras, rodapés e superfícies curvas, onde a folha de lixa não assenta.",
+      "conditionnement": "Unidade ou pack de 2-3, grão fino, médio ou grosso",
+      "recherche": "esponja abrasiva",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bloco-de-lixar",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Bloco de lixar (suporte para lixa)",
+      "aussiAppele": [
+        "taco de lixa",
+        "suporte de lixa",
+        "calço de lixar"
+      ],
+      "usage": "Suporte onde se prende a folha de lixa para lixar à mão superfícies planas com pressão uniforme.",
+      "conditionnement": "Unidade ou pack de 2",
+      "recherche": "suporte lixa",
+      "rechercheEnseigne": {
+        "maxmat": "bloco de lixar"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "la-de-aco",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-manuais",
+      "nom": "Lã de aço",
+      "aussiAppele": [
+        "palha de aço",
+        "lã de aço fina",
+        "lã de aço 000"
+      ],
+      "usage": "Preparação e polimento fino de madeira e metais, limpeza dos restos de decapante em molduras e madeira torneada e matização entre demãos de verniz ou cera.",
+      "aSavoir": "Vende-se por graus, do muito fino (000) ao grosso. Limpar bem o pó no fim: as fibras que ficam presas na madeira enferrujam e mancham com produtos de água.",
+      "conditionnement": "Pacote ou rolo de cerca de 100 g",
+      "recherche": "lã de aço",
+      "rechercheEnseigne": {
+        "maxmat": "palha de aço"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lixa-lixadeira-orbital",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Lixa para lixadeira orbital (93x230 / 115x280 mm)",
+      "aussiAppele": [
+        "folha para lixadora",
+        "lixa retangular",
+        "lixa para lixadeira vibratória"
+      ],
+      "usage": "Folhas de lixa para lixadeiras orbitais (vibratórias) em madeira, massas e pintura velha.",
+      "aSavoir": "Confirmar a medida da base da máquina e se a fixação é por pinça ou velcro; os furos têm de coincidir com a aspiração.",
+      "conditionnement": "Pack de 5, 10 ou 25 folhas",
+      "recherche": "lixa 93x230",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lixa-velcro-triangular",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Lixa triangular com velcro (lixadeira delta / multiferramenta)",
+      "aussiAppele": [
+        "lixa delta",
+        "triângulo de lixa",
+        "lixa para multiferramenta",
+        "lixa de cantos"
+      ],
+      "usage": "Lixagem de cantos, aros e recantos com lixadeira delta ou multiferramenta.",
+      "aSavoir": "Existem várias medidas de triângulo (93x93, 95x145 mm…): confirmar a da máquina.",
+      "conditionnement": "Pack de 3 a 6 unidades",
+      "recherche": "lixa delta",
+      "rechercheEnseigne": {
+        "maxmat": "lixa triangular com velcro"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-lixa-velcro",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Disco de lixa com velcro (125 / 150 mm)",
+      "aussiAppele": [
+        "lixa redonda velcro",
+        "disco para lixadeira excêntrica",
+        "lixa roto-orbital",
+        "lixa perfurada 125"
+      ],
+      "usage": "Discos para lixadeira excêntrica (roto-orbital) em madeira, massas e repintura.",
+      "aSavoir": "Confirmar o diâmetro e o padrão de furos de aspiração da máquina.",
+      "conditionnement": "Pack de 5, 6, 10 ou 25 discos",
+      "recherche": "disco lixa 125",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cinta-lixa",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Cinta de lixa (75x457 / 75x533 mm)",
+      "aussiAppele": [
+        "banda de lixa",
+        "lixa de banda",
+        "lixa de cinta",
+        "cinta abrasiva"
+      ],
+      "usage": "Cintas para lixadeira de cinta, para desbaste rápido de soalho, portas e tampos.",
+      "aSavoir": "Confirmar largura e comprimento da cinta da máquina e montar no sentido da seta.",
+      "conditionnement": "Pack de 2 a 6 cintas",
+      "recherche": "cinta lixa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-lixa-rebarbadora",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Disco de lixa para rebarbadora (115 / 125 mm)",
+      "aussiAppele": [
+        "disco de fibra",
+        "disco de lixar",
+        "lixa para rebarbadora",
+        "disco de lixa para rebarbadora",
+        "disco abrasivo",
+        "lixa de rebarbadora"
+      ],
+      "usage": "Desbaste de ferrugem, tinta e soldaduras com rebarbadora.",
+      "aSavoir": "Precisa de prato de apoio montado na rebarbadora. Usar óculos e luvas.",
+      "conditionnement": "Unidade ou pack de 3-10 discos",
+      "recherche": "disco lixa 125x22",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-lamelas",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Disco de lamelas para rebarbadora",
+      "aussiAppele": [
+        "disco de lâminas",
+        "disco flap",
+        "disco lamelado"
+      ],
+      "usage": "Desbaste e acabamento de metal, remoção de ferrugem e de cordões de soldadura com rebarbadora.",
+      "aSavoir": "Monta-se diretamente no veio da rebarbadora (furo 22 mm). Usar óculos e luvas.",
+      "conditionnement": "Unidade, 115 ou 125 mm",
+      "recherche": "disco lamelas",
+      "rechercheEnseigne": {
+        "maxmat": "disco de lâminas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-lixa-parede-225",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "lixas-maquina",
+      "nom": "Disco de lixa para lixadeira de paredes (225 mm)",
+      "aussiAppele": [
+        "lixa para girafa",
+        "disco para lixadora de teto",
+        "lixa de pladur 225"
+      ],
+      "usage": "Lixagem de massas em paredes e tetos de estuque ou gesso cartonado com lixadeira de braço.",
+      "aSavoir": "Confirmar o diâmetro e os furos da máquina.",
+      "conditionnement": "Pack de 3 ou 5 discos",
+      "recherche": "disco lixa 225",
+      "rechercheEnseigne": {
+        "maxmat": "disco 225"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escova-arame-manual",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "escovas-arame",
+      "nom": "Escova de arame manual",
+      "aussiAppele": [
+        "escova de aço",
+        "escova metálica",
+        "catrabucha manual",
+        "escova de arame",
+        "catrabucha",
+        "escova de copo"
+      ],
+      "usage": "Remoção à mão de ferrugem, tinta solta, salitre e restos de argamassa.",
+      "aSavoir": "Em inox e alumínio o arame de aço deixa partículas que depois enferrujam: usar escova de inox ou de latão.",
+      "conditionnement": "Unidade",
+      "recherche": "escova de aço",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escova-arame-berbequim",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "escovas-arame",
+      "nom": "Escova de arame para berbequim (haste)",
+      "aussiAppele": [
+        "catrabucha",
+        "escova metálica de copo",
+        "escova de disco para berbequim",
+        "escova circular"
+      ],
+      "usage": "Decapagem de ferrugem e tinta em peças pequenas, cantos e ferragens, montada no berbequim.",
+      "aSavoir": "Usar sempre óculos: os arames soltam-se. Respeitar a rotação máxima indicada.",
+      "conditionnement": "Unidade (copo, disco ou pincel) ou conjunto de 3",
+      "recherche": "escova metálica berbequim",
+      "rechercheEnseigne": {
+        "maxmat": "escova metálica de copo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escova-arame-rebarbadora",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "escovas-arame",
+      "nom": "Escova de arame para rebarbadora (copo M14)",
+      "aussiAppele": [
+        "catrabucha para rebarbadora",
+        "escova de copo M14",
+        "escova de taça"
+      ],
+      "usage": "Decapagem rápida de ferrugem e tinta em grandes superfícies de ferro (portões, vigas, chapas) com rebarbadora.",
+      "aSavoir": "Usar óculos ou viseira e luvas: projeta arames. Confirmar a rotação máxima da escova.",
+      "conditionnement": "Unidade",
+      "recherche": "escova copo M14",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "decapante-tintas-vernizes",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "decapagem-ferrugem",
+      "nom": "Decapante de tintas e vernizes (gel)",
+      "aussiAppele": [
+        "decapante universal",
+        "removedor de tinta",
+        "tira-tintas",
+        "decapante para madeira",
+        "decapante para metais",
+        "decapante de tintas e vernizes",
+        "decapante",
+        "decapante em gel",
+        "decapante de madeira",
+        "decapante de metais"
+      ],
+      "usage": "Remoção de tinta e verniz velhos em madeira, metal e outras bases antes de repintar.",
+      "aSavoir": "Aplicar em camada grossa, deixar atuar e raspar com espátula. Luvas, óculos e ventilação; limpar a superfície como indica a embalagem antes de pintar.",
+      "conditionnement": "Lata de 0,25 L a 2,5 L",
+      "recherche": "decapante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acido-muriatico",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "acidos-desincrustantes",
+      "nom": "Ácido muriático",
+      "aussiAppele": [
+        "ácido clorídrico",
+        "ácido de limpeza",
+        "ácido para cimento",
+        "ácido para tirar cimento",
+        "tira-cimento",
+        "ácido muriático de obra"
+      ],
+      "usage": "Limpeza forte de restos de cimento, calcário e ferrugem em pavimentos e alvenaria resistentes a ácidos.",
+      "aSavoir": "Corrosivo e com vapores irritantes: luvas, óculos e ventilação. Nunca misturar com lixívia. Juntar o ácido à água, nunca o contrário. Ataca mármore, calcário, juntas de cimento e metais.",
+      "conditionnement": "Garrafa de 1 L ou garrafão de 5 L",
+      "recherche": "ácido muriático",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "removedor-cimento",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "acidos-desincrustantes",
+      "nom": "Removedor de cimento (limpeza de fim de obra)",
+      "aussiAppele": [
+        "elimina cimento",
+        "tira-cimento",
+        "limpa-obras",
+        "desincrustante de cimento"
+      ],
+      "usage": "Remove véu de cimento, restos de betume de juntas e de argamassa em mosaico, grés e tijoleira depois do assentamento.",
+      "aSavoir": "Produto ácido: não usar em mármore, calcário nem pedra polida sensível a ácidos, salvo versão própria para essas pedras. Testar numa zona escondida e enxaguar com muita água.",
+      "conditionnement": "Garrafa de 1 L ou garrafão de 5 L",
+      "recherche": "elimina cimento",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "desincrustante",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "acidos-desincrustantes",
+      "nom": "Desincrustante",
+      "aussiAppele": [
+        "desincrustante ácido",
+        "tira-calcário",
+        "anticalcário forte",
+        "desincrustante profissional"
+      ],
+      "usage": "Remoção de calcário e sujidade incrustada em sanitas, louças, pavimentos e azulejos.",
+      "aSavoir": "Não misturar com lixívia. Testar antes em pedra natural, cromados e superfícies delicadas; enxaguar bem.",
+      "conditionnement": "Garrafa de 1 L ou garrafão de 5 L",
+      "recherche": "desincrustante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "limpa-juntas",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "acidos-desincrustantes",
+      "nom": "Limpa-juntas",
+      "aussiAppele": [
+        "limpa juntas de azulejo",
+        "limpador de juntas",
+        "branqueador de juntas"
+      ],
+      "usage": "Limpeza de juntas de azulejo e mosaico escurecidas, em paredes e pavimentos.",
+      "aSavoir": "Deixar atuar, escovar e enxaguar; testar primeiro em juntas coloridas.",
+      "conditionnement": "Frasco de 500 ml ou 1 L",
+      "recherche": "limpa juntas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "soda-caustica",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "acidos-desincrustantes",
+      "nom": "Soda cáustica",
+      "aussiAppele": [
+        "hidróxido de sódio",
+        "soda em escamas",
+        "soda em pérolas"
+      ],
+      "usage": "Desentupimento de canos com gordura e decapagem/desengorduramento forte.",
+      "aSavoir": "Corrosiva: luvas e óculos. Juntar a soda à água fria aos poucos (aquece muito), nunca o contrário. Não usar em alumínio. Não é um ácido: nunca a misturar com ácidos.",
+      "conditionnement": "Embalagem de 1 kg (pó, escamas ou pérolas)",
+      "recherche": "soda cáustica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lixivia",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "bolor-desinfecao",
+      "nom": "Lixívia",
+      "aussiAppele": [
+        "hipoclorito de sódio",
+        "lixívia concentrada",
+        "água de javel"
+      ],
+      "usage": "Desinfeção e lavagem de paredes com bolor, pavimentos e sanitários antes de pintar ou no fim da obra.",
+      "aSavoir": "Nunca misturar com ácidos (ácido muriático, desincrustantes) nem com amoníaco: liberta gases tóxicos. Enxaguar e deixar secar antes de pintar.",
+      "conditionnement": "Garrafa de 1 L ou garrafão de 5 L",
+      "recherche": "lixívia",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "desengordurante",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Desengordurante",
+      "aussiAppele": [
+        "tira-gorduras",
+        "elimina gorduras",
+        "desengordurante multiusos",
+        "detergente desengordurante"
+      ],
+      "usage": "Remoção de gordura em paredes de cozinha, azulejos, pavimentos e ferramentas antes de pintar, colar ou betumar.",
+      "aSavoir": "Enxaguar bem e deixar secar antes de pintar ou colar.",
+      "conditionnement": "Spray de 500 ml, garrafa de 1-2 L ou garrafão de 5 L",
+      "recherche": "desengordurante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "amoniaco",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Amoníaco",
+      "aussiAppele": [
+        "amónia",
+        "amoníaco de limpeza"
+      ],
+      "usage": "Diluído em água, lava e desengordura paredes, madeiras e esmaltes velhos antes de repintar; serve também na limpeza de vidros e superfícies muito sujas.",
+      "aSavoir": "Nunca misturar com lixívia: liberta gases tóxicos. Vapores irritantes: ventilar e usar luvas. Enxaguar e deixar secar antes de pintar.",
+      "conditionnement": "Garrafa de 0,5 L ou 1 L",
+      "recherche": "amoníaco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "petroleo-limpeza",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Petróleo de limpeza",
+      "aussiAppele": [
+        "petróleo",
+        "petróleo branco",
+        "petróleo de iluminação"
+      ],
+      "usage": "Limpeza de peças e ferramentas com óleo, massa ou alcatrão.",
+      "aSavoir": "Inflamável. Deixa resíduo oleoso: não serve como desengordurante final antes de pintar.",
+      "conditionnement": "Garrafa de 1 L ou garrafão de 5 L",
+      "recherche": "petróleo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "alcool-isopropilico",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Álcool isopropílico",
+      "aussiAppele": [
+        "isopropanol",
+        "álcool de limpeza",
+        "IPA"
+      ],
+      "usage": "Desengorduramento de superfícies antes de aplicar silicone, fitas adesivas ou colas, e limpeza de vidros e contactos.",
+      "aSavoir": "Inflamável; evapora sem deixar resíduo.",
+      "conditionnement": "Garrafa de 0,5 L ou 1 L",
+      "recherche": "álcool isopropílico",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "removedor-colas-adesivos",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Removedor de colas e adesivos",
+      "aussiAppele": [
+        "elimina adesivos",
+        "tira-colas",
+        "removedor de autocolantes",
+        "removedor de cola",
+        "removedor de adesivos",
+        "removedor de etiquetas"
+      ],
+      "usage": "Remoção de restos de cola, fita adesiva, etiquetas e autocolantes em vidro, cerâmica e metal.",
+      "aSavoir": "Testar antes em plásticos e superfícies pintadas ou envernizadas.",
+      "conditionnement": "Frasco ou spray de 100 a 300 ml",
+      "recherche": "removedor cola",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "detergente-ph-neutro",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Detergente lava-tudo (de preferência pH neutro)",
+      "aussiAppele": [
+        "lava tudo",
+        "detergente neutro",
+        "detergente de pavimentos"
+      ],
+      "usage": "Lavagem corrente de pavimentos, azulejos e superfícies no fim da obra.",
+      "aSavoir": "Para pedra natural e pavimentos sensíveis a ácidos, escolher um de pH neutro (vem indicado no rótulo).",
+      "conditionnement": "Garrafa de 1-2 L ou garrafão de 5 L",
+      "recherche": "lava tudo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "limpa-vidros",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Limpa-vidros",
+      "aussiAppele": [
+        "limpa vidros multiusos",
+        "detergente de vidros"
+      ],
+      "usage": "Limpeza final de vidros, espelhos e caixilharia depois da obra.",
+      "aSavoir": "Salpicos de tinta, cimento ou silicone retiram-se antes, com raspador de lâmina e produto próprio.",
+      "conditionnement": "Spray de 500-750 ml",
+      "recherche": "limpa vidros",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pano-microfibra",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Pano de microfibra",
+      "aussiAppele": [
+        "pano microfibras",
+        "pano de limpeza",
+        "pano do pó"
+      ],
+      "usage": "Limpeza de pó, vidros e superfícies acabadas sem riscar.",
+      "conditionnement": "Pack de 3 ou mais, cerca de 35x35 a 40x40 cm",
+      "recherche": "pano microfibra",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pano-do-chao",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Pano do chão",
+      "aussiAppele": [
+        "pano para chão",
+        "pano de lavar o chão"
+      ],
+      "usage": "Lavagem e secagem de pavimentos durante e no fim da obra.",
+      "conditionnement": "Unidade, cerca de 60x40 cm",
+      "recherche": "pano chão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esfregao-fibra-verde",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Esfregão de fibra (salva-unhas)",
+      "aussiAppele": [
+        "esfregão verde",
+        "esfregão salva-unhas",
+        "esponja com esfregão"
+      ],
+      "usage": "Esfregar restos de sujidade, cola e salpicos em louças, azulejos e ferramentas.",
+      "aSavoir": "A fibra verde risca vidro acrílico, inox polido e cromados.",
+      "conditionnement": "Pack de 2-3 unidades (ou 10)",
+      "recherche": "esponja esfregão",
+      "rechercheEnseigne": {
+        "maxmat": "esfregão salva-unhas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escovao-de-obra",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Escovão de obra (vassoura de exterior)",
+      "aussiAppele": [
+        "vassoura de obra",
+        "escovão de construção",
+        "vassoura de rua",
+        "vassoura de exterior",
+        "vassourão"
+      ],
+      "usage": "Varrer entulho fino, pó e areia em pavimentos de obra, garagens e exteriores.",
+      "aSavoir": "Há modelos vendidos sem cabo: confirmar e, se for o caso, comprar o cabo à parte.",
+      "conditionnement": "Unidade, 400 mm de largura ou mais",
+      "recherche": "escovão construção",
+      "rechercheEnseigne": {
+        "leroy-merlin": "vassoura de exterior"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodo-pavimentos",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Rodo para pavimentos",
+      "aussiAppele": [
+        "rodo de borracha",
+        "puxa-água",
+        "rodo de chão"
+      ],
+      "usage": "Puxar água e lamas na lavagem de pavimentos, garagens e terraços.",
+      "aSavoir": "Há modelos vendidos sem cabo: confirmar antes de comprar.",
+      "conditionnement": "Unidade, 35 a 75 cm",
+      "recherche": "rodo chão",
+      "rechercheEnseigne": {
+        "maxmat": "rodo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "sacos-de-entulho",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Sacos de entulho",
+      "aussiAppele": [
+        "sacos de detritos",
+        "sacos de obra",
+        "sacos de ráfia",
+        "sacos para caliça"
+      ],
+      "usage": "Recolha e transporte de entulho, caliça e restos de demolição.",
+      "aSavoir": "Não encher demasiado com entulho pesado, para se conseguir carregar e o saco não rasgar.",
+      "conditionnement": "Unidade ou pack de 4, cerca de 50x80 cm",
+      "recherche": "saco entulho",
+      "rechercheEnseigne": {
+        "maxmat": "sacos de detritos"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pulverizador-pressao-manual",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Pulverizador de pressão manual (de bomba)",
+      "aussiAppele": [
+        "pulverizador de jardim",
+        "pulverizador de pressão prévia",
+        "borrifador de pressão"
+      ],
+      "usage": "Aplicar removedor de musgo, hidrofugantes e outros tratamentos líquidos em fachadas, telhados e pavimentos, de forma regular e sem escorrências.",
+      "aSavoir": "Confirmar na embalagem do produto se pode ser aplicado por pulverização. Lavar bem com água depois de cada uso e não usar o mesmo pulverizador para herbicidas.",
+      "conditionnement": "Unidade, com lança e bico regulável; vários volumes de depósito.",
+      "recherche": "pulverizador pressão",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "maquina-lavar-alta-pressao",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Máquina de lavar de alta pressão",
+      "aussiAppele": [
+        "lavadora de alta pressão",
+        "hidrolavadora",
+        "máquina de pressão"
+      ],
+      "usage": "Lavar fachadas, muros e pavimentos exteriores e enxaguar tratamentos anti-musgo.",
+      "aSavoir": "Pressão a mais e jato de perto arrancam tinta, abrem juntas e estragam reboco fraco, capoto e telha antiga: trabalhar de longe, com bico em leque e pressão moderada. Em telhados, jato sempre de cima para baixo.",
+      "conditionnement": "Unidade (elétrica, com pistola, lança e bicos).",
+      "recherche": "máquina lavar alta pressão",
+      "rechercheEnseigne": {
+        "maxmat": "lavadora de alta pressão"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escova-nylon-juntas",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "utensilios-limpeza",
+      "nom": "Escova de juntas em nylon",
+      "aussiAppele": [
+        "escova de esfregar juntas",
+        "escova de limpar juntas de azulejo"
+      ],
+      "usage": "Esfregar juntas de azulejo e cantos com limpa-juntas ou anti-bolor sem riscar o vidrado.",
+      "aSavoir": "Não usar escova de arame em azulejo: risca o vidrado e deixa partículas que enferrujam. Enxaguar a escova entre produtos diferentes.",
+      "conditionnement": "Unidade",
+      "recherche": "escova juntas azulejo",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "lubrificante-spray-multiusos",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Lubrificante em spray multiusos",
+      "aussiAppele": [
+        "óleo em spray",
+        "desbloqueante",
+        "spray lubrificante"
+      ],
+      "usage": "Lubrificar dobradiças, fechos, trincos e calhas de janelas que rangem ou prendem; desbloquear parafusos e peças presas.",
+      "aSavoir": "Limpar o excesso, porque o óleo agarra pó. Para cilindros de fechadura há lubrificantes secos próprios (grafite ou PTFE): o óleo acaba por empastar. Inflamável: não usar perto de chamas.",
+      "conditionnement": "Lata de aerossol, muitas vezes com cânula",
+      "recherche": "lubrificante spray",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "descolante-papel-parede",
+      "famille": "abrasivos-limpeza",
+      "sousFamille": "desengordurantes-solventes",
+      "nom": "Descolante de papel de parede",
+      "aussiAppele": [
+        "líquido para tirar papel de parede",
+        "removedor de papel de parede"
+      ],
+      "usage": "Juntar à água quente para amolecer a cola antiga e facilitar a remoção do papel de parede.",
+      "aSavoir": "Dilui-se conforme a embalagem. Em papel vinílico, lavável ou pintado, perfurar primeiro para o líquido chegar à cola.",
+      "conditionnement": "Frasco ou saqueta para diluir em água.",
+      "recherche": "descolante papel de parede",
+      "rechercheEnseigne": {
+        "leroy-merlin": "removedor de papel de parede"
+      },
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

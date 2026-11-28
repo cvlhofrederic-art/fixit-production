@@ -78,7 +78,7 @@ describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
   it('filtre « Payées » → n\'affiche que la facture payée', async () => {
     render(<FacturesSection {...props()} />)
     await waitFor(() => expect(screen.getByText('FACT-2026-020')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: /^Payées/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^proDash\.documentsListe\.filtresFactures\.payees / }))
     expect(screen.getByText('FACT-2026-019')).toBeInTheDocument()
     expect(screen.queryByText('FACT-2026-020')).not.toBeInTheDocument()
   })
@@ -86,7 +86,7 @@ describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
   it('filtre « Émises » → n\'affiche que la facture émise', async () => {
     render(<FacturesSection {...props()} />)
     await waitFor(() => expect(screen.getByText('FACT-2026-019')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: /^Émises/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^proDash\.documentsListe\.filtresFactures\.emises / }))
     expect(screen.getByText('FACT-2026-020')).toBeInTheDocument()
     expect(screen.queryByText('FACT-2026-019')).not.toBeInTheDocument()
   })
@@ -97,11 +97,11 @@ describe('FacturesSection V5 — filtre statut + Marquer payée', () => {
     render(<FacturesSection {...props(vi.fn(), [overdue, draft])} />)
     await waitFor(() => expect(screen.getByText('FACT-2026-021')).toBeInTheDocument())
     // Brouillons : seulement le vrai brouillon
-    fireEvent.click(screen.getByRole('button', { name: /^Brouillons/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^proDash\.documentsListe\.filtresFactures\.brouillons / }))
     expect(screen.getByText('FACT-2026-022')).toBeInTheDocument()
     expect(screen.queryByText('FACT-2026-021')).not.toBeInTheDocument()
     // Émises : l'overdue (en retard reste émise)
-    fireEvent.click(screen.getByRole('button', { name: /^Émises/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^proDash\.documentsListe\.filtresFactures\.emises / }))
     expect(screen.getByText('FACT-2026-021')).toBeInTheDocument()
     expect(screen.queryByText('FACT-2026-022')).not.toBeInTheDocument()
   })

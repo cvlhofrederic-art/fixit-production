@@ -1,5 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { SEAU_DOCUMENTS, signerValeurs } from '@/lib/storage/liens-stockage'
+import { lireCertidaoPermanente } from '@/lib/kyc-certidao-permanente'
 import {
   computeKycScore,
   decideKycStatus,
@@ -50,9 +52,28 @@ function validateNifFormat(nif: string): boolean {
 // Network helpers
 // ---------------------------------------------------------------------------
 
+const DUREE_LIEN_KYC_S = 5 * 60
+
+/**
+ * Liens de téléchargement des pièces de la fiche, dans l'ordre reçu (une seule requête au stockage). La fiche garde
+ * le chemin de chaque pièce dans le seau privé (ou, pour une fiche ancienne, un lien signé peut-être expiré, ou dont
+ * le jeton a été retiré) : un lien frais est créé à partir de ce chemin, s'il est rangé dans un dossier du
+ * titulaire. Toute autre adresse est lue comme avant ; une valeur sans lien possible devient null.
+ */
+async function liensPieces(valeurs: unknown[], ownerUserId: string): Promise<Array<string | null>> {
+  const liens = await signerValeurs(SEAU_DOCUMENTS, valeurs, {
+    dossiers: [`${ownerUserId}/`, `kbis/${ownerUserId}/`, `insurance/${ownerUserId}/`, `misc/${ownerUserId}/`],
+    dureeS: DUREE_LIEN_KYC_S,
+    origine: '[kyc-orchestrate]',
+  })
+  return valeurs.map((valeur, i) =>
+    liens[i] ?? (typeof valeur === 'string' && /^https?:\/\//i.test(valeur) ? valeur : null))
+}
+
 async function downloadBuffer(url: string): Promise<Buffer | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    // 10 s : téléchargement et lecture doivent tenir dans les 30 s que Cloudflare laisse après la réponse.
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
     if (!res.ok) return null
     return Buffer.from(await res.arrayBuffer())
   } catch {
@@ -60,33 +81,43 @@ async function downloadBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+// Lecture du document par Workers AI (lib/ai/relais.ts) : le modèle de vision de Groq a été retiré le 17/07/2026.
+// Images seulement, 5 Mo au plus. Un PDF n'est pas lu, comme avant ce retrait (il partait déclaré en image et
+// échouait) : sa couche de texte se rédige à la main, et l'approuver sur cette seule preuve reste à décider.
 async function ocrBuffer(
   buffer: Buffer,
   lang: string,
 ): Promise<{ text: string; confidence: number }> {
   try {
-    const { callGroqWithRetry } = await import('@/lib/groq')
-    const base64 = buffer.toString('base64')
-    const imageUrl = `data:image/jpeg;base64,${base64}`
+    const { appelerVision, typeDocument } = await import('@/lib/ai/relais')
+    // Type réel du fichier, pas une image JPEG supposée : un modèle refuse une image dont le type déclaré ne
+    // correspond pas au contenu.
+    const type = typeDocument(buffer)
+    if (!type) {
+      logger.warn('[kyc-orchestrate] OCR : format de document non pris en charge')
+      return { text: '', confidence: 0 }
+    }
+    const documentUrl = `data:${type};base64,${buffer.toString('base64')}`
     const prompt = lang === 'por'
       ? 'Extrai todo o texto visível neste documento. Devolve o texto em bruto sem formatação JSON.'
       : 'Extrais tout le texte visible sur ce document. Retourne le texte brut sans formatage JSON.'
-    const groqData = await callGroqWithRetry({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    const ocrData = await appelerVision({
       messages: [{
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageUrl } },
+          { type: 'image_url', image_url: { url: documentUrl } },
         ],
       }],
-      temperature: 0.1,
       max_tokens: 3000,
-    })
-    const text = groqData.choices?.[0]?.message?.content || ''
+      // 18 s au plus (téléchargement : 10 s) : tout doit tenir dans les 30 s que Cloudflare laisse après la réponse.
+    }, { contexte: 'kyc-orchestrate', budgetMs: 18_000 })
+    const text = ocrData.choices?.[0]?.message?.content || ''
     const confidence = text.length > 100 ? 75 : text.length > 30 ? 50 : 15
     return { text, confidence }
-  } catch {
+  } catch (err) {
+    // Non bloquant : le score KYC en tient compte (docOcrSuccess reste faux).
+    logger.warn('[kyc-orchestrate] OCR indisponible', err)
     return { text: '', confidence: 0 }
   }
 }
@@ -131,6 +162,38 @@ function extractRepresentantFromOcr(text: string, market: KycMarket): string | n
     /(?:g[eé]rant|pr[eé]sident|directeur g[eé]n[eé]ral|associ[eé] unique)\s*[:.]?\s*([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s\-]{3,60})/i,
   )
   return m ? m[1].split('\n')[0].trim() : null
+}
+
+interface DocumentSocieteLu {
+  identifiant: string | null
+  denomination: string | null
+  representant: string | null
+  /** Champs propres à la certidão permanente d'une société portugaise : código de acesso et fin de validité. */
+  complements: Record<string, string | null>
+}
+
+/**
+ * Champs lus sur le document de l'entreprise : Kbis (marchés français), Certidão de l'artisan portugais, certidão
+ * permanente de la société BTP portugaise (lib/kyc-certidao-permanente.ts : NIPC de la matrícula, firma, gérance,
+ * código de acesso, validité).
+ */
+function lireDocumentSociete(texte: string, market: KycMarket, identifiantDeclare: string): DocumentSocieteLu {
+  if (market === 'pt_btp') {
+    const certidao = lireCertidaoPermanente(texte, identifiantDeclare)
+    return {
+      identifiant: certidao.nipc,
+      denomination: certidao.firma,
+      representant: certidao.gerente,
+      complements: { codigo_acesso: certidao.codigoAcesso, valida_ate: certidao.validaAte },
+    }
+  }
+  const isFr = market === 'fr_artisan' || market === 'fr_btp'
+  return {
+    identifiant: isFr ? extractSiretFromOcr(texte) : extractNifFromOcr(texte),
+    denomination: extractDenominationFromOcr(texte, market),
+    representant: extractRepresentantFromOcr(texte, market),
+    complements: {},
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +264,39 @@ async function checkPtRegistry(
   }
 }
 
+const URL_VIES = 'https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number'
+
+/**
+ * Registre d'une société BTP portugaise (marché pt_btp) : VIES, le service de la Commission européenne que l'étape 1
+ * de l'inscription interroge déjà (/api/verify-nif). nif.pt, lu pour l'artisan portugais, répond « Key not valid » à
+ * la clé « demo » (constaté le 22/11/2026) et ne confirme donc jamais une entreprise. NIPC valide au VIES : société
+ * assujettie à la TVA, en activité, avec la firma enregistrée. Absence (société exonérée ou cessée) ou panne du
+ * service : contrôle non réussi, sans rejet d'office (decideKycStatus).
+ */
+async function checkViesRegistry(
+  nipc: string,
+): Promise<{ found: boolean; isActive: boolean; denomination: string | null }> {
+  try {
+    const res = await fetch(URL_VIES, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ countryCode: 'PT', vatNumber: nipc }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      logger.warn('[kyc-orchestrate] VIES indisponible', { status: res.status })
+      return { found: false, isActive: false, denomination: null }
+    }
+    const data = await res.json() as { valid?: unknown; name?: unknown }
+    if (data.valid !== true) return { found: false, isActive: false, denomination: null }
+    const nom = typeof data.name === 'string' ? data.name.trim() : ''
+    return { found: true, isActive: true, denomination: nom && nom !== '---' ? nom : null }
+  } catch (err) {
+    logger.warn('[kyc-orchestrate] VIES indisponible', { erreur: err instanceof Error ? err.name : 'inconnue' })
+    return { found: false, isActive: false, denomination: null }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Market determination
 // ---------------------------------------------------------------------------
@@ -212,6 +308,9 @@ function determineMarket(artisan: {
   if (artisan.kyc_market === 'fr_artisan') return 'fr_artisan'
   if (artisan.kyc_market === 'fr_btp') return 'fr_btp'
   if (artisan.kyc_market === 'pt_artisan') return 'pt_artisan'
+  // Société BTP inscrite en portugais (formulaire société, depuis le 22/11/2026). Une société inscrite avant garde le
+  // marché fr_btp que le formulaire posait alors : son KYC ne repasse pas ici sans nouvelle demande.
+  if (artisan.kyc_market === 'pt_btp') return 'pt_btp'
   if (
     artisan.country === 'PT' ||
     artisan.country === 'pt'
@@ -265,6 +364,19 @@ export async function runKycPipeline(
     return { ok: false, status: 403 }
   }
 
+  // Pièces à lire (Kbis ou Certidão, pièce d'identité) : la fiche garde leur chemin dans le seau privé, pas un lien
+  // signé. Les étapes suivantes les téléchargent par un lien frais de quelques minutes, posé ici sur la copie lue
+  // de la fiche (jamais réécrite en base : la mise à jour finale ne porte que les colonnes kyc_* et *_extracted).
+  let liens: Array<string | null> = [null, null]
+  try {
+    liens = await liensPieces([artisan.kbis_url, artisan.id_document_url], ownerUserId)
+  } catch (err) {
+    // Non bloquant, comme un téléchargement en échec : le score tient compte des pièces non lues.
+    logger.warn('[kyc-orchestrate] liens des pièces non créés', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
+  }
+  artisan.kbis_url = liens[0]
+  artisan.id_document_url = liens[1]
+
   // Determine market
   const market = determineMarket(artisan)
 
@@ -280,8 +392,8 @@ export async function runKycPipeline(
   }
 
   const isFr = market === 'fr_artisan' || market === 'fr_btp'
-  const isPt = market === 'pt_artisan'
-  const ocrLang = isPt ? 'por' : 'fra'
+  // Marchés portugais (artisan, société BTP) : NIF ou NIPC, lecture en portugais, Certidão rangée dans certidao_extracted.
+  const ocrLang = isFr ? 'fra' : 'por'
 
   // Normalize declared identifiant
   const declaredIdentifiant = (artisan.siret ?? '').replace(/\s/g, '')
@@ -315,6 +427,20 @@ export async function runKycPipeline(
     return { ok: true, result: { score, decision: 'rejected', checks, details, market } }
   }
 
+  // Lectures du Kbis et de la pièce d'identité lancées tout de suite, en parallèle entre elles et avec la
+  // vérification au registre : deux lectures par un modèle à la suite (plusieurs secondes chacune) risquaient de
+  // dépasser les 30 s que Cloudflare laisse au travail lancé après la réponse (after() des routes d'inscription).
+  // Ni le téléchargement ni la lecture ne rejettent : un échec donne null ou un texte vide.
+  const lireDocument = async (url: string | null | undefined) => {
+    if (!url) return null
+    const buffer = await downloadBuffer(url)
+    return buffer ? ocrBuffer(buffer, ocrLang) : null
+  }
+  // La pièce d'identité ne sert qu'à retrouver le nom de l'artisan : sans nom à comparer, elle n'est pas envoyée.
+  const nomArtisan = [artisan.first_name, artisan.last_name].filter(Boolean).join(' ').trim()
+  const lectureKbis = lireDocument(artisan.kbis_url)
+  const lectureIdentite = nomArtisan ? lireDocument(artisan.id_document_url) : Promise.resolve(null)
+
   // Step 2 — registry check
   let registryDenomination: string | null = null
   try {
@@ -323,7 +449,9 @@ export async function runKycPipeline(
       checks.identifiantActiveInRegistry = reg.isActive
       registryDenomination = reg.denomination
     } else {
-      const reg = await checkPtRegistry(declaredIdentifiant)
+      // Société BTP portugaise : VIES ; artisan portugais : nif.pt, comme avant.
+      const verifierRegistre = market === 'pt_btp' ? checkViesRegistry : checkPtRegistry
+      const reg = await verifierRegistre(declaredIdentifiant)
       checks.identifiantActiveInRegistry = reg.isActive
       registryDenomination = reg.denomination
     }
@@ -340,24 +468,22 @@ export async function runKycPipeline(
 
   if (artisan.kbis_url) {
     try {
-      const buffer = await downloadBuffer(artisan.kbis_url)
-      if (buffer) {
-        const ocr = await ocrBuffer(buffer, ocrLang)
+      const ocr = await lectureKbis
+      if (ocr) {
         if (ocr.confidence > 30 || ocr.text.length > 50) {
           checks.docOcrSuccess = true
 
-          ocrIdentifiant = isFr
-            ? extractSiretFromOcr(ocr.text)
-            : extractNifFromOcr(ocr.text)
-
-          ocrDenomination = extractDenominationFromOcr(ocr.text, market)
-          ocrRepresentant = extractRepresentantFromOcr(ocr.text, market)
+          const lu = lireDocumentSociete(ocr.text, market, declaredIdentifiant)
+          ocrIdentifiant = lu.identifiant
+          ocrDenomination = lu.denomination
+          ocrRepresentant = lu.representant
 
           kbisExtracted = {
             identifiant: ocrIdentifiant,
             denomination: ocrDenomination,
             representant: ocrRepresentant,
             confidence: String(ocr.confidence),
+            ...lu.complements,
           }
 
           // Step 4 — cross-check identifiant doc vs declared
@@ -371,8 +497,9 @@ export async function runKycPipeline(
               ocrDenomination,
               registryDenomination,
             )
-          } else if (ocrDenomination && artisan.company_name) {
-            // Fallback: compare with declared company name
+          } else if (ocrDenomination && artisan.company_name && market !== 'pt_btp') {
+            // Fallback: compare with declared company name. Société portugaise : la firma ne se compare qu'au nom du
+            // registre (VIES) ; la raison sociale vient de l'inscrit, comme le texte de la certidão qu'il dépose.
             checks.nameMatchDocVsApi = nameMatchScore(
               ocrDenomination,
               artisan.company_name,
@@ -380,18 +507,18 @@ export async function runKycPipeline(
           }
         }
       }
-    } catch {
+    } catch (err) {
       // OCR failure is non-blocking
       checks.docOcrSuccess = false
+      logger.warn('[kyc-orchestrate] lecture du Kbis en échec', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
     }
   }
 
   // Step 6 — ID document OCR
   if (artisan.id_document_url) {
     try {
-      const buffer = await downloadBuffer(artisan.id_document_url)
-      if (buffer) {
-        const ocr = await ocrBuffer(buffer, ocrLang)
+      const ocr = await lectureIdentite
+      if (ocr) {
         if (ocr.text.length > 20) {
           // Build full name to search in OCR text
           const fullName = [artisan.first_name, artisan.last_name]
@@ -413,14 +540,15 @@ export async function runKycPipeline(
           }
         }
       }
-    } catch {
+    } catch (err) {
       // ID OCR failure is non-blocking
+      logger.warn('[kyc-orchestrate] lecture de la pièce d’identité en échec', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
     }
   }
 
   // Step 7 — compute score and decision
   const score = computeKycScore(checks, market)
-  const decision = decideKycStatus(score)
+  const decision = decideKycStatus(score, market)
   const details = buildKycDetails(checks, score, market)
 
   // Map decision to DB status
@@ -441,10 +569,10 @@ export async function runKycPipeline(
   }
 
   if (kbisExtracted) {
-    if (isPt) {
-      updatePayload.certidao_extracted = kbisExtracted
-    } else {
+    if (isFr) {
       updatePayload.kbis_extracted = kbisExtracted
+    } else {
+      updatePayload.certidao_extracted = kbisExtracted
     }
   }
 

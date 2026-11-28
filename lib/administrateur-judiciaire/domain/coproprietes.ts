@@ -1,4 +1,5 @@
 import { dateIsoVersFr, dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { FicheCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-copropriete'
 import type { Tantiemes } from '@/lib/administrateur-judiciaire/domain/format'
 
 /**
@@ -20,6 +21,7 @@ export interface CoproprieteEnregistree {
   fondsTravaux: number
   /** Horodatage ISO de création (repository). */
   createdAt: string
+  fiche?: FicheCopropriete
 }
 
 /** Mandat enregistré dans la base locale (dates en objets Date locaux ; champs absents remplacés par défaut). */
@@ -81,6 +83,8 @@ export interface CoproprieteVue {
   statut: string
   pill: string
   notifOrdonnance: string
+  /** Fiche détaillée (Copropriete.fiche), présente seulement si elle est enregistrée. */
+  fiche?: FicheCopropriete
 }
 
 /** Vue copropriété dont les dates sont formatées « JJ/MM/AAAA » (chaîne vide si ce ne sont pas des Date). */
@@ -118,6 +122,7 @@ export function fusionnerCoproMandat(
     statut: mandat?.statut || '',
     pill: mandat?.pill || 'navy',
     notifOrdonnance: mandat?.notifOrdonnance || '',
+    ...(copro.fiche ? { fiche: copro.fiche } : {}),
   }
 }
 

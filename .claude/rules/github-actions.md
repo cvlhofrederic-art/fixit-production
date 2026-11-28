@@ -1,27 +1,54 @@
-# GitHub Actions — Workflows installés (12)
+# GitHub Actions — Workflows installés (21)
+
+## Règles communes (lot 6 Aikido, 28/10/2026 — `zizmor .github/workflows` à 0 finding High/Medium)
+- `permissions: {}` au niveau du workflow (ou `contents: read` seul) ; les droits d'écriture sont déclarés par job, jamais `write-all` ni `read-all`.
+- Toute action épinglée par SHA de commit (`uses: owner/repo@<sha> # vX.Y.Z`), toute image de conteneur par digest (`image: ns/repo:tag@sha256:…`).
+- `persist-credentials: false` sur chaque `actions/checkout` (aucun job ne pousse avec le jeton par défaut).
+- Jamais d'expression `${{ … }}` dans un `run:` : secrets, `github.*`, `inputs.*`, `matrix.*`, `needs.*`, `steps.*` passent par `env:`.
+- Jamais de trigger `workflow_run` ni `pull_request_target` : un traitement « après déploiement » est un job `needs: deploy` du pipeline lui-même.
+- Pas de cache npm dans le workflow de déploiement (`package-manager-cache: false`) ; paquets installés à la volée épinglés (`pip install x==…`, `npm install x@…`).
 
 ## Pipeline production
-- `deploy-cloudflare.yml` — **Seul pipeline de prod**. Build OpenNext + `wrangler deploy`. Cf. [project_deploy_cloudflare_only](../../memory/project_deploy_cloudflare_only.md). Plus jamais Vercel.
-- `post-deploy.yml` — Smoke tests post-déploiement Cloudflare.
+- `deploy-cloudflare.yml` — **Seul pipeline de prod**, trois jobs en chaîne : `deploy` (build OpenNext, garde du pré-rendu `scripts/seo/verifier-prerendu.mjs`, copie de `.open-next/cache` dans `.open-next/assets/cdn-cgi/_next_cache`, puis `wrangler deploy`, `environment: production`, smoke test immédiat `/`, `/fr`, `/robots.txt`). Les pages pré-rendues sont servies par le cache OpenNext en assets statiques, en lecture seule (`open-next.config.ts`) : sans cette copie, le Worker rend chaque page à la demande. Aujourd'hui, wrangler 4.149 délègue `wrangler deploy` à `opennextjs-cloudflare deploy` (projet OpenNext détecté), qui refait la même copie ; l'étape la garantit si cette délégation cesse (option `--config`, autre version de wrangler ou de wrangler-action) → `smoke-test` (après 30 s de propagation : `/api/health`, `/fr/`, `/pt/`, `x-nextjs-cache: HIT` attendu sur `/pt/servicos/canalizador-porto/` avec un avertissement sinon, `Cache-Control: private, no-store` exigé sur `/pt/` et `/fr/`, consigne de rollback en cas d'échec) → `indexnow` (sur `main` seulement : soumet à IndexNow toutes les URL de tous les sitemaps, secret `INDEXNOW_KEY` au niveau de l'étape, issue `seo-alert` en cas de HTTP 429). `post-deploy.yml` et `indexnow-post-deploy.yml` (trigger `workflow_run`) ont été repliés ici le 28/10/2026 : un seul ping IndexNow par déploiement. Le job `indexnow` est en `continue-on-error: true` (SEO best-effort : un échec du ping laisse le run de déploiement vert, le job apparaît en échec dans le graphe et ses annotations dans le résumé). Il n'a plus de déclencheur manuel propre : pour re-pinger sans nouveau commit (ex. après un HTTP 429), relancer « Deploy to Cloudflare Workers » par `workflow_dispatch` sur `main` (même code redéployé, puis `smoke-test` et `indexnow`). `smoke-test` tourne avec `permissions: {}` (ni checkout ni API GitHub). Déclenché par `push` sur `main` seulement, hors `**.md`, `.github/**` (sauf lui-même) et `.claude/**`. Hébergement Cloudflare uniquement : plus jamais Vercel.
 
 ## Workflows bloquants (PR)
-- `tests.yml` — Vitest unitaires + Playwright E2E (chromium/firefox/webkit) + Axe-core WCAG
-- `ci.yml` — Build production Next.js
-- `code-quality.yml` — ESLint + `tsc --noEmit` + SonarCloud
+- `tests.yml` — Vitest unitaires, Playwright E2E et Axe-core WCAG. Sur les PR : Vitest, E2E chromium/firefox/webkit, Axe-core (qui commente la PR). Lancement manuel : Vitest, E2E sur les trois navigateurs. Après chaque fusion (push sur `main`) et chaque nuit (04:23 UTC) : Vitest et E2E chromium seulement, pour qu'un test cassé par une fusion apparaisse sur le commit de `main`. Le job webkit est en `continue-on-error`. La CI verte d'une PR vieillit toujours quand `main` avance : fusionner une PR dont la tête contient `main` (ou dont l'arbre de fusion est celui qui a été testé).
+- `ci.yml` — Build production Next.js, puis garde du pré-rendu des pages SEO (`scripts/seo/verifier-prerendu.mjs` : chaque page de `app/{pt,fr,en,nl,es}` au prerender-manifest sauf la liste `RENDUES_A_LA_DEMANDE`, planchers par section, pages témoins, aucun `revalidate`). Tous les builds de la CI et du déploiement passent par `scripts/ci-build-avec-reprise.sh` : reprise sur l'échec des polices Google, et `NODE_OPTIONS=--max-old-space-size=6144`, car le contrôle de types de `next build` dépasse les 4 Go par défaut de Node avec TypeScript 6 ; `code-quality.yml` pose la même limite pour ESLint et `tsc --noEmit`.
+- `code-quality.yml` — ESLint + `tsc --noEmit` + actionlint (reviewdog) + migrations SQL + SonarQube Cloud (`SonarSource/sonarqube-scan-action`, successeur de l'action SonarCloud archivée)
 - `lighthouse.yml` — Audit perf/a11y/SEO depuis sitemap (seuils : perf 80, a11y 90, SEO 90, BP 85)
-- `security.yml` — CodeQL + TruffleHog + Semgrep (OWASP + JWT) + Giskard (prompts IA)
+- `security.yml` — CodeQL + TruffleHog + Semgrep (OWASP + JWT) + Trivy + Giskard (prompts IA)
+- `gitleaks.yml` — Secrets (binaire gitleaks 8.30.1 à somme vérifiée, config `security/.gitleaks.toml`) : état du dépôt sur push main et PR, plus commits base..head de la PR. Jamais de valeur de secret dans le dépôt (lot 1 Aikido, 28/10/2026) ; en local, `.husky/pre-commit` lance le même scan si gitleaks est installé. **Bloquant seulement une fois le check « Gitleaks — Scan des secrets » ajouté aux required status checks de `main` (Settings > Branches, action Frédéric) ; d'ici là le job est informatif et une PR rouge reste fusionnable.**
 - `ai-eval.yml` — DeepEval régression prompts (sur modif fichiers IA uniquement)
 
 ## Workflows non-bloquants
-- `security-daily.yml` — Scan sécurité quotidien (CodeQL + dépendances).
+- `security-daily.yml` — Scan sécurité quotidien (Trivy, gitleaks binaire sur tout l'historique, Nuclei, Semgrep ; issue si échec).
 - `i18n.yml` — Comparaison clés FR/PT (warning si manquantes).
 - `langfuse-eval.yml` — Éval nocturne qualité IA (crée issue si qualité < 0.7).
-- `release.yml` — Release Please (changelog auto, préfixes : `feat` / `fix` / `ai` / `voice` / `perf`).
+- `release.yml` — Release Please (changelog auto, préfixes : `feat` / `fix` / `ai` / `voice` / `perf`) ; `contents: write` et `pull-requests: write` sur le seul job `release`.
+- `mobile-android.yml` — APK de test (debug) de l'appli Vitfix Pro : sur les PR qui touchent `android/**`, `mobile/**`, `capacitor.config.ts`, `package.json` ou le lockfile, et à la demande (`workflow_dispatch`). Artefact `vitfix-pro-apk-test` (14 jours), signé avec la clé de debug du runner : jamais publiable sur Google Play. JDK 21 du runner (`JAVA_HOME_21_X64`), `cap` lancé depuis `node_modules/.bin` (pas de `npx`).
+
+## Publication mobile (manuel seulement)
+Les deux workflows ci-dessous déposent une version sur un store. **Déclencheur manuel seul** : chaque exécution consomme un numéro de version que le store refuse ensuite de réutiliser, donc jamais de `pull_request` ni de `push`. `permissions: {}` au workflow, `contents: read` au job, `concurrency` sans `cancel-in-progress`, aucun binaire signé publié en artefact (les artefacts d'un dépôt public sont téléchargeables par tous), et le matériel de signature est effacé par une étape `if: always()`. Procédure complète et création des secrets : `MOBILE_GUIDE.md`, section « Publication sur les stores ».
+- `mobile-ios.yml` — archive signée sur runner macOS épinglé (`macos-26`) puis dépôt direct sur App Store Connect / TestFlight. Aucun certificat dans le dépôt : `xcodebuild -allowProvisioningUpdates` avec une clé d'API App Store Connect **de rôle Admin** (seul rôle qui ouvre Certificates, Identifiers & Profiles) fabrique le certificat de distribution et le profil sur le runner. Le numéro de build vient de `github.run_number`, l'identifiant d'équipe d'un secret (jamais du dépôt). Schéma partagé obligatoire : `ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme`.
+- `mobile-android-release.yml` — bundle AAB signé puis dépôt sur un canal Play par `scripts/mobile/publier-play.mjs` (API Google Play en fetch direct, aucune action tierce). Entrées : canal (`internal` par défaut) et statut (`draft` par défaut — Google refuse `completed` tant que l'appli n'a jamais été publiée). `versionCode` pris sur `github.run_number` via `ANDROID_VERSION_CODE`.
+Invariants gardés par `tests/mobile/chaine-publication.test.ts` et `tests/mobile/publier-play.test.ts`.
+
+## Automatisations (cron, manuel)
+- `crons.yml` — Crons quotidiens (ex-wrangler.toml).
+- `run-automations.yml` — Tempo, automatisations planifiées.
+- `run-lea-documents-process.yml` — Léa documents, OCR/extraction en attente.
+- `renew-gmail-watches.yml` — Renouvellement des watches Gmail (Alfredo).
+- `ingest-legal-corpus-pt.yml` — Ingestion du corpus légal PT (manuel).
+- `aj-diffusion-reprise.yml` — Filet de reprise de la diffusion d'AJ Signalement, toutes les 5 minutes. Inactif tant que la variable de dépôt `AJ_DIFFUSION_REPRISE_ACTIVE` ne vaut pas `true`. Secret `INTERNAL_API_SECRET`.
 
 ## Secrets requis (GitHub > Settings > Secrets > Actions)
-- **Build** : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **Build** : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (la clé anon est aussi passée au Worker au déploiement par l'entrée `vars` de wrangler-action : elle n'est plus dans `wrangler.toml`)
+- **IndexNow** : `INDEXNOW_KEY` (même valeur que le secret Cloudflare `wrangler secret put INDEXNOW_KEY`, servi à `/indexnow-key.txt`) — absent : les pings IndexNow sont ignorés avec un `::warning::`
 - **Cloudflare** : `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 - **Sentry** : `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `NEXT_PUBLIC_SENTRY_DSN`
 - **SonarCloud** : `SONAR_TOKEN`
 - **IA** (optionnels) : `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY`, `GISKARD_API_KEY`
 - **Langfuse** : `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+- **Publication iPhone** : `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` (contenu du `.p8`), `APPLE_TEAM_ID`
+- **Publication Android** : `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- **AJ Signalement** : `INTERNAL_API_SECRET` (identique au secret du Worker)

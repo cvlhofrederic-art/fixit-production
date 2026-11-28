@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
 
 export const metadata: Metadata = {
-  title: 'Conditions générales | Vitfix',
+  title: 'Conditions générales',
   robots: { index: false, follow: true },
 }
 

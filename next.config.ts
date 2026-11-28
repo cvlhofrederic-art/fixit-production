@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+// Chemin dédié à la configuration : l'import depuis « @sentry/nextjs » est déprécié depuis Sentry 10.73 et disparaît en v11.
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
+import { SOURCE_IDENTIFIANT_CABINET_QR } from "./lib/aj-signalement/chemin-cabinet";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
@@ -8,8 +10,14 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  // Pas d'en-tête « x-powered-by: Next.js » : il annonce le framework sans rien apporter au visiteur. OpenNext lit la
+  // même option pour son propre « x-opennext: 1 » (@opennextjs/aws core/routing/util.js, addOpenNextHeader).
+  poweredByHeader: false,
   experimental: {
     optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js', 'date-fns', 'lucide-react', 'pdf-lib', 'zod'],
+    // 404 des URL sans route : app/global-not-found.tsx. Il n'y a plus de app/layout.tsx (un layout racine par langue,
+    // plus app/(commun)/layout.tsx) : sans ce drapeau, /_not-found n'aurait que le layout intégré de Next (ni langue ni site).
+    globalNotFound: true,
   },
   images: {
     remotePatterns: [
@@ -24,6 +32,37 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
+        // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/aj-signalement/chemin-cabinet.ts) ──
+        // EN TÊTE de beforeFiles, avant toute règle de langue. `next start` et `next dev` (CI E2E, poste) appliquent TOUTES
+        // les règles beforeFiles à la suite, chacune sur le chemin déjà réécrit par les précédentes ; OpenNext (production)
+        // n'applique que la première qui correspond. Placées après les règles de langue, ces règles captaient sous next start
+        // le chemin interne produit par l'une d'elles (/fr/aj-signalement/connexion/ → /aj-signalement/connexion →
+        // /cabinet/aj-signalement/connexion, 404). En tête, elles ne voient que le chemin d'origine, celui que le middleware a
+        // reconnu, et leur destination /cabinet/<id>/… ne correspond à aucune règle suivante. Les deux familles sont
+        // disjointes (toute autre source commence par une langue de 2 lettres, l'identifiant en compte 3 à 40) : en
+        // production, la première règle qui correspond reste la même pour tout chemin. Garde :
+        // tests/next-config-reecritures-enchainees.test.ts (les deux moteurs rejoués sur chaque page de app/).
+        // Laissé sans langue par le middleware (même motif). Deux paramètres capturés : la destination est toujours compilée
+        // par OpenNext (jamais littérale). Pages internes app/(commun)/cabinet/[identifiant]/…, joignables seulement ainsi.
+        // Paire avec et sans barre finale pour la confirmation et l'ouverture de l'accès d'un gestionnaire (PR 2), comme
+        // les règles exactes de langue plus bas ; jamais « :path* ».
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`, destination: '/cabinet/:identifiant/signalement/:jeton' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`, destination: '/cabinet/:identifiant/confirmation-adresse' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`, destination: '/cabinet/:identifiant/confirmation-adresse/' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`, destination: '/cabinet/:identifiant/invitation' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`, destination: '/cabinet/:identifiant/invitation/' },
+        // Espace du cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire, mêmes paires exactes. Sur le
+        // chemin d'origine, le middleware ne laisse arriver ici que les identifiants valables (jamais un nom réservé : la
+        // connexion de l'espace global /aj-signalement/connexion/ part en 302 de langue) et redirige lui-même /<id>/.
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion`, destination: '/cabinet/:identifiant/connexion' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`, destination: '/cabinet/:identifiant/connexion/' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`, destination: '/cabinet/:identifiant/suivi' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`, destination: '/cabinet/:identifiant/suivi/' },
+        // Désinscription des messages de diffusion (PR 3, lot 6) : page publique, SANS session, reconnue par le motif figé du
+        // middleware ; même paire exacte. Sa page interne est rangée dans app/(sans-coquille)/cabinet/[identifiant]/… : même
+        // adresse interne /cabinet/<id>/…, mais une mise en page racine propre, sans la coquille de VitFix (cahier § 7.5, F3).
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription`, destination: '/cabinet/:identifiant/desinscription' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription/`, destination: '/cabinet/:identifiant/desinscription/' },
         // ── Shared root pages accessible via /fr/ prefix ──
         { source: '/fr/auth/:path*', destination: '/auth/:path*' },
         { source: '/fr/pro/:path*', destination: '/pro/:path*' },
@@ -40,6 +79,14 @@ const nextConfig: NextConfig = {
         { source: '/fr/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
         { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        // Espace AJ Signalement (super admin) : l'espace (vues par ancre, #signalements…) et sa page de connexion
+        // professionnelle, en règles exactes seulement. Une autre sous-page un jour (ex. /gestionnaires/) : ses deux
+        // règles exactes, ou « :path* » APRÈS toutes ces règles exactes (OpenNext : « :path* » vide laisse la destination
+        // littérale).
+        { source: '/fr/aj-signalement', destination: '/aj-signalement' },
+        { source: '/fr/aj-signalement/', destination: '/aj-signalement/' },
+        { source: '/fr/aj-signalement/connexion', destination: '/aj-signalement/connexion' },
+        { source: '/fr/aj-signalement/connexion/', destination: '/aj-signalement/connexion/' },
         { source: '/fr/contact', destination: '/contact' },
         { source: '/fr/contact/', destination: '/contact/' },
         { source: '/fr/confirmation', destination: '/confirmation' },
@@ -59,6 +106,8 @@ const nextConfig: NextConfig = {
         { source: '/fr/rejoindre', destination: '/rejoindre' },
         { source: '/fr/rejoindre/', destination: '/rejoindre/' },
         { source: '/fr/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        // AJ Signalement : page ouverte par le QR code d'une copropriété (lib/aj-signalement/types.ts, urlSignalementQr).
+        { source: '/fr/signalement/:jeton', destination: '/signalement/:jeton' },
         // ── Shared root pages accessible via /pt/ prefix ──
         { source: '/pt/auth/:path*', destination: '/auth/:path*' },
         { source: '/pt/pro/:path*', destination: '/pro/:path*' },
@@ -72,6 +121,10 @@ const nextConfig: NextConfig = {
         { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        { source: '/pt/aj-signalement', destination: '/aj-signalement' },
+        { source: '/pt/aj-signalement/', destination: '/aj-signalement/' },
+        { source: '/pt/aj-signalement/connexion', destination: '/aj-signalement/connexion' },
+        { source: '/pt/aj-signalement/connexion/', destination: '/aj-signalement/connexion/' },
         // Slug PT du contact (phase 1 SEO PT, point 1.8) ; /pt/contact/ redirige vers /pt/contacto/.
         { source: '/pt/contacto', destination: '/contact' },
         { source: '/pt/contacto/', destination: '/contact/' },
@@ -82,11 +135,17 @@ const nextConfig: NextConfig = {
         { source: '/pt/rejoindre', destination: '/rejoindre' },
         { source: '/pt/rejoindre/', destination: '/rejoindre/' },
         { source: '/pt/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        { source: '/pt/signalement/:jeton', destination: '/signalement/:jeton' },
         // ── Mêmes liens e-mail suivis par un visiteur en/nl/es (pages partagées, contenu non traduit plutôt qu'un 404) ──
         { source: '/:locale(en|nl|es)/tracking/:token', destination: '/tracking/:token' },
         { source: '/:locale(en|nl|es)/rejoindre', destination: '/rejoindre' },
         { source: '/:locale(en|nl|es)/rejoindre/', destination: '/rejoindre/' },
         { source: '/:locale(en|nl|es)/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        { source: '/:locale(en|nl|es)/signalement/:jeton', destination: '/signalement/:jeton' },
+        // Lien de l'e-mail Supabase « mot de passe oublié » : route app/(commun)/auth/confirm/,
+        // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
+        { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
+        { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
       ],
       afterFiles: [],
       fallback: [],
@@ -287,6 +346,28 @@ const nextConfig: NextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
+      // Espace AJ Signalement (super admin), page de connexion comprise : jamais indexable. Les redirections du middleware
+      // portent le même en-tête (middleware.ts, viseEspacePrive).
+      ...['/:locale(fr|pt)/aj-signalement/:path*', '/aj-signalement/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      })),
+      // Chemin public d'un cabinet client et ses pages internes : le jeton est l'adresse du formulaire, jamais indexée
+      // (le middleware pose le même en-tête sur sa réponse).
+      ...[
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:path*`,
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/:path*`,
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/:path*`,
+        // Espace du cabinet (PR 2, lot 4).
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/:path*`,
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/:path*`,
+        // Désinscription des messages de diffusion (PR 3, lot 6).
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription/:path*`,
+        '/cabinet/:path*',
+      ].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      })),
     ]
   },
 };

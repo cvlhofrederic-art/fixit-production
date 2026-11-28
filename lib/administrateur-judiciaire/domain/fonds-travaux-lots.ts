@@ -1,0 +1,1624 @@
+import { repartirAuxPlusFortsRestes } from '@/lib/administrateur-judiciaire/domain/arrondis'
+import { ajouterJours, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  AFFECTATION_FONDS_TRAVAUX,
+  controlerAffectationFondsTravaux,
+  CREATION_FONDS_TRAVAUX,
+  ENTREE_EN_VIGUEUR_FONDS_TRAVAUX,
+  FONDEMENT_CREATION_FONDS_TRAVAUX,
+  estDecisionAdministrateurProvisoire,
+  lireDecisionAdministrateurProvisoire,
+  lireDecisionAffectationAg,
+  lireOrdonnanceJuge,
+  type DecaissementFondsTravaux,
+  type DecisionAdministrateurProvisoire,
+  type ResultatAffectation,
+} from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
+import { estQualiteCopropriete, positionsEnPlace, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { soldePoste, type Encaissement, type PosteDette, type ResultatImputation } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
+import type { CleRepartition } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+
+/**
+ * Part du fonds de travaux rattachée à chaque lot (point 20 du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS,
+ * dates ISO, sans écran ni table.
+ *
+ * Gestéam — 🟢 tranche 37 § Lots : fiche lot, onglet Charges et équipements, « Fonds travaux non remboursables € » (bouton
+ * Détail jamais ouvert : calcul non observé) ; tranche 43 § 23 : appels « Fonds travaux non remb. », compte 10500.
+ *
+ * Le droit — 🟢 relu sur Légifrance le 29/10/2026 :
+ * - L. 1965 art. 14-2-1, III : « Les sommes versées au titre du fonds de travaux sont attachées aux lots et entrent
+ *   définitivement, dès leur versement, dans le patrimoine du syndicat » ; pas de remboursement par le syndicat à la
+ *   cession ; « L'acquéreur peut consentir à verser au vendeur un montant équivalent à ces sommes en sus du prix » ;
+ * - art. 14-2-1, I, al. 6 : « Ce fonds de travaux est alimenté par une cotisation annuelle obligatoire » ; chaque
+ *   copropriétaire contribue au fonds « selon les mêmes modalités » que les provisions du budget prévisionnel ; I, al. 7 :
+ *   affectation du fonds par l'assemblée aux dépenses des 1° à 4°, en tenant compte des parties communes spéciales et des
+ *   clés de répartition ; art. 29-14 : usage autorisé par le juge en administration provisoire ;
+ * - entrée en vigueur de l'art. 14-2-1 (loi n° 2021-1104, art. 171, VI) : 01/01/2023 au-delà de 200 lots à usage de
+ *   logements, de bureaux ou de commerces, 01/01/2024 de 51 à 200, 01/01/2025 jusqu'à 50. Avant, l'ancien art. 14-2, II
+ *   (rédaction en vigueur du 25/11/2018 au 01/01/2023) : sommes « attachées aux lots et définitivement acquises au
+ *   syndicat », sans remboursement à la cession, SANS la phrase sur l'acquéreur ;
+ * - D. 1967 art. 6-2 : à la mutation, la provision exigible du budget incombe au vendeur (1°) ; les provisions hors budget
+ *   à celui qui est copropriétaire au moment de l'exigibilité (2°) ; art. 5-1 : pour l'opposition (L. 1965 art. 20), les
+ *   créances « effectivement liquides et exigibles à la date de la mutation » ;
+ * - CCH art. L. 721-2 (rédaction en vigueur depuis le 01/01/2024, « modifié par » la loi n° 2021-1104, art. 171, avec
+ *   renvoi aux dates du VII de cet article), II, 2°, d) : l'acquéreur reçoit, « au plus tard à la date de signature de la
+ *   promesse », « le montant de la part du fonds de travaux rattachée au lot principal vendu et le montant de la dernière
+ *   cotisation au fonds versée par le copropriétaire vendeur au titre de son lot » ; alinéa suivant : « Les informations
+ *   mentionnées aux a, c et d du présent 2° sont à jour des informations soumises à l'assemblée générale annuelle chargée
+ *   d'approuver les comptes précédant la signature de la promesse de vente » ; III : sans promesse, le d) n'est pas exigé.
+ *   La loi n° 2021-1104, art. 171, II, 4° ne modifie ni le d) ni l'alinéa qui le suit : elle insère les 6° et 7° du II et
+ *   remplace des renvois dans les dix-septième et dix-huitième alinéas du II, au III et au IV. Art. 171, VII : « Par
+ *   exception au VI, le 4° du II entre en vigueur » le 01/01/2024 au-delà de 200 lots à usage de logements, de bureaux ou
+ *   de commerces, le 01/01/2025 de 51 à 200, le 01/01/2026 jusqu'à 50. Rédaction antérieure, relue (Légifrance, version
+ *   au 31/12/2023 : « En vigueur du 29 août 2015 au 01 janv. 2024 », « Modifié par ORDONNANCE n°2015-1075 du 27 août
+ *   2015 - art. 1 ») : le d) et l'alinéa qui le suit y sont mot pour mot les mêmes, « d) Lorsque le syndicat des
+ *   copropriétaires dispose d'un fonds de travaux, le montant de la part du fonds de travaux rattachée au lot principal
+ *   vendu et le montant de la dernière cotisation au fonds versée par le copropriétaire vendeur au titre de son lot. » ;
+ *   même chapeau du II et même III. Le décret n° 2019-502, art. 2, 3° (extranet) dit de même la part « arrêté après
+ *   approbation des comptes du syndicat par l'assemblée générale annuelle ». Le décret de 1967, art. 5 (état daté), ne
+ *   mentionne pas le fonds de travaux.
+ *
+ * 🔵 Déduit :
+ * - la part d'un lot cumule ce qui est ENCAISSÉ et imputé sur les appels du fonds (pas l'appelé), plus la part reprise du
+ *   syndic précédent ; un emploi admis se déduit des lots de sa clé selon la décision du 20/11/2026 (F93, ci-dessous) ;
+ *   le même jour, les versements passent avant les emplois, et les emplois entre eux dans l'ordre de leur identifiant
+ *   (résultat indépendant de l'ordre reçu) ;
+ * - tout emploi daté au plus tard à la date sort du fonds (solde du fonds), même s'il n'est pas déduit des parts (part
+ *   non couverte, emploi refusé ou antérieur à sa décision : signalés) ;
+ * - plusieurs emplois d'une même opération sont admis (prélèvements échelonnés, chacun pour une partie de la part du
+ *   fonds de l'opération : emploiDepuisOperation, montant facultatif) ; seul un identifiant d'emploi en double est
+ *   refusé ; chaque emploi d'une opération porte la part du fonds de celle-ci (partOperationCentimes) : ce que la somme
+ *   de ses emplois, pris dans l'ordre des événements et refusés compris (sortis du fonds), dépasse de cette part est
+ *   signalé et n'est pas déduit des parts des lots (pas de décision d'affectation au-delà), mais sort du fonds ;
+ * - informations L. 721-2 : le vendeur est le copropriétaire en place à la date de la promesse ; la date d'arrêté est la
+ *   clôture de l'exercice approuvé par la dernière AG annuelle avant la promesse, fournie par l'appelant ; la rédaction
+ *   applicable suit les dates du VII selon le nombre de lots (inconnu entre 2024 et 2025 : l'une ou l'autre) ; le d) et
+ *   l'alinéa qui le suit étant les mêmes dans les rédactions de 2015 et de 2021, ils fondent l'information pour toute
+ *   promesse à compter du 01/01/2017 (avant, aucun fonds de travaux légal : J67, R87, ci-dessous) ;
+ * - présence continue du vendeur sur le lot : positions de copropriété successives de son compte, remontées sans un jour
+ *   d'interruption (sortie et entrée le même jour : continu ; réorganisation d'indivision sous le même compte comprise),
+ *   depuis la veille de la mutation, ou depuis la promesse pour l'information à l'acquéreur ; un séjour antérieur du même
+ *   compte, séparé par une interruption, n'est pas repris. Elle borne, de la même façon, « versé par le vendeur » (ses
+ *   encaissements sur le lot pendant cette présence jusqu'à la mutation incluse, hors reprise) et sa dernière cotisation ;
+ * - mutation : le vendeur est le compte des positions de copropriété en place la veille ; un appel du fonds exigible au
+ *   plus tard le jour de la mutation et porté à son compte reste dû par lui (par analogie avec l'art. 6-2, 1°, l'art.
+ *   14-2-1, I, al. 6 renvoyant aux modalités des provisions) ; reste dû à la mutation = appelé − réglé + versements de ce
+ *   poste datés après la mutation : le réglé du poste fait foi, y compris la part réglée avant la prise de fonction et
+ *   reprise sans versement ; l'appelant fournit postes et versements issus de la même imputation : un total des
+ *   versements d'un poste (avant et après la mutation) supérieur à son réglé est une incohérence signalée, pour les
+ *   postes échus comme pour ceux à réattribuer (reste alors plafonné à l'appelé) ; un total inférieur n'est pas
+ *   décelable (part réglée avant la prise de fonction) ;
+ * - un appel du fonds exigible APRÈS la mutation mais encore porté au compte vendeur (appel émis avant l'enregistrement
+ *   de la mutation) n'est pas dû par lui (même analogie) : il est listé à réattribuer, avec ce qu'il y a déjà réglé ;
+ * - ancien art. 14-2, II appliqué jusqu'à l'entrée en vigueur fixée par le VI ;
+ * - annulation d'un encaissement : on réimpute sans lui (imputerEncaissements), ce n'est pas le traitement symétrique
+ *   de R6 (traitements.ts), qui ne refait pas les imputations suivantes.
+ * 🔴 Non établi :
+ * - « dernière cotisation versée » (L. 721-2, II, 2°, d) — laissée ouverte (Hugo, 30/10/2026 : le notaire choisit la
+ *   lecture ; J67, R109 : conforme au texte, marque gardée) : le texte ne connaît que la
+ *   cotisation ANNUELLE (art. 14-2-1, I, al. 6), alors que le fonds est appelé par échéances. Deux lectures, toutes deux
+ *   rendues, aucune choisie, la plus proche du mot de la loi en premier (J67, R109) :
+ *   (1) la cotisation annuelle de l'exercice du dernier appel entièrement versé, somme des appels de cet exercice
+ *   entièrement versés (exercices fournis par l'appelant) ;
+ *   (2) le dernier appel du fonds entièrement versé (exigibilité la plus récente, puis poste), pour le montant appelé,
+ *   daté du versement qui l'a soldé.
+ *   Les deux sont arrêtées à la clôture de l'exercice approuvé par la dernière AG avant la promesse. Une reprise n'est
+ *   jamais une cotisation ; dernière cotisation antérieure à la prise de fonction (connue du seul syndic précédent) : non
+ *   reprise ;
+ * - part du fonds de Gestéam (net ou brut des emplois) ; « l'origine » de l'emploi évoquée le 30/10/2026 (emploi qui
+ *   finance un appel de travaux, ou part qui suit le lot vendu : rien ne se déduit à la vente, art. 14-2-1, III) reste à
+ *   préciser par le responsable du projet ; la règle de déduction est fixée par F93 (ci-dessous).
+ * Décision de Hugo Carvalho du 30/10/2026 (D. 1967 art. 6-2, relu sur Légifrance le 30/10/2026) : un appel exigible le
+ * jour de la mutation est dû par le vendeur ; avisDAppel le porte désormais au compte vendeur (règle, citations et 🔴
+ * restants : en-tête de repartition-appels.ts). Un appel du fonds émis après l'enregistrement de la mutation et exigible
+ * ce jour-là figure donc, ici, parmi les postes du vendeur échus au plus tard le jour de la mutation, et non parmi les
+ * postes à réattribuer.
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, confirmée par J42) et l'ordonnance de l'art.
+ *   29-14, 2° (juridiction, date, n°) d'un emploi se lisent en forme structurée (fonds-travaux.ts). Le calcul porte sur
+ *   des emplois enregistrés : le contrôle d'affectation reçoit `aujourdhui: null` (forme contrôlée, date non comparée
+ *   au jour, jamais d'erreur levée en plein calcul). Une forme structurée incomplète rend l'emploi non autorisé ; un
+ *   texte libre d'avant J30 reste admis et déduit comme avant, signalé par une anomalie de l'état
+ *   (emploi_forme_incomplete). La date de l'AG d'une décision structurée qui fonde l'emploi est rapprochée de celle de
+ *   l'emploi comme `dateDecision` (les deux connues : la plus tardive) : un emploi antérieur est signalé
+ *   (emploi_avant_decision), non déduit, mais sorti du fonds (art. 14-2-1, I, al. 7). emploiDepuisOperation transmet
+ *   la résolution de l'opération en forme structurée (date de l'AG, résolution) ; une décision distincte ou une
+ *   ordonnance saisie sur l'opération en texte libre (travaux-operations.ts, hors de ce lot) reste un texte, donc
+ *   signalée.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
+ *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : sa marque de doute est retirée,
+ *   comportement inchangé (le calcul lit des emplois enregistrés : un texte libre d'avant J30 reste admis, déduit et
+ *   signalé).
+ *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; recommandations validées en bloc ; textes
+ * relus sur Légifrance le 17/11/2026) :
+ * - J67, R87 : le fonds de travaux légal n'existe que depuis le 01/01/2017 (L. 1965 art. 14-2, rédaction issue de la loi
+ *   n° 2014-366, art. 58 ; la rédaction du 01/01/2002 au 01/01/2017 ne parle d'aucun fonds) : une mutation ou une
+ *   promesse antérieure reçoit la réponse « aucun fonds de travaux légal à cette date » (CREATION_FONDS_TRAVAUX,
+ *   fonds-travaux.ts) : ni part ni cotisation données (0 et null), pas d'avertissement « lot annexe » ; les sommes lues
+ *   sur les appels du fonds à cette date sont signalées, à qualifier (sommes_avant_fonds_legal). L'ancien art. 14-2 du
+ *   01/01/2017 au 25/11/2018 dit déjà que les sommes sont « attachées aux lots »,
+ *   sans remboursement à la cession : même règle qu'ensuite (fondement ANCIEN_14_2 ci-dessous). Le D. 1967 art. 6-2 (en
+ *   vigueur depuis le 01/09/2004) a la même règle qu'aujourd'hui ; une mutation antérieure est hors champ
+ *   (repartition-appels.ts).
+ * - J67, R88 : les intérêts du compte du fonds sont « définitivement acquis au syndicat » (L. 1965 art. 18, II, al. 4) ; ce
+ *   ne sont pas des sommes versées au titre du fonds (art. 14-2-1, III) : ils ne se répartissent pas entre les lots, et
+ *   restent hors des parts des lots même quand l'assemblée (ou l'administrateur provisoire qui en a les pouvoirs) les
+ *   laisse au fonds. Aucun calcul ici ; la ligne « intérêts non attachés aux lots » de l'état du fonds, facultative, n'est
+ *   pas codée.
+ * - J67, R89 : réunion ou division de lots, datée (ModificationLots, option modificationsLots) : réunion, la part du
+ *   nouveau lot est la somme des parts des lots réunis ; division, la part du lot d'origine se partage entre les lots
+ *   issus au prorata de leurs tantièmes dans la clé du fonds, fixés par le règlement modificatif ou la décision de
+ *   l'assemblée (ou de l'administrateur provisoire qui en a les pouvoirs) ; sans répartition saisie, la part reste sur le
+ *   lot d'origine, à confirmer (anomalie division_sans_repartition, portée aussi par chaque lot issu, saisi même sans
+ *   répartition). Aucun texte ne règle ce cas : sommes « attachées aux lots » (art. 14-2-1, III) et, par analogie, art. 11
+ *   (troisième phrase : aliénation séparée de fractions d'un lot). Le même jour, les versements passent avant la
+ *   modification, et la modification avant les emplois. Un versement reçu ensuite par un lot réuni ou divisé (arriéré)
+ *   suit la part vers les lots issus, de proche en proche. Lot vendu issu d'une modification : dernière cotisation et
+ *   versements du vendeur lus sur ce seul lot ; ses versements sur un lot d'origine sont signalés, à confirmer
+ *   (versements_vendeur_lots_origine). Enregistrement : à brancher.
+ * - J67, R110 : un lot annexe vendu seul (cave, stationnement) : sa part du fonds et sa dernière cotisation sont données,
+ *   par prudence, avec l'avertissement que L. 721-2, II, 2°, d ne vise que le lot principal (lotAnnexe) ; plusieurs lots
+ *   vendus ensemble : détail lot par lot et total (informationsFondsTravauxAcquereurVente), les annexes vendues avec leur
+ *   lot principal sans avertissement. Sans promesse, le d) n'est pas exigé (III) : ne pas appeler.
+ *
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F93) : aucun texte ne fixe la méthode, la loi donne la direction (l'affectation
+ *   « tient compte » des parties communes spéciales et des clés, art. 14-2-1, I, al. 7 ; sommes « attachées aux lots »,
+ *   III). Par défaut (mode « tantiemes »), chaque lot de la clé de la dépense supporte sa quote-part en tantièmes de cette
+ *   clé, dans la limite de sa part disponible ; ce qui dépasse n'est jamais pris sur les autres lots : c'est signalé
+ *   « reste à appeler auprès de ce lot » (anomalie reste_a_appeler_lot, sorti du fonds, non déduit des parts). Le prorata
+ *   des parts reste une option (mode « prorata », emploi_excede_parts_cle pour le non couvert) ; le mode « tantièmes »
+ *   ne rend plus de part négative (il était sans plafond) ;
+ * - Décision du 20/11/2026 (partie C, F94) : la date de l'ordonnance du juge en forme structurée (juridiction, date, n° :
+ *   J30, J42) se compare à celle de la dépense, comme la décision d'AG : l'art. 29-14, 2° permet au juge d'« autoriser »
+ *   l'administrateur provisoire à utiliser le fonds, une autorisation vaut pour la suite. Une dépense datée avant
+ *   l'ordonnance est signalée (emploi_avant_decision), non déduite des parts, mais sortie du fonds ; le même jour est
+ *   admis. Une décision d'AG (ou une ordonnance) en texte libre d'avant J30 n'a pas de date lisible : l'alerte « date non
+ *   contrôlée » est gardée (emploi_forme_incomplete), avec la proposition de la ressaisir en forme structurée ;
+ * - Décision du 20/11/2026 (partie C, F96) : la décision de l'administrateur provisoire qui affecte le fonds sous
+ *   l'art. 29-1 (forme structurée DecisionAdministrateurProvisoire, fonds-travaux.ts) est rapprochée de la dépense par la
+ *   date de la décision au registre des décisions (D. 1967 art. 62-8), avec le même contrôle (emploi_avant_decision) ;
+ *   pour une opération décidée par l'administrateur provisoire, l'opération ne porte ni l'ordonnance de l'art. 29-1 ni
+ *   l'avis du conseil syndical : emploiDepuisOperation reçoit sa décision en forme structurée en paramètre explicite
+ *   (decisionAdministrateurProvisoire, celle de l'opération : même date, même n° au registre) ; absente, la décision passe
+ *   encore sous la forme d'une résolution (date, référence au registre), comme avant (enregistrement sur l'opération : à
+ *   brancher, travaux-operations.ts) ;
+ * - Décision du 20/11/2026 (partie C, F65) : la part du fonds de chaque clé d'une opération se compare, dès la décision,
+ *   au fonds disponible des lots de la clé à cette date (alertesPartsDesClesAuFondsDisponible) : alerte « part de la clé
+ *   supérieure au fonds disponible de ses lots au [date] », sans blocage ; au décaissement, rien ne change.
+ */
+
+/** Cotisation (appel du fonds de travaux pour un lot) que règle un versement. */
+export interface CotisationAppelee {
+  /** Poste de l'appel pour ce lot (postesDepuisAvis : « appel:lot »). */
+  posteId: string
+  exigibilite: string
+  /** Montant appelé pour ce lot : la cotisation. */
+  appeleCentimes: number
+}
+
+export interface VersementFondsTravaux {
+  id: string
+  lotId: string
+  /**
+   * Compte copropriétaire payeur (le vendeur, puis l'acquéreur : la part suit le lot). Pour une reprise : compte en place
+   * à la prise de fonction, à titre d'information, jamais compté comme versé par ce compte.
+   */
+  compteId: string
+  /** Date de l'encaissement (ou de la reprise). */
+  date: string
+  montantCentimes: number
+  appelId: string | null
+  /** Code de la clé de l'appel. */
+  cle: string | null
+  source: 'encaissement' | 'reprise'
+  /** Cotisation réglée par ce versement ; null pour une reprise. */
+  cotisation: CotisationAppelee | null
+}
+
+export interface AnomalieFondsTravauxLots {
+  code:
+    | 'versement_sans_lot'
+    | 'emploi_non_autorise'
+    | 'emploi_forme_incomplete'
+    | 'emploi_avant_decision'
+    | 'cle_emploi_inconnue'
+    | 'emploi_excede_parts_cle'
+    | 'part_negative'
+    | 'versements_poste_incoherents'
+    | 'emplois_operation_excedent'
+    | 'division_sans_repartition'
+    | 'versements_vendeur_lots_origine'
+    | 'sommes_avant_fonds_legal'
+    | 'reste_a_appeler_lot'
+  refId: string
+  message: string
+  /** Part d'un emploi non déduite : au-delà des parts de la clé (prorata), ou reste à appeler auprès d'un lot (F93). */
+  nonCouvertCentimes?: number
+  /** Part d'un emploi au-delà de la part du fonds de son opération (emplois_operation_excedent) : non déduite des parts. */
+  excedentCentimes?: number
+  /** Lots touchés quand l'anomalie en concerne plusieurs (division sans répartition : lot d'origine, puis lots issus). */
+  lotIds?: string[]
+}
+
+const comparer = (a: string, b: string): number => (a < b ? -1 : Number(a > b))
+
+const somme = (versements: VersementFondsTravaux[]): number => versements.reduce((s, v) => s + v.montantCentimes, 0)
+
+function verifierDate(date: string, libelle: string): void {
+  if (!estDateIsoValide(date)) throw new Error(`${libelle} invalide (${date}) : AAAA-MM-JJ attendu.`)
+}
+
+function verifierMontant(montant: number, libelle: string): void {
+  if (!Number.isInteger(montant) || montant <= 0) throw new Error(`${libelle} invalide (${montant}) : centimes entiers strictement positifs attendus.`)
+}
+
+/** Refuse un identifiant présent deux fois : un versement ou un emploi ne se compte qu'une fois. */
+function verifierUnicite(ids: string[], message: (id: string) => string): void {
+  const vus = new Set<string>()
+  for (const id of ids) {
+    if (vus.has(id)) throw new Error(message(id))
+    vus.add(id)
+  }
+}
+
+/** Versements au fonds d'un résultat d'imputation : un par poste « Fonds travaux » (lignes d'un même poste additionnées). */
+function versementsDUnResultat(resultat: ResultatImputation, encaissement: Encaissement): { versements: VersementFondsTravaux[]; anomalies: AnomalieFondsTravauxLots[] } {
+  const parPoste = new Map<string, number>()
+  for (const ligne of resultat.lignes) parPoste.set(ligne.posteId, (parPoste.get(ligne.posteId) ?? 0) + ligne.montantCentimes)
+  const versements: VersementFondsTravaux[] = []
+  const anomalies: AnomalieFondsTravauxLots[] = []
+  for (const [posteId, montantCentimes] of parPoste) {
+    const poste = resultat.postes.find((p) => p.id === posteId)
+    if (poste?.typeAppel !== 'Fonds travaux') continue
+    const id = `${encaissement.id}:${poste.id}`
+    if (!poste.lotId) {
+      anomalies.push({ code: 'versement_sans_lot', refId: id, message: `Versement au fonds de travaux sans lot (poste ${poste.id}) : rattacher le poste à son lot.` })
+      continue
+    }
+    versements.push({
+      id,
+      lotId: poste.lotId,
+      compteId: poste.compteId,
+      date: encaissement.date,
+      montantCentimes,
+      appelId: poste.appelId,
+      cle: poste.cle ?? null,
+      source: 'encaissement',
+      cotisation: { posteId: poste.id, exigibilite: poste.exigibilite, appeleCentimes: poste.montantCentimes },
+    })
+  }
+  return { versements, anomalies }
+}
+
+/**
+ * Versements au fonds de travaux, lus dans les résultats d'imputation : seules les lignes imputées sur un poste
+ * « Fonds travaux » comptent, au lot du poste et à la date de l'encaissement. Le reliquat « à imputer » n'est jamais un
+ * versement au fonds. Un encaissement présent deux fois est refusé.
+ *
+ * Encaissement annulé (chèque rejeté…) : réimputer avec imputerEncaissements SANS lui, puis passer ici les nouveaux
+ * résultats (et, à la mutation, les postes de cette même imputation). Écarter seulement son résultat laisserait les
+ * imputations suivantes calculées comme s'il avait payé : il n'y a donc pas d'option d'exclusion.
+ */
+export function versementsFondsTravauxDepuisImputations(
+  resultats: ResultatImputation[],
+  encaissements: Encaissement[],
+): { versements: VersementFondsTravaux[]; anomalies: AnomalieFondsTravauxLots[] } {
+  verifierUnicite(
+    resultats.map((r) => r.encaissementId),
+    (id) => `Encaissement « ${id} » compté deux fois dans les résultats d'imputation.`,
+  )
+  const versements: VersementFondsTravaux[] = []
+  const anomalies: AnomalieFondsTravauxLots[] = []
+  for (const resultat of resultats) {
+    const encaissement = encaissements.find((e) => e.id === resultat.encaissementId)
+    if (!encaissement) throw new Error(`Encaissement introuvable pour le résultat d'imputation « ${resultat.encaissementId} ».`)
+    const lus = versementsDUnResultat(resultat, encaissement)
+    versements.push(...lus.versements)
+    anomalies.push(...lus.anomalies)
+  }
+  return { versements, anomalies }
+}
+
+/** Part d'un lot reprise du syndic précédent à la prise de fonction : un cumul, jamais une cotisation. */
+export function creerVersementReprise(saisie: { id: string; lotId: string; compteId: string; date: string; montantCentimes: number }): VersementFondsTravaux {
+  if (!saisie.lotId.trim()) throw new Error('Reprise du fonds de travaux : lot attendu.')
+  verifierDate(saisie.date, 'Date de reprise')
+  verifierMontant(saisie.montantCentimes, 'Montant repris')
+  return { ...saisie, lotId: saisie.lotId.trim(), appelId: null, cle: null, source: 'reprise', cotisation: null }
+}
+
+export interface EmploiFondsTravaux {
+  id: string
+  /** Date du prélèvement sur le fonds. */
+  date: string
+  montantCentimes: number
+  /** Clé de la dépense financée : l'emploi se déduit des parts des lots de cette clé. */
+  cleId: string
+  decaissement: DecaissementFondsTravaux
+  operationNumero: string | null
+  /**
+   * Part du fonds de travaux de l'opération (financementFondsTravauxCentimes), la même pour tous ses emplois : la somme
+   * des emplois de l'opération y est rapprochée. Renseignée si et seulement si operationNumero l'est.
+   */
+  partOperationCentimes: number | null
+  /**
+   * Date de la décision d'AG qui affecte le fonds, quand elle est connue (résolution de l'opération qui en tient lieu) :
+   * un emploi antérieur n'est pas déduit. Une décision structurée (J30) porte aussi la sienne (date de l'AG), comme la
+   * décision de l'administrateur provisoire (date au registre, F96) et l'ordonnance du juge (sa date, F94), rapprochées
+   * de même de l'emploi ; les deux connues, la plus tardive compte. null : la date structurée suffit ; décision ou
+   * ordonnance en texte libre d'avant J30 : date non contrôlée, signalée, à ressaisir en forme structurée (F94).
+   */
+  dateDecision: string | null
+}
+
+/** Montant d'un emploi tiré de la part du fonds d'une opération : toute la part par défaut, ou une tranche de celle-ci. */
+function montantDeLEmploi(operation: OperationTravaux, id: string, montantCentimes: number | undefined): number {
+  const part = operation.financementFondsTravauxCentimes
+  if (montantCentimes === undefined) return part
+  verifierMontant(montantCentimes, `Montant de l'emploi ${id}`)
+  if (montantCentimes > part)
+    throw new Error(`Opération ${operation.numero} : emploi ${id} de ${montantCentimes} centimes supérieur à la part du fonds de travaux de l'opération (${part} centimes).`)
+  return montantCentimes
+}
+
+const F96 = 'décision du 20/11/2026, partie C, F96'
+
+/**
+ * Décision qui fonde l'emploi tiré d'une opération : la décision distincte saisie sur l'opération (son texte) ; la
+ * décision de l'administrateur provisoire en forme structurée quand l'appelant la fournit (F96 : l'opération ne porte ni
+ * l'ordonnance de l'art. 29-1, ni l'avis du conseil syndical ou le constat d'urgence), copiée ; à défaut, la résolution
+ * de l'opération (J30 : date, résolution). La décision de l'administrateur provisoire fournie est celle de l'opération
+ * (même date, même n° au registre) ; refus pour une opération décidée par l'assemblée ou qui porte une décision distincte.
+ */
+function decisionAgDeLEmploi(
+  { numero, decision }: OperationTravaux,
+  decisionDistincte: string | undefined,
+  decisionAp: DecisionAdministrateurProvisoire | null | undefined,
+): DecaissementFondsTravaux['decisionAg'] {
+  if (!decisionAp) return decisionDistincte || (decision ? { dateAg: decision.date, numeroResolution: decision.resolution } : null)
+  if (decision?.origine !== 'administrateur')
+    throw new Error(`Opération ${numero} : sa décision n'est pas une décision de l'administrateur provisoire ; la forme « décision de l'administrateur provisoire » est sans objet (${F96}).`)
+  if (decisionDistincte)
+    throw new Error(`Opération ${numero} : une décision distincte affecte le fonds (« ${decisionDistincte} ») ; elle fait foi, la décision de l'administrateur provisoire de l'opération ne s'y substitue pas (${F96}).`)
+  const { date: dateAp, numeroRegistre } = decisionAp.decision
+  if (dateAp !== decision.date || numeroRegistre.trim() !== decision.resolution.trim())
+    throw new Error(
+      `Opération ${numero} : la décision de l'administrateur provisoire fournie (n° ${numeroRegistre} du ${dateIsoVersFr(dateAp)}) n'est pas celle de l'opération (${decision.resolution} du ${dateIsoVersFr(decision.date)}) (${F96}).`,
+    )
+  return { ...decisionAp, ordonnance: { ...decisionAp.ordonnance }, decision: { ...decisionAp.decision }, avisOuUrgence: { ...decisionAp.avisOuUrgence } }
+}
+
+/**
+ * Emploi du fonds pour la part d'une opération de travaux, ou pour une tranche de celle-ci (prélèvements échelonnés :
+ * un emploi par tranche, chacun avec son identifiant) ; refusé sans affectation admise, au-delà de la part du fonds de
+ * l'opération, ou daté avant la résolution de l'opération quand celle-ci tient lieu de décision d'affectation (art.
+ * 14-2-1, I, al. 7). L'emploi porte la part du fonds de l'opération : partsFondsTravauxParLot signale, sans le déduire,
+ * ce que la somme des emplois de l'opération dépasse de cette part. La résolution de l'opération passe en forme
+ * structurée (J30 : date de l'AG, résolution) ; une décision distincte saisie sur l'opération reste son texte. Opération
+ * décidée par l'administrateur provisoire : `decisionAdministrateurProvisoire`, fournie par l'appelant, la transmet dans
+ * sa forme structurée (décision du 20/11/2026, partie C, F96 : decisionAgDeLEmploi) ; absente, la résolution comme avant.
+ */
+export function emploiDepuisOperation(
+  operation: OperationTravaux,
+  {
+    id,
+    date,
+    montantCentimes,
+    decisionAdministrateurProvisoire,
+  }: { id: string; date: string; montantCentimes?: number; decisionAdministrateurProvisoire?: DecisionAdministrateurProvisoire | null },
+): EmploiFondsTravaux {
+  verifierDate(date, "Date de l'emploi")
+  const etat = etatPartFondsTravaux(operation)
+  if (!etat) throw new Error(`Opération ${operation.numero} sans part du fonds de travaux.`)
+  if (!etat.autorise) throw new Error(`Opération ${operation.numero} : ${etat.motif}`)
+  const montant = montantDeLEmploi(operation, id, montantCentimes)
+  const affectation = operation.affectationFonds as NonNullable<OperationTravaux['affectationFonds']>
+  const { decision } = operation
+  const decisionDistincte = affectation.decisionAg?.trim()
+  const parResolution = !decisionDistincte && AFFECTATION_FONDS_TRAVAUX[affectation.objet].base === 'affectation_ag' ? decision : null
+  if (parResolution && date < parResolution.date)
+    throw new Error(
+      `Opération ${operation.numero} : emploi du ${dateIsoVersFr(date)} antérieur à la résolution du ${dateIsoVersFr(parResolution.date)} qui affecte le fonds ; dater l'emploi au plus tôt de cette décision.`,
+    )
+  const decisionAg = decisionAgDeLEmploi(operation, decisionDistincte, decisionAdministrateurProvisoire)
+  return {
+    id,
+    date,
+    montantCentimes: montant,
+    cleId: operation.cleId,
+    decaissement: { objet: affectation.objet, montantCentimes: montant, decisionAg, autorisationJuge: affectation.autorisationJuge ?? null },
+    operationNumero: operation.numero,
+    partOperationCentimes: operation.financementFondsTravauxCentimes,
+    dateDecision: parResolution?.date ?? null,
+  }
+}
+
+/**
+ * Dernière cotisation entièrement versée, lecture « dernier appel soldé » (🔴, choix du notaire) : l'appel du fonds du lot,
+ * pour son montant appelé.
+ */
+export interface DerniereCotisation {
+  posteId: string
+  appelId: string | null
+  exigibilite: string
+  /** Montant appelé pour le lot (la cotisation), et non le dernier encaissement. */
+  montantCentimes: number
+  /** Date du versement qui a soldé la cotisation. */
+  date: string
+  compteId: string
+}
+
+/** La cotisation d'un poste, si ses versements (déjà bornés à la date) l'ont entièrement réglée ; sinon null. */
+function cotisationSoldee(versements: VersementFondsTravaux[]): DerniereCotisation | null {
+  const tries = [...versements].sort((a, b) => comparer(a.date, b.date) || comparer(a.id, b.id))
+  const { posteId, exigibilite, appeleCentimes } = tries[0].cotisation as CotisationAppelee
+  let cumul = 0
+  for (const v of tries) {
+    if (v.cotisation?.appeleCentimes !== appeleCentimes || v.cotisation.exigibilite !== exigibilite)
+      throw new Error(`Versements incohérents sur le poste ${posteId} : montant appelé ou exigibilité différents.`)
+    cumul += v.montantCentimes
+    if (cumul >= appeleCentimes) return { posteId, appelId: v.appelId, exigibilite, montantCentimes: appeleCentimes, date: v.date, compteId: v.compteId }
+  }
+  return null
+}
+
+const plusRecente = (a: DerniereCotisation, b: DerniereCotisation): boolean =>
+  a.exigibilite > b.exigibilite || (a.exigibilite === b.exigibilite && a.posteId < b.posteId)
+
+/**
+ * Appels du fonds entièrement versés parmi `versements` (déjà filtrés par lot, et par compte s'il le faut) à `date`
+ * incluse. Une reprise (sans cotisation) n'en est jamais un.
+ */
+function cotisationsSoldees(versements: VersementFondsTravaux[], date: string): DerniereCotisation[] {
+  const parPoste = new Map<string, VersementFondsTravaux[]>()
+  for (const v of versements) {
+    if (!v.cotisation || v.date > date) continue
+    parPoste.set(v.cotisation.posteId, [...(parPoste.get(v.cotisation.posteId) ?? []), v])
+  }
+  return [...parPoste.values()].flatMap((liste) => cotisationSoldee(liste) ?? [])
+}
+
+/** L'appel soldé à l'exigibilité la plus récente, à exigibilité égale le premier poste ; null si aucun. */
+function plusRecenteDes(soldees: DerniereCotisation[]): DerniereCotisation | null {
+  let retenue: DerniereCotisation | null = null
+  for (const soldee of soldees) if (!retenue || plusRecente(soldee, retenue)) retenue = soldee
+  return retenue
+}
+
+/** Dernière cotisation versée (lecture « dernier appel soldé ») parmi `versements` à `date` incluse ; null si aucune. */
+const derniereCotisationSoldee = (versements: VersementFondsTravaux[], date: string): DerniereCotisation | null =>
+  plusRecenteDes(cotisationsSoldees(versements, date))
+
+/** Exercice du syndicat, bornes incluses (Exercice : ouverture, clôture). */
+export interface ExerciceSyndicat {
+  ouverture: string
+  cloture: string
+}
+
+/** Cotisation annuelle versée, lecture « cotisation annuelle » (🔴, choix du notaire) : art. 14-2-1, I, al. 6. */
+export interface CotisationAnnuelleVersee {
+  /** Exercice qui contient l'exigibilité du dernier appel soldé. */
+  ouverture: string
+  cloture: string
+  /** Somme des appels de cet exercice entièrement versés (montants appelés) ; un appel non soldé n'y entre pas. */
+  montantCentimes: number
+  posteIds: string[]
+}
+
+/** Exercices aux dates valides, clôture après ouverture, sans chevauchement. */
+function verifierExercices(exercices: ExerciceSyndicat[]): void {
+  for (const { ouverture, cloture } of exercices) {
+    verifierDate(ouverture, "Date d'ouverture de l'exercice")
+    verifierDate(cloture, "Date de clôture de l'exercice")
+    if (cloture <= ouverture) throw new Error(`Exercice du ${dateIsoVersFr(ouverture)} au ${dateIsoVersFr(cloture)} : clôture antérieure ou égale à l'ouverture.`)
+  }
+  const tries = [...exercices].sort((a, b) => comparer(a.ouverture, b.ouverture))
+  for (let i = 1; i < tries.length; i++)
+    if (tries[i].ouverture <= tries[i - 1].cloture)
+      throw new Error(`Exercices qui se chevauchent : ${dateIsoVersFr(tries[i - 1].ouverture)}–${dateIsoVersFr(tries[i - 1].cloture)} et ${dateIsoVersFr(tries[i].ouverture)}–${dateIsoVersFr(tries[i].cloture)}.`)
+}
+
+const dansExercice = (exercice: ExerciceSyndicat, date: string): boolean => exercice.ouverture <= date && date <= exercice.cloture
+
+/** Cotisation annuelle de l'exercice du dernier appel soldé : null sans appel soldé ou sans exercice qui le contienne. */
+function cotisationAnnuelleSoldee(soldees: DerniereCotisation[], derniere: DerniereCotisation | null, exercices: ExerciceSyndicat[]): CotisationAnnuelleVersee | null {
+  const exercice = derniere && exercices.find((e) => dansExercice(e, derniere.exigibilite))
+  if (!exercice) return null
+  const appels = soldees.filter((c) => dansExercice(exercice, c.exigibilite)).sort((a, b) => comparer(a.exigibilite, b.exigibilite) || comparer(a.posteId, b.posteId))
+  return {
+    ouverture: exercice.ouverture,
+    cloture: exercice.cloture,
+    montantCentimes: appels.reduce((s, c) => s + c.montantCentimes, 0),
+    posteIds: appels.map((c) => c.posteId),
+  }
+}
+
+export interface PartFondsTravauxLot {
+  lotId: string
+  /** Encaissé imputé sur les appels du fonds, plus la part reprise. */
+  verseCentimes: number
+  /** Part reprise du syndic précédent (cumul des propriétaires antérieurs) : jamais un versement d'un compte. */
+  repriseCentimes: number
+  /** Emplois déduits de ce lot. */
+  employeCentimes: number
+  /** J67, R89 — parts reçues (+) ou transmises (−) par division ou réunion de lots ; leur somme sur les lots est nulle. */
+  transfertCentimes: number
+  /** Versé − employé + transfert. */
+  partCentimes: number
+  /** Encaissements par compte payeur, hors reprise. */
+  verseParCompte: { compteId: string; verseCentimes: number }[]
+  /** Dernier appel du fonds du lot soldé à la date, tous comptes confondus (lecture « dernier appel soldé », 🔴). */
+  derniereCotisation: DerniereCotisation | null
+}
+
+export interface EtatFondsTravauxParLot {
+  date: string
+  parts: PartFondsTravauxLot[]
+  totalVerseCentimes: number
+  /** Emplois déduits des parts des lots : la somme des parts vaut toujours versé moins déduit. */
+  totalDeduitDesPartsCentimes: number
+  /**
+   * Tous les emplois datés au plus tard à la date, déduits ou non (part non couverte, emploi refusé, excédent sur la part
+   * du fonds de l'opération) : sortis du fonds.
+   */
+  totalPreleveCentimes: number
+  /**
+   * Versé moins prélevé : le fonds encaissé restant, quel que soit le mode de déduction (le compte 10500 suit, lui,
+   * l'appelé). Il diffère de la somme des parts du montant prélevé sans être déduit, signalé dans les anomalies.
+   */
+  soldeFondsCentimes: number
+  anomalies: AnomalieFondsTravauxLots[]
+  aConfirmer: true
+  fondement: string
+}
+
+/** Déduction d'un emploi : « tantièmes » plafonnés, par défaut (F93), ou « prorata » des parts, en option. */
+type ModeEmploi = 'tantiemes' | 'prorata'
+
+interface Cumul {
+  verse: number
+  reprise: number
+  employe: number
+  transfert: number
+  parCompte: Map<string, number>
+}
+
+function cumulDe(cumuls: Map<string, Cumul>, lotId: string): Cumul {
+  const existant = cumuls.get(lotId)
+  if (existant) return existant
+  const cumul: Cumul = { verse: 0, reprise: 0, employe: 0, transfert: 0, parCompte: new Map() }
+  cumuls.set(lotId, cumul)
+  return cumul
+}
+
+/** Part d'un lot dans les cumuls : versé − employé + transfert ; 0 pour un lot sans cumul. */
+const partDe = (c: Cumul | undefined): number => (c ? c.verse - c.employe + c.transfert : 0)
+
+function ajouterVersement(cumuls: Map<string, Cumul>, v: VersementFondsTravaux): void {
+  const cumul = cumulDe(cumuls, v.lotId)
+  cumul.verse += v.montantCentimes
+  if (v.source === 'reprise') cumul.reprise += v.montantCentimes
+  else cumul.parCompte.set(v.compteId, (cumul.parCompte.get(v.compteId) ?? 0) + v.montantCentimes)
+}
+
+/**
+ * Mode « tantièmes », par défaut (décision du 20/11/2026, partie C, F93) : chaque lot de la clé supporte sa quote-part en
+ * tantièmes de la clé, dans la limite de sa part disponible ; renvoie, lot par lot, ce qui dépasse sa part (reste à
+ * appeler auprès de ce lot, jamais pris sur les autres lots). Aucune part ne devient négative.
+ */
+function deduireAuxTantiemes(cumuls: Map<string, Cumul>, cle: CleRepartition, montant: number): [string, number][] {
+  const restes: [string, number][] = []
+  repartirAuxPlusFortsRestes(montant, cle.lots.map((l) => l.tantiemes)).forEach((quotePart, i) => {
+    const { lotId } = cle.lots[i]
+    const cumul = cumulDe(cumuls, lotId)
+    const deduit = Math.min(quotePart, Math.max(0, partDe(cumul)))
+    cumul.employe += deduit
+    if (quotePart > deduit) restes.push([lotId, quotePart - deduit])
+  })
+  return restes
+}
+
+/** Mode « prorata » (option) : déduit un emploi admis des lots de sa clé au prorata de leur part ; renvoie le non couvert. */
+function deduireAuProrata(cumuls: Map<string, Cumul>, cle: CleRepartition, montant: number): number {
+  const lots = cle.lots.map((l) => l.lotId)
+  const disponibles = lots.map((lotId) => Math.max(0, partDe(cumuls.get(lotId))))
+  const total = disponibles.reduce((s, d) => s + d, 0)
+  const couvert = Math.min(montant, total)
+  if (couvert > 0)
+    repartirAuxPlusFortsRestes(couvert, disponibles).forEach((part, i) => {
+      cumulDe(cumuls, lots[i]).employe += part
+    })
+  return montant - couvert
+}
+
+/**
+ * J67, R89 — lots issus d'une division et leurs tantièmes dans la clé du fonds, fixés par l'acte cité (règlement
+ * modificatif, décision de l'assemblée ou de l'administrateur provisoire qui en a les pouvoirs).
+ */
+export interface RepartitionDivision {
+  reference: string
+  lots: { lotId: string; tantiemes: number }[]
+}
+
+/**
+ * J67, R89 — réunion de lots ou division d'un lot, à sa date. Division : `lotsIssus`, les lots qui en sont issus, à saisir
+ * quand la répartition ne l'est pas (null) ; avec une répartition, ce sont ses lots (lotsIssus facultatif, alors le même
+ * ensemble).
+ */
+export type ModificationLots =
+  | { id: string; type: 'reunion'; date: string; lotsOrigine: string[]; lotIssu: string }
+  | { id: string; type: 'division'; date: string; lotOrigine: string; lotsIssus?: string[]; repartition: RepartitionDivision | null }
+
+type Division = Extract<ModificationLots, { type: 'division' }>
+
+function verifierRepartition(m: Division, repartition: RepartitionDivision): void {
+  const nom = `Division du lot ${m.lotOrigine} (${m.id})`
+  if (!repartition.reference.trim()) throw new Error(`${nom} : référence de la répartition (règlement modificatif ou décision) attendue.`)
+  if (repartition.lots.length === 0) throw new Error(`${nom} : au moins un lot issu attendu.`)
+  verifierUnicite(
+    repartition.lots.map((l) => l.lotId),
+    (id) => `${nom} : lot issu ${id} en double.`,
+  )
+  for (const l of repartition.lots)
+    if (!l.lotId.trim() || !Number.isInteger(l.tantiemes) || l.tantiemes <= 0)
+      throw new Error(`${nom} : tantièmes invalides pour le lot issu « ${l.lotId} » (entier strictement positif attendu).`)
+}
+
+/** Lots issus d'une division : saisis et non vides sans répartition ; avec une répartition, le même ensemble que ses lots. */
+function verifierLotsIssus(m: Division): void {
+  const nom = `Division du lot ${m.lotOrigine} (${m.id})`
+  const saisis = m.lotsIssus ?? null
+  if (saisis === null && m.repartition) return
+  if (saisis === null || saisis.length === 0) throw new Error(`${nom} : lots issus attendus, même sans répartition saisie.`)
+  if (saisis.some((lotId) => !lotId.trim())) throw new Error(`${nom} : lot issu vide.`)
+  verifierUnicite(saisis, (id) => `${nom} : lot issu ${id} en double.`)
+  const repartis = m.repartition?.lots.map((l) => l.lotId)
+  if (repartis && (repartis.length !== saisis.length || repartis.some((lotId) => !saisis.includes(lotId))))
+    throw new Error(`${nom} : lots issus différents de ceux de la répartition.`)
+}
+
+/** Réunion : au moins deux lots d'origine distincts, aucun vide, et le lot issu. */
+function verifierReunion(m: Extract<ModificationLots, { type: 'reunion' }>): void {
+  if (new Set(m.lotsOrigine).size < 2) throw new Error(`Réunion de lots ${m.id} : au moins deux lots distincts à réunir.`)
+  if (m.lotsOrigine.some((lotId) => !lotId.trim())) throw new Error(`Réunion de lots ${m.id} : lot d'origine vide.`)
+  if (!m.lotIssu.trim()) throw new Error(`Réunion de lots ${m.id} : lot issu attendu.`)
+}
+
+/** Division : le lot d'origine, une répartition complète si elle est saisie, et ses lots issus. */
+function verifierDivision(m: Division): void {
+  if (!m.lotOrigine.trim()) throw new Error(`Division ${m.id} : lot d'origine attendu.`)
+  if (m.repartition) verifierRepartition(m, m.repartition)
+  verifierLotsIssus(m)
+}
+
+/** Modifications de lots : identifiants uniques, dates ISO, réunions et divisions complètes. */
+function verifierModifications(modifications: ModificationLots[]): void {
+  verifierUnicite(
+    modifications.map((m) => m.id),
+    (id) => `Modification de lots « ${id} » comptée deux fois.`,
+  )
+  for (const m of modifications) {
+    verifierDate(m.date, `Date de la modification de lots ${m.id}`)
+    if (m.type === 'reunion') verifierReunion(m)
+    else verifierDivision(m)
+  }
+}
+
+/** Lots issus d'une modification : le lot réuni ; ceux de la répartition d'une division, à défaut ceux saisis. */
+function lotsIssusDe(m: ModificationLots): string[] {
+  if (m.type === 'reunion') return [m.lotIssu]
+  return m.repartition ? m.repartition.lots.map((l) => l.lotId) : (m.lotsIssus ?? [])
+}
+
+/** Lots d'origine d'une modification : les lots réunis (distincts), ou le lot divisé. */
+const lotsOrigineDe = (m: ModificationLots): string[] => (m.type === 'reunion' ? [...new Set(m.lotsOrigine)] : [m.lotOrigine])
+
+/** Ce que reçoit chaque lot issu de `montant` : tout au lot réuni ; au prorata des tantièmes d'une division, au centime. */
+function partage(m: ModificationLots, montant: number): [string, number][] {
+  if (m.type === 'reunion') return [[m.lotIssu, montant]]
+  const { lots } = m.repartition as RepartitionDivision
+  return repartirAuxPlusFortsRestes(montant, lots.map((l) => l.tantiemes)).map((part, i): [string, number] => [lots[i].lotId, part])
+}
+
+/** Déplace `montant` du lot `origine` vers les lots issus de `m` (partage, plus forts restes) ; rend ce que chacun reçoit. */
+function deplacer(cumuls: Map<string, Cumul>, m: ModificationLots, origine: string, montant: number): [string, number][] {
+  const recus = partage(m, montant)
+  cumulDe(cumuls, origine).transfert -= montant
+  for (const [lotId, part] of recus) cumulDe(cumuls, lotId).transfert += part
+  return recus
+}
+
+/** Lot réuni ou divisé (répartition saisie), et la modification qui l'a remplacé ; un lot qui en est issu à nouveau en sort. */
+type LotsRemplaces = Map<string, ModificationLots>
+
+/**
+ * J67, R89 — applique une modification de lots aux cumuls : réunion, la part du nouveau lot est la somme des parts des
+ * lots réunis ; division, la part (positive) du lot d'origine se partage au prorata des tantièmes des lots issus ; sans
+ * répartition saisie, la part reste sur le lot d'origine et l'anomalie le dit, au lot d'origine et à chaque lot issu.
+ */
+function appliquerModification(cumuls: Map<string, Cumul>, remplaces: LotsRemplaces, m: ModificationLots): AnomalieFondsTravauxLots[] {
+  if (m.type === 'division' && !m.repartition)
+    return [
+      {
+        code: 'division_sans_repartition',
+        refId: m.lotOrigine,
+        lotIds: [m.lotOrigine, ...lotsIssusDe(m)],
+        message: `Division du lot ${m.lotOrigine} (${m.id}, ${dateIsoVersFr(m.date)}) : répartition de sa part du fonds entre les lots issus (${lotsIssusDe(m).join(', ')}) non saisie (règlement modificatif, ou décision de l'assemblée ou de l'administrateur provisoire qui en a les pouvoirs) ; la part reste sur le lot d'origine, à confirmer.`,
+      },
+    ]
+  const issus = lotsIssusDe(m)
+  for (const origine of lotsOrigineDe(m)) {
+    const part = partDe(cumuls.get(origine))
+    if (m.type === 'reunion' || part > 0) deplacer(cumuls, m, origine, part)
+    if (!issus.includes(origine)) remplaces.set(origine, m)
+  }
+  for (const issu of issus) remplaces.delete(issu)
+  return []
+}
+
+/**
+ * J67, R89 — somme reçue par un lot déjà réuni ou divisé (versement daté après la modification : arriéré d'un appel du
+ * lot d'origine…) : elle suit la part vers les lots issus, selon la même règle, et de proche en proche.
+ */
+function transmettre(cumuls: Map<string, Cumul>, remplaces: LotsRemplaces, lotId: string, montant: number): void {
+  const m = remplaces.get(lotId)
+  if (!m) return
+  for (const [issu, part] of deplacer(cumuls, m, lotId, montant)) transmettre(cumuls, remplaces, issu, part)
+}
+
+type Evenement =
+  | { rang: 0; date: string; id: string; versement: VersementFondsTravaux }
+  | { rang: 1; date: string; id: string; modification: ModificationLots }
+  | { rang: 2; date: string; id: string; emploi: EmploiFondsTravaux }
+
+/**
+ * Événements datés au plus tard à `date`, par date ; le même jour, versements, puis modifications de lots, puis emplois ;
+ * enfin par identifiant.
+ */
+function evenementsJusquA(
+  versements: VersementFondsTravaux[],
+  emplois: EmploiFondsTravaux[],
+  modifications: ModificationLots[],
+  date: string,
+): Evenement[] {
+  const evenements: Evenement[] = [
+    ...versements.filter((v) => v.date <= date).map((versement) => ({ rang: 0 as const, date: versement.date, id: versement.id, versement })),
+    ...modifications.filter((m) => m.date <= date).map((modification) => ({ rang: 1 as const, date: modification.date, id: modification.id, modification })),
+    ...emplois.filter((e) => e.date <= date).map((emploi) => ({ rang: 2 as const, date: emploi.date, id: emploi.id, emploi })),
+  ]
+  return evenements.sort((a, b) => comparer(a.date, b.date) || a.rang - b.rang || comparer(a.id, b.id))
+}
+
+/**
+ * Contrôle d'affectation d'un emploi enregistré (J30) : `aujourdhui: null`, la date d'une décision ou d'une ordonnance
+ * structurée n'est pas comparée au jour, et le calcul ne lève jamais d'erreur pour l'avoir omise.
+ */
+const controleDeLEmploi = (emploi: EmploiFondsTravaux): ResultatAffectation =>
+  controlerAffectationFondsTravaux(emploi.decaissement, { aujourdhui: null })
+
+/**
+ * Décision ou ordonnance admise mais en texte libre d'avant J30 : signalée « forme incomplète », l'emploi reste déduit ;
+ * sa date n'est pas lisible, donc pas contrôlée face à l'emploi, sauf la date de décision connue de l'emploi
+ * (`dateDecision`, rapprochée de lui) : à ressaisir en forme structurée (F94).
+ */
+function formeIncompleteDeLEmploi(emploi: EmploiFondsTravaux, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
+  if (!controle.formeIncomplete) return null
+  const date =
+    emploi.dateDecision === null
+      ? "Sa date n'est pas lisible, date non contrôlée face à l'emploi"
+      : `Sa forme n'est pas lisible ; l'emploi est rapproché de la date de décision connue (${dateIsoVersFr(emploi.dateDecision)})`
+  return {
+    code: 'emploi_forme_incomplete',
+    refId: emploi.id,
+    message: `Emploi ${emploi.id} : ${controle.formeIncomplete.message} ${date} : la ressaisir en forme structurée (décision du 20/11/2026, partie C, F94).`,
+  }
+}
+
+/** Date d'une décision ou d'une autorisation rapprochée de l'emploi, et ce qu'elle désigne dans le motif. */
+interface DecisionDatee {
+  date: string
+  source: string
+}
+
+const DECISION_D_AFFECTATION = "la décision d'affectation"
+
+/**
+ * Date structurée qui fonde l'emploi : celle de l'ordonnance du juge pour l'usage judiciaire (art. 29-14, 2° ; F94), de
+ * la décision de l'administrateur provisoire au registre (F96), ou de l'AG d'une décision d'affectation (J30) ; null pour
+ * un texte libre d'avant J30. Appelée sur un emploi dont l'objet est admis par le contrôle.
+ */
+function decisionStructureeDeLEmploi({ decaissement }: EmploiFondsTravaux): DecisionDatee | null {
+  if (AFFECTATION_FONDS_TRAVAUX[decaissement.objet].base !== 'affectation_ag') {
+    const ordonnance = lireOrdonnanceJuge(decaissement.autorisationJuge)
+    return ordonnance.forme === 'complete' ? { date: ordonnance.valeur.date, source: "l'ordonnance du juge" } : null
+  }
+  const { decisionAg } = decaissement
+  if (estDecisionAdministrateurProvisoire(decisionAg)) {
+    const lecture = lireDecisionAdministrateurProvisoire(decisionAg)
+    return lecture.forme === 'complete' ? { date: lecture.valeur.decision.date, source: "la décision de l'administrateur provisoire" } : null
+  }
+  const lecture = lireDecisionAffectationAg(decisionAg)
+  return lecture.forme === 'complete' ? { date: lecture.valeur.dateAg, source: DECISION_D_AFFECTATION } : null
+}
+
+/**
+ * Décision rapprochée de l'emploi (I, al. 7 ; art. 29-14, 2°) : `dateDecision` ou la date structurée, la plus tardive.
+ * Le même jour, l'emploi est admis (F94).
+ */
+function decisionRapprochee(emploi: EmploiFondsTravaux): DecisionDatee | null {
+  const structuree = decisionStructureeDeLEmploi(emploi)
+  const saisie = emploi.dateDecision === null ? null : { date: emploi.dateDecision, source: DECISION_D_AFFECTATION }
+  if (structuree === null) return saisie
+  if (saisie !== null && saisie.date > structuree.date) return saisie
+  return structuree
+}
+
+/** Anomalie d'un emploi qui ne peut pas être déduit (non autorisé, antérieur à sa décision, clé inconnue) ; null sinon. */
+function emploiNonDeductible(emploi: EmploiFondsTravaux, cle: CleRepartition | undefined, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
+  if (!controle.autorise) return { code: 'emploi_non_autorise', refId: emploi.id, message: `Emploi ${emploi.id} non déduit : ${controle.motif}` }
+  const decision = decisionRapprochee(emploi)
+  if (decision !== null && emploi.date < decision.date)
+    return {
+      code: 'emploi_avant_decision',
+      refId: emploi.id,
+      message: `Emploi ${emploi.id} non déduit : daté du ${dateIsoVersFr(emploi.date)}, avant ${decision.source} du ${dateIsoVersFr(decision.date)}.`,
+    }
+  if (!cle) return { code: 'cle_emploi_inconnue', refId: emploi.id, message: `Emploi ${emploi.id} non déduit : clé « ${emploi.cleId} » inconnue.` }
+  return null
+}
+
+/**
+ * Part d'un emploi au-delà de la part du fonds de son opération, compte tenu des emplois de l'opération déjà passés
+ * (ordre des événements : date, puis identifiant ; emplois refusés compris, car sortis du fonds) ; met à jour le cumul de
+ * l'opération. 0 pour un emploi hors opération.
+ */
+function excedentOperation(emploi: EmploiFondsTravaux, cumulsOperations: Map<string, number>): number {
+  const { operationNumero, partOperationCentimes, montantCentimes } = emploi
+  if (operationNumero === null || partOperationCentimes === null) return 0
+  const avant = cumulsOperations.get(operationNumero) ?? 0
+  cumulsOperations.set(operationNumero, avant + montantCentimes)
+  return Math.min(montantCentimes, Math.max(0, avant + montantCentimes - partOperationCentimes))
+}
+
+/** F93 — ce qui dépasse la part disponible d'un lot, en mode « tantièmes » : reste à appeler auprès de ce lot. */
+function restesAAppeler(emploi: EmploiFondsTravaux, restes: [string, number][]): AnomalieFondsTravauxLots[] {
+  return restes.map(([lotId, reste]) => ({
+    code: 'reste_a_appeler_lot',
+    refId: emploi.id,
+    lotIds: [lotId],
+    nonCouvertCentimes: reste,
+    message: `Emploi ${emploi.id} : ${reste} centimes de la quote-part du lot ${lotId} en tantièmes de la clé « ${emploi.cleId} » au-delà de sa part disponible : reste à appeler auprès de ce lot, jamais pris sur les autres lots (décision du 20/11/2026, partie C, F93).`,
+  }))
+}
+
+/**
+ * Applique un emploi aux cumuls ; renvoie les anomalies qu'il produit. L'excédent sur la part du fonds de l'opération
+ * n'est jamais déduit des parts des lots.
+ */
+function appliquerEmploi(
+  cumuls: Map<string, Cumul>,
+  emploi: EmploiFondsTravaux,
+  cles: CleRepartition[],
+  mode: ModeEmploi,
+  cumulsOperations: Map<string, number>,
+): AnomalieFondsTravauxLots[] {
+  const anomalies: AnomalieFondsTravauxLots[] = []
+  const excedent = excedentOperation(emploi, cumulsOperations)
+  if (excedent > 0)
+    anomalies.push({
+      code: 'emplois_operation_excedent',
+      refId: emploi.id,
+      excedentCentimes: excedent,
+      message: `Emploi ${emploi.id} : ${excedent} centimes au-delà de la part du fonds de travaux de l'opération ${emploi.operationNumero} (${emploi.partOperationCentimes} centimes), compte tenu de ses autres emplois ; excédent sorti du fonds, non déduit des parts des lots.`,
+    })
+  const cle = cles.find((c) => c.id === emploi.cleId)
+  const controle = controleDeLEmploi(emploi)
+  const formeIncomplete = formeIncompleteDeLEmploi(emploi, controle)
+  if (formeIncomplete) anomalies.push(formeIncomplete)
+  const refus = emploiNonDeductible(emploi, cle, controle)
+  if (refus) return [...anomalies, refus]
+  const aDeduire = emploi.montantCentimes - excedent
+  if (aDeduire === 0) return anomalies
+  if (mode === 'tantiemes') return [...anomalies, ...restesAAppeler(emploi, deduireAuxTantiemes(cumuls, cle as CleRepartition, aDeduire))]
+  const nonCouvert = deduireAuProrata(cumuls, cle as CleRepartition, aDeduire)
+  if (nonCouvert > 0)
+    anomalies.push({
+      code: 'emploi_excede_parts_cle',
+      refId: emploi.id,
+      nonCouvertCentimes: nonCouvert,
+      message: `Emploi ${emploi.id} : ${nonCouvert} centimes au-delà des parts des lots de la clé « ${emploi.cleId} » ; vérifier la clé de l'affectation (parties communes spéciales).`,
+    })
+  return anomalies
+}
+
+/** Un emploi tiré d'une opération porte la part du fonds de celle-ci, la même pour tous les emplois de l'opération. */
+function verifierPartsOperations(emplois: EmploiFondsTravaux[]): void {
+  const parts = new Map<string, number>()
+  for (const e of emplois) {
+    if ((e.operationNumero === null) !== (e.partOperationCentimes === null))
+      throw new Error(`Emploi ${e.id} : numéro d'opération et part du fonds de travaux de l'opération vont ensemble (tous deux renseignés ou tous deux null).`)
+    if (e.operationNumero === null || e.partOperationCentimes === null) continue
+    verifierMontant(e.partOperationCentimes, `Part du fonds de travaux de l'opération ${e.operationNumero} (emploi ${e.id})`)
+    const connue = parts.get(e.operationNumero)
+    if (connue !== undefined && connue !== e.partOperationCentimes)
+      throw new Error(`Opération ${e.operationNumero} : part du fonds de travaux différente d'un emploi à l'autre (${connue} et ${e.partOperationCentimes} centimes).`)
+    parts.set(e.operationNumero, e.partOperationCentimes)
+  }
+}
+
+/**
+ * Contrôles d'entrée : identifiants uniques, montant, date de décision et part du fonds de l'opération. Plusieurs emplois
+ * d'une même opération (prélèvements échelonnés) sont admis, chacun sous son identifiant ; ce qui dépasse la part de
+ * l'opération est signalé au calcul.
+ */
+function verifierEntrees(versements: VersementFondsTravaux[], emplois: EmploiFondsTravaux[]): void {
+  verifierUnicite(
+    versements.map((v) => v.id),
+    (id) => `Versement au fonds de travaux « ${id} » compté deux fois.`,
+  )
+  verifierUnicite(
+    emplois.map((e) => e.id),
+    (id) => `Emploi du fonds de travaux « ${id} » compté deux fois.`,
+  )
+  for (const e of emplois) {
+    if (e.montantCentimes !== e.decaissement.montantCentimes) throw new Error(`Emploi ${e.id} : montant différent de celui de son décaissement.`)
+    if (e.dateDecision !== null) verifierDate(e.dateDecision, `Date de décision de l'emploi ${e.id}`)
+  }
+  verifierPartsOperations(emplois)
+}
+
+function partDuLot(lotId: string, c: Cumul, versementsDuLot: VersementFondsTravaux[], date: string): PartFondsTravauxLot {
+  return {
+    lotId,
+    verseCentimes: c.verse,
+    repriseCentimes: c.reprise,
+    employeCentimes: c.employe,
+    transfertCentimes: c.transfert,
+    partCentimes: partDe(c),
+    verseParCompte: [...c.parCompte.entries()].map(([compteId, verseCentimes]) => ({ compteId, verseCentimes })),
+    derniereCotisation: derniereCotisationSoldee(versementsDuLot, date),
+  }
+}
+
+/**
+ * Part du fonds de travaux de chaque lot à une date (bornes incluses) : versements cumulés, emplois admis déduits des lots
+ * de leur clé. Les emplois non autorisés, antérieurs à leur décision, sur une clé inconnue, ou au-delà des parts des lots
+ * de la clé, sont signalés ; de même ce que la somme des emplois d'une opération dépasse de la part du fonds de cette
+ * opération (excédent non déduit). Les réunions et divisions de lots (J67, R89) déplacent les parts à leur date. Un
+ * versement, un emploi ou une modification de lots en double est refusé.
+ */
+export function partsFondsTravauxParLot({
+  versements,
+  emplois,
+  cles,
+  date,
+  mode = 'tantiemes',
+  modificationsLots = [],
+}: {
+  versements: VersementFondsTravaux[]
+  emplois: EmploiFondsTravaux[]
+  cles: CleRepartition[]
+  date: string
+  mode?: ModeEmploi
+  /** J67, R89 — réunions et divisions de lots, datées ; absentes : aucune. */
+  modificationsLots?: ModificationLots[]
+}): EtatFondsTravauxParLot {
+  verifierDate(date, 'Date')
+  verifierEntrees(versements, emplois)
+  verifierModifications(modificationsLots)
+  const cumuls = new Map<string, Cumul>()
+  const cumulsOperations = new Map<string, number>()
+  const remplaces: LotsRemplaces = new Map()
+  const anomalies: AnomalieFondsTravauxLots[] = []
+  let totalPreleveCentimes = 0
+  for (const evenement of evenementsJusquA(versements, emplois, modificationsLots, date)) {
+    if (evenement.rang === 0) {
+      ajouterVersement(cumuls, evenement.versement)
+      transmettre(cumuls, remplaces, evenement.versement.lotId, evenement.versement.montantCentimes)
+      continue
+    }
+    if (evenement.rang === 1) {
+      anomalies.push(...appliquerModification(cumuls, remplaces, evenement.modification))
+      continue
+    }
+    totalPreleveCentimes += evenement.emploi.montantCentimes
+    anomalies.push(...appliquerEmploi(cumuls, evenement.emploi, cles, mode, cumulsOperations))
+  }
+  const parts = [...cumuls.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'fr', { numeric: true }))
+    .map(([lotId, c]) => partDuLot(lotId, c, versements.filter((v) => v.lotId === lotId), date))
+  for (const p of parts)
+    if (p.partCentimes < 0)
+      anomalies.push({ code: 'part_negative', refId: p.lotId, message: `Part du lot ${p.lotId} négative (${p.partCentimes} centimes) : emploi supérieur aux sommes versées pour ce lot.` })
+  const totalVerseCentimes = parts.reduce((s, p) => s + p.verseCentimes, 0)
+  return {
+    date,
+    parts,
+    totalVerseCentimes,
+    totalDeduitDesPartsCentimes: parts.reduce((s, p) => s + p.employeCentimes, 0),
+    totalPreleveCentimes,
+    soldeFondsCentimes: totalVerseCentimes - totalPreleveCentimes,
+    anomalies,
+    aConfirmer: true,
+    fondement: "L. 1965 art. 14-2-1, III ; avant l'entrée en vigueur fixée par la loi n° 2021-1104, art. 171, VI : ancien art. 14-2, II",
+  }
+}
+
+// ─── Part de chaque clé face au fonds disponible de ses lots (décision du 20/11/2026, partie C, F65) ────────────────
+
+/** Libellé de l'alerte de F65, suivi de la date de l'état des parts. */
+export const LIBELLE_PART_CLE_AU_DELA_DU_FONDS = 'part de la clé supérieure au fonds disponible de ses lots au'
+
+/** F65 — part du fonds d'une clé de l'opération au-delà du fonds disponible des lots de la clé : alerte, jamais un blocage. */
+export interface AlertePartCleFonds {
+  code: 'part_cle_superieure_au_fonds_disponible'
+  bloquant: false
+  operationNumero: string
+  cleId: string
+  partCleCentimes: number
+  /** Parts disponibles (positives) des lots de la clé à la date de l'état : versé, moins les emplois déjà faits. */
+  disponibleCentimes: number
+  date: string
+  message: string
+}
+
+/**
+ * Part du fonds de travaux de chaque clé de l'opération rapprochée, dès la décision (création ou adoption), du fonds
+ * disponible des lots de la clé (décision du 20/11/2026, partie C, F65 ; L. 1965 art. 14-2-1, I, al. 7 : l'affectation
+ * tient compte des clés de répartition) : une alerte « part de la clé supérieure au fonds disponible de ses lots au
+ * [date] », sans blocage, les cotisations continuant d'arriver d'ici l'emploi ; au décaissement, le contrôle reste celui
+ * de l'emploi. `etat` : l'état des parts à la date de la décision (partsFondsTravauxParLot) ; `cles` : les clés du
+ * syndicat, dont celles de l'opération (refus d'une clé absente).
+ */
+export function alertesPartsDesClesAuFondsDisponible(
+  operation: Pick<OperationTravaux, 'numero' | 'cles'>,
+  etat: Pick<EtatFondsTravauxParLot, 'date' | 'parts'>,
+  cles: readonly CleRepartition[],
+): AlertePartCleFonds[] {
+  const parts = new Map(etat.parts.map((p) => [p.lotId, p.partCentimes]))
+  return operation.cles
+    .filter((c) => c.financementFondsTravauxCentimes > 0)
+    .flatMap((c): AlertePartCleFonds[] => {
+      const cle = cles.find((k) => k.id === c.cleId)
+      if (!cle) throw new Error(`Opération ${operation.numero} : clé « ${c.cleId} » absente des clés fournies ; fonds disponible de ses lots non calculé.`)
+      const disponible = cle.lots.reduce((s, l) => s + Math.max(0, parts.get(l.lotId) ?? 0), 0)
+      if (c.financementFondsTravauxCentimes <= disponible) return []
+      return [
+        {
+          code: 'part_cle_superieure_au_fonds_disponible',
+          bloquant: false,
+          operationNumero: operation.numero,
+          cleId: c.cleId,
+          partCleCentimes: c.financementFondsTravauxCentimes,
+          disponibleCentimes: disponible,
+          date: etat.date,
+          message: `Opération ${operation.numero}, clé « ${c.cleId} » : ${LIBELLE_PART_CLE_AU_DELA_DU_FONDS} ${dateIsoVersFr(etat.date)} (part de la clé ${c.financementFondsTravauxCentimes} centimes ; fonds disponible de ses lots ${disponible} centimes : versé, moins les emplois déjà faits) ; alerte, sans blocage : les cotisations continuent d'arriver d'ici l'emploi (décision du 20/11/2026, partie C, F65).`,
+        },
+      ]
+    })
+}
+
+/** Anomalies portées par un lot (refId = le lot, ou lotIds), et non par un emploi. */
+const ANOMALIES_D_UN_LOT: ReadonlySet<AnomalieFondsTravauxLots['code']> = new Set(['part_negative', 'division_sans_repartition', 'reste_a_appeler_lot'])
+
+/**
+ * Anomalies qui concernent un lot : sa part négative, son reste à appeler (F93), une division sans répartition dont il
+ * est le lot d'origine ou un lot issu, et les emplois sur une clé qui le contient ou sur une clé inconnue.
+ */
+function anomaliesDuLot(anomalies: AnomalieFondsTravauxLots[], emplois: EmploiFondsTravaux[], cles: CleRepartition[], lotId: string): AnomalieFondsTravauxLots[] {
+  return anomalies.filter((a) => {
+    if (ANOMALIES_D_UN_LOT.has(a.code)) return (a.lotIds ?? [a.refId]).includes(lotId)
+    const emploi = emplois.find((e) => e.id === a.refId)
+    const cle = cles.find((c) => c.id === emploi?.cleId)
+    return !cle || cle.lots.some((l) => l.lotId === lotId)
+  })
+}
+
+/** La position (semi-ouverte : sortie le jour de sa sortie) couvre la veille de `jour`. */
+const couvreLaVeille = (p: Position, jour: string): boolean => p.dateEntree < jour && (p.dateSortie === null || p.dateSortie >= jour)
+
+/**
+ * Début de la présence continue du compte sur le lot, remontée depuis `entree` : positions de copropriété successives
+ * de ce compte sans un jour d'interruption (une sortie et une entrée le même jour se suivent ; réorganisation d'une
+ * indivision par muterLot sous le même compte comprise). Un séjour antérieur, séparé par une interruption, n'est pas
+ * repris.
+ */
+function presenceContinueDepuis(positions: Position[], lotId: string, compteId: string, entree: string): string {
+  const duCompte = positions.filter((p) => p.lotId === lotId && p.compteId === compteId && p.statut !== 'Futur' && estQualiteCopropriete(p.qualite))
+  const precedentes = (jour: string): Position[] => duCompte.filter((p) => couvreLaVeille(p, jour))
+  let depuis = entree
+  let avant = precedentes(depuis)
+  while (avant.length > 0) {
+    depuis = avant.map((p) => p.dateEntree).sort(comparer)[0]
+    avant = precedentes(depuis)
+  }
+  return depuis
+}
+
+/**
+ * Compte copropriétaire unique des positions de copropriété en place sur le lot à `date` (D2), et le début de sa
+ * présence continue sur le lot.
+ */
+function vendeurEnPlace(positions: Position[], lotId: string, date: string, message: string): { compteId: string; depuis: string } {
+  const enPlace = positionsEnPlace(positions, lotId, date).filter((p) => estQualiteCopropriete(p.qualite) && p.compteId)
+  const comptes = new Set(enPlace.map((p) => p.compteId as string))
+  if (comptes.size !== 1) throw new Error(message)
+  const [compteId] = comptes
+  const entree = enPlace.map((p) => p.dateEntree).sort(comparer)[0]
+  return { compteId, depuis: presenceContinueDepuis(positions, lotId, compteId, entree) }
+}
+
+const FONDEMENT_VI = 'Loi n° 2021-1104 du 22 août 2021, art. 171, VI'
+const PREMIERE_ENTREE = composerDateIso(ENTREE_EN_VIGUEUR_FONDS_TRAVAUX[0].annee, 1, 1)
+const DERNIERE_ENTREE = composerDateIso(ENTREE_EN_VIGUEUR_FONDS_TRAVAUX[2].annee, 1, 1)
+const CREATION_FR = dateIsoVersFr(CREATION_FONDS_TRAVAUX)
+
+/**
+ * Régime à la date de mutation : avant le 01/01/2017, aucun fonds légal ; ensuite, l'ancien art. 14-2 (rédactions du
+ * 01/01/2017 au 25/11/2018 et du 25/11/2018 au 01/01/2023, même règle : J67, R87) jusqu'à l'entrée en vigueur du VI.
+ */
+type RegimeCession = 'actuel' | 'ancien' | 'lots_inconnus' | 'aucun_fonds'
+
+function regimeCession(date: string, nbLots: number | null): RegimeCession {
+  if (date >= DERNIERE_ENTREE) return 'actuel'
+  if (date < CREATION_FONDS_TRAVAUX) return 'aucun_fonds'
+  if (date < PREMIERE_ENTREE) return 'ancien'
+  if (nbLots === null) return 'lots_inconnus'
+  const palier = ENTREE_EN_VIGUEUR_FONDS_TRAVAUX.find((e) => nbLots >= e.lotsAuMoins) ?? ENTREE_EN_VIGUEUR_FONDS_TRAVAUX[2]
+  return date >= composerDateIso(palier.annee, 1, 1) ? 'actuel' : 'ancien'
+}
+
+const CESSION: Record<RegimeCession, { mention: string; fondements: string[] }> = {
+  actuel: {
+    mention:
+      "Sommes versées au fonds de travaux attachées au lot et entrées définitivement dans le patrimoine du syndicat dès leur versement : aucun remboursement au vendeur, la part suit le lot ; l'acquéreur peut consentir à verser au vendeur un montant équivalent, en sus du prix.",
+    fondements: ['L. 1965 art. 14-2-1, III', FONDEMENT_VI],
+  },
+  ancien: {
+    mention: 'Sommes versées au fonds de travaux attachées au lot et définitivement acquises au syndicat : aucun remboursement par le syndicat à la cession, la part suit le lot.',
+    fondements: ['L. 1965 art. 14-2, II (rédaction antérieure à la loi n° 2021-1104)', FONDEMENT_VI],
+  },
+  lots_inconnus: {
+    mention:
+      "Régime du fonds de travaux à la date de mutation à établir : renseigner le nombre de lots à usage de logements, de bureaux ou de commerces (art. 14-2-1 entré en vigueur entre le 01/01/2023 et le 01/01/2025 selon ce nombre).",
+    fondements: [FONDEMENT_VI],
+  },
+  aucun_fonds: {
+    mention: `Aucun fonds de travaux légal à la date de mutation : le fonds de travaux n'existe que depuis le ${CREATION_FR} (J67, R87) ; aucune part à rattacher au lot.`,
+    fondements: [FONDEMENT_CREATION_FONDS_TRAVAUX],
+  },
+}
+
+export interface CotisationImpayeeVendeur {
+  posteId: string
+  exigibilite: string
+  /**
+   * Reste dû à la date de mutation : appelé − réglé + versements de ce poste datés après la mutation (le réglé du poste
+   * fait foi, part réglée avant la prise de fonction comprise) ; plafonné à l'appelé.
+   */
+  resteCentimes: number
+  /** Versé par le vendeur sur ce poste après la mutation (opposition sur le prix…) : à déduire pour le reste dû actuel. */
+  regleDepuisCentimes: number
+}
+
+/** Appel du fonds exigible après la mutation mais encore porté au compte vendeur : à réattribuer, non dû par le vendeur. */
+export interface PosteAReattribuer {
+  posteId: string
+  exigibilite: string
+  montantCentimes: number
+  /** Déjà réglé sur ce poste depuis le compte vendeur : à reprendre avec la réattribution. */
+  regleCentimes: number
+}
+
+/** Reste dû à la mutation sur un poste échu : appelé − réglé + versements du poste datés après la mutation, plafonné à l'appelé. */
+function resteDuALaMutation(p: PosteDette, versements: VersementFondsTravaux[], date: string): CotisationImpayeeVendeur {
+  const regleDepuisCentimes = somme(versements.filter((v) => v.cotisation?.posteId === p.id && v.date > date))
+  return { posteId: p.id, exigibilite: p.exigibilite, resteCentimes: Math.min(p.montantCentimes, soldePoste(p) + regleDepuisCentimes), regleDepuisCentimes }
+}
+
+/**
+ * Versements d'un poste (avant et après la mutation) supérieurs à son réglé : postes et versements ne viennent pas de la
+ * même imputation. Le réglé fait foi ; un total inférieur au réglé est admis (part réglée avant la prise de fonction).
+ */
+function incoherenceDuPoste(p: PosteDette, versements: VersementFondsTravaux[], date: string): AnomalieFondsTravauxLots | null {
+  const duPoste = versements.filter((v) => v.cotisation?.posteId === p.id)
+  const totalCentimes = somme(duPoste)
+  if (totalCentimes <= p.regleCentimes) return null
+  const apresCentimes = somme(duPoste.filter((v) => v.date > date))
+  return {
+    code: 'versements_poste_incoherents',
+    refId: p.id,
+    message: `Poste ${p.id} : ${totalCentimes} centimes de versements, dont ${apresCentimes} après la mutation du ${dateIsoVersFr(date)}, pour ${p.regleCentimes} centimes réglés ; le réglé fait foi : fournir postes et versements issus de la même imputation (reste dû à la mutation plafonné à l'appelé).`,
+  }
+}
+
+/**
+ * Appels du fonds du lot portés au compte vendeur : ceux exigibles au plus tard le jour de la mutation et non soldés à
+ * cette date (dus par le vendeur) ; ceux exigibles après (à réattribuer, jamais imputés au vendeur) ; pour tous, les
+ * versements incohérents avec le réglé.
+ */
+function cotisationsALaMutation(
+  postes: PosteDette[],
+  versements: VersementFondsTravaux[],
+  lotId: string,
+  compteId: string,
+  date: string,
+): { impayees: CotisationImpayeeVendeur[]; aReattribuer: PosteAReattribuer[]; anomalies: AnomalieFondsTravauxLots[] } {
+  const duVendeur = postes.filter((p) => p.typeAppel === 'Fonds travaux' && p.lotId === lotId && p.compteId === compteId)
+  const impayees = duVendeur
+    .filter((p) => p.exigibilite <= date)
+    .map((p) => resteDuALaMutation(p, versements, date))
+    .filter((c) => c.resteCentimes > 0)
+  const anomalies = duVendeur.flatMap((p) => incoherenceDuPoste(p, versements, date) ?? [])
+  const aReattribuer = duVendeur
+    .filter((p) => p.exigibilite > date)
+    .map((p) => ({ posteId: p.id, exigibilite: p.exigibilite, montantCentimes: p.montantCentimes, regleCentimes: p.regleCentimes }))
+  return { impayees, aReattribuer, anomalies }
+}
+
+function verifierNbLots(nbLots: number | null): void {
+  if (nbLots !== null && (!Number.isInteger(nbLots) || nbLots < 0))
+    throw new Error(`Nombre de lots invalide (${nbLots}) : entier positif ou nul attendu.`)
+}
+
+/**
+ * J67, R89 — lot vendu issu d'une réunion ou d'une division datée au plus tard à `date` : la dernière cotisation et les
+ * versements du vendeur ne se lisent que sur ce lot ; ce que le vendeur a versé sur un lot d'origine, jusqu'à la
+ * modification, est signalé, à confirmer.
+ */
+function versementsDuVendeurSurLotsOrigine(
+  modifications: ModificationLots[],
+  versements: VersementFondsTravaux[],
+  lotId: string,
+  compteId: string,
+  date: string,
+): AnomalieFondsTravauxLots[] {
+  return modifications
+    .filter((m) => m.date <= date && lotsIssusDe(m).includes(lotId))
+    .flatMap((m): AnomalieFondsTravauxLots[] => {
+      const origines = lotsOrigineDe(m).filter((o) => o !== lotId)
+      const lus = somme(versements.filter((v) => origines.includes(v.lotId) && v.compteId === compteId && v.source === 'encaissement' && v.date <= m.date))
+      if (lus === 0) return []
+      const lots = origines.length > 1 ? `les lots d'origine ${origines.join(', ')}` : `le lot d'origine ${origines[0]}`
+      return [
+        {
+          code: 'versements_vendeur_lots_origine',
+          refId: lotId,
+          message: `Lot ${lotId} issu de la ${m.type === 'reunion' ? 'réunion' : 'division'} ${m.id} du ${dateIsoVersFr(m.date)} : ${lus} centimes versés par le vendeur sur ${lots}, non relus pour sa dernière cotisation ni pour ses versements ; à confirmer (J67, R89).`,
+        },
+      ]
+    })
+}
+
+/**
+ * J67, R87 — avant le 01/01/2017, aucun fonds de travaux légal : part et cotisations ne sont pas données ; les sommes lues
+ * sur les appels du fonds du lot à `date` sont signalées, à qualifier. Rien si aucune.
+ */
+function sommesAvantFondsLegal(versements: VersementFondsTravaux[], lotId: string, date: string): AnomalieFondsTravauxLots[] {
+  const lues = somme(versements.filter((v) => v.lotId === lotId && v.date <= date))
+  if (lues === 0) return []
+  return [
+    {
+      code: 'sommes_avant_fonds_legal',
+      refId: lotId,
+      message: `Lot ${lotId} : ${lues} centimes lus sur les appels « Fonds travaux » au ${dateIsoVersFr(date)} ; avant le ${CREATION_FR}, ce ne sont pas des cotisations à un fonds de travaux légal (J67, R87) : part et cotisations non données, sommes à qualifier.`,
+    },
+  ]
+}
+
+export interface FondsTravauxMutation {
+  lotId: string
+  date: string
+  compteVendeurId: string
+  /**
+   * Part rattachée au lot au jour de la mutation : inchangée par la mutation, elle suit le lot. Avant le 01/01/2017 : 0,
+   * aucun fonds légal, les sommes lues sont signalées (J67, R87) ; de même pour les deux montants suivants.
+   */
+  partRattacheeCentimes: number
+  /** Encaissements du compte vendeur sur le lot pendant sa présence continue, jusqu'à la mutation incluse, hors reprise. */
+  verseParLeVendeurCentimes: number
+  /** Part reprise du syndic précédent, comprise dans la part rattachée : elle n'est pas un versement du vendeur. */
+  partRepriseCentimes: number
+  /** Appels du fonds dus par le vendeur et impayés à la mutation : dettes du vendeur, distinctes de la part du lot. */
+  cotisationsImpayeesVendeur: CotisationImpayeeVendeur[]
+  /** Appels du fonds exigibles après la mutation mais encore au compte vendeur : à réattribuer, non dus par le vendeur. */
+  postesAReattribuer: PosteAReattribuer[]
+  /**
+   * Anomalies de l'état par lot qui touchent ce lot (part négative, emploi non déduit, non couvert ou en excédent sur sa
+   * clé, division sans répartition), postes du vendeur dont les versements dépassent le réglé, versements du vendeur sur
+   * un lot d'origine (J67, R89), sommes antérieures au 01/01/2017 (J67, R87).
+   */
+  anomalies: AnomalieFondsTravauxLots[]
+  mention: string
+  fondements: string[]
+  aConfirmer: true
+}
+
+/**
+ * Effet de la mutation d'un lot sur le fonds de travaux (à appeler à côté de muterLot, sans le modifier) : la part reste
+ * au lot, sans remboursement au vendeur ni écriture ; appels du fonds restés impayés par le vendeur à la date ; appels
+ * exigibles après la mutation restés à son compte, à réattribuer. Le fondement dépend de la date et du nombre de lots
+ * principaux (null : inconnu). Les informations dues à l'acquéreur (CCH L. 721-2) sont arrêtées à une autre date : voir
+ * informationsFondsTravauxAcquereur.
+ *
+ * `postes` et `versements` doivent être issus de la même imputation (imputerEncaissements, puis
+ * versementsFondsTravauxDepuisImputations sur ses résultats) : le réglé du poste fait foi pour le reste dû, et un poste
+ * dont le total des versements dépasse le réglé est signalé (versements_poste_incoherents).
+ */
+export function fondsTravauxALaMutation({
+  positions,
+  lotId,
+  date,
+  nbLotsPrincipaux,
+  versements,
+  emplois,
+  cles,
+  postes,
+  mode = 'tantiemes',
+  modificationsLots = [],
+}: {
+  positions: Position[]
+  lotId: string
+  date: string
+  nbLotsPrincipaux: number | null
+  versements: VersementFondsTravaux[]
+  emplois: EmploiFondsTravaux[]
+  cles: CleRepartition[]
+  postes: PosteDette[]
+  mode?: ModeEmploi
+  /** J67, R89 — réunions et divisions de lots, datées. */
+  modificationsLots?: ModificationLots[]
+}): FondsTravauxMutation {
+  verifierDate(date, 'Date de mutation')
+  verifierNbLots(nbLotsPrincipaux)
+  const vendeur = vendeurEnPlace(positions, lotId, ajouterJours(date, -1), `Mutation du lot ${lotId} : compte vendeur introuvable ou multiple la veille du ${dateIsoVersFr(date)}.`)
+  const etat = partsFondsTravauxParLot({ versements, emplois, cles, date, mode, modificationsLots })
+  const duLot = versements.filter((v) => v.lotId === lotId && v.date <= date)
+  const regime = regimeCession(date, nbLotsPrincipaux)
+  const cession = CESSION[regime]
+  const sansFonds = regime === 'aucun_fonds'
+  const montant = (centimes: number): number => (sansFonds ? 0 : centimes)
+  const cotisations = cotisationsALaMutation(postes, versements, lotId, vendeur.compteId, date)
+  return {
+    lotId,
+    date,
+    compteVendeurId: vendeur.compteId,
+    partRattacheeCentimes: montant(etat.parts.find((p) => p.lotId === lotId)?.partCentimes ?? 0),
+    verseParLeVendeurCentimes: montant(somme(duLot.filter((v) => v.source === 'encaissement' && v.compteId === vendeur.compteId && v.date >= vendeur.depuis))),
+    partRepriseCentimes: montant(somme(duLot.filter((v) => v.source === 'reprise'))),
+    cotisationsImpayeesVendeur: cotisations.impayees,
+    postesAReattribuer: cotisations.aReattribuer,
+    anomalies: [
+      ...anomaliesDuLot(etat.anomalies, emplois, cles, lotId),
+      ...cotisations.anomalies,
+      ...versementsDuVendeurSurLotsOrigine(modificationsLots, versements, lotId, vendeur.compteId, date),
+      ...(sansFonds ? sommesAvantFondsLegal(versements, lotId, date) : []),
+    ],
+    mention: cession.mention,
+    fondements: [...cession.fondements],
+    aConfirmer: true,
+  }
+}
+
+export interface InformationsFondsTravauxAcquereur {
+  lotId: string
+  datePromesse: string
+  /** Clôture de l'exercice dont les comptes ont été soumis à la dernière AG annuelle d'approbation avant la promesse. */
+  dateArrete: string
+  compteVendeurId: string
+  /** Part rattachée au lot à la date d'arrêté ; promesse antérieure au 01/01/2017 : 0, aucun fonds légal (J67, R87). */
+  partRattacheeCentimes: number
+  /**
+   * 🔴 Lecture « cotisation annuelle » (art. 14-2-1, I, al. 6), présentée en premier (J67, R109) : appels entièrement
+   * versés par le vendeur dans l'exercice du dernier appel soldé ; null sans appel soldé ou sans exercice fourni qui le
+   * contienne.
+   */
+  cotisationAnnuelleVendeur: CotisationAnnuelleVersee | null
+  /**
+   * 🔴 Lecture « dernier appel soldé » : dernier appel du fonds entièrement versé par le vendeur, pendant sa présence
+   * continue sur le lot, à la date d'arrêté ; null si aucun.
+   */
+  derniereCotisationVendeur: DerniereCotisation | null
+  anomalies: AnomalieFondsTravauxLots[]
+  /** J67, R110 — lot annexe vendu seul : information donnée par prudence ; null sinon, et sans fonds légal (J67, R87). */
+  avertissement: string | null
+  mention: string
+  fondements: string[]
+  aConfirmer: true
+}
+
+const DERNIERE_COTISATION_A_TRANCHER =
+  "« Dernière cotisation versée » : cotisation annuelle de l'exercice du dernier appel soldé (art. 14-2-1, I, al. 6), ou ce dernier appel soldé ; lecture choisie par le notaire."
+
+/** J67, R110 — avertissement d'un lot annexe vendu seul. */
+const AVERTISSEMENT_LOT_ANNEXE =
+  'Lot annexe vendu seul : CCH art. L. 721-2, II, 2°, d) ne vise que le lot principal ; information donnée par prudence (J67, R110).'
+
+/**
+ * Entrée en vigueur de la loi n° 2021-1104, art. 171, II, 4° (modification de CCH art. L. 721-2), selon le nombre de
+ * lots à usage de logements, de bureaux ou de commerces : art. 171, VII, « Par exception au VI ».
+ */
+const ENTREE_EN_VIGUEUR_INFORMATION_ACQUEREUR = [
+  { lotsAuMoins: 201, annee: 2024 },
+  { lotsAuMoins: 51, annee: 2025 },
+  { lotsAuMoins: 0, annee: 2026 },
+] as const
+const PREMIERE_ENTREE_INFORMATION = composerDateIso(ENTREE_EN_VIGUEUR_INFORMATION_ACQUEREUR[0].annee, 1, 1)
+const DERNIERE_ENTREE_INFORMATION = composerDateIso(ENTREE_EN_VIGUEUR_INFORMATION_ACQUEREUR[2].annee, 1, 1)
+/**
+ * Début de la rédaction de CCH art. L. 721-2 issue de l'ordonnance n° 2015-1075, relue (Légifrance : « En vigueur du
+ * 29 août 2015 au 01 janv. 2024 ») : d) et alinéa suivant mot pour mot ceux de la rédaction issue de la loi n° 2021-1104.
+ */
+const DEBUT_L721_2_ORDONNANCE_2015 = composerDateIso(2015, 8, 29)
+
+/** Rédaction de CCH art. L. 721-2 applicable ; « aucun_fonds » : promesse antérieure au 01/01/2017 (J67, R87). */
+type RedactionInformation = 'loi_2021' | 'ordonnance_2015' | 'selon_lots' | 'aucun_fonds'
+
+/** Rédaction de CCH art. L. 721-2 applicable à la promesse, selon sa date et le nombre de lots (null : inconnu). */
+function redactionInformation(datePromesse: string, nbLots: number | null): RedactionInformation {
+  if (datePromesse >= DERNIERE_ENTREE_INFORMATION) return 'loi_2021'
+  if (datePromesse < CREATION_FONDS_TRAVAUX) return 'aucun_fonds'
+  if (datePromesse < PREMIERE_ENTREE_INFORMATION) return 'ordonnance_2015'
+  if (nbLots === null) return 'selon_lots'
+  const palier = ENTREE_EN_VIGUEUR_INFORMATION_ACQUEREUR.find((e) => nbLots >= e.lotsAuMoins) ?? ENTREE_EN_VIGUEUR_INFORMATION_ACQUEREUR[2]
+  return datePromesse >= composerDateIso(palier.annee, 1, 1) ? 'loi_2021' : 'ordonnance_2015'
+}
+
+const D_ET_ALINEA_SUIVANT = 'CCH art. L. 721-2, II, 2°, d) et alinéa suivant'
+const DEBUT_2015_FR = dateIsoVersFr(DEBUT_L721_2_ORDONNANCE_2015)
+const REDACTIONS_RELUES: Record<Exclude<RedactionInformation, 'aucun_fonds'>, string> = {
+  loi_2021: 'Rédaction issue de la loi n° 2021-1104, art. 171, II, 4° (entrée en vigueur : art. 171, VII)',
+  ordonnance_2015: `Rédaction issue de l'ordonnance n° 2015-1075, en vigueur depuis le ${DEBUT_2015_FR} jusqu'à l'entrée en vigueur fixée par la loi n° 2021-1104, art. 171, VII : d) et alinéa suivant identiques à ceux de la rédaction issue de cette loi`,
+  selon_lots:
+    "Rédaction issue de l'ordonnance n° 2015-1075 ou de la loi n° 2021-1104 selon le nombre de lots (art. 171, VII) : d) et alinéa suivant identiques dans les deux",
+}
+
+/**
+ * Fondement et mention de l'information selon la date de la promesse et le nombre de lots : rédaction relue, ou aucun
+ * fonds (`sansFonds` : promesse antérieure au 01/01/2017, J67, R87).
+ */
+function fondementInformation(datePromesse: string, dateArrete: string, nbLots: number | null): { mention: string; fondements: string[]; sansFonds: boolean } {
+  const arrete = `Montants arrêtés au ${dateIsoVersFr(dateArrete)}, à jour des comptes soumis à l'assemblée générale annuelle précédant la promesse ; à remettre au plus tard à la signature de la promesse. ${DERNIERE_COTISATION_A_TRANCHER}`
+  const redaction = redactionInformation(datePromesse, nbLots)
+  if (redaction !== 'aucun_fonds') return { mention: arrete, fondements: [D_ET_ALINEA_SUIVANT, REDACTIONS_RELUES[redaction]], sansFonds: false }
+  return {
+    mention: `Aucun fonds de travaux légal à la date de la promesse : le fonds de travaux n'existe que depuis le ${CREATION_FR} (J67, R87) ; le d) du 2° de CCH art. L. 721-2 (« lorsque le syndicat dispose d'un fonds de travaux ») est sans objet.`,
+    fondements: [FONDEMENT_CREATION_FONDS_TRAVAUX],
+    sansFonds: true,
+  }
+}
+
+export interface ParametresInformationsAcquereur {
+  positions: Position[]
+  lotId: string
+  datePromesse: string
+  dateArrete: string
+  nbLotsPrincipaux: number | null
+  versements: VersementFondsTravaux[]
+  emplois: EmploiFondsTravaux[]
+  cles: CleRepartition[]
+  exercices: ExerciceSyndicat[]
+  mode?: ModeEmploi
+  /** J67, R89 — réunions et divisions de lots, datées. */
+  modificationsLots?: ModificationLots[]
+  /** J67, R110 — lot annexe (cave, stationnement…) vendu seul : sa part est donnée avec un avertissement ; absent : faux. */
+  lotAnnexe?: boolean
+}
+
+/**
+ * Informations sur le fonds de travaux dues à l'acquéreur d'un lot principal en cas de promesse (CCH L. 721-2, II, 2°,
+ * d) : part rattachée au lot et dernière cotisation versée par le vendeur, à jour des comptes soumis à l'AG annuelle
+ * qui précède la promesse, donc calculées à `dateArrete` (clôture de cet exercice, antérieure à la promesse). La
+ * dernière cotisation est rendue sous ses deux lectures (🔴), la cotisation annuelle en premier (J67, R109), sur les
+ * versements du vendeur pendant sa présence continue sur le lot ; `exercices` : exercices du syndicat, pour la lecture
+ * « cotisation annuelle ». `nbLotsPrincipaux` (null : inconnu) désigne la rédaction de L. 721-2 applicable (loi n°
+ * 2021-1104, art. 171, VII) ; le d) et l'alinéa suivant étant identiques dans les rédactions de 2015 et de 2021, seule
+ * une promesse antérieure au 01/01/2017 change la réponse : aucun fonds de travaux légal (J67, R87). Lot annexe vendu
+ * seul (`lotAnnexe`) : part donnée, avec un avertissement (J67, R110). Sans promesse, ces informations ne sont pas
+ * exigées (III) : ne pas appeler.
+ */
+export function informationsFondsTravauxAcquereur({
+  positions,
+  lotId,
+  datePromesse,
+  dateArrete,
+  nbLotsPrincipaux,
+  versements,
+  emplois,
+  cles,
+  exercices,
+  mode = 'tantiemes',
+  modificationsLots = [],
+  lotAnnexe = false,
+}: ParametresInformationsAcquereur): InformationsFondsTravauxAcquereur {
+  verifierDate(datePromesse, 'Date de la promesse')
+  verifierDate(dateArrete, "Date d'arrêté des comptes")
+  verifierNbLots(nbLotsPrincipaux)
+  if (dateArrete >= datePromesse)
+    throw new Error(
+      `Arrêté des comptes du ${dateIsoVersFr(dateArrete)} : il doit précéder la promesse du ${dateIsoVersFr(datePromesse)} (clôture de l'exercice approuvé par la dernière AG annuelle avant la promesse).`,
+    )
+  verifierExercices(exercices)
+  const vendeur = vendeurEnPlace(positions, lotId, datePromesse, `Promesse sur le lot ${lotId} : compte vendeur introuvable ou multiple le ${dateIsoVersFr(datePromesse)}.`)
+  const etat = partsFondsTravauxParLot({ versements, emplois, cles, date: dateArrete, mode, modificationsLots })
+  const soldees = cotisationsSoldees(
+    versements.filter((v) => v.lotId === lotId && v.compteId === vendeur.compteId && v.date >= vendeur.depuis),
+    dateArrete,
+  )
+  const derniere = plusRecenteDes(soldees)
+  const { mention, fondements, sansFonds } = fondementInformation(datePromesse, dateArrete, nbLotsPrincipaux)
+  // J67, R87 : avant le 01/01/2017, ni part ni cotisation, et pas d'avertissement « lot annexe » (le d) est sans objet).
+  const lu = sansFonds
+    ? { part: 0, annuelle: null, derniere: null, avertissement: null, horsFonds: sommesAvantFondsLegal(versements, lotId, dateArrete) }
+    : {
+        part: etat.parts.find((p) => p.lotId === lotId)?.partCentimes ?? 0,
+        annuelle: cotisationAnnuelleSoldee(soldees, derniere, exercices),
+        derniere,
+        avertissement: lotAnnexe ? AVERTISSEMENT_LOT_ANNEXE : null,
+        horsFonds: [],
+      }
+  const { avertissement } = lu
+  return {
+    lotId,
+    datePromesse,
+    dateArrete,
+    compteVendeurId: vendeur.compteId,
+    partRattacheeCentimes: lu.part,
+    cotisationAnnuelleVendeur: lu.annuelle,
+    derniereCotisationVendeur: lu.derniere,
+    anomalies: [
+      ...anomaliesDuLot(etat.anomalies, emplois, cles, lotId),
+      ...versementsDuVendeurSurLotsOrigine(modificationsLots, versements, lotId, vendeur.compteId, dateArrete),
+      ...lu.horsFonds,
+    ],
+    avertissement,
+    mention: avertissement ? `${avertissement} ${mention}` : mention,
+    fondements,
+    aConfirmer: true,
+  }
+}
+
+/** J67, R110 — informations dues à l'acquéreur de plusieurs lots vendus ensemble : détail lot par lot, et total. */
+export interface InformationsFondsTravauxVente {
+  datePromesse: string
+  dateArrete: string
+  /** Un lot principal est vendu : les lots annexes vendus avec lui ne portent pas d'avertissement. */
+  lotPrincipalVendu: boolean
+  /** Détail lot par lot, dans l'ordre reçu. */
+  lots: InformationsFondsTravauxAcquereur[]
+  totalPartRattacheeCentimes: number
+  aConfirmer: true
+}
+
+/**
+ * J67, R110 — vente de plusieurs lots par une même promesse : les informations de chaque lot (informationsFondsTravaux-
+ * Acquereur) et le total des parts. Un lot annexe vendu avec un lot principal ne porte pas d'avertissement ; des lots
+ * annexes vendus seuls le portent chacun. Refuse une vente sans lot ou un lot présent deux fois.
+ */
+export function informationsFondsTravauxAcquereurVente({
+  lots,
+  ...commun
+}: Omit<ParametresInformationsAcquereur, 'lotId' | 'lotAnnexe'> & { lots: { lotId: string; lotAnnexe: boolean }[] }): InformationsFondsTravauxVente {
+  if (lots.length === 0) throw new Error('Vente : au moins un lot attendu.')
+  verifierUnicite(
+    lots.map((l) => l.lotId),
+    (id) => `Vente : lot ${id} compté deux fois.`,
+  )
+  const lotPrincipalVendu = lots.some((l) => !l.lotAnnexe)
+  const details = lots.map((l) => informationsFondsTravauxAcquereur({ ...commun, lotId: l.lotId, lotAnnexe: l.lotAnnexe && !lotPrincipalVendu }))
+  return {
+    datePromesse: commun.datePromesse,
+    dateArrete: commun.dateArrete,
+    lotPrincipalVendu,
+    lots: details,
+    totalPartRattacheeCentimes: details.reduce((s, d) => s + d.partRattacheeCentimes, 0),
+    aConfirmer: true,
+  }
+}

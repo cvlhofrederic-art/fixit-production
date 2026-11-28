@@ -1,0 +1,767 @@
+{
+  "famille": {
+    "id": "protecao-epi",
+    "nom": "Proteção e segurança",
+    "description": "Equipamento de proteção individual para obra (mãos, olhos, vias respiratórias, ouvidos, cabeça, pés e corpo) e sinalização da zona de trabalho.",
+    "icone": "🦺",
+    "sousFamilles": [
+      {
+        "id": "luvas",
+        "nom": "Luvas",
+        "description": "Luvas descartáveis, de obra, impermeáveis, químicas, anticorte, de pele e de soldador."
+      },
+      {
+        "id": "protecao-olhos-rosto",
+        "nom": "Proteção dos olhos e do rosto",
+        "description": "Óculos, óculos panorâmicos, viseiras e máscaras de soldar."
+      },
+      {
+        "id": "protecao-respiratoria",
+        "nom": "Proteção respiratória",
+        "description": "Máscaras descartáveis FFP1 a FFP3, semi-máscaras reutilizáveis e filtros."
+      },
+      {
+        "id": "protecao-auditiva",
+        "nom": "Proteção auditiva",
+        "description": "Tampões e protetores auriculares."
+      },
+      {
+        "id": "protecao-cabeca-quedas",
+        "nom": "Proteção da cabeça e contra quedas",
+        "description": "Capacetes e arnês antiqueda."
+      },
+      {
+        "id": "calcado-seguranca",
+        "nom": "Calçado de segurança",
+        "description": "Sapatos, botas e galochas com biqueira e palmilha de proteção."
+      },
+      {
+        "id": "vestuario-joelheiras",
+        "nom": "Vestuário de proteção e joelheiras",
+        "description": "Fatos descartáveis, alta visibilidade, impermeáveis, fatos-macaco e joelheiras."
+      },
+      {
+        "id": "sinalizacao-obra",
+        "nom": "Sinalização de obra",
+        "description": "Cones, pinos, fita de balizagem, fita de marcação e placas de sinalética."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "luvas-descartaveis",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas descartáveis (nitrilo ou látex)",
+      "aussiAppele": [
+        "luvas de nitrilo",
+        "luvas de látex",
+        "luvas finas",
+        "luvas de pintor"
+      ],
+      "usage": "Proteção leve das mãos em pinturas, silicones, colas, betumação e limpezas.",
+      "aSavoir": "Rasgam com facilidade e não protegem de cortes; o látex pode causar alergia.",
+      "conditionnement": "Caixa de 10 ou 100 unidades",
+      "recherche": "luvas descartáveis",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-obra-nitrilo",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas de trabalho revestidas a nitrilo",
+      "aussiAppele": [
+        "luvas de obra",
+        "luvas de pedreiro",
+        "luvas de nylon com nitrilo",
+        "luvas de trabalho"
+      ],
+      "usage": "Luva de uso geral em obra: manuseamento de materiais e ferramentas, com boa aderência e destreza.",
+      "aSavoir": "Não são luvas químicas nem anticorte.",
+      "conditionnement": "Par",
+      "recherche": "luva nitrilo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-poliuretano",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas de trabalho revestidas a poliuretano",
+      "aussiAppele": [
+        "luvas PU",
+        "luvas de precisão",
+        "luvas de montagem"
+      ],
+      "usage": "Trabalhos em que é preciso tato: montagem, parafusos pequenos, ferragens e acabamentos.",
+      "aSavoir": "Não isolam da corrente elétrica nem protegem de cortes.",
+      "conditionnement": "Par",
+      "recherche": "luva poliuretano",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-borracha-compridas",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas de látex ou borracha compridas",
+      "aussiAppele": [
+        "luvas de borracha",
+        "luvas industriais",
+        "luvas de cano alto"
+      ],
+      "usage": "Trabalhos molhados e sujos: argamassas, cimento, betumação, limpezas e desentupimentos.",
+      "aSavoir": "O cimento fresco queima a pele: usar sempre luva impermeável ao amassar e aplicar.",
+      "conditionnement": "Par",
+      "recherche": "luva látex industrial",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-nitrilo-quimicas",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas de nitrilo compridas (produtos químicos)",
+      "aussiAppele": [
+        "luvas químicas",
+        "luvas para solventes",
+        "luvas para ácidos"
+      ],
+      "usage": "Manuseamento de diluentes, decapantes, óleos, ácidos de limpeza e outros produtos agressivos.",
+      "aSavoir": "Confirmar no rótulo da luva a resistência ao produto que vai usar.",
+      "conditionnement": "Par",
+      "recherche": "luva nitrilo química",
+      "rechercheEnseigne": {
+        "maxmat": "luva nitrilo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-anticorte",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas anticorte",
+      "aussiAppele": [
+        "luvas anti-corte",
+        "luvas de corte",
+        "luvas para vidro e chapa"
+      ],
+      "usage": "Manuseamento de chapa, vidro, azulejo cortado, perfis metálicos e lâminas.",
+      "aSavoir": "O nível de resistência ao corte vem marcado na luva; resistente ao corte não quer dizer à prova de corte.",
+      "conditionnement": "Par",
+      "recherche": "luva anti-corte",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-pele-crute",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas de pele (crute)",
+      "aussiAppele": [
+        "luvas de crute",
+        "luvas tipo americana",
+        "luvas de cabedal",
+        "luvas de couro"
+      ],
+      "usage": "Trabalhos pesados e abrasivos: cargas, ferro, entulho, blocos e cofragens.",
+      "conditionnement": "Par",
+      "recherche": "luvas crute",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "luvas-soldador",
+      "famille": "protecao-epi",
+      "sousFamille": "luvas",
+      "nom": "Luvas de soldador",
+      "aussiAppele": [
+        "luvas de soldadura",
+        "luvas de soldar"
+      ],
+      "usage": "Protegem mãos e antebraços do calor e dos salpicos na soldadura.",
+      "conditionnement": "Par",
+      "recherche": "luva soldador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "oculos-protecao",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-olhos-rosto",
+      "nom": "Óculos de proteção",
+      "aussiAppele": [
+        "óculos de segurança",
+        "óculos de obra",
+        "óculos transparentes"
+      ],
+      "usage": "Protegem os olhos de projeções ao cortar, furar, rebarbar, picar e demolir.",
+      "aSavoir": "Óculos graduados ou de sol não substituem óculos de proteção.",
+      "conditionnement": "Unidade",
+      "recherche": "óculos proteção",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "oculos-panoramicos",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-olhos-rosto",
+      "nom": "Óculos de proteção panorâmicos (fechados)",
+      "aussiAppele": [
+        "óculos tipo máscara",
+        "óculos fechados",
+        "óculos estanques"
+      ],
+      "usage": "Fecham à volta dos olhos: poeiras finas, salpicos de produtos químicos e trabalhos por cima da cabeça.",
+      "aSavoir": "Para não embaciarem, escolher modelo anti-embaciamento.",
+      "conditionnement": "Unidade",
+      "recherche": "óculos panorâmicos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "viseira-protecao",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-olhos-rosto",
+      "nom": "Viseira de proteção facial",
+      "aussiAppele": [
+        "protetor facial",
+        "viseira",
+        "máscara facial transparente"
+      ],
+      "usage": "Protege o rosto inteiro de projeções ao rebarbar, roçar ou manusear líquidos.",
+      "conditionnement": "Unidade",
+      "recherche": "viseira proteção",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mascara-de-soldar",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-olhos-rosto",
+      "nom": "Máscara de soldar",
+      "aussiAppele": [
+        "máscara de soldador",
+        "máscara de soldadura",
+        "máscara automática"
+      ],
+      "usage": "Protege olhos e rosto da radiação e dos salpicos da soldadura por arco.",
+      "aSavoir": "Existem manuais (seguras com a mão) e de escurecimento automático.",
+      "conditionnement": "Unidade",
+      "recherche": "máscara soldar",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mascara-ffp1",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-respiratoria",
+      "nom": "Máscara descartável FFP1",
+      "aussiAppele": [
+        "máscara de pó",
+        "máscara antipoeira",
+        "máscara de papel"
+      ],
+      "usage": "Poeiras grossas e não tóxicas: varrer, arrumar a obra, lixagens ligeiras à mão.",
+      "aSavoir": "Proteção mínima; para cimento, gesso, lixagens intensas ou fibras de lã mineral usar FFP2 ou FFP3.",
+      "conditionnement": "Embalagem de 2 a 20 unidades",
+      "recherche": "máscara FFP1",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mascara-ffp2",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-respiratoria",
+      "nom": "Máscara descartável FFP2",
+      "aussiAppele": [
+        "máscara de pó FFP2",
+        "máscara com válvula",
+        "máscara P2"
+      ],
+      "usage": "Poeiras de obra correntes: lixar massas e tintas, cortar placas de gesso cartonado, manusear cimento e lã mineral.",
+      "aSavoir": "Não protege de vapores de solventes nem de gases; a barba impede a vedação. Para corte de betão, pedra ou tijolo usar FFP3.",
+      "conditionnement": "Embalagem de 2 a 5 unidades",
+      "recherche": "máscara FFP2",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mascara-ffp3",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-respiratoria",
+      "nom": "Máscara descartável FFP3",
+      "aussiAppele": [
+        "máscara P3",
+        "máscara de pó fino"
+      ],
+      "usage": "Poeiras finas e nocivas: corte de betão, pedra e tijolo, madeiras duras, bolores e demolições.",
+      "aSavoir": "Não protege de vapores nem de gases. Trabalhos com amianto têm regras legais próprias: a máscara sozinha não chega.",
+      "conditionnement": "Embalagem de 2 unidades",
+      "recherche": "máscara FFP3",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "semi-mascara-filtros",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-respiratoria",
+      "nom": "Semi-máscara reutilizável com filtros",
+      "aussiAppele": [
+        "semimáscara",
+        "respirador",
+        "máscara de pintura",
+        "máscara de filtros",
+        "máscara para vapores"
+      ],
+      "usage": "Pintura à pistola, vernizes, diluentes, decapantes e outros produtos com vapores; com filtro de partículas serve também para poeiras.",
+      "aSavoir": "O filtro tem de ser o indicado para o produto (A para vapores orgânicos, P para partículas) e deve ser trocado quando se sentir o cheiro ou custar a respirar.",
+      "conditionnement": "Unidade, com ou sem filtros incluídos",
+      "recherche": "máscara com filtros",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "filtros-mascara",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-respiratoria",
+      "nom": "Filtros para semi-máscara",
+      "aussiAppele": [
+        "filtros de máscara",
+        "cartuchos de filtro",
+        "filtros A2P2",
+        "filtros ABEK"
+      ],
+      "usage": "Recargas para a semi-máscara reutilizável.",
+      "aSavoir": "Só encaixam em máscaras do mesmo sistema; as letras A, B, E, K indicam os gases e o P as partículas.",
+      "conditionnement": "Par de filtros",
+      "recherche": "filtros máscara",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tampoes-auriculares",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-auditiva",
+      "nom": "Tampões auriculares",
+      "aussiAppele": [
+        "tampões para os ouvidos",
+        "tampões de espuma",
+        "tampões com fio"
+      ],
+      "usage": "Proteção contra o ruído de rebarbadoras, martelos e serras; cabem debaixo do capacete.",
+      "aSavoir": "Enrolar, inserir bem e deixar expandir: mal colocados quase não protegem.",
+      "conditionnement": "Embalagem de vários pares; com ou sem cordão",
+      "recherche": "tampões auriculares",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "protetores-auriculares",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-auditiva",
+      "nom": "Protetores auriculares (abafadores)",
+      "aussiAppele": [
+        "abafadores",
+        "protetor auditivo",
+        "auscultadores de proteção",
+        "tapa-orelhas"
+      ],
+      "usage": "Para ruído intenso e prolongado: martelo demolidor, rebarbadora, serra de mesa. Fáceis de pôr e tirar.",
+      "aSavoir": "O valor de atenuação (dB) vem indicado na embalagem.",
+      "conditionnement": "Unidade",
+      "recherche": "protetor auricular",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "capacete-obra",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-cabeca-quedas",
+      "nom": "Capacete de obra",
+      "aussiAppele": [
+        "capacete de segurança",
+        "capacete de proteção"
+      ],
+      "usage": "Protege a cabeça em obra com risco de queda de objetos ou de pancadas.",
+      "aSavoir": "Substituir depois de um impacto forte ou passado o prazo indicado pelo fabricante.",
+      "conditionnement": "Unidade",
+      "recherche": "capacete segurança",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "capacete-viseira-auricular",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-cabeca-quedas",
+      "nom": "Capacete com viseira e protetores auriculares",
+      "aussiAppele": [
+        "capacete florestal",
+        "capacete de motosserra",
+        "capacete de roçadora"
+      ],
+      "usage": "Conjunto para trabalhos com motosserra, roçadora e corte de vegetação.",
+      "conditionnement": "Unidade",
+      "recherche": "capacete viseira auricular",
+      "rechercheEnseigne": {
+        "leroy-merlin": "capacete com viseira e protetores auriculares"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "arnes-antiqueda",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-cabeca-quedas",
+      "nom": "Arnês antiqueda",
+      "aussiAppele": [
+        "arnês de segurança",
+        "cinto de segurança",
+        "arnês anti-queda"
+      ],
+      "usage": "Trabalhos em altura em telhados, fachadas, andaimes e plataformas, ligado a um ponto de ancoragem.",
+      "aSavoir": "O arnês sozinho não protege: precisa de cabo ou linha de vida e de um ponto de ancoragem resistente. Verificar costuras e fivelas antes de cada uso.",
+      "conditionnement": "Unidade",
+      "recherche": "arnês anti-queda",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "calcado-seguranca-s1p",
+      "famille": "protecao-epi",
+      "sousFamille": "calcado-seguranca",
+      "nom": "Calçado de segurança S1P (sapato ou bota)",
+      "aussiAppele": [
+        "botas de biqueira de aço",
+        "sapatos de biqueira de aço",
+        "botas de trabalho",
+        "sapatos de segurança"
+      ],
+      "usage": "Calçado de obra para interior e tempo seco: biqueira de proteção e palmilha antiperfuração.",
+      "aSavoir": "S1P não é impermeável; para exterior e zonas molhadas escolher S3.",
+      "conditionnement": "Par",
+      "recherche": "calçado segurança S1P",
+      "rechercheEnseigne": {
+        "maxmat": "botas de biqueira de aço"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "calcado-seguranca-s3",
+      "famille": "protecao-epi",
+      "sousFamille": "calcado-seguranca",
+      "nom": "Calçado de segurança S3",
+      "aussiAppele": [
+        "botas S3",
+        "botas de segurança impermeáveis",
+        "botas de obra"
+      ],
+      "usage": "Calçado de obra para exterior e zonas húmidas: biqueira, palmilha antiperfuração e resistência à água.",
+      "conditionnement": "Par",
+      "recherche": "calçado segurança S3",
+      "rechercheEnseigne": {
+        "maxmat": "botas S3"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "galochas-seguranca",
+      "famille": "protecao-epi",
+      "sousFamille": "calcado-seguranca",
+      "nom": "Galochas de segurança (biqueira e palmilha de aço)",
+      "aussiAppele": [
+        "botas de borracha",
+        "botas de água",
+        "galochas de obra"
+      ],
+      "usage": "Betonagens, valas, lamas e trabalhos dentro de água.",
+      "conditionnement": "Par",
+      "recherche": "galocha biqueira aço",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fato-macaco-descartavel",
+      "famille": "protecao-epi",
+      "sousFamille": "vestuario-joelheiras",
+      "nom": "Fato-macaco descartável",
+      "aussiAppele": [
+        "fato de pintor",
+        "macacão descartável",
+        "fato branco",
+        "fato de proteção"
+      ],
+      "usage": "Protege a roupa e a pele em pinturas, lixagens, isolamentos com lã mineral, limpezas e demolições poeirentas.",
+      "aSavoir": "Os de tipo 5/6 protegem de poeiras e salpicos ligeiros; os simples de polipropileno só da sujidade.",
+      "conditionnement": "Unidade, por tamanho",
+      "recherche": "fato descartável",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "colete-refletor",
+      "famille": "protecao-epi",
+      "sousFamille": "vestuario-joelheiras",
+      "nom": "Colete refletor",
+      "aussiAppele": [
+        "colete de alta visibilidade",
+        "colete refletivo",
+        "colete amarelo",
+        "colete de sinalização"
+      ],
+      "usage": "Torna o trabalhador visível junto a vias, máquinas e em obras com circulação de viaturas.",
+      "conditionnement": "Unidade",
+      "recherche": "colete refletor",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parka-alta-visibilidade",
+      "famille": "protecao-epi",
+      "sousFamille": "vestuario-joelheiras",
+      "nom": "Casaco de alta visibilidade (parka)",
+      "aussiAppele": [
+        "parka refletora",
+        "casaco refletor",
+        "blusão de alta visibilidade"
+      ],
+      "usage": "Trabalho no exterior com frio e chuva junto a vias e máquinas.",
+      "conditionnement": "Unidade, por tamanho",
+      "recherche": "parka alta visibilidade",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fato-de-chuva",
+      "famille": "protecao-epi",
+      "sousFamille": "vestuario-joelheiras",
+      "nom": "Fato de chuva impermeável",
+      "aussiAppele": [
+        "impermeável",
+        "fato impermeável",
+        "oleado",
+        "capa de chuva"
+      ],
+      "usage": "Casaco e calças impermeáveis para trabalho no exterior com chuva.",
+      "conditionnement": "Conjunto casaco e calças, ou peças separadas",
+      "recherche": "fato chuva",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fato-macaco-trabalho",
+      "famille": "protecao-epi",
+      "sousFamille": "vestuario-joelheiras",
+      "nom": "Fato-macaco de trabalho",
+      "aussiAppele": [
+        "macacão",
+        "fato de trabalho",
+        "fato de macaco"
+      ],
+      "usage": "Roupa de trabalho resistente para obra e oficina.",
+      "conditionnement": "Unidade, por tamanho",
+      "recherche": "fato macaco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "joelheiras",
+      "famille": "protecao-epi",
+      "sousFamille": "vestuario-joelheiras",
+      "nom": "Joelheiras de proteção",
+      "aussiAppele": [
+        "joalheiras",
+        "proteção de joelhos",
+        "joelheiras de gel",
+        "joelheiras de ladrilhador"
+      ],
+      "usage": "Trabalho de joelhos: assentamento de pavimentos, rodapés, canalização e betumação.",
+      "conditionnement": "Par",
+      "recherche": "joelheiras",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cone-sinalizacao",
+      "famille": "protecao-epi",
+      "sousFamille": "sinalizacao-obra",
+      "nom": "Cone de sinalização",
+      "aussiAppele": [
+        "cone de obra",
+        "pino de trânsito",
+        "cone laranja"
+      ],
+      "usage": "Delimita zonas de trabalho, buracos e obstáculos em passeios, garagens e vias.",
+      "conditionnement": "Altura 50 cm",
+      "recherche": "cone sinalização",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pino-delimitacao",
+      "famille": "protecao-epi",
+      "sousFamille": "sinalizacao-obra",
+      "nom": "Pino de delimitação com base",
+      "aussiAppele": [
+        "poste de sinalização",
+        "baliza",
+        "poste delimitador"
+      ],
+      "usage": "Com fita de balizagem ou corrente, cria barreiras para vedar zonas de obra a peões.",
+      "conditionnement": "Altura 90 cm",
+      "recherche": "pino delimitação",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-balizagem",
+      "famille": "protecao-epi",
+      "sousFamille": "sinalizacao-obra",
+      "nom": "Fita de balizagem (sinalização, sem adesivo)",
+      "aussiAppele": [
+        "fita de sinalização",
+        "fita vermelha e branca",
+        "fita de obra",
+        "fita de perigo",
+        "fita de vedação"
+      ],
+      "usage": "Fita plástica sem cola, esticada entre pinos, cones ou estacas, para vedar temporariamente zonas de obra e passagens interditas.",
+      "aSavoir": "Só avisa, não trava ninguém: em valas e desníveis é precisa uma barreira rígida.",
+      "conditionnement": "Rolo 50-70 mm x 200 m",
+      "recherche": "fita sinalização",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-marcacao-sinalizacao",
+      "famille": "protecao-epi",
+      "sousFamille": "sinalizacao-obra",
+      "nom": "Fita adesiva de marcação de pavimento",
+      "aussiAppele": [
+        "fita de marcação",
+        "fita de sinalização adesiva",
+        "fita de marcar pavimento",
+        "fita amarela e preta"
+      ],
+      "usage": "Colada no pavimento ou em obstáculos, marca zonas de perigo, degraus e limites de passagem.",
+      "aSavoir": "Aplicar em superfície limpa e seca.",
+      "conditionnement": "Rolo 50 mm x 33-66 m",
+      "recherche": "fita marcação",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placas-sinaletica",
+      "famille": "protecao-epi",
+      "sousFamille": "sinalizacao-obra",
+      "nom": "Placas de sinalética (proibição, obrigação, aviso)",
+      "aussiAppele": [
+        "sinalética",
+        "placa de aviso",
+        "sinal de proibido",
+        "sinal de uso obrigatório de capacete",
+        "autocolante de sinalização"
+      ],
+      "usage": "Avisos de entrada proibida a estranhos, uso obrigatório de capacete, calçado ou luvas, risco de queda e outros sinais para obra e edifícios.",
+      "conditionnement": "Unidade (placa ou autocolante)",
+      "recherche": "sinalética",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "linha-vida-antiqueda",
+      "famille": "protecao-epi",
+      "sousFamille": "protecao-cabeca-quedas",
+      "nom": "Corda antiqueda com absorvedor de energia e mosquetões (linha de vida)",
+      "aussiAppele": [
+        "linha de vida",
+        "corda de segurança antiqueda",
+        "antiquedas deslizante",
+        "kit antiqueda"
+      ],
+      "usage": "Ligar o arnês antiqueda a um ponto de ancoragem resistente em trabalhos em telhados e coberturas.",
+      "aSavoir": "Só protege presa a um ponto de ancoragem capaz de aguentar uma queda, de preferência acima do utilizador. Verificar corda, absorvedor e mosquetões antes de cada uso e retirar de serviço depois de uma queda.",
+      "conditionnement": "Unidade ou kit com arnês; vários comprimentos de corda.",
+      "recherche": "antiqueda",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

@@ -78,21 +78,21 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
       const mapped: PipelineItem[] = [
         ...devisDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
-          client:  d.clientName || d.client_name || 'Client',
+          client:  d.clientName || d.client_name || (isPt ? 'Cliente' : 'Client'),
           montant: computeDocumentTotalHT(d),
           stage:   computeStage(d, false),
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
         ...draftDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || (isPt ? 'Rascunho' : 'Brouillon'),
-          client:  d.clientName || d.client_name || 'Client',
+          client:  d.clientName || d.client_name || (isPt ? 'Cliente' : 'Client'),
           montant: computeDocumentTotalHT(d),
           stage:   'draft',
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
         })),
         ...factureDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
-          client:  d.clientName || d.client_name || 'Client',
+          client:  d.clientName || d.client_name || (isPt ? 'Cliente' : 'Client'),
           montant: computeDocumentTotalHT(d),
           stage:   'invoiced',
           service: d.title || d.description || d.lines?.[0]?.description || (isPt ? 'Serviço' : 'Prestation'),
@@ -135,10 +135,10 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
           <p>
             {orgRole === 'pro_societe'
               ? (isPt
-                  ? `${items.length} negócio${items.length > 1 ? 's' : ''} — ${formatEur(totalPipeline, isPt)} s/ IVA`
+                  ? `${items.length} negócio${items.length > 1 ? 's' : ''} · ${formatEur(totalPipeline, isPt)} s/ IVA`
                   : `${items.length} affaire${items.length > 1 ? 's' : ''} — ${formatEur(totalPipeline, isPt)} HT`)
               : (isPt
-                  ? `Acompanhamento de oportunidades — ${formatEur(totalPipeline, isPt)} s/ IVA`
+                  ? `Acompanhamento de oportunidades: ${formatEur(totalPipeline, isPt)} s/ IVA`
                   : `Suivi des opportunités — ${formatEur(totalPipeline, isPt)} HT`)}
           </p>
         </div>

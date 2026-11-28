@@ -1,13 +1,27 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// Vitfix Pro — appli Android et iPhone des professionnels. Elle affiche le site en direct, au départ
+// https://vitfix.io/pro/mobile/ : l'espace mobile pour un artisan, le pointage pour un salarié de terrain d'une
+// société BTP, le tableau de bord pour les autres comptes pro ; un compte d'un autre type est renvoyé vers son
+// propre espace, et sans session l'appli affiche la page de connexion (middleware.ts, lib/auth/destination-par-role.ts),
+// au lieu d'embarquer un export statique (choix de Frédéric du 12/11/2026, « voie rapide ») : connexion, données et
+// mises à jour sont celles du site, sans repasser par les stores. Capacitor présente `server.url` comme prévu pour le
+// rechargement à chaud : limites (hors ligne, revue Apple) dans MOBILE_GUIDE.md. Invariants gardés par
+// tests/mobile/capacitor-config.test.ts.
 const config: CapacitorConfig = {
-  appId: 'com.fixit.artisan',
-  appName: 'Fixit Pro',
-  webDir: 'out',
+  appId: 'io.vitfix.pro',
+  appName: 'Vitfix Pro',
+  // Seulement la page locale « hors connexion » : le contenu vient du site.
+  webDir: 'mobile/www',
   server: {
+    // L'origine seule, sans chemin ni barre finale : Android en tire la règle d'origine du pont JS (un chemin la
+    // rendrait invalide). Le chemin de départ va dans appStartPath ; sans langue, le middleware choisit /fr/ ou /pt/.
+    url: 'https://vitfix.io',
+    appStartPath: '/pro/mobile/',
+    // Page locale affichée quand le site ne répond pas (réseau coupé ; sous Android, aussi toute erreur HTTP d'une
+    // page entière, 404 comprise).
+    errorPath: 'index.html',
     androidScheme: 'https',
-    // For development, point to your deployed URL or local server
-    // url: 'http://192.168.1.x:3000', // uncomment for live reload in dev
   },
   plugins: {
     SplashScreen: {
@@ -31,6 +45,7 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: 'always',
+    // Exige la liste WKAppBoundDomains d'ios/App/App/Info.plist, qui doit contenir l'hôte de server.url.
     limitsNavigationsToAppBoundDomains: true,
   },
   android: {

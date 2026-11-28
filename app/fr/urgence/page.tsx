@@ -4,7 +4,7 @@ import { FR_SERVICES, FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Artisan Urgence Marseille : Plombier, Électricien 24h/7j | VITFIX',
+  title: 'Artisan Urgence Marseille : Plombier, Électricien 24h/7j',
   description: 'Artisan en urgence à Marseille et dans le 13 : plombier, électricien. Intervention rapide 24h/24, 7j/7. Appelez ou WhatsApp maintenant.',
   alternates: {
     canonical: 'https://vitfix.io/fr/urgence/',

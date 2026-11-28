@@ -4,11 +4,12 @@ import { getUserRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { runKycPipeline } from '@/lib/kyc-orchestrate'
 import { logger } from '@/lib/logger'
+import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/pro/register/finalize
 // Fin de l'inscription d'une société BTP, appelée par le formulaire société
-// (app/pro/register) juste après /api/auth/create-profile.
+// (app/(commun)/pro/register) juste après /api/auth/create-profile.
 //
 // Quand la confirmation d'e-mail est active, supabase.auth.signUp ne renvoie
 // pas de session : /api/upload et /api/kyc-orchestrate, qui exigent un Bearer,
@@ -21,12 +22,14 @@ import { logger } from '@/lib/logger'
 // Le schéma de prod ne suit pas toujours les migrations : une pièce dont la
 // colonne n'existe pas encore (id_document_verso_url, migration du 16/10/2026)
 // est ignorée, sans dépôt orphelin ni effet sur les autres pièces.
+// La fiche reçoit le CHEMIN de chaque pièce dans le seau privé, jamais un lien
+// signé (valable 7 jours, puis mort) : le KYC et l'administration créent un
+// lien à la lecture (lib/storage/liens-stockage.ts).
 // ════════════════════════════════════════════════════════════════════════════
 
 const FENETRE_INSCRIPTION_MS = 10 * 60 * 1000
 const TAILLE_MAX = 10 * 1024 * 1024
 const BUCKET = 'artisan-documents'
-const DUREE_URL_SIGNEE_S = 60 * 60 * 24 * 7 // comme /api/upload pour les documents
 
 const PIECES = [
   { champ: 'kbis', dossier: 'kbis', colonne: 'kbis_url' },
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     const documents = { kbis: false, identity: false, identity_verso: false }
-    const urls: Partial<Record<Piece['colonne'], string>> = {}
+    const chemins: Partial<Record<Piece['colonne'], string>> = {}
     let depotEchoue = false
     for (const f of fichiers) {
       if (!(f.colonne in profil)) {
@@ -120,7 +123,9 @@ export async function POST(request: NextRequest) {
         continue
       }
       if (profil[f.colonne]) continue // pièce déjà déposée : jamais remplacée
-      const chemin = `${f.dossier}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${f.type.ext}`
+      // Dossier = compte vérifié ci-dessus (jamais le corps), nom généré, extension de la liste blanche
+      // (type reconnu aux octets) : {user}/{pièce}/{uuid}.{ext}, segments vérifiés par buildStoragePath.
+      const chemin = buildStoragePath(userId, f.dossier, `${crypto.randomUUID()}.${f.type.ext}`)
       const { data: depot, error: depotError } = await supabaseAdmin.storage
         .from(BUCKET)
         .upload(chemin, f.contenu, { contentType: f.type.mime, upsert: false })
@@ -129,15 +134,15 @@ export async function POST(request: NextRequest) {
         depotEchoue = true
         continue
       }
-      const { data: signee } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(depot.path, DUREE_URL_SIGNEE_S)
-      urls[f.colonne] = signee?.signedUrl || supabaseAdmin.storage.from(BUCKET).getPublicUrl(depot.path).data.publicUrl
+      // Chemin renvoyé par Storage revérifié (défense en profondeur) avant de l'enregistrer.
+      chemins[f.colonne] = assertStoragePath(depot.path, userId)
       documents[f.champ] = true
     }
 
-    if (Object.keys(urls).length > 0) {
+    if (Object.keys(chemins).length > 0) {
       const { error: majError } = await supabaseAdmin
         .from('profiles_artisan')
-        .update(urls)
+        .update(chemins)
         .eq('id', profil.id)
       if (majError) {
         logger.error('[btp-register-finalize] profile update error:', majError)
@@ -155,6 +160,10 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ ok: true, documents })
   } catch (err: unknown) {
+    if (err instanceof StoragePathError) {
+      logger.warn('[btp-register-finalize] chemin de stockage refusé')
+      return NextResponse.json({ error: 'Requête invalide' }, { status: 400 })
+    }
     logger.error('[btp-register-finalize] exception:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

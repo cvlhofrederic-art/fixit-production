@@ -13,7 +13,8 @@ interface Retenue {
   statut: 'active' | 'mainlevée_demandée' | 'libérée'; caution: boolean
 }
 
-export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
+// userId : fiche société (clés du navigateur) ; authUserId : compte, clé de cache commune aux écrans BTP (donnees-btp-15).
+export function RetenuesGarantieSection({ userId, authUserId, orgRole }: { userId: string; authUserId?: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -21,12 +22,14 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
   const isPt = locale === 'pt'
   const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
-  const { items: retenues, loading, add, update } = useBTPData<Retenue>({ table: 'retenues', artisanId: userId, userId })
+  const { items: retenues, loading, add, update } = useBTPData<Retenue>({ table: 'retenues', artisanId: userId, userId: authUserId || userId })
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ chantier_id: '', chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
 
   const addRetenue = async () => {
-    await add({ ...form, chantier_id: form.chantier_id || undefined, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
+    const cree = await add({ ...form, chantier_id: form.chantier_id || undefined, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
+    // Formulaire et saisie gardés si l'enregistrement échoue (le hook en affiche la raison).
+    if (!cree) return
     setShowForm(false); setForm({ chantier_id: '', chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
   }
   const changeStatut = async (id: string, statut: Retenue['statut']) => {
@@ -54,9 +57,9 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
     libérée: 'v22-tag v22-tag-gray',
   }
   const retLabel: Record<string, string> = {
-    active: isPt ? 'Ativo' : 'En cours',
-    mainlevée_demandée: isPt ? 'Levantamento pedido' : 'Mainlevée demandée',
-    libérée: isPt ? 'Libertado' : 'Libérée',
+    active: isPt ? 'Em curso' : 'En cours',
+    mainlevée_demandée: isPt ? 'Libertação pedida' : 'Mainlevée demandée',
+    libérée: isPt ? 'Libertada' : 'Libérée',
   }
 
   return (
@@ -111,6 +114,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.retenues.chantier')}</label>
               <ChantierSelect
                 userId={userId}
+                authUserId={authUserId}
                 orgRole={orgRole}
                 value={form.chantier_id}
                 onChange={(id, titre, client) => setForm({ ...form, chantier_id: id, chantier: titre, client })}

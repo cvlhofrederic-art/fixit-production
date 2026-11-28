@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic'
 import type { ComponentType } from 'react'
 import { creerModuleGenerique, type ConfigModuleGenerique } from '@/components/administrateur-judiciaire/modules/ModuleGenerique'
+import { MODE_ACTIF, type Mode } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Registre des écrans : route (ancre #route) → composant, chargé à la demande (next/dynamic), et statut de
@@ -15,7 +16,8 @@ export const CONFIGS_MODULES_GENERIQUES: Record<string, ConfigModuleGenerique> =
 
 /**
  * Les 76 écrans, dans l'ordre de la maquette. Toutes les routes de SECTIONS_NAVIGATION y figurent, sauf la
- * pseudo-route « logout ».
+ * pseudo-route « logout ». « Signalements QR » est sorti de l'AJ le 10/11/2026 : espace indépendant /fr/aj-signalement/,
+ * avec un lien au pied de la barre latérale pour le seul super admin (components/common/LienAjSignalement.tsx).
  */
 export const ECRANS_PAR_ROUTE: Record<string, ComponentType> = {
   fiche360: dynamic(() => import('@/components/administrateur-judiciaire/modules/pilotage/Fiche360CoproprieteModule').then((mod) => mod.Fiche360CoproprieteModule)),
@@ -107,11 +109,32 @@ export const REGISTRE_ECRANS: Record<string, ComponentType> = {
   ),
 }
 
-/** Écrans branchés sur la base locale (reel) ou partiellement (partiel) ; tous les autres sont en démonstration. */
+/**
+ * Écrans branchés sur la base locale (reel) ou partiellement (partiel) ; tous les autres sont en démonstration. Le
+ * tableau de bord, page d'accueil, lit le moteur de délais légaux depuis qu'il reprend le contenu d'« Aujourd'hui »
+ * (cockpit, retiré du menu le 29/10/2026 : son ancre est redirigée vers le tableau de bord).
+ */
 export const STATUTS_ECRANS = {
-  reel: ['copros', 'prestataires', 'tresorerie', 'reprise', 'fiche360', 'personne360', 'dossierJuge', 'fixy'],
+  reel: [
+    'copros',
+    'prestataires',
+    'tresorerie',
+    'reprise',
+    'fiche360',
+    'personne360',
+    'dossierJuge',
+    'fixy',
+    // Fiche sinistre Gestéam enregistrée dans la table locale « sinistres » (06/11/2026) ; simulée en démonstration
+    // (simulesEnDemonstration : statut « demo » dans ce mode).
+    'sinistres',
+    // Échéancier, avis par copropriétaire et écriture de l'appel sur les tables D2 (20/11/2026) ; en démonstration,
+    // l'écran d'origine, simulé (simulesEnDemonstration). Rien n'y reste en démonstration en données réelles : onglets et
+    // tableau de démonstration ne sont pas affichés ; ce qui n'est pas branché (mandats SEPA, diffusion) est dit à l'écran.
+    'appels',
+  ],
   partiel: [
     'cockpit',
+    'dashboard',
     'dossierJud',
     'priseFonction',
     'notifJud',
@@ -124,13 +147,25 @@ export const STATUTS_ECRANS = {
     'redressement',
     'agElective',
   ],
+  /**
+   * Écrans « reel » qui n'enregistrent qu'en mode données réelles : en démonstration, leur enregistrement est simulé
+   * (rien n'est écrit), leur statut y est donc « demo » (pastille « Démonstration »), comme le dit le bandeau (« seuls
+   * les écrans marqués « Données réelles » enregistrent »). Les autres écrans « reel » écrivent aussi dans la base
+   * locale de démonstration.
+   */
+  simulesEnDemonstration: ['sinistres', 'appels'],
 } as const
 
 export type StatutEcran = 'reel' | 'partiel' | 'demo'
 
 const ROUTES_REELLES: readonly string[] = STATUTS_ECRANS.reel
 const ROUTES_PARTIELLES: readonly string[] = STATUTS_ECRANS.partiel
+const ROUTES_SIMULEES_EN_DEMONSTRATION: readonly string[] = STATUTS_ECRANS.simulesEnDemonstration
 
-/** Statut d'un écran ; une route inconnue vaut « demo ». */
-export const statutEcran = (route: string): StatutEcran =>
-  ROUTES_REELLES.includes(route) ? 'reel' : ROUTES_PARTIELLES.includes(route) ? 'partiel' : 'demo'
+/** Statut d'un écran dans un mode (par défaut, le mode actif) ; une route inconnue vaut « demo ». */
+export function statutEcran(route: string, mode: Mode = MODE_ACTIF): StatutEcran {
+  if (mode === 'demo' && ROUTES_SIMULEES_EN_DEMONSTRATION.includes(route)) return 'demo'
+  if (ROUTES_REELLES.includes(route)) return 'reel'
+  if (ROUTES_PARTIELLES.includes(route)) return 'partiel'
+  return 'demo'
+}

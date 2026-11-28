@@ -1,16 +1,18 @@
 import {
+  controlerVoieNotification,
+  dateEnvoiNotification,
+  type ContexteVoieNotification,
+} from '@/lib/administrateur-judiciaire/domain/controle-voie-notification'
+import { departDelaiNotification, type DepartDelaiNotification, type ModeNotification } from '@/lib/administrateur-judiciaire/domain/courriers'
+import {
   appliquerDelai,
   delaiMois,
+  refDecret1967,
   refLoi1965,
   type CertitudeRegle,
   type Delai,
 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
-import {
-  ajouterJours,
-  dateIsoVersFr,
-  estDateIsoValide,
-  reporterAuJourOuvrable as reporterJourOuvrable,
-} from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateIsoVersFr, estDateIsoValide, reporterAuJourOuvrable as reporterJourOuvrable } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { ReferenceJurisprudence, ReferenceTexte } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -22,6 +24,114 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *
  * Décision J2 (08/10/2026) : un saut d'étape EN AVANT est permis, mais marqué « hors séquence » avec un motif
  * obligatoire ; un retour arrière est impossible. Le moteur de délais refuse de calculer sur une chaîne incomplète.
+ *
+ * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50 et J51 ; notes decisions-1111 :
+ * questions-hugo.md, recommandations et contre-vérification, j50-textes.md, j50-j51-jurisprudence.md, code-actuel.md) :
+ * - J50 (« Oui, calcul électronique », suite de J1 et de J48) — point de départ du délai de l'art. 42, al. 2 selon le
+ *   mode de notification du courrier (modeNotification, courriers.ts : champ propre à VitFix, la liste Gestéam des formes
+ *   d'envoi ne change pas) :
+ *   - LRAR : inchangé, lendemain de la première présentation, pli retiré ou non (D. 1967 art. 64-1, al. 2 ; Cass. 3e civ.,
+ *     16/04/2026, n° 24-18.842, FS-B, texte lu sur Légifrance, JURITEXT000054217812) ;
+ *   - voie électronique (LRE, CPCE art. R. 53 à R. 53-4, ou procédé d'un prestataire de services de confiance qualifié,
+ *     D. 1967 art. 64-5 à 64-9), voie de principe depuis le 25/12/2025 (décret du 22/12/2025, JORF du 24/12/2025, texte
+ *     n° 119, art. 14 à 19, sans règle transitoire pour les notifications ; L. 1965 art. 42-1, loi du 9 avril 2024,
+ *     art. 38) : lendemain de la TRANSMISSION, par le prestataire, de l'avis électronique (D. 1967 art. 64, dernier
+ *     al.) ; ni le dépôt, ni le téléchargement ; date lue, pour le prestataire qualifié, sur son justificatif (art. 64-5 ;
+ *     le rappel des 48 heures est sans effet, art. 64-7) et, pour la LRE, sur l'information du destinataire (CPCE
+ *     art. R. 53-3, I ; interprétation : les art. 64-5 à 64-9 ne visent que le procédé du 2°) ; un avis antérieur au dépôt
+ *     n'est pas une preuve ; échéance calculée comme en J1 ;
+ *   - un délai par opposant ou défaillant (D. 1967 art. 18 : « à chacun des copropriétaires opposants ou défaillants ») :
+ *     finDelaiContestationAgParDestinataire retient la fin la plus tardive, et la dit inconnue si une notification manque
+ *     ou n'est pas prouvée ; sans opposant ni défaillant (nombre saisi : 0), aucune contestation n'est ouverte ; relecture
+ *     du 14/11/2026 : un même courrier rattaché à deux opposants est une erreur (données incohérentes : un pli, un
+ *     destinataire), un courrier sans destinataire ne prouve rien pour un copropriétaire donné (destinataire_non_renseigne),
+ *     une notification prouvée sans statut « Notifiée » enregistré donne statuts_incomplets (pas « non notifiée ») ;
+ *   - relecture du 14/11/2026 (tour 2, sondes N1 et N1b) : un courrier déposé, présenté ou avisé avant la ligne qui
+ *     précède « Notifiée » (« PV signé », ou la dernière ligne avant « Notifiée » si l'étape est sautée, J2 ; sans
+ *     « Notifiée », la dernière ligne) ne notifie pas le procès-verbal de cette assemblée : refus courrier_anterieur_au_pv
+ *     (L. 1965 art. 42, al. 2 : délai « à compter de la notification du procès-verbal » ; D. 1967 art. 17, al. 1 :
+ *     procès-verbal signé à la fin de la séance ou dans les huit jours suivant la tenue de l'assemblée, texte lu sur
+ *     Légifrance le 14/11/2026), dans le calcul par destinataire, le calcul sur une seule notification (attestation de
+ *     non-recours) et la preuve R9 ; le jour même de la signature est admis ; limite : sans ligne avant « Notifiée »
+ *     (passage de « Projet » hors séquence), rien à comparer ; 🔴 question ouverte : une date d'effet de « PV signé » saisie
+ *     trop tard fait refuser une notification régulière, et cette date ne se corrige pas (seul le courrier se rattache
+ *     après coup) ;
+ *   - régime, accord, consentement et demande de voie postale jugés à la date du dépôt de l'envoi quand elle est saisie
+ *     (sinon celle de l'événement), le point de départ restant le lendemain de l'événement (relecture du 14/11/2026,
+ *     🔵 interprétation : l'expéditeur suit la règle en vigueur quand il envoie ; sondes P7, S5, S7) ;
+ *   - cas limites : envoi électronique à un copropriétaire dont la demande de voie postale était en vigueur (effet le
+ *     lendemain du huitième jour suivant sa réception, ou le jour de l'AG si elle y est faite : D. 1967 art. 64-4) : délai
+ *     non lancé pour lui (D. 1967 art. 64-1 ; refus voie_postale_demandee) ; avant le 25/12/2025, une demande de voie
+ *     postale reçue au plus tard à l'envoi l'exclut aussi, effet retenu à sa réception (L. 1965 art. 42-1, al. 2 depuis le
+ *     11/04/2024 ; retrait de l'accord exprès avant ; sonde P6) ; refus ou retrait d'accord enregistré avant le
+ *     25/12/2025 : demande de voie postale à sa date de réception (L. 1965 art. 42-1, al. 2 : « par tout moyen » ;
+ *     interprétation prudente, aucune source ; voie-notification.ts), s'il est le dernier état des consentements à l'envoi ;
+ *     demande, refus ou retrait reçu avant le 25/12/2025 : effet dès sa réception, même pour un envoi électronique fait
+ *     depuis, qui ne fait pas courir le délai (décision du 17/11/2026, J52, ci-dessous ; l'avertissement « à
+ *     confirmer » de la fenêtre du 16 au 24/12/2025 est supprimé) ; LRAR envoyée sans demande de voie postale reçue : délai
+ *     calculé, avec un avertissement (lecture du GRECCO, préconisation n° 19, source secondaire) ; notification
+ *     électronique antérieure au 25/12/2025 : calculée seulement si l'accord exprès est enregistré, sinon fin inconnue,
+ *     le fondement cité suivant la date de l'envoi (L. 1965 art. 42-1, version de la loi n° 2014-366, jusqu'au
+ *     10/04/2024 ; puis D. 1967 art. 64-3 de la rédaction en vigueur du 04/07/2020 au 24/12/2025 seul, l'art. 42-1 de la
+ *     loi du 9 avril 2024 ayant une portée débattue) ; LRE
+ *     vers un non-professionnel (ou dont la qualité n'est pas saisie) sans consentement enregistré (CPCE art. L. 100) :
+ *     ne vaut pas notification, refus consentement_lre_absent (décision du 17/11/2026, J53, ci-dessous ; avant :
+ *     délai calculé avec un avertissement « à confirmer ») ; le procédé du prestataire qualifié n'est pas
+ *     concerné ; remise contre émargement, courriel simple, SMS, lettre simple, extranet : ne valent pas notification du
+ *     PV (art. 64 et 64-3) ;
+ *   - fin tirée d'une seule notification (finDelaiContestationAg, la notification rattachée à la ligne « Notifiée ») :
+ *     marquée minimale (finMinimale, avertissement) quand l'AG compte plusieurs opposants ou défaillants, ou quand leur
+ *     nombre n'est pas saisi ; le contrôle de l'OS ne lit que le délai par copropriétaire (J51, envoi-ordre-service.ts :
+ *     la date seule y est refusée depuis la relecture du 14/11/2026) ;
+ *   - reste à confirmer (la variante électronique garde la marque « à confirmer », aConfirmer) : aucune jurisprudence sur
+ *     la notification électronique du PV ; pour la LRE, l'« avis » est lu comme l'information de CPCE art. R. 53-3, I ;
+ *     période du 11/04/2024 au 24/12/2025 (deux lectures, ici la prudente) ; le point à confirmer de J1 (règle 5) est
+ *     éclairci pour la numérotation : départ électronique à l'art. 64-2, al. 2 du 04/07/2020 au 24/12/2025, à l'art. 64,
+ *     dernier al. depuis le 25/12/2025 ;
+ * - J51 (« Oui, bloquer ») : le refus porte sa CAUSE (CauseDelaiNonCalcule) pour que le contrôle de l'OS dise comment
+ *   lever le blocage (envoi-ordre-service.ts) ;
+ * - ce n'est pas un avis juridique ; France seulement (le Código Civil portugais n'a pas d'équivalent).
+ *
+ * Décisions de Hugo du 17/11/2026 (numéros de registre proposés : J52 et J53, suites de J50 ; notes
+ * du 17/11/2026 sur les questions juridiques ouvertes, recommandations suivies) :
+ * - J52 : demande de voie postale, refus ou retrait de la voie électronique reçu AVANT le 25/12/2025 : effet dès sa
+ *   réception (ancienne règle ; effetDemandeVoiePostale, voie-notification.ts), même quand l'envoi électronique est fait
+ *   depuis le 25/12/2025 : cet envoi ne vaut pas notification, le délai de contestation ne court pas pour ce
+ *   copropriétaire (refus voie_postale_demandee, motif qui cite la date de réception et J52 : motifVoiePostaleDemandee).
+ *   Fondement cité : décret du 22/12/2025 sans règle transitoire pour les notifications ; C. civ. art. 2 ; L. 1965
+ *   art. 42-1, al. 2 (« à tout moment et par tout moyen »). Remplace l'avertissement « à confirmer » de la fenêtre du 16
+ *   au 24/12/2025 (sonde P9, relecture du 14/11/2026). Bornes testées : reçue le 24/12/2025, LRE du 25/12/2025 refusée ;
+ *   reçue le 25/12/2025, règle actuelle (effet le lendemain du huitième jour) ;
+ * - J53 : LRE à un destinataire non professionnel, ou dont la qualité n'est pas saisie (lue comme non professionnelle),
+ *   sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100, loi n° 2016-1321, art. 93) : ne
+ *   vaut pas notification, le délai ne court pas pour lui (refus consentement_lre_absent). L'accord du critère LRE repris
+ *   de Gestéam, en vigueur à la date de l'envoi (accordElectroniqueEnVigueur), vaut ce consentement. Le procédé du
+ *   prestataire qualifié (D. 1967 art. 64, 2°) n'est pas concerné ; la LRAR reste possible. Fondement : lecture prudente,
+ *   doute non tranché par les textes (question écrite AN n° 16031 du 16/06/2026, sans réponse) ; une notification
+ *   irrégulière ne fait pas courir le délai (Cass. 3e civ., 28/01/2015, n° 13-23.552) ;
+ * - suite de J51 (envoi-ordre-service.ts) : ces deux cas étaient calculés « à confirmer » et ne donnaient qu'une alerte à
+ *   l'OS ; refusés, la fin du délai est inconnue et l'OS des travaux votés aux art. 25 ou 26 est bloqué, sauf urgence
+ *   constatée ;
+ * - J57 (décision du 17/11/2026 (J57), section « Suite » des notes, numéro de registre proposé) : une LRE, ou un
+ *   envoi par le procédé d'un prestataire qualifié, refusé ou non réclamé fait quand même courir le délai, du lendemain
+ *   de la transmission de l'avis électronique (D. 1967 art. 64, dernier al. ; même logique que la LRAR non retirée,
+ *   Cass. 3e civ., 16/04/2026, n° 24-18.842) : le calcul ne lit que la date de l'avis (dateAvisElectronique), jamais
+ *   l'acceptation, le refus ou la non-réclamation ; comportement inchangé (envois-electroniques.ts, courriers.ts).
+ *
+ * Depuis le 17/11/2026 (relecture des marques périmées), le contrôle de la voie décrit ci-dessus (J50, J52, J53 :
+ * controlerVoieNotification, motifVoiePostaleDemandee, dateEnvoiNotification) est dans controle-voie-notification.ts,
+ * sans changement de règle ni de message : il sert aussi aux trente jours de L. 1965 art. 19-2 (recouvrement.ts).
+ *
+ * Décision du 20/11/2026 (partie C, F82), recommandation acceptée, suite de J51 :
+ * - une demande d'aide juridictionnelle connue (NotificationDestinataire.demandeAideJuridictionnelleLe), déposée avant la
+ *   fin du délai d'un copropriétaire, rend son action réputée faite dans le délai s'il agit dans un « nouveau délai de même
+ *   durée » après la décision sur l'aide (décret du 28/12/2020 relatif à l'aide juridictionnelle, art. 43, version du
+ *   13/06/2026 ; son numéro est cité par envoi-ordre-service.ts, ce module n'écrivant aucune date littérale) : la fin du
+ *   délai est inconnue pour lui (refus aide_juridictionnelle_demandee), et l'OS des travaux votés aux art. 25 ou 26 est
+ *   bloqué (J51) ; le nouveau délai n'est pas calculé ici ;
+ * - une fin du délai établie hors de l'outil (AG ancienne) se saisit avec un motif et une pièce, par exemple un
+ *   certificat de non-recours, et la saisie est tracée (etablirFinDelaiHorsOutil : collaborateur, date) ; le contrôle de
+ *   l'OS la lit comme une fin connue.
  */
 
 /** Ligne d'historique telle que la lisent ces fonctions (sous-ensemble de ChangementStatut). */
@@ -143,19 +253,19 @@ export interface RegleDelaiStatut {
 }
 
 /**
- * Délai de contestation des décisions d'assemblée générale par les copropriétaires opposants ou défaillants (J1).
+ * Délai de contestation des décisions d'assemblée générale par les copropriétaires opposants ou défaillants (J1, J50).
  * Défini ici, à côté du registre REGLES_DELAIS_LEGAUX (règles de mandat, figées par les tests oracle de la maquette),
  * avec les mêmes briques : délai typé, référence de texte, niveau de certitude.
  */
 export const DELAI_CONTESTATION_AG_ART42: RegleDelaiStatut = {
   libelle: "Fin du délai de contestation des décisions de l'assemblée générale",
-  fondements: [refLoi1965('42, al. 2')],
+  fondements: [refLoi1965('42, al. 2'), refDecret1967('18'), refDecret1967('64, dernier al.'), refDecret1967('64-1, al. 2')],
   jurisprudence: [
     {
       citation: 'Cass. 3e civ., 16 avr. 2026, n° 24-18.842, FS-B',
       portee:
         'Le délai court, dans tous les cas, à compter du lendemain de la première présentation de la lettre recommandée, que le pli soit retiré ou non.',
-      verification: 'SOURCE_SECONDAIRE',
+      verification: 'TEXTE_LU',
     },
     {
       citation: 'Cass. 3e civ., 26 mars 1997, n° 94-21.498',
@@ -172,7 +282,7 @@ export const DELAI_CONTESTATION_AG_ART42: RegleDelaiStatut = {
   reportAuJourOuvrableParDefaut: false,
   certitude: 'A_CONFIRMER',
   note:
-    "Deux mois à compter de la notification du procès-verbal (L. 1965 art. 42 al. 2). Point de départ : lendemain de la première présentation de la lettre recommandée, que le pli ait été retiré ou non — ni la date d'envoi, ni la date de retrait (décision métier J1 du 08/10/2026 ; Cass. 3e civ., 16 avr. 2026). Échéance au même quantième que ce lendemain, deux mois plus tard, à minuit (CPC art. 641) : présentée le 4 février, échéance le 5 avril. Le report au premier jour ouvrable (CPC art. 642) est débattu (arrêts de 1997 et de 2003) : paramètre désactivé par défaut, date la plus courte ; si les deux calculs divergent, les deux dates sont affichées. Arrêts connus par des commentaires publiés, texte intégral non relu.",
+    "Deux mois à compter de la notification du procès-verbal (L. 1965 art. 42 al. 2), à chaque opposant ou défaillant (D. 1967 art. 18) : un délai par destinataire, la fin la plus tardive pour l'assemblée. Point de départ : lendemain de la première présentation de la lettre recommandée, que le pli ait été retiré ou non — ni la date d'envoi, ni la date de retrait (D. 1967 art. 64-1, al. 2 ; décision métier J1 du 08/10/2026 ; Cass. 3e civ., 16 avr. 2026) ; pour une notification électronique (LRE ou procédé d'un prestataire qualifié, voie de principe depuis le 25/12/2025), lendemain de la transmission de l'avis électronique par le prestataire, téléchargé ou non (D. 1967 art. 64, dernier al. ; décision J50 du 11/11/2026, à confirmer). Échéance au même quantième que ce lendemain, deux mois plus tard, à minuit (CPC art. 641) : présentée le 4 février, échéance le 5 avril. Le report au premier jour ouvrable (CPC art. 642) est débattu (arrêts de 1997 et de 2003) : paramètre désactivé par défaut, date la plus courte ; si les deux calculs divergent, les deux dates sont affichées. Arrêt du 16 avr. 2026 lu sur Légifrance le 11/11/2026 ; arrêts de 1997 et de 2003 connus par des commentaires publiés, texte intégral non relu.",
 }
 
 /** Courrier tel que le lit le moteur de délais (sous-ensemble de Courrier). */
@@ -182,84 +292,233 @@ export interface CourrierNotification {
   dateDepot: string | null
   datePremierePresentation?: string | null
   dateAccuseReception: string | null
+  /** Mode de notification (J50) ; absent ou null : « AR » vaut LRAR. */
+  modeNotification?: ModeNotification | null
+  /** Transmission de l'avis électronique par le prestataire (J50). */
+  dateAvisElectronique?: string | null
+  /** Destinataire (identité) : rapprochement des demandes de voie postale et des consentements (J50). */
+  personneId?: string | null
 }
 
-export type ResultatDelaiContestation =
-  | { etat: 'non_notifiee' }
-  | { etat: 'refuse'; motif: string }
-  | {
-      etat: 'calcule'
-      datePremierePresentation: string
-      /** Lendemain de la première présentation : jour à partir duquel le délai court. */
-      pointDeDepart: string
-      /** Même quantième deux mois plus tard, sans report. */
-      echeanceSansReport: string
-      /** Même échéance reportée au premier jour ouvrable. */
-      echeanceAvecReport: string
-      /** Échéance retenue selon le paramètre de report. */
-      echeanceRetenue: string
-      reportApplique: boolean
-      /** Les deux calculs divergent : l'écran doit afficher les deux dates. */
-      divergence: boolean
-      /** Le calcul en toutes lettres, vérifiable par le gestionnaire. */
-      justification: string
-      avertissements: string[]
-    }
+/** Pourquoi la fin du délai n'est pas calculée (J51 : le contrôle de l'OS dit comment lever le blocage). */
+export const CAUSES_DELAI_NON_CALCULE = [
+  'statuts_incomplets',
+  'notification_absente',
+  'courrier_introuvable',
+  'destinataire_different',
+  'destinataire_non_renseigne',
+  'courrier_anterieur_au_pv',
+  'envoi_non_qualifie',
+  'preuve_a_saisir',
+  'voie_postale_demandee',
+  'accord_electronique_absent',
+  // J53 (décision du 17/11/2026) : LRE à un non-professionnel sans consentement enregistré (CPCE art. L. 100)
+  'consentement_lre_absent',
+  'opposants_non_saisis',
+  // Décision du 20/11/2026 (partie C, F82) : demande d'aide juridictionnelle connue avant la fin du délai
+  'aide_juridictionnelle_demandee',
+] as const
+export type CauseDelaiNonCalcule = (typeof CAUSES_DELAI_NON_CALCULE)[number]
 
-/** Courrier AR présenté qui prouve la notification, ou le motif pour lequel elle n'est pas prouvée. */
-function courrierPreuve(
-  courrierId: string | null,
-  courriers: CourrierNotification[],
-): { presentation: string } | { motif: string } {
-  if (!courrierId) return { motif: 'Aucun courrier rattaché à la notification.' }
-  const courrier = courriers.find((candidat) => candidat.id === courrierId)
-  if (!courrier) return { motif: `Courrier rattaché introuvable (id=${courrierId}).` }
-  if (courrier.formeEnvoi !== 'AR') return { motif: "Le courrier rattaché n'est pas un envoi en AR." }
-  if (!courrier.datePremierePresentation) return { motif: "La date de première présentation du pli n'est pas saisie." }
-  return { presentation: courrier.datePremierePresentation }
+export interface DelaiRefuse {
+  etat: 'refuse'
+  cause: CauseDelaiNonCalcule
+  motif: string
+}
+
+export interface DelaiCalcule {
+  etat: 'calcule'
+  /** Mode de notification qui fait courir le délai (J50). */
+  mode: ModeNotification
+  /** Première présentation (LRAR) ou transmission de l'avis électronique (LRE, prestataire qualifié). */
+  dateEvenement: string
+  /** Première présentation du pli (LRAR) ; null pour une notification électronique. */
+  datePremierePresentation: string | null
+  /** Lendemain de l'événement : jour à partir duquel le délai court. */
+  pointDeDepart: string
+  /** Même quantième deux mois plus tard, sans report. */
+  echeanceSansReport: string
+  /** Même échéance reportée au premier jour ouvrable. */
+  echeanceAvecReport: string
+  /** Échéance retenue selon le paramètre de report. */
+  echeanceRetenue: string
+  reportApplique: boolean
+  /** Les deux calculs divergent : l'écran doit afficher les deux dates. */
+  divergence: boolean
+  /** Le calcul en toutes lettres, vérifiable par le gestionnaire. */
+  justification: string
+  avertissements: string[]
+  /**
+   * Fin tirée d'une seule notification alors que l'AG compte plusieurs opposants ou défaillants, ou que leur nombre
+   * n'est pas saisi (J50) : la fin réelle peut être plus tardive.
+   */
+  finMinimale: boolean
+  /** Variante électronique à confirmer (J50) ; null pour la LRAR. */
+  aConfirmer: string | null
+}
+
+export type ResultatDelaiContestation = { etat: 'non_notifiee' } | DelaiRefuse | DelaiCalcule
+
+/** Demandes de voie postale et consentements (contrôle partagé avec l'art. 19-2 : controle-voie-notification.ts). */
+export type { ContexteVoieNotification }
+
+const fr = dateIsoVersFr
+
+const MOTIF_ENVOI_NON_QUALIFIE =
+  "Le courrier rattaché n'est ni un envoi en AR ni une notification électronique (LRE ou prestataire qualifié) : il ne vaut pas notification du procès-verbal (D. 1967 art. 64, 64-1 et 64-3)."
+
+const A_CONFIRMER_ELECTRONIQUE: Readonly<Record<Exclude<ModeNotification, 'lrar'>, string>> = {
+  lre: "Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal ; pour une LRE, l'avis est lu comme l'information du destinataire de CPCE art. R. 53-3, I ; le consentement de CPCE art. L. 100 est exigé du destinataire non professionnel (décision du 17/11/2026, J53 : lecture prudente, doute que les textes ne tranchent pas face à L. 1965 art. 42-1).",
+  prestataire_qualifie: 'Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal.',
+}
+
+const MOTIF_SANS_CONTESTATION =
+  "Aucun opposant ni défaillant : aucune contestation n'est ouverte, aucun délai à attendre (L. 1965 art. 42, al. 2 ; D. 1967 art. 18 ; interprétation à confirmer)."
+
+const refus = (cause: CauseDelaiNonCalcule, motif: string): DelaiRefuse => ({ etat: 'refuse', cause, motif: `Délai non calculé. ${motif}` })
+
+/** Départ calculé par la fonction commune à J1, J3 et J50 (courriers.departDelaiNotification). */
+type DepartCalculable = Extract<DepartDelaiNotification, { etat: 'calculable' }>
+
+type PreuveNotification = { courrier: CourrierNotification; depart: DepartCalculable } | { cause: CauseDelaiNonCalcule; motif: string }
+
+type ModeElectronique = Exclude<ModeNotification, 'lrar'>
+
+/**
+ * Où lire la date de transmission de l'avis, selon le mode (relecture du 14/11/2026) : les art. 64-5 à 64-9 du D. 1967
+ * ne visent que le procédé du prestataire qualifié (art. 64, 2°) ; pour la LRE (art. 64, 1°), l'avis est lu comme
+ * l'information du destinataire de CPCE art. R. 53-3, I (🔵 interprétation).
+ */
+const SOURCE_AVIS: Readonly<Record<ModeElectronique, string>> = {
+  lre: "l'information du destinataire (CPCE art. R. 53-3, I)",
+  prestataire_qualifie: 'le justificatif de transmission du prestataire qualifié (D. 1967 art. 64-5)',
+}
+
+const MOTIF_AVIS_NON_SAISI: Readonly<Record<ModeElectronique, string>> = {
+  lre: "La date de transmission de l'avis électronique n'est pas saisie (D. 1967 art. 64, dernier al. ; pour une LRE, information du destinataire par le prestataire, CPCE art. R. 53-3, I, lecture à confirmer).",
+  prestataire_qualifie:
+    "La date de transmission de l'avis électronique par le prestataire qualifié n'est pas saisie (justificatif de transmission, D. 1967 art. 64-5).",
+}
+
+/** Ligne de l'historique qui précède la notification du PV : un courrier antérieur ne notifie pas ce PV. */
+interface BorneProcesVerbal {
+  statut: string
+  date: string
 }
 
 /**
- * Fin du délai de contestation de l'art. 42 (J1, J2). Refuse de calculer, avec un motif explicite, sur une chaîne
- * de statuts incomplète ou sans courrier AR dont la première présentation est saisie. Le point de départ est la
- * première présentation du pli, jamais la date d'effet saisie, de dépôt ou de retrait.
+ * Borne des courriers de notification (relecture du 14/11/2026, tour 2, sondes N1 et N1b) : la ligne qui précède
+ * « Notifiée » dans l'historique trié, « PV signé », ou la dernière ligne avant « Notifiée » si l'étape est sautée (J2) ;
+ * sans « Notifiée », la dernière ligne (celle que « Notifiée » suivra). null : aucune ligne avant (« Notifiée » est la
+ * première, passage de « Projet » hors séquence), rien à comparer.
  */
-export function finDelaiContestationAg(
-  historique: LigneHistoriqueComplete[],
-  courriers: CourrierNotification[],
-  agId: string,
-  {
-    reporterAuJourOuvrable = DELAI_CONTESTATION_AG_ART42.reportAuJourOuvrableParDefaut,
-  }: { reporterAuJourOuvrable?: boolean } = {},
-): ResultatDelaiContestation {
-  const notification = derniereNotification(historique, agId)
-  if (!notification) return { etat: 'non_notifiee' }
-  const motifChaine = controlerChaineStatutsAg(historique, agId)
-  if (motifChaine) return { etat: 'refuse', motif: `Délai non calculé. ${motifChaine}` }
-  const preuve = courrierPreuve(notification.courrierId, courriers)
-  if ('motif' in preuve) return { etat: 'refuse', motif: `Délai non calculé. ${preuve.motif}` }
-  const { presentation } = preuve
-  const pointDeDepart = ajouterJours(presentation, 1)
+function borneProcesVerbal(historique: LigneHistoriqueStatut[], agId: string): BorneProcesVerbal | null {
+  const lignes = historiqueTrie(historique, agId)
+  const rang = lignes.findLastIndex((ligne) => ligne.statutNouveau === 'Notifiée')
+  let precedente: LigneHistoriqueStatut | undefined
+  if (rang === -1) precedente = lignes.at(-1)
+  else if (rang > 0) precedente = lignes[rang - 1]
+  return precedente === undefined ? null : { statut: precedente.statutNouveau, date: precedente.dateEffet }
+}
+
+const etapeProcesVerbal = (borne: BorneProcesVerbal): string =>
+  borne.statut === 'PV signé'
+    ? `la signature du procès-verbal (${fr(borne.date)})`
+    : `le statut « ${borne.statut} » de l'assemblée (${fr(borne.date)})`
+
+const MOTIF_PV_SIGNE_APRES =
+  "il ne peut pas notifier le procès-verbal de cette assemblée, signé après lui (L. 1965 art. 42, al. 2 : délai « à compter de la notification du procès-verbal » ; D. 1967 art. 17, al. 1 : procès-verbal signé à la fin de la séance ou dans les huit jours suivant la tenue de l'assemblée)."
+
+/** Refus d'un courrier daté (dépôt, première présentation, transmission de l'avis) avant la borne ; null sinon. */
+function courrierAnterieur(
+  courrier: CourrierNotification,
+  date: string | null,
+  quoi: string,
+  borne: BorneProcesVerbal | null,
+): { cause: CauseDelaiNonCalcule; motif: string } | null {
+  if (borne === null || date === null || date >= borne.date) return null
+  return {
+    cause: 'courrier_anterieur_au_pv',
+    motif: `Le courrier rattaché (id=${courrier.id}) date du ${fr(date)} (${quoi}), avant ${etapeProcesVerbal(borne)} : ${MOTIF_PV_SIGNE_APRES}`,
+  }
+}
+
+/**
+ * Courrier qui prouve la notification (LRAR présentée, ou avis électronique transmis : J1, J50), ou le motif pour lequel
+ * elle n'est pas prouvée. `identiteId` : destinataire attendu (calcul par opposant ou défaillant : le courrier doit lui
+ * être adressé, D. 1967 art. 18) ; null, non contrôlé. Un avis antérieur au dépôt n'est pas une preuve (comme à la saisie,
+ * controlerAvisElectronique). `borne` : un courrier déposé, présenté ou avisé avant elle ne notifie pas le PV de cette
+ * assemblée (courrier_anterieur_au_pv ; relecture du 14/11/2026, tour 2) ; null, non contrôlé.
+ */
+function courrierPreuve(
+  courrierId: string | null,
+  courriers: readonly CourrierNotification[],
+  identiteId: string | null,
+  borne: BorneProcesVerbal | null,
+): PreuveNotification {
+  if (!courrierId) return { cause: 'notification_absente', motif: 'Aucun courrier rattaché à la notification.' }
+  const courrier = courriers.find((candidat) => candidat.id === courrierId)
+  if (!courrier) return { cause: 'courrier_introuvable', motif: `Courrier rattaché introuvable (id=${courrierId}).` }
+  const destinataire = courrier.personneId ?? null
+  if (identiteId !== null && destinataire === null)
+    return {
+      cause: 'destinataire_non_renseigne',
+      motif: `Destinataire du courrier rattaché (id=${courrier.id}) non renseigné : rien ne montre qu'il notifie le procès-verbal à ce copropriétaire (D. 1967 art. 18 : notification « à chacun des copropriétaires opposants ou défaillants »).`,
+    }
+  if (identiteId !== null && destinataire !== identiteId)
+    return {
+      cause: 'destinataire_different',
+      motif: `Le courrier rattaché (id=${courrier.id}) est adressé à une autre personne (identité ${destinataire}) : il ne notifie pas le procès-verbal à ce copropriétaire (D. 1967 art. 18).`,
+    }
+  const deposeAvant = courrierAnterieur(courrier, courrier.dateDepot, 'dépôt', borne)
+  if (deposeAvant !== null) return deposeAvant
+  const depart = departDelaiNotification(courrier)
+  if (depart.etat === 'non_calculable') return preuveNonEtablie(courrier, depart)
+  const quoi = depart.mode === 'lrar' ? 'première présentation' : "transmission de l'avis électronique"
+  return courrierAnterieur(courrier, depart.evenement, quoi, borne) ?? { courrier, depart }
+}
+
+/** Motif d'une notification dont le départ n'est pas calculable (courriers.departDelaiNotification). */
+function preuveNonEtablie(
+  courrier: CourrierNotification,
+  depart: Extract<DepartDelaiNotification, { etat: 'non_calculable' }>,
+): { cause: CauseDelaiNonCalcule; motif: string } {
+  if (depart.cause === 'sans_valeur_de_notification')
+    return {
+      cause: 'envoi_non_qualifie',
+      motif: courrier.modeNotification
+        ? `Le mode de notification du courrier rattaché (« ${courrier.modeNotification} ») ne correspond pas à sa forme d'envoi (« ${courrier.formeEnvoi} ») : il ne vaut pas notification (D. 1967 art. 64, 64-1).`
+        : MOTIF_ENVOI_NON_QUALIFIE,
+    }
+  if (depart.cause === 'avis_avant_depot')
+    return {
+      cause: 'preuve_a_saisir',
+      motif: `La date de transmission de l'avis électronique saisie (${fr(depart.evenement)}) précède le dépôt de l'envoi (${fr(depart.depot)}) : la corriger d'après ${SOURCE_AVIS[depart.mode]}.`,
+    }
+  return { cause: 'preuve_a_saisir', motif: depart.mode === 'lrar' ? "La date de première présentation du pli n'est pas saisie." : MOTIF_AVIS_NON_SAISI[depart.mode] }
+}
+
+/** Échéances et justification d'une notification prouvée (J1, J50), depuis le départ de la fonction commune (J3). */
+function calculerDelai(depart: DepartCalculable, avertissements: string[], reporterAuJourOuvrable: boolean): DelaiCalcule {
+  const { mode, evenement, pointDeDepart } = depart
   const echeanceSansReport = appliquerDelai(pointDeDepart, DELAI_CONTESTATION_AG_ART42.delai)
   const echeanceAvecReport = reporterJourOuvrable(echeanceSansReport)
-  const avertissements =
-    notification.dateEffet === presentation
-      ? []
-      : [
-          `La date d'effet saisie pour la notification (${notification.dateEffet}) diffère de la première présentation du pli (${presentation}) : le délai suit la première présentation.`,
-        ]
   const divergence = echeanceSansReport !== echeanceAvecReport
-  const fr = dateIsoVersFr
-  const depart = `Deux mois à compter du lendemain de la première présentation du ${fr(presentation)} (départ le ${fr(pointDeDepart)})`
-  const fondement = 'L. 1965 art. 42, al. 2.'
-  let justification = `${depart} : échéance le ${fr(echeanceSansReport)} à minuit — ${fondement}`
+  const enLettres =
+    mode === 'lrar'
+      ? `Deux mois à compter du lendemain de la première présentation du ${fr(evenement)} (départ le ${fr(pointDeDepart)})`
+      : `Deux mois à compter du lendemain de la transmission de l'avis électronique par le prestataire, le ${fr(evenement)} (départ le ${fr(pointDeDepart)})`
+  const fondement = mode === 'lrar' ? 'L. 1965 art. 42, al. 2.' : 'L. 1965 art. 42, al. 2 ; D. 1967 art. 64, dernier al.'
+  let justification = `${enLettres} : échéance le ${fr(echeanceSansReport)} à minuit — ${fondement}`
   if (divergence)
     justification = reporterAuJourOuvrable
-      ? `${depart} : échéance reportée au premier jour ouvrable, le ${fr(echeanceAvecReport)} à minuit — ${fondement} Report débattu : le ${fr(echeanceSansReport)} sans report.`
+      ? `${enLettres} : échéance reportée au premier jour ouvrable, le ${fr(echeanceAvecReport)} à minuit — ${fondement} Report débattu : le ${fr(echeanceSansReport)} sans report.`
       : `${justification} Report au jour ouvrable débattu : le ${fr(echeanceAvecReport)} si on l’applique.`
   return {
     etat: 'calcule',
-    datePremierePresentation: presentation,
+    mode,
+    dateEvenement: evenement,
+    datePremierePresentation: mode === 'lrar' ? evenement : null,
     pointDeDepart,
     echeanceSansReport,
     echeanceAvecReport,
@@ -268,7 +527,373 @@ export function finDelaiContestationAg(
     divergence,
     justification,
     avertissements,
+    finMinimale: false,
+    aConfirmer: mode === 'lrar' ? null : A_CONFIRMER_ELECTRONIQUE[mode],
   }
+}
+
+interface ParametresNotification {
+  /** Destinataire attendu ; null : celui du courrier. */
+  identiteId: string | null
+  professionnel: boolean | null
+  voie: ContexteVoieNotification
+  reporterAuJourOuvrable: boolean
+  /** Ligne qui précède la notification (borneProcesVerbal) : un courrier antérieur ne notifie pas ce PV. */
+  borne: BorneProcesVerbal | null
+}
+
+/**
+ * Date de l'envoi d'un courrier de notification, telle que le moteur de délais la retient (evaluerNotification, J50) :
+ * le dépôt, s'il est saisi et ne suit pas l'événement (première présentation du pli, transmission de l'avis
+ * électronique) ; à défaut, l'événement. null : notification non prouvée (événement non saisi, envoi non qualifié, avis
+ * antérieur au dépôt). La case « professionnel » datée se lit à cette date (J78, décisions du 19/11/2026 :
+ * qualite-professionnelle.ts, qualiteProfessionnelleALEnvoi).
+ */
+export function dateEnvoiCourrierNotification(courrier: CourrierNotification): string | null {
+  const preuve = courrierPreuve(courrier.id, [courrier], null, null)
+  return 'motif' in preuve ? null : dateEnvoiNotification(preuve.courrier.dateDepot, preuve.depart.evenement)
+}
+
+/** Délai d'une notification : refus (motif sans préfixe) ou calcul (J1, J50). */
+function evaluerNotification(courrierId: string | null, courriers: readonly CourrierNotification[], p: ParametresNotification): DelaiRefuse | DelaiCalcule {
+  const preuve = courrierPreuve(courrierId, courriers, p.identiteId, p.borne)
+  if ('motif' in preuve) return { etat: 'refuse', cause: preuve.cause, motif: preuve.motif }
+  const identite = p.identiteId ?? preuve.courrier.personneId ?? null
+  const { depart } = preuve
+  const dateEnvoi = dateEnvoiNotification(preuve.courrier.dateDepot, depart.evenement)
+  const voie = controlerVoieNotification(depart.mode, dateEnvoi, identite, p.professionnel, p.voie)
+  if ('motif' in voie) return { etat: 'refuse', cause: voie.cause, motif: voie.motif }
+  return calculerDelai(depart, voie.avertissements, p.reporterAuJourOuvrable)
+}
+
+function verifierNombreOpposants(nombre: number | null): void {
+  if (nombre !== null && (!Number.isInteger(nombre) || nombre < 0))
+    throw new Error(`Nombre d'opposants et de défaillants invalide (${nombre}) : entier positif ou nul attendu.`)
+}
+
+/** Fin tirée d'une seule notification : avertissement « fin minimale » (J50), sauf pour un seul opposant ou défaillant. */
+function avertissementFinMinimale(opposantsOuDefaillants: number | null): string | null {
+  const suite = "un autre a pu être notifié plus tard (D. 1967 art. 18 : un délai par opposant ou défaillant). Calculer le délai de chacun."
+  if (opposantsOuDefaillants === null)
+    return `Fin minimale : tirée d'une seule notification, nombre d'opposants et de défaillants non saisi ; ${suite}`
+  if (opposantsOuDefaillants > 1)
+    return `Fin minimale : tirée d'une seule notification alors que l'assemblée compte ${opposantsOuDefaillants} opposants ou défaillants ; ${suite}`
+  return null
+}
+
+export interface OptionsDelaiContestation {
+  reporterAuJourOuvrable?: boolean
+  /** Nombre d'opposants et de défaillants de l'AG (D. 1967 art. 18) ; absent ou null : non saisi (fin minimale). */
+  opposantsOuDefaillants?: number | null
+  voie?: ContexteVoieNotification
+  /** Destinataire professionnel (CPCE art. L. 100) ; absent ou null : non saisi, lu comme non professionnel. */
+  professionnel?: boolean | null
+}
+
+/**
+ * Fin du délai de contestation de l'art. 42 d'après la notification rattachée à la ligne « Notifiée » (J1, J2, J50).
+ * Refuse de calculer, avec sa cause et un motif explicite, sur une chaîne de statuts incomplète, sans courrier qui
+ * prouve la notification (LRAR présentée ou avis électronique transmis), ou quand le délai ne court pas pour ce
+ * destinataire (voie postale demandée, dont la demande reçue avant le 25/12/2025 : J52 ; accord exprès absent avant le
+ * 25/12/2025 ; LRE sans consentement d'un non-professionnel, ou dont le destinataire n'est pas renseigné : J53), ou quand le courrier précède la ligne
+ * qui précède « Notifiée » (courrier_anterieur_au_pv). Le point de départ est l'événement du mode, jamais la date d'effet
+ * saisie, de dépôt ou de retrait. Fin marquée minimale sauf pour un seul opposant ou défaillant :
+ * finDelaiContestationAgParDestinataire donne la fin de l'AG.
+ */
+export function finDelaiContestationAg(
+  historique: LigneHistoriqueComplete[],
+  courriers: readonly CourrierNotification[],
+  agId: string,
+  {
+    reporterAuJourOuvrable = DELAI_CONTESTATION_AG_ART42.reportAuJourOuvrableParDefaut,
+    opposantsOuDefaillants = null,
+    voie = {},
+    professionnel = null,
+  }: OptionsDelaiContestation = {},
+): ResultatDelaiContestation {
+  verifierNombreOpposants(opposantsOuDefaillants)
+  const notification = derniereNotification(historique, agId)
+  if (!notification) return { etat: 'non_notifiee' }
+  const motifChaine = controlerChaineStatutsAg(historique, agId)
+  if (motifChaine) return refus('statuts_incomplets', motifChaine)
+  const resultat = evaluerNotification(notification.courrierId, courriers, {
+    identiteId: null,
+    professionnel,
+    voie,
+    reporterAuJourOuvrable,
+    borne: borneProcesVerbal(historique, agId),
+  })
+  if (resultat.etat === 'refuse') return refus(resultat.cause, resultat.motif)
+  const evenementNomme = resultat.mode === 'lrar' ? 'la première présentation du pli' : "la transmission de l'avis électronique"
+  const suivi = resultat.mode === 'lrar' ? 'la première présentation' : "la transmission de l'avis"
+  const avertissementDateEffet =
+    notification.dateEffet === resultat.dateEvenement
+      ? []
+      : [
+          `La date d'effet saisie pour la notification (${notification.dateEffet}) diffère de ${evenementNomme} (${resultat.dateEvenement}) : le délai suit ${suivi}.`,
+        ]
+  const minimale = avertissementFinMinimale(opposantsOuDefaillants)
+  return {
+    ...resultat,
+    avertissements: [...avertissementDateEffet, ...resultat.avertissements, ...(minimale === null ? [] : [minimale])],
+    finMinimale: minimale !== null,
+  }
+}
+
+// ── Un délai par opposant ou défaillant (J50 ; D. 1967 art. 18) ──────────────────────────────────────────────────
+
+/** Notification du PV à un opposant ou défaillant. */
+export interface NotificationDestinataire {
+  /** Opposant ou défaillant (identité). */
+  identiteId: string
+  /** Courrier qui lui notifie le procès-verbal ; null : pas encore notifié. */
+  courrierId: string | null
+  /** Destinataire professionnel (CPCE art. L. 100) ; absent ou null : non saisi, lu comme non professionnel. */
+  professionnel?: boolean | null
+  /**
+   * Dépôt, connu du cabinet, d'une demande d'aide juridictionnelle par ce copropriétaire (Décision du 20/11/2026, partie C,
+   * F82 ; enregistrement : à brancher) ; absent ou null : aucune connue.
+   */
+  demandeAideJuridictionnelleLe?: string | null
+}
+
+export type ResultatDestinataire = (DelaiRefuse | DelaiCalcule) & { identiteId: string }
+
+export type ResultatDelaiContestationAg =
+  | { etat: 'non_notifiee' }
+  /** Aucun opposant ni défaillant (nombre saisi) : aucune contestation n'est ouverte. */
+  | { etat: 'sans_contestation'; motif: string }
+  | { etat: 'refuse'; cause: CauseDelaiNonCalcule; motif: string; destinataires: ResultatDestinataire[] }
+  | {
+      etat: 'calcule'
+      /** Fin retenue pour l'affichage (J1) : la plus tardive des échéances retenues. */
+      echeanceRetenue: string
+      /** Fin la plus tardive, report au jour ouvrable compris : la date prudente pour attendre (J51, contrôle de l'OS). */
+      echeanceLaPlusTardive: string
+      /** Destinataire dont l'échéance retenue est la plus tardive. */
+      dernierDestinataire: string
+      destinataires: ResultatDestinataire[]
+      justification: string
+      avertissements: string[]
+      aConfirmer: string | null
+    }
+  /** Fin du délai établie hors de l'outil, avec un motif et une pièce, tracée (Décision du 20/11/2026, partie C, F82). */
+  | FinDelaiEtablieHorsOutil
+
+/** Saisie motivée d'une fin du délai établie hors de l'outil (AG ancienne ; Décision du 20/11/2026, partie C, F82). */
+export interface SaisieFinDelaiHorsOutil {
+  /** Fin du délai de contestation, incluse. */
+  fin: string
+  motif: string
+  /** Pièce qui l'établit (certificat de non-recours, par exemple) : identifiant du document. */
+  pieceId: string
+  /** Collaborateur qui saisit la fin. */
+  collaborateurId: string
+  /** Jour de la saisie. */
+  saisieLe: string
+}
+
+export interface FinDelaiEtablieHorsOutil extends SaisieFinDelaiHorsOutil {
+  etat: 'etablie_hors_outil'
+  justification: string
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : une fin du délai établie hors de l'outil n'existe qu'avec ses dates, son motif,
+ * sa pièce et son auteur ; vérifiée à la saisie et de nouveau quand le contrôle de l'OS la lit (reprise d'ailleurs).
+ */
+export function verifierFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): void {
+  for (const [libelle, date] of [
+    ['Fin du délai', saisie.fin],
+    ['Date de la saisie', saisie.saisieLe],
+  ] as const)
+    if (!estDateIsoValide(date)) throw new Error(`${libelle} invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (!saisie.motif.trim()) throw new Error("Fin du délai établie hors de l'outil : motif obligatoire (Décision du 20/11/2026, partie C, F82).")
+  if (!saisie.pieceId.trim()) throw new Error("Fin du délai établie hors de l'outil : pièce obligatoire (certificat de non-recours, par exemple).")
+  if (!saisie.collaborateurId.trim()) throw new Error("Fin du délai établie hors de l'outil : collaborateur qui la saisit attendu (saisie tracée).")
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : la fin du délai de contestation établie hors de l'outil (AG ancienne, dont les
+ * notifications ne sont pas saisies) se saisit avec un motif et une pièce (certificat de non-recours, par exemple), et la
+ * saisie est tracée (collaborateur, date) ; le contrôle de l'OS la lit comme une fin connue (envoi-ordre-service.ts).
+ */
+export function etablirFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): FinDelaiEtablieHorsOutil {
+  verifierFinDelaiHorsOutil(saisie)
+  const motif = saisie.motif.trim()
+  const pieceId = saisie.pieceId.trim()
+  const collaborateurId = saisie.collaborateurId.trim()
+  return {
+    etat: 'etablie_hors_outil',
+    fin: saisie.fin,
+    motif,
+    pieceId,
+    collaborateurId,
+    saisieLe: saisie.saisieLe,
+    justification: `Fin du délai de contestation établie hors de l'outil : le ${fr(saisie.fin)} inclus (${motif} ; pièce ${pieceId}), saisie le ${fr(saisie.saisieLe)} par ${collaborateurId} — Décision du 20/11/2026 (partie C, F82).`,
+  }
+}
+
+/** La plus tardive des deux échéances d'un délai calculé (report au jour ouvrable compris). */
+export const echeanceLaPlusTardiveDe = (r: Pick<DelaiCalcule, 'echeanceSansReport' | 'echeanceAvecReport'>): string =>
+  r.echeanceAvecReport > r.echeanceSansReport ? r.echeanceAvecReport : r.echeanceSansReport
+
+function verifierNotifications(notifications: readonly NotificationDestinataire[], opposantsOuDefaillants: number | null): void {
+  const vues = new Set<string>()
+  // un courrier (LRAR, LRE, prestataire) va à une seule personne : il ne notifie pas deux opposants (relecture du 14/11/2026)
+  const identiteParCourrier = new Map<string, string>()
+  for (const n of notifications) {
+    if (!n.identiteId.trim()) throw new Error('Notification du procès-verbal : identité du destinataire attendue.')
+    if (vues.has(n.identiteId)) throw new Error(`Identité ${n.identiteId} en double dans les notifications du procès-verbal.`)
+    vues.add(n.identiteId)
+    if (n.courrierId === null) continue
+    const deja = identiteParCourrier.get(n.courrierId)
+    if (deja !== undefined)
+      throw new Error(
+        `Courrier ${n.courrierId} rattaché à deux opposants ou défaillants (identités ${deja} et ${n.identiteId}) : une notification par copropriétaire (D. 1967 art. 18), données incohérentes.`,
+      )
+    identiteParCourrier.set(n.courrierId, n.identiteId)
+  }
+  if (opposantsOuDefaillants !== null && notifications.length > opposantsOuDefaillants)
+    throw new Error(
+      `${notifications.length} notification(s) fournie(s) pour ${opposantsOuDefaillants} opposant(s) ou défaillant(s) : données incohérentes.`,
+    )
+}
+
+const estCalcule = (r: ResultatDestinataire): r is DelaiCalcule & { identiteId: string } => r.etat === 'calcule'
+
+function verifierAideJuridictionnelle(n: NotificationDestinataire): void {
+  const le = n.demandeAideJuridictionnelleLe ?? null
+  if (le !== null && !estDateIsoValide(le))
+    throw new Error(`Demande d'aide juridictionnelle de l'identité ${n.identiteId} : date invalide (${le}), AAAA-MM-JJ attendu.`)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : la demande d'aide juridictionnelle déposée avant la fin du délai d'un
+ * copropriétaire rend son action réputée faite dans le délai s'il agit dans un « nouveau délai de même durée » après la
+ * décision sur l'aide (décret du 28/12/2020 relatif à l'aide juridictionnelle, art. 43) : la fin du délai est inconnue pour lui (refus) ; déposée
+ * après la fin, elle ne change rien.
+ */
+function avecAideJuridictionnelle(r: DelaiRefuse | DelaiCalcule, n: NotificationDestinataire): DelaiRefuse | DelaiCalcule {
+  const le = n.demandeAideJuridictionnelleLe ?? null
+  if (le === null || r.etat !== 'calcule') return r
+  const fin = echeanceLaPlusTardiveDe(r)
+  if (le > fin) return r
+  return {
+    etat: 'refuse',
+    cause: 'aide_juridictionnelle_demandee',
+    motif: `Demande d'aide juridictionnelle déposée le ${fr(le)}, avant la fin de son délai (${fr(fin)} inclus) : son action est réputée faite dans le délai s'il agit dans un nouveau délai de même durée après la décision sur l'aide (décret du 28/12/2020 relatif à l'aide juridictionnelle, art. 43) ; la fin du délai est inconnue pour lui — Décision du 20/11/2026 (partie C, F82).`,
+  }
+}
+
+const opposants = (n: number): string => (n > 1 ? `${n} opposants ou défaillants` : `${n} opposant ou défaillant`)
+
+/**
+ * Fin du délai de contestation de l'AG, calculée pour chaque opposant ou défaillant (J50 ; D. 1967 art. 18) : la plus
+ * tardive ; inconnue (refus, avec sa cause) si le nombre d'opposants et de défaillants n'est pas saisi, si l'un d'eux n'a
+ * pas de notification rattachée, ou si le délai d'une notification n'est pas calculé (dont un courrier antérieur à la
+ * ligne qui précède « Notifiée » : courrier_anterieur_au_pv, relecture du 14/11/2026, tour 2), ou si l'un d'eux a déposé
+ * une demande d'aide juridictionnelle connue avant la fin de son délai (aide_juridictionnelle_demandee : Décision du
+ * 20/11/2026, partie C, F82). Sans opposant ni défaillant (0), aucune contestation n'est ouverte, même sans notification.
+ * Plus de notifications que d'opposants, ou une identité en double : erreur (données incohérentes).
+ */
+export function finDelaiContestationAgParDestinataire(
+  historique: LigneHistoriqueComplete[],
+  courriers: readonly CourrierNotification[],
+  agId: string,
+  {
+    opposantsOuDefaillants,
+    notifications,
+    voie = {},
+    reporterAuJourOuvrable = DELAI_CONTESTATION_AG_ART42.reportAuJourOuvrableParDefaut,
+  }: {
+    opposantsOuDefaillants: number | null
+    notifications: readonly NotificationDestinataire[]
+    voie?: ContexteVoieNotification
+    reporterAuJourOuvrable?: boolean
+  },
+): ResultatDelaiContestationAg {
+  verifierNombreOpposants(opposantsOuDefaillants)
+  verifierNotifications(notifications, opposantsOuDefaillants)
+  notifications.forEach(verifierAideJuridictionnelle)
+  if (opposantsOuDefaillants === 0) return { etat: 'sans_contestation', motif: MOTIF_SANS_CONTESTATION }
+  // un courrier antérieur à la ligne qui précède « Notifiée » ne notifie pas ce PV (sondes N1, N1b)
+  const borne = borneProcesVerbal(historique, agId)
+  const destinataires: ResultatDestinataire[] = notifications.map((n) => ({
+    ...avecAideJuridictionnelle(
+      evaluerNotification(n.courrierId, courriers, { identiteId: n.identiteId, professionnel: n.professionnel ?? null, voie, reporterAuJourOuvrable, borne }),
+      n,
+    ),
+    identiteId: n.identiteId,
+  }))
+  if (!derniereNotification(historique, agId)) {
+    // notification prouvée, statut « Notifiée » non enregistré : compléter l'historique, pas notifier de nouveau (sonde S4)
+    const prouvees = destinataires.filter(estCalcule).map((r) => r.identiteId)
+    if (prouvees.length === 0) return { etat: 'non_notifiee' }
+    return {
+      ...refus(
+        'statuts_incomplets',
+        `Statut « Notifiée » de l'assemblée non enregistré alors que la notification du procès-verbal est prouvée (${prouvees.length > 1 ? 'identités' : 'identité'} ${prouvees.join(', ')}) : l'enregistrer à la date de la notification (décision J2).`,
+      ),
+      destinataires,
+    }
+  }
+  const motifChaine = controlerChaineStatutsAg(historique, agId)
+  if (motifChaine) return { ...refus('statuts_incomplets', motifChaine), destinataires: [] }
+  if (opposantsOuDefaillants === null)
+    return { ...refus('opposants_non_saisis', "Nombre d'opposants et de défaillants non saisi (D. 1967 art. 18)."), destinataires: [] }
+  const motifs: string[] = []
+  let cause: CauseDelaiNonCalcule | null = null
+  for (const r of destinataires)
+    if (r.etat === 'refuse') {
+      motifs.push(`Identité ${r.identiteId} : ${r.motif}`)
+      cause ??= r.cause
+    }
+  const manquants = opposantsOuDefaillants - notifications.length
+  if (manquants > 0) motifs.push(`${opposants(manquants)} sur ${opposantsOuDefaillants} sans notification rattachée (D. 1967 art. 18).`)
+  if (motifs.length > 0) return { ...refus(cause ?? 'notification_absente', motifs.join(' ')), destinataires }
+  const calcules = destinataires.filter(estCalcule)
+  let dernier = calcules[0]
+  let laPlusTardive = echeanceLaPlusTardiveDe(dernier)
+  for (const r of calcules) {
+    if (r.echeanceRetenue > dernier.echeanceRetenue) dernier = r
+    const echeance = echeanceLaPlusTardiveDe(r)
+    if (echeance > laPlusTardive) laPlusTardive = echeance
+  }
+  const entete =
+    calcules.length > 1
+      ? `Fin la plus tardive des ${calcules.length} délais (un par opposant ou défaillant, D. 1967 art. 18)`
+      : 'Fin du délai du seul opposant ou défaillant (D. 1967 art. 18)'
+  const report = laPlusTardive === dernier.echeanceRetenue ? '' : ` Report au jour ouvrable débattu : le ${fr(laPlusTardive)} si on l’applique.`
+  return {
+    etat: 'calcule',
+    echeanceRetenue: dernier.echeanceRetenue,
+    echeanceLaPlusTardive: laPlusTardive,
+    dernierDestinataire: dernier.identiteId,
+    destinataires,
+    justification: `${entete} : le ${fr(dernier.echeanceRetenue)} à minuit (identité ${dernier.identiteId}) — L. 1965 art. 42, al. 2.${report}`,
+    avertissements: calcules.flatMap((r) => r.avertissements.map((a) => `Identité ${r.identiteId} : ${a}`)),
+    aConfirmer: (calcules.find((r) => r.mode === 'lre') ?? calcules.find((r) => r.aConfirmer !== null))?.aConfirmer ?? null,
+  }
+}
+
+/**
+ * Dernière fin du délai de contestation sur une liste de délais (un par opposant ou défaillant) : la plus tardive des deux
+ * calculs (report compris), et son rang ; ou la cause et le motif qui empêchent de la connaître (reprise de
+ * l'attestation de non-recours, gabarits-courrier.ts). Liste vide : erreur.
+ */
+export function derniereFinDelaiContestation(
+  resultats: readonly ResultatDelaiContestation[],
+): { echeance: string; rang: number } | { cause: CauseDelaiNonCalcule | 'pv_non_notifie'; motif: string } {
+  if (resultats.length === 0) throw new Error('Aucun délai de contestation fourni.')
+  let derniere = { echeance: '', rang: -1 }
+  for (const [rang, r] of resultats.entries()) {
+    if (r.etat === 'non_notifiee') return { cause: 'pv_non_notifie', motif: "Procès-verbal non notifié : le délai de l'art. 42 n'a pas couru." }
+    if (r.etat === 'refuse') return { cause: r.cause, motif: r.motif }
+    const echeance = echeanceLaPlusTardiveDe(r)
+    if (echeance > derniere.echeance) derniere = { echeance, rang }
+  }
+  return derniere
 }
 
 /**
@@ -288,7 +913,7 @@ export function detecterStatutsAgNonHistorises(
     .map((ag) => ag.id)
 }
 
-// ── Preuve de la notification (T31, règle R9 ; J1) ──────────────────────────────────────────────────────────────
+// ── Preuve de la notification (T31, règle R9 ; J1, J50) ─────────────────────────────────────────────────────────────
 
 /** Alerte MÉTIER (pas une erreur technique) : la notification de l'AG ne peut pas être prouvée en l'état. */
 export interface AlertePreuveNotification {
@@ -297,17 +922,18 @@ export interface AlertePreuveNotification {
 }
 
 /**
- * Contrôle la preuve de la dernière notification du PV d'une AG (R9, J1) : elle doit être reliée à un courrier en AR
- * dont la première présentation est saisie (retiré ou non). Renvoie null si l'AG n'a pas été notifiée, ou si la
- * notification est prouvée.
+ * Contrôle la preuve de la dernière notification du PV d'une AG (R9, J1, J50) : elle doit être reliée à un courrier en
+ * AR dont la première présentation est saisie (retiré ou non), ou à une notification électronique dont la transmission
+ * de l'avis est saisie, et qui ne précède pas la ligne qui précède « Notifiée » (relecture du 14/11/2026, tour 2).
+ * Renvoie null si l'AG n'a pas été notifiée, ou si la notification est prouvée.
  */
 export function controlerPreuveNotificationAg(
   historique: (LigneHistoriqueStatut & { courrierId: string | null })[],
-  courriers: CourrierNotification[],
+  courriers: readonly CourrierNotification[],
   agId: string,
 ): AlertePreuveNotification | null {
   const derniere = derniereNotification(historique, agId)
   if (!derniere) return null
-  const preuve = courrierPreuve(derniere.courrierId, courriers)
+  const preuve = courrierPreuve(derniere.courrierId, courriers, null, borneProcesVerbal(historique, agId))
   return 'motif' in preuve ? { code: 'notification_non_prouvee', motif: preuve.motif } : null
 }

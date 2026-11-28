@@ -1,0 +1,1247 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import {
+  DELAI_PREAVIS_SEPA_JOURS,
+  contenuAvisAppel,
+  echeancesPrelevementDepuisAvis,
+  effetsMutationSurAvis,
+  preparerDiffusionAvis,
+  type ContenuAvisAppel,
+  type ContenuAvisCompte,
+  type DiffusionAvisCompte,
+  type MandatPrelevement,
+  type OptionsContenuAvis,
+  type OptionsDiffusionAvis,
+  type ReglementCompte,
+} from '@/lib/administrateur-judiciaire/domain/avis-appel'
+import { controlerContexteFusion, controlerFormeEnvoi, gabaritCourrier } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
+import {
+  creerAdresseDatee,
+  creerCompteCoproprietaire,
+  creerIdentite,
+  creerPosition,
+  muterLot,
+  type Position,
+} from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { NATURES_COMPTE_BANCAIRE, type CompteEncaissement } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
+import { avisDAppel, creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import { creerOperationTravaux, echeancesTravaux, emploisFondsTravauxDesTranches } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import {
+  creerCommunicationAdresseElectronique,
+  creerDemandeVoiePostale,
+  creerRenonciationVoiePostale,
+} from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import { enTeteDuModule } from './en-tete-module'
+
+/**
+ * Contenu de l'avis d'appel, adaptateur vers le prélèvement SEPA et préparation de la diffusion (point 17 du bilan 2 ;
+ * Gestéam, tranche 30 § Appels copropriétaires et § Échéancier, tranche 43 § 8 et § 22).
+ * Droit relu sur Légifrance le 29/10/2026 : L. 1965 art. 14-1, 14-2-1, 18 II, 29-1 ; D. 1967 art. 10, 35-2, 62-9, 64-2,
+ * 64-4, 64-9, 65. Règl. (UE) n° 260/2012 (EUR-Lex) ; recueil EPC SDD Core 2025 (PT-04.02, DS-01).
+ * Pré-notification SEPA (14 jours), séquence FRST, caducité du mandat (36 mois) : recueil EPC SDD Core 2025, règles du
+ * schéma et non textes de loi. Données fictives : aucun copropriétaire réel, IBAN de test publiés, ICS d'exemple.
+ */
+
+const cle = creerCleRepartition({
+  id: 'cle-001',
+  coproprieteId: 'copro-1',
+  code: '001',
+  libelle: 'Charges communes générales',
+  lots: [
+    { lotId: 'lot-1', tantiemes: 400 },
+    { lotId: 'lot-2', tantiemes: 600 },
+  ],
+})
+const comptes = [
+  creerCompteCoproprietaire({ id: 'cpt-A', coproprieteId: 'copro-1', serie: '1', libelle: 'Copropriétaire A' }),
+  creerCompteCoproprietaire({ id: 'cpt-B', coproprieteId: 'copro-1', serie: '2', libelle: 'Copropriétaire B' }),
+]
+const position = (id: string, lotId: string, compteId: string, identiteId = `i-${compteId}`): Position =>
+  creerPosition({ id, identiteId, lotId, compteId, qualite: 'Copropriétaire', part: { numerateur: 1, denominateur: 1 }, statut: 'En place', dateEntree: '2020-01-01', dateSortie: null })
+const positions = [position('p1', 'lot-1', 'cpt-A'), position('p2', 'lot-2', 'cpt-B')]
+
+const echeances: EcheanceAppel[] = [
+  { id: 'B-2027-001-1', coproprieteId: 'copro-1', cleId: 'cle-001', exigibilite: '2027-01-01', libelle: 'Budget 2027 — provision 1/4', montantCentimes: 100_000, nature: 'budget' },
+  { id: 'FT-2027-1', coproprieteId: 'copro-1', cleId: 'cle-001', exigibilite: '2027-01-01', libelle: 'Fonds de travaux 2027 — appel n° 1', montantCentimes: 5_000, nature: 'fonds_travaux' },
+  { id: '00042-T1', coproprieteId: 'copro-1', cleId: 'cle-001', exigibilite: '2027-01-01', libelle: 'Ravalement — appel n° 1 (30 %)', montantCentimes: 30_000, nature: 'travaux' },
+]
+const avis = avisDAppel({ echeances, cles: [cle], positions, comptes, soldesAnterieurs: { 'cpt-A': 10_000, 'cpt-B': -5_000 } })
+
+const IBAN_DEBITEUR = 'FR76 3000 6000 0112 3456 7890 189'
+const IBAN_SYNDICAT = 'FR14 2004 1010 0505 0001 3M02 606'
+const ICS = 'FR12ZZZ123456'
+/** Compte qui reçoit les règlements selon le mode de tenue (ap-03) : le compte courant au nom du syndicat. */
+const COMPTE_COURANT: CompteEncaissement = {
+  designe: true,
+  banqueId: 'banque-courant',
+  nature: 'courant',
+  libelle: NATURES_COMPTE_BANCAIRE.courant.libelle,
+  iban: 'FR1420041010050500013M02606',
+  auNomDuSyndicat: true,
+}
+/** Aucun compte désigné (ap-03) : l'avis entier est bloqué, le règlement hors prélèvement passe au chèque. */
+const SANS_COMPTE: CompteEncaissement = {
+  designe: false,
+  motif: 'aucun compte actif « Compte courant au nom du syndicat », compte qui reçoit les règlements dans le mode « Compte séparé au nom du syndicat »',
+}
+
+const mandat = (surcharge: Partial<MandatPrelevement> = {}): MandatPrelevement => ({
+  rum: 'RUM-TILL-00001',
+  dateSignature: '2024-03-01',
+  debiteur: 'Copropriétaire A',
+  debiteurIdentiteId: 'i-cpt-A',
+  iban: IBAN_DEBITEUR,
+  bic: 'AGRIFRPP',
+  dernierPrelevementLe: '2026-10-05',
+  natures: { budget: true, autres: false },
+  maxiCentimes: null,
+  ...surcharge,
+})
+const reglements = (mandatA: MandatPrelevement | null = mandat()): ReglementCompte[] => [
+  { compteId: 'cpt-A', mode: 'Prélèvement', mandat: mandatA },
+  { compteId: 'cpt-B', mode: 'Virement' },
+]
+const options = (surcharge: Partial<OptionsContenuAvis> = {}): OptionsContenuAvis => ({
+  cles: [cle],
+  comptes,
+  segmentSyndicat: 'TILL',
+  syndicat: { nom: 'SDC Les Tilleuls (fictif)', adresse: '12 rue des Tilleuls, 13001 Marseille' },
+  compteEncaissement: COMPTE_COURANT,
+  ics: ICS,
+  dateEmission: '2026-12-15',
+  reglements: reglements(),
+  datePrelevement: '2027-01-05',
+  ...surcharge,
+})
+const compteDe = (contenu: { parCompte: ContenuAvisCompte[] }, compteId: string): ContenuAvisCompte => {
+  const trouve = contenu.parCompte.find((c) => c.compteId === compteId)
+  if (!trouve) throw new Error(`compte ${compteId} absent`)
+  return trouve
+}
+const codes = (compte: ContenuAvisCompte) => compte.anomalies.map((a) => a.code)
+const bloquantsDe = (compte: ContenuAvisCompte) => compte.anomalies.filter((x) => x.gravite === 'bloquant').map((x) => x.code)
+const cheques: ReglementCompte[] = [
+  { compteId: 'cpt-A', mode: 'Chèque' },
+  { compteId: 'cpt-B', mode: 'Chèque' },
+]
+
+const adresse = (id: string) =>
+  creerAdresseDatee({ id, lignes: ['1 rue Fictive'], codePostal: '13001', ville: 'Marseille', pays: 'France', usage: null, du: '2020-01-01', au: null, communiqueeLe: null })
+const identites = [
+  creerIdentite({ id: 'i-cpt-A', nature: 'physique', civilite: 'Madame', nom: 'Copropriétaire A', prenom: 'Fictive', telecoms: [], adresses: [adresse('adr-A')] }),
+  creerIdentite({ id: 'i-cpt-B', nature: 'physique', civilite: 'Monsieur', nom: 'Copropriétaire B', prenom: 'Fictif', telecoms: [], adresses: [adresse('adr-B')] }),
+  creerIdentite({ id: 'i-cpt-B2', nature: 'physique', civilite: 'Madame', nom: 'Indivisaire B2', prenom: 'Fictive', telecoms: [], adresses: [] }),
+]
+const socle = {
+  'copropriete.nom': 'Les Tilleuls (fictif)',
+  'copropriete.adresse': '12 rue des Tilleuls, 13001 Marseille',
+  'mandat.fondement': 'L. 1965 art. 29-1',
+  'mandat.tribunal': 'TJ de Marseille',
+  'mandat.ordonnance': '2026-03-02',
+  'mandat.rg': '26/01234',
+}
+const diffusion = (surcharge: Partial<OptionsDiffusionAvis> = {}): OptionsDiffusionAvis => ({
+  date: '2026-12-15',
+  coproprieteId: 'copro-1',
+  mandatId: 'mandat-1',
+  socle,
+  modeles: { electronique: { id: 'mod-email', formeEnvoi: 'Email direct' }, postal: { id: 'mod-postal', formeEnvoi: 'Normal' } },
+  identites,
+  positions,
+  demandesVoiePostale: [],
+  communications: [creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'a@exemple.invalid', communiqueeLe: '2026-01-10' })],
+  ...surcharge,
+})
+/** Diffusion à la date d'émission (par défaut) : entrée obligatoire de l'adaptateur vers le prélèvement. */
+const diffuse = (contenu: ContenuAvisAppel, surcharge: Partial<OptionsDiffusionAvis> = {}) =>
+  preparerDiffusionAvis(contenu, diffusion({ date: contenu.dateEmission, ...surcharge }))
+
+describe('contenu de l’avis — totaux, lignes et date limite', () => {
+  it('reprend les totaux de l’avis : provisions + travaux + souscription = total appelé ; solde antérieur et total à payer signés', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a).toMatchObject({
+      numeroCompte: 'TILL.45000.00001.0',
+      libelleCompte: 'Copropriétaire A',
+      dateEmission: '2026-12-15',
+      provisionsCentimes: 40_000,
+      travauxCentimes: 12_000,
+      souscriptionFondsTravauxCentimes: 2_000,
+      totalAppeleCentimes: 54_000,
+      soldeAnterieurCentimes: 10_000,
+      totalAPayerCentimes: 64_000,
+    })
+    const b = compteDe(contenu, 'cpt-B')
+    expect([b.totalAppeleCentimes, b.soldeAnterieurCentimes, b.totalAPayerCentimes]).toEqual([81_000, -5_000, 76_000])
+    for (const c of contenu.parCompte)
+      expect(c.provisionsCentimes + c.travauxCentimes + c.souscriptionFondsTravauxCentimes).toBe(c.totalAppeleCentimes)
+  })
+
+  it('grille Gestéam « Type · Libellé · Budget · Copro. · Clé · Quote-part » : une ligne par échéance et lot', () => {
+    const a = compteDe(contenuAvisAppel(avis, options()), 'cpt-A')
+    expect(a.lignes[0]).toEqual({
+      echeanceId: 'B-2027-001-1',
+      nature: 'budget',
+      typeAppel: 'Budget',
+      libelle: 'Budget 2027 — provision 1/4',
+      exigibilite: '2027-01-01',
+      lotId: 'lot-1',
+      cle: '001',
+      baseCentimes: 100_000,
+      quotePartCentimes: 40_000,
+      tantiemes: { lot: 400, total: 1000 },
+    })
+    expect(a.lignes.map((l) => l.typeAppel)).toEqual(['Budget', 'Fonds travaux', 'Travaux'])
+    expect(a.parExigibilite).toEqual([{ exigibilite: '2027-01-01', montantCentimes: 54_000 }])
+  })
+
+  it('refuse un avis qui porte des anomalies, comme l’écriture de l’appel', () => {
+    const enAnomalie = avisDAppel({ echeances, cles: [cle], positions: [positions[0]], comptes })
+    expect(() => contenuAvisAppel(enAnomalie, options())).toThrow(/anomalie/i)
+  })
+
+  it('« À régler avant le » : exigibilité, plus un délai de gestion facultatif, jamais avant l’exigibilité', () => {
+    expect(compteDe(contenuAvisAppel(avis, options()), 'cpt-A').aReglerAvantLe).toBe('2027-01-01')
+    expect(compteDe(contenuAvisAppel(avis, options({ delaiReglementJours: 10 })), 'cpt-A').aReglerAvantLe).toBe('2027-01-11')
+    expect(() => contenuAvisAppel(avis, options({ delaiReglementJours: -1 }))).toThrow(/délai/i)
+    expect(() => contenuAvisAppel(avis, options({ dateEmission: '15/12/2026' }))).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('plusieurs exigibilités sur un même avis : la plus tardive fixe la date limite, information signalée', () => {
+    const deux = avisDAppel({
+      echeances: [echeances[0], { ...echeances[2], exigibilite: '2027-03-01' }],
+      cles: [cle],
+      positions,
+      comptes,
+    })
+    const a = compteDe(contenuAvisAppel(deux, options({ reglements: [{ compteId: 'cpt-A', mode: 'Chèque' }, { compteId: 'cpt-B', mode: 'Chèque' }] })), 'cpt-A')
+    expect(a.aReglerAvantLe).toBe('2027-03-01')
+    expect(a.parExigibilite).toEqual([
+      { exigibilite: '2027-01-01', montantCentimes: 40_000 },
+      { exigibilite: '2027-03-01', montantCentimes: 12_000 },
+    ])
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'exigibilites_multiples', gravite: 'information' }))
+  })
+
+  it('avis émis le jour de l’exigibilité ou après : avertissement (D. 1967 art. 35-2 : avis préalable)', () => {
+    const tardif = compteDe(contenuAvisAppel(avis, options({ dateEmission: '2027-01-01', reglements: cheques })), 'cpt-A')
+    expect(tardif.anomalies).toContainEqual(expect.objectContaining({ code: 'emis_apres_exigibilite', gravite: 'avertissement', fondement: 'D. 1967 art. 35-2' }))
+    const apres = compteDe(contenuAvisAppel(avis, options({ dateEmission: '2027-01-02', reglements: cheques })), 'cpt-A')
+    expect(apres.anomalies).toContainEqual(expect.objectContaining({ code: 'emis_apres_exigibilite', gravite: 'avertissement' }))
+    expect(codes(compteDe(contenuAvisAppel(avis, options()), 'cpt-A'))).not.toContain('emis_apres_exigibilite')
+  })
+
+  it('avis émis avant le 25/12/2025 : régime antérieur signalé', () => {
+    const ancien = avisDAppel({ echeances: echeances.map((e) => ({ ...e, exigibilite: '2026-01-01' })), cles: [cle], positions, comptes })
+    const contenu = contenuAvisAppel(ancien, options({ dateEmission: '2025-12-10', datePrelevement: '2026-01-05' }))
+    expect(contenu.anomalies).toContainEqual(expect.objectContaining({ code: 'regime_anterieur', gravite: 'avertissement' }))
+  })
+})
+
+describe('emploi du fonds de travaux — information ventilée par compte', () => {
+  const emploi = { echeanceId: '00042-T1', plafondCentimes: 10_000, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: 'Résolution 8 (AG du 12/03/2026)' } }
+
+  it('ventilé sur la clé de la dépense au centime près, sans entrer dans le total appelé', () => {
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [emploi] }))
+    const a = compteDe(contenu, 'cpt-A')
+    const b = compteDe(contenu, 'cpt-B')
+    expect(a.emploiFondsTravaux).toEqual([{ echeanceId: '00042-T1', lotId: 'lot-1', cle: '001', centimes: 4_000 }])
+    expect([a.emploiFondsTravauxCentimes, b.emploiFondsTravauxCentimes]).toEqual([4_000, 6_000])
+    expect(a.totalAppeleCentimes).toBe(54_000)
+    expect(contenu.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+  })
+
+  it('affectation refusée par le contrôle J4 : anomalie bloquante, avec motif et fondement', () => {
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, affectation: { objet: 'charges_courantes' } }] }))
+    expect(contenu.anomalies).toContainEqual(expect.objectContaining({ code: 'emploi_fonds_non_autorise', gravite: 'bloquant', fondement: 'L. 1965 art. 14-2-1, I' }))
+    const sansDecision = contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, affectation: { objet: 'travaux_hors_ppt' } }] }))
+    expect(sansDecision.anomalies.map((x) => x.code)).toContain('emploi_fonds_non_autorise')
+  })
+
+  it('J30 : décision ou ordonnance en texte libre (valeur enregistrée) : admise, signalée « forme incomplète », non bloquante', () => {
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [emploi] }))
+    const signalements = contenu.anomalies.filter((x) => x.code === 'emploi_fonds_forme_incomplete')
+    expect(signalements).toEqual([expect.objectContaining({ gravite: 'avertissement', fondement: 'L. 1965 art. 14-2-1, I' })])
+    expect(signalements[0].message).toMatch(
+      /^Ravalement — appel n° 1 \(30 %\) : Décision d'affectation de l'assemblée saisie en texte libre \(« Résolution 8 \(AG du 12\/03\/2026\) »\) : forme incomplète/,
+    )
+    expect(contenu.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+    const parLeJuge = { ...emploi, affectation: { objet: 'redressement_29_14' as const, autorisationJuge: 'Ordonnance du 02/09/2026' } }
+    const juge = contenuAvisAppel(avis, options({ emploisFonds: [parLeJuge] })).anomalies.filter((x) => x.code === 'emploi_fonds_forme_incomplete')
+    expect(juge).toEqual([expect.objectContaining({ gravite: 'avertissement', fondement: 'L. 1965 art. 29-14' })])
+    // Refusé pour un autre motif : la seule anomalie bloquante, sans signalement de forme.
+    const refuse = contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, affectation: { objet: 'charges_courantes', decisionAg: 'Résolution 8' } }] }))
+    expect(refuse.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+  })
+
+  it('J30 : décision et ordonnance en forme structurée reçues par l’avis, contrôlées comme valeurs enregistrées (sans date du jour)', () => {
+    const structuree = { ...emploi, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: { dateAg: '2026-03-12', numeroResolution: '8' } } }
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [structuree] }))
+    expect(contenu.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+    expect(contenu.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+    expect([compteDe(contenu, 'cpt-A').emploiFondsTravauxCentimes, compteDe(contenu, 'cpt-B').emploiFondsTravauxCentimes]).toEqual([4_000, 6_000])
+    // Datée après l'émission de l'avis : valeur enregistrée, sa date n'est pas comparée au jour, aucune erreur levée.
+    const posterieure = { ...emploi, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: { dateAg: '2027-06-12', numeroResolution: '14' } } }
+    expect(contenuAvisAppel(avis, options({ emploisFonds: [posterieure] })).anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+    const ordonnance = { juridiction: 'Tribunal judiciaire de Marseille', date: '2026-09-02', numero: 'RG 26/01234' }
+    const parLeJuge = { ...emploi, affectation: { objet: 'redressement_29_14' as const, autorisationJuge: ordonnance } }
+    const juge = contenuAvisAppel(avis, options({ emploisFonds: [parLeJuge] }))
+    expect(juge.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+    expect(juge.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+  })
+
+  it('J30 : forme structurée incomplète reçue par l’avis : refus bloquant qui nomme ce qui manque, sans signalement de forme', () => {
+    const incomplete = { ...emploi, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: { dateAg: '2026-03-12', numeroResolution: ' ' } } }
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [incomplete] }))
+    const refus = contenu.anomalies.filter((x) => x.code === 'emploi_fonds_non_autorise')
+    expect(refus).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 14-2-1, I' })])
+    expect(refus[0].message).toMatch(/manque : n° de la résolution/)
+    expect(contenu.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+    const ordonnanceSansNumero = { juridiction: 'Tribunal judiciaire de Marseille', date: '2026-09-02', numero: '' }
+    const sansNumero = { ...emploi, affectation: { objet: 'redressement_29_14' as const, autorisationJuge: ordonnanceSansNumero } }
+    const juge = contenuAvisAppel(avis, options({ emploisFonds: [sansNumero] })).anomalies.filter((x) => x.code === 'emploi_fonds_non_autorise')
+    expect(juge).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14' })])
+    expect(juge[0].message).toMatch(/manque : n° de l'ordonnance/)
+  })
+
+  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » (J30, forme structurée reçue, signalement non bloquant, branchement de travaux-operations à faire)', () => {
+    const decisions = enTeteDuModule('avis-appel').item('J30 :')
+    expect(decisions).toMatch(/emploi_fonds_forme_incomplete/)
+    expect(decisions).toMatch(/avertissement/)
+    expect(decisions).toMatch(/travaux-operations\.ts/)
+    expect(decisions).toMatch(/types de DecaissementFondsTravaux/)
+    expect(decisions).toMatch(/`aujourdhui: null`/)
+    expect(decisions).not.toMatch(/tant que son branchement n'est pas fait/)
+    expect(decisions).not.toMatch(/à confirmer/)
+  })
+
+  it('en-tête : rubrique « Décisions de Hugo du 06/11/2026 » (J42 : forme de la décision d’affectation confirmée, comportement inchangé)', () => {
+    const j42 = enTeteDuModule('avis-appel').item('J42 :')
+    expect(j42).toMatch(/date de l'AG \+ n° de la résolution, obligatoires/)
+    expect(j42).toMatch(/comportement inchangé/)
+  })
+
+  it('refuse un emploi sur une échéance qui n’est pas de travaux, inconnue ou en double', () => {
+    expect(() => contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, echeanceId: 'B-2027-001-1' }] }))).toThrow(/travaux/i)
+    expect(() => contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, echeanceId: 'X' }] }))).toThrow(/inconnue|absente/i)
+    expect(() => contenuAvisAppel(avis, options({ emploisFonds: [emploi, emploi] }))).toThrow(/double/i)
+  })
+
+  it('emploi supérieur au solde du fonds : bloquant ; sous le montant bloqué du cabinet : alerte de gestion sans fondement', () => {
+    expect(contenuAvisAppel(avis, options({ emploisFonds: [emploi], soldeFondsCentimes: 9_999 })).anomalies).toContainEqual(
+      expect.objectContaining({ code: 'emploi_superieur_au_fonds', gravite: 'bloquant' }),
+    )
+    const alerte = contenuAvisAppel(avis, options({ emploisFonds: [emploi], soldeFondsCentimes: 50_000, reglagesFonds: { montantBloqueCentimes: 45_000 } }))
+    expect(alerte.anomalies).toContainEqual(expect.objectContaining({ code: 'sous_montant_bloque', gravite: 'avertissement', fondement: null }))
+  })
+
+  it('plafonds par tranche d’une opération : part du fonds × taux, même arrondi que les appels', () => {
+    const operation = creerOperationTravaux({
+      numero: '00042',
+      coproprieteId: 'copro-1',
+      libelle: 'Ravalement',
+      cleId: 'cle-001',
+      decision: { date: '2026-03-12', resolution: 'Résolution 8' },
+      budgetTtcCentimes: 101_000,
+      financementFondsTravauxCentimes: 1_000,
+      affectationFonds: { objet: 'travaux_hors_ppt' },
+      tranches: [
+        { date: '2027-01-01', tauxPct: 33.33 },
+        { date: '2027-04-01', tauxPct: 33.33 },
+        { date: '2027-07-01', tauxPct: 33.34 },
+      ],
+    })
+    const emplois = emploisFondsTravauxDesTranches(operation)
+    expect(emplois.map((e) => [e.echeanceId, e.plafondCentimes])).toEqual([
+      ['00042-T1', 333],
+      ['00042-T2', 333],
+      ['00042-T3', 334],
+    ])
+    expect(emplois[0].affectation).toEqual({ objet: 'travaux_hors_ppt', decisionAg: 'Résolution 8 (AG du 12/03/2026)', autorisationJuge: null })
+    expect(echeancesTravaux(operation).map((e) => e.montantCentimes)).toEqual([33_330, 33_330, 33_340])
+    expect(emploisFondsTravauxDesTranches({ ...operation, financementFondsTravauxCentimes: 0, montantAAppelerCentimes: 101_000 })).toEqual([])
+    const avisTravaux = avisDAppel({ echeances: echeancesTravaux(operation), cles: [cle], positions, comptes })
+    const contenu = contenuAvisAppel(avisTravaux, options({ emploisFonds: emplois, reglements: [{ compteId: 'cpt-A', mode: 'Chèque' }, { compteId: 'cpt-B', mode: 'Chèque' }] }))
+    expect(contenu.parCompte.reduce((s, c) => s + c.emploiFondsTravauxCentimes, 0)).toBe(1_000)
+  })
+})
+
+describe('règlement — prélèvement, virement, chèque', () => {
+  it('prélèvement : montant pré-notifié = natures couvertes par le mandat, sans le solde antérieur ; reste hors prélèvement', () => {
+    const a = compteDe(contenuAvisAppel(avis, options()), 'cpt-A')
+    expect(a.modeReglement).toBe('Prélèvement')
+    expect(a.instructions).toMatchObject({ mode: 'Prélèvement', date: '2027-01-05', montantCentimes: 40_000, resteHorsPrelevementCentimes: 24_000, rum: 'RUM-TILL-00001', ics: ICS })
+    const tout = compteDe(contenuAvisAppel(avis, options({ reglements: reglements(mandat({ natures: { budget: true, autres: true } })) })), 'cpt-A')
+    expect(tout.instructions).toMatchObject({ montantCentimes: 54_000, resteHorsPrelevementCentimes: 10_000 })
+    const plafonne = compteDe(contenuAvisAppel(avis, options({ reglements: reglements(mandat({ maxiCentimes: 30_000 })) })), 'cpt-A')
+    expect(plafonne.instructions).toMatchObject({ montantCentimes: 30_000 })
+  })
+
+  it('compte créditeur : rien n’est prélevé au-delà du total à payer', () => {
+    const crediteur = avisDAppel({ echeances, cles: [cle], positions, comptes, soldesAnterieurs: { 'cpt-A': -60_000 } })
+    const a = compteDe(contenuAvisAppel(crediteur, options()), 'cpt-A')
+    expect(a.totalAPayerCentimes).toBe(-6_000)
+    expect(a.instructions).toMatchObject({ montantCentimes: 0, resteHorsPrelevementCentimes: -6_000 })
+  })
+
+  it('aucune nature appelée couverte par le mandat : avertissement', () => {
+    const travauxSeuls = avisDAppel({ echeances: [echeances[2]], cles: [cle], positions, comptes })
+    const a = compteDe(contenuAvisAppel(travauxSeuls, options()), 'cpt-A')
+    expect(a.instructions).toMatchObject({ montantCentimes: 0 })
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'nature_non_couverte', gravite: 'avertissement' }))
+  })
+
+  it(`pré-notification : ${DELAI_PREAVIS_SEPA_JOURS} jours calendaires au moins entre l’émission et le débit, sauf délai convenu dans le mandat`, () => {
+    expect(codes(compteDe(contenuAvisAppel(avis, options({ dateEmission: '2026-12-22' })), 'cpt-A'))).not.toContain('preavis_insuffisant')
+    const court = compteDe(contenuAvisAppel(avis, options({ dateEmission: '2026-12-23' })), 'cpt-A')
+    expect(court.anomalies).toContainEqual(expect.objectContaining({ code: 'preavis_insuffisant', gravite: 'bloquant' }))
+    const convenu = compteDe(contenuAvisAppel(avis, options({ dateEmission: '2026-12-28', reglements: reglements(mandat({ delaiPreavisJours: 5 })) })), 'cpt-A')
+    expect(codes(convenu)).not.toContain('preavis_insuffisant')
+  })
+
+  it('bloque : mandat absent, révoqué, signé après l’émission, inutilisé depuis 36 mois, incomplet ; ICS invalide ; date absente ; débit avant l’exigibilité', () => {
+    const bloquants = (o: Partial<OptionsContenuAvis>) =>
+      compteDe(contenuAvisAppel(avis, options(o)), 'cpt-A').anomalies.filter((x) => x.gravite === 'bloquant').map((x) => x.code)
+    expect(bloquants({ reglements: reglements(null) })).toEqual(['mandat_absent'])
+    expect(bloquants({ reglements: reglements(mandat({ revoqueLe: '2026-12-20' })) })).toEqual(['mandat_revoque'])
+    expect(bloquants({ reglements: reglements(mandat({ revoqueLe: '2027-02-01' })) })).toEqual([])
+    expect(bloquants({ reglements: reglements(mandat({ dateSignature: '2026-12-16', dernierPrelevementLe: null })) })).toEqual(['mandat_non_signe'])
+    expect(bloquants({ reglements: reglements(mandat({ dernierPrelevementLe: '2024-01-05' })) })).toEqual(['mandat_caduc'])
+    expect(bloquants({ reglements: reglements(mandat({ dernierPrelevementLe: '2024-01-06' })) })).toEqual([])
+    expect(bloquants({ reglements: reglements(mandat({ iban: 'FR76 3000 6000 0112 3456 7890 188' })) })).toEqual(['mandat_incomplet'])
+    expect(bloquants({ reglements: reglements(mandat({ rum: ' ' })) })).toEqual(['mandat_incomplet'])
+    expect(bloquants({ ics: 'FR12ZZZ12345' })).toEqual(['ics_invalide'])
+    expect(bloquants({ ics: null })).toEqual(['ics_invalide'])
+    expect(bloquants({ datePrelevement: null })).toEqual(['date_prelevement_absente'])
+    expect(bloquants({ datePrelevement: '2026-12-31' })).toEqual(['avant_exigibilite'])
+    expect(compteDe(contenuAvisAppel(avis, options({ reglements: reglements(null) })), 'cpt-A').instructions).toBeNull()
+  })
+
+  it('virement : IBAN du compte qui reçoit les règlements, référence = n° de compte 450 ; compte non désigné ou IBAN invalide : bloquant', () => {
+    const b = compteDe(contenuAvisAppel(avis, options()), 'cpt-B')
+    expect(b.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00002.0' })
+    const invalide = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: { ...COMPTE_COURANT, iban: 'FR14 2004 1010 0505 0001 3M02 605' } })), 'cpt-B')
+    expect(invalide.instructions).toBeNull()
+    expect(invalide.anomalies).toContainEqual({
+      code: 'iban_syndicat_invalide',
+      gravite: 'bloquant',
+      message: 'Virement : IBAN du compte courant au nom du syndicat absent ou invalide.',
+      fondement: null,
+    })
+    const sans = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE })), 'cpt-B')
+    expect(sans.instructions).toBeNull()
+    expect(sans.anomalies).toContainEqual({
+      code: 'iban_syndicat_invalide',
+      gravite: 'bloquant',
+      message: 'Virement : aucun compte désigné pour recevoir les règlements.',
+      fondement: null,
+    })
+  })
+
+  it('chèque, TIP, espèces, « Pas de règlement », compte sans règlement', () => {
+    const avec = (mode: ReglementCompte['mode']) =>
+      compteDe(contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-A', mode }, { compteId: 'cpt-B', mode: 'Virement' }] })), 'cpt-A')
+    expect(avec('Chèque').instructions).toEqual({ mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)', adresseEnvoi: '12 rue des Tilleuls, 13001 Marseille', reference: 'TILL.45000.00001.0' })
+    expect(codes(avec('TIP'))).toContain('mode_non_pris_en_charge')
+    expect(avec('Pas de règlement').anomalies).toContainEqual(expect.objectContaining({ code: 'reglement_attendu', gravite: 'avertissement' }))
+    const sans = compteDe(contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-B', mode: 'Virement' }] })), 'cpt-A')
+    expect(sans.modeReglement).toBeNull()
+    expect(sans.anomalies).toContainEqual(expect.objectContaining({ code: 'reglement_absent', gravite: 'bloquant' }))
+    expect(() => contenuAvisAppel(avis, options({ reglements: [...reglements(), { compteId: 'cpt-A', mode: 'Chèque' }] }))).toThrow(/double/i)
+  })
+
+  it('espèces (J25, J29) : l’avis n’invite jamais à payer en espèces ; règlement hors prélèvement, avertissement « especes_refusees »', () => {
+    const avec = (o: Partial<OptionsContenuAvis> = {}) =>
+      compteDe(contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-A', mode: 'Espèces' }, { compteId: 'cpt-B', mode: 'Virement' }], ...o })), 'cpt-A')
+    const especes = avec()
+    expect(especes.modeReglement).toBe('Virement')
+    expect(especes.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00001.0' })
+    expect(codes(especes)).not.toContain('mode_non_pris_en_charge')
+    const refus = especes.anomalies.filter((a) => a.code === 'especes_refusees')
+    expect(refus).toEqual([expect.objectContaining({ gravite: 'avertissement', fondement: null })])
+    expect(refus[0].message).toMatch(/aucun encaissement en espèces.*compte 53.*J25, J29/)
+    expect(refus[0].message).toMatch(/l'avis indique le règlement par virement à SDC Les Tilleuls \(fictif\)/)
+    expect(refus[0].message).toMatch(/changer le mode de règlement du compte/)
+    // sans compte désigné pour recevoir les règlements : chèque, jamais les espèces ; aucun blocage propre au compte (seul
+    // l'avis entier est bloqué, ap-03)
+    const sansIban = avec({ compteEncaissement: SANS_COMPTE })
+    expect(sansIban.modeReglement).toBe('Chèque')
+    expect(sansIban.instructions).toMatchObject({ mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)' })
+    expect(bloquantsDe(sansIban)).toEqual([])
+    // en-tête : les espèces ne sont plus une question ouverte ; le TIP non plus (décision du 20/11/2026, partie C, F118)
+    const { texte, item } = enTeteDuModule('avis-appel')
+    expect(texte).not.toContain('TIP et espèces')
+    expect(texte).not.toMatch(/- TIP : signalé, sans instructions/)
+    expect(texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F118\)/)
+    expect(item('- J25 et J29')).toMatch(/instructionsHorsPrelevement.*especes_refusees/)
+  })
+
+  it('cotisations au fonds de travaux appelées : information de virement vers le compte séparé (L. 1965 art. 18, II)', () => {
+    expect(contenuAvisAppel(avis, options()).anomalies).toContainEqual(
+      expect.objectContaining({ code: 'cotisation_a_virer', gravite: 'information', fondement: 'L. 1965 art. 18, II' }),
+    )
+  })
+})
+
+describe('ap-03 — compte qui reçoit les règlements, lu selon le mode de tenue (décision du 22/11/2026)', () => {
+  /** Compte à la Caisse des dépôts : son titulaire n'est pas établi comme le syndicat (C. com. R. 814-41 ; J67, R95). */
+  const CDC: CompteEncaissement = {
+    designe: true,
+    banqueId: 'banque-cdc',
+    nature: 'caisse_depots',
+    libelle: NATURES_COMPTE_BANCAIRE.caisse_depots.libelle,
+    iban: 'FR7630004000031234567890143',
+    auNomDuSyndicat: false,
+  }
+  const lotDe = (contenu: ContenuAvisAppel) => echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu) })
+  const codesAvis = (contenu: ContenuAvisAppel) => contenu.anomalies.map((a) => a.code)
+
+  it('aucun compte désigné : anomalie bloquante de l’avis entier, avec son motif ; aucun débit, aucun courrier', () => {
+    const contenu = contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE }))
+    expect(contenu.anomalies).toContainEqual({
+      code: 'compte_encaissement_non_designe',
+      gravite: 'bloquant',
+      message: `Compte qui reçoit les règlements non désigné : ${SANS_COMPTE.designe ? '' : SANS_COMPTE.motif}.`,
+      fondement: null,
+    })
+    expect(lotDe(contenu).echeances).toEqual([])
+    expect(lotDe(contenu).ecartees).toContainEqual(expect.objectContaining({ compteId: 'cpt-A', motif: 'contenu_bloque' }))
+    expect(diffuse(contenu).every((d) => d.courrier === null)).toBe(true)
+    expect(codesAvis(contenuAvisAppel(avis, options()))).not.toContain('compte_encaissement_non_designe')
+  })
+
+  it('compte au nom du syndicat : ni débit retiré, ni avertissement sur le bénéficiaire', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    expect(compteDe(contenu, 'cpt-A').instructions).toMatchObject({ mode: 'Prélèvement', ics: ICS })
+    expect(codesAvis(contenu)).not.toContain('beneficiaire_a_verifier')
+    expect(codes(compteDe(contenu, 'cpt-A'))).not.toContain('prelevement_compte_non_syndicat')
+  })
+
+  it('compte qui n’est pas établi au nom du syndicat : virement à son IBAN ; aucun débit annoncé, règlement hors prélèvement ; le lot l’écarte', () => {
+    const contenu = contenuAvisAppel(avis, options({ compteEncaissement: CDC }))
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.modeReglement).toBe('Virement')
+    expect(a.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: CDC.designe ? CDC.iban : '', reference: 'TILL.45000.00001.0' })
+    expect(a.mentions.map((m) => m.cle)).not.toContain('prenotification')
+    expect(bloquantsDe(a)).toEqual([])
+    expect(a.anomalies).toContainEqual({
+      code: 'prelevement_compte_non_syndicat',
+      gravite: 'avertissement',
+      message:
+        "Compte TILL.45000.00001.0 : aucun prélèvement annoncé, le compte qui reçoit les règlements (compte à la Caisse des dépôts) n'est pas établi au nom du syndicat, créancier du prélèvement SEPA ; l'avis indique le règlement par virement à SDC Les Tilleuls (fictif), IBAN FR7630004000031234567890143, en indiquant la référence TILL.45000.00001.0.",
+      fondement: 'Recueil EPC SDD Core 2025, § 3.1 et AT-C001 (compte du créancier ; règle du schéma, pas un texte de loi)',
+    })
+    expect(compteDe(contenu, 'cpt-B').instructions).toMatchObject({ mode: 'Virement', iban: 'FR7630004000031234567890143' })
+    const lot = lotDe(contenu)
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'compte_non_syndicat', codes: ['prelevement_compte_non_syndicat'] })
+  })
+
+  it('compte en contentieux : la suspension l’emporte, son motif reste le contentieux', () => {
+    const a = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: CDC, comptesEnContentieux: new Set(['cpt-A']) })), 'cpt-A')
+    expect(codes(a)).toContain('prelevement_suspendu')
+    expect(codes(a)).not.toContain('prelevement_compte_non_syndicat')
+  })
+
+  it('bénéficiaire du virement : avertissement de l’avis entier quand un virement va à un compte non établi au nom du syndicat, seulement alors', () => {
+    expect(contenuAvisAppel(avis, options({ compteEncaissement: CDC })).anomalies).toContainEqual({
+      code: 'beneficiaire_a_verifier',
+      gravite: 'avertissement',
+      message:
+        "Virement au compte à la Caisse des dépôts : l'avis nomme le syndicat comme bénéficiaire, alors que le titulaire de ce compte n'est pas établi comme le syndicat ; vérifier l'intitulé exact du compte avant la diffusion (vérification du nom du bénéficiaire par la banque du payeur).",
+      fondement: 'Règl. (UE) n° 260/2012, art. 5 quater, § 1, a), § 5 et § 9 (inséré par le règl. (UE) 2024/886)',
+    })
+    expect(codesAvis(contenuAvisAppel(avis, options({ compteEncaissement: CDC, reglements: cheques })))).not.toContain('beneficiaire_a_verifier')
+  })
+
+  it('cotisations au fonds de travaux : l’information nomme le compte qui reçoit les règlements', () => {
+    const message = (compteEncaissement: CompteEncaissement) =>
+      contenuAvisAppel(avis, options({ compteEncaissement })).anomalies.find((a) => a.code === 'cotisation_a_virer')?.message
+    expect(message(COMPTE_COURANT)).toMatch(/encaissées sur le compte courant au nom du syndicat, elles y sont virées.$/)
+    expect(message(CDC)).toMatch(/encaissées sur le compte à la Caisse des dépôts, elles y sont virées.$/)
+    expect(message(SANS_COMPTE)).toMatch(/encaissées sur le compte qui reçoit les règlements, elles y sont virées.$/)
+  })
+})
+
+describe('mentions de l’avis', () => {
+  it('toujours : faculté de voie postale (D. 1967 art. 64-2) et rappel de l’art. 10 (questions à l’ordre du jour)', () => {
+    const a = compteDe(contenuAvisAppel(avis, options()), 'cpt-A')
+    const voie = a.mentions.find((m) => m.cle === 'voie_postale')
+    expect(voie?.fondement).toBe('D. 1967 art. 64-2, 64-4')
+    expect(voie?.texte).toMatch(/au syndic/)
+    const odj = a.mentions.find((m) => m.cle === 'ordre_du_jour')
+    expect(odj?.fondement).toBe('D. 1967 art. 10')
+    expect(odj?.texte).toMatch(/inscrites à l'ordre du jour d'une assemblée générale/)
+    const ap = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291' })), 'cpt-A').mentions.find((m) => m.cle === 'voie_postale')
+    expect(ap?.fondement).toBe('D. 1967 art. 64-2, 64-4, 64-9')
+    expect(ap?.texte).toMatch(/administrateur provisoire/)
+  })
+
+  it('J67, R99 : administrateur de l’art. 47 — mentions des art. 10 et 64-2 gardées par prudence, sans l’art. 64-9 ; pièce de l’art. 62-9 seulement si une décision est fournie', () => {
+    const a = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap47' })), 'cpt-A')
+    const voie = a.mentions.find((m) => m.cle === 'voie_postale')
+    expect(voie?.texte).toMatch(/administrateur provisoire/)
+    expect(voie?.fondement).toBe("D. 1967 art. 64-2, 64-4 (administrateur de l'art. 47 : par prudence, J67, R99)")
+    expect(a.mentions.map((m) => m.cle)).toContain('ordre_du_jour')
+    expect(codes(a)).not.toContain('decision_a_joindre')
+    const decisions = [{ echeanceId: '00042-T1', decision: 'Décision n° 2 du 01/10/2026, prise en vertu de l’ordonnance (fictive)' }]
+    const avecDecision = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap47', decisionsAdministrateur: decisions })), 'cpt-A')
+    expect(codes(avecDecision)).toContain('decision_a_joindre')
+    expect(avecDecision.mentions.map((m) => m.cle)).toContain('decision_administrateur')
+    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: null, decisionsAdministrateur: decisions }))).toThrow(/administrateur provisoire/)
+  })
+
+  it('J67, R98 : provision de l’art. 43, al. 2 — mention sur l’avis ; sans autorisation préalable de l’AG, alerte bloquante à confirmer', () => {
+    const art43 = (autorisation: string | null): EcheanceAppel => ({ ...echeances[0], id: 'B43-2027-1', libelle: 'Provision 1/4 du budget 2026', provisionArt43: { autorisation } })
+    const contenu = (autorisation: string | null) =>
+      contenuAvisAppel(avisDAppel({ echeances: [art43(autorisation), echeances[1]], cles: [cle], positions, comptes }), options({ reglements: cheques }))
+    const autorise = contenu('AG du 10/06/2026, résolution 7 (fictive)')
+    const mention = compteDe(autorise, 'cpt-A').mentions.find((m) => m.cle === 'provision_art_43')
+    expect(mention).toEqual({
+      cle: 'provision_art_43',
+      texte: "Provision calculée sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2), régularisée après le vote du budget.",
+      fondement: 'D. 1967 art. 43, al. 2 ; J67, R98',
+    })
+    expect(autorise.anomalies.map((x) => x.code)).not.toContain('autorisation_art_43_manquante')
+    expect(diffuse(autorise)[0].valeursFusion['mention.provisionArt43']).toBe(mention?.texte)
+    const sansAutorisation = contenu(null).anomalies.find((x) => x.code === 'autorisation_art_43_manquante')
+    expect(sansAutorisation).toMatchObject({ gravite: 'bloquant', fondement: 'D. 1967 art. 43, al. 2 ; J67, R98' })
+    expect(sansAutorisation?.message).toMatch(/autorisation de l'art\. 43 manquante.*à confirmer/)
+    expect(compteDe(contenuAvisAppel(avis, options()), 'cpt-A').mentions.map((m) => m.cle)).not.toContain('provision_art_43')
+  })
+
+  it('souscription au fonds : sommes acquises au syndicat ; prélèvement : mention de pré-notification (montant, date, RUM, ICS)', () => {
+    const a = compteDe(contenuAvisAppel(avis, options()), 'cpt-A')
+    expect(a.mentions.map((m) => m.cle)).toEqual(['voie_postale', 'ordre_du_jour', 'fonds_travaux', 'prenotification'])
+    expect(a.mentions.find((m) => m.cle === 'fonds_travaux')?.fondement).toBe('L. 1965 art. 14-2-1, III')
+    const pre = a.mentions.find((m) => m.cle === 'prenotification')
+    expect(pre?.texte).toMatch(/400,00/)
+    expect(pre?.texte).toMatch(/05\/01\/2027/)
+    expect(pre?.texte).toMatch(/RUM-TILL-00001/)
+    expect(pre?.texte).toMatch(/FR12ZZZ123456/)
+    expect(pre?.fondement).toMatch(/EPC/)
+    const sansFonds = avisDAppel({ echeances: [echeances[0]], cles: [cle], positions, comptes })
+    expect(compteDe(contenuAvisAppel(sansFonds, options()), 'cpt-B').mentions.map((m) => m.cle)).toEqual(['voie_postale', 'ordre_du_jour'])
+  })
+})
+
+describe('adaptateur avis → échéances de prélèvement', () => {
+  const creancier = { nom: 'SDC Les Tilleuls (fictif)', ics: ICS, iban: IBAN_SYNDICAT, bic: 'PSSTFRPP' }
+
+  it('chaîne complète : avis → EcheancePrelevement → lot → pain.008 (n° 450 lu par le débiteur, date de l’avis)', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const { echeances: aPrelever, ecartees } = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV-2027-01', diffusions: diffuse(contenu) })
+    expect(aPrelever).toEqual([
+      {
+        id: 'AV-2027-01-00001',
+        compteCoproprietaire: 'TILL.45000.00001.0',
+        debiteur: 'Copropriétaire A',
+        iban: IBAN_DEBITEUR,
+        bic: 'AGRIFRPP',
+        rum: 'RUM-TILL-00001',
+        dateSignatureMandat: '2024-03-01',
+        sequence: 'RCUR',
+        montantEcheanceCentimes: 40_000,
+        soldeDuCentimes: 64_000,
+        contentieux: false,
+      },
+    ])
+    expect(ecartees).toEqual([{ compteId: 'cpt-B', motif: 'mode_reglement', codes: [] }])
+    const lot = preparerLotPrelevements(aPrelever)
+    expect(lot.totalCentimes).toBe(40_000)
+    const xml = genererPain008(lot, creancier, { messageId: 'AV-2027-01', dateCreation: '2026-12-15T10:00:00', dateEcheance: contenu.datePrelevement as string })
+    expect(xml).toContain('<Ustrd>TILL.45000.00001.0</Ustrd>')
+    expect(xml).toContain('<ReqdColltnDt>2027-01-05</ReqdColltnDt>')
+    expect(xml).toContain('<InstdAmt Ccy="EUR">400.00</InstdAmt>')
+    expect(xml).toContain('<SeqTp>RCUR</SeqTp>')
+  })
+
+  it('premier prélèvement du mandat : séquence FRST', () => {
+    const contenu = contenuAvisAppel(avis, options({ reglements: reglements(mandat({ dernierPrelevementLe: null })) }))
+    expect(echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu) }).echeances[0].sequence).toBe('FRST')
+  })
+
+  it('jamais plus que le montant pré-notifié ; solde dû et contentieux fournis par l’appelant', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const [e] = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu), soldesDus: { 'cpt-A': 25_000 }, comptesEnContentieux: new Set(['cpt-A']) }).echeances
+    expect([e.montantEcheanceCentimes, e.soldeDuCentimes, e.contentieux]).toEqual([40_000, 25_000, true])
+    expect(preparerLotPrelevements([e]).exclues).toEqual([{ id: 'AV-00001', motif: 'contentieux' }])
+    expect(preparerLotPrelevements([e], { exclureContentieux: false }).retenues[0].montantCentimes).toBe(25_000)
+    expect(() => echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu), soldesDus: { 'cpt-A': 1.5 } })).toThrow(/solde/i)
+  })
+
+  it('écarte un compte au contenu bloqué (avec ses codes) ou sans montant à prélever', () => {
+    const bloque = contenuAvisAppel(avis, options({ dateEmission: '2026-12-23' }))
+    expect(echeancesPrelevementDepuisAvis(bloque, { prefixeId: 'AV', diffusions: diffuse(bloque) }).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'contenu_bloque', codes: ['preavis_insuffisant'] })
+    const sansMandat = contenuAvisAppel(avis, options({ reglements: reglements(null) }))
+    expect(echeancesPrelevementDepuisAvis(sansMandat, { prefixeId: 'AV', diffusions: diffuse(sansMandat) }).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'contenu_bloque', codes: ['mandat_absent'] })
+    const travauxSeuls = contenuAvisAppel(avisDAppel({ echeances: [echeances[2]], cles: [cle], positions, comptes }), options())
+    expect(echeancesPrelevementDepuisAvis(travauxSeuls, { prefixeId: 'AV', diffusions: diffuse(travauxSeuls) }).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'montant_nul', codes: ['nature_non_couverte'] })
+    const emploiRefuse = contenuAvisAppel(avis, options({ emploisFonds: [{ echeanceId: '00042-T1', plafondCentimes: 10_000, affectation: { objet: 'charges_courantes' } }] }))
+    expect(echeancesPrelevementDepuisAvis(emploiRefuse, { prefixeId: 'AV', diffusions: diffuse(emploiRefuse) }).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'contenu_bloque', codes: ['emploi_fonds_non_autorise'] })
+  })
+
+  it('identifiant de bout en bout limité à 35 caractères (format ISO 20022 XML : Règl. 260/2012, annexe, point 1 b))', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    expect(() => echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'X'.repeat(30), diffusions: diffuse(contenu) })).toThrow(/35/)
+    expect(() => echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'X'.repeat(30), diffusions: diffuse(contenu) })).toThrow(/annexe, point 1 b\)/)
+  })
+})
+
+describe('retours de relecture du point 17 — prélèvement et pré-notification', () => {
+  it('le lot ne prélève que le compte dont le détenteur a reçu l’avis à temps : diffusion tardive, sans adresse ou absente, écartée', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    expect(echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu) }).echeances.map((e) => e.id)).toEqual(['AV-00001'])
+    const tard = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: preparerDiffusionAvis(contenu, diffusion({ date: '2026-12-23' })) })
+    expect(tard.echeances).toEqual([])
+    expect(tard.ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'prenotification_absente', codes: ['preavis_insuffisant'] })
+    expect(preparerLotPrelevements(tard.echeances).totalCentimes).toBe(0)
+    const sansAdresse = identites.map((i) => (i.id === 'i-cpt-A' ? { ...i, adresses: [] } : i))
+    const nonEnvoye = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu, { identites: sansAdresse, communications: [] }) })
+    expect(nonEnvoye.echeances).toEqual([])
+    expect(nonEnvoye.ecartees).toContainEqual(expect.objectContaining({ compteId: 'cpt-A', motif: 'prenotification_absente', codes: expect.arrayContaining(['sans_adresse']) }))
+    expect(echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: [] }).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'prenotification_absente', codes: [] })
+  })
+
+  it('pré-notification adressée au détenteur du compte débité, même s’il n’est pas copropriétaire (recueil EPC, PT-04.02)', () => {
+    const tiers = creerIdentite({ id: 'i-tiers', nature: 'physique', civilite: 'Madame', nom: 'Tiers payeur', prenom: 'Fictive', telecoms: [], adresses: [adresse('adr-T')] })
+    const contenu = contenuAvisAppel(avis, options({ reglements: reglements(mandat({ debiteur: 'Tiers payeur (fictif)', debiteurIdentiteId: 'i-tiers' })) }))
+    const sorties = diffuse(contenu, { identites: [...identites, tiers] })
+    const pourA = sorties.filter((s) => s.compteId === 'cpt-A')
+    expect(pourA.map((s) => [s.identiteId, s.prenotification])).toEqual([
+      ['i-cpt-A', false],
+      ['i-tiers', true],
+    ])
+    expect(pourA[1].courrier).toMatchObject({ personneId: 'i-tiers', statut: 'Préparation' })
+    expect(sorties.find((s) => s.compteId === 'cpt-B')?.prenotification).toBe(false)
+    const lot = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: sorties })
+    expect(lot.echeances.map((e) => e.debiteur)).toEqual(['Tiers payeur (fictif)'])
+  })
+
+  it('rien à prélever (compte créditeur, travaux seuls sous un mandat Budget) : les contrôles du débit ne bloquent pas l’avis de l’art. 35-2', () => {
+    const crediteur = contenuAvisAppel(avisDAppel({ echeances, cles: [cle], positions, comptes, soldesAnterieurs: { 'cpt-A': -100_000 } }), options({ dateEmission: '2026-12-23' }))
+    const a = compteDe(crediteur, 'cpt-A')
+    expect(a.instructions).toMatchObject({ mode: 'Prélèvement', montantCentimes: 0 })
+    expect(bloquantsDe(a)).toEqual([])
+    expect(codes(a)).not.toContain('preavis_insuffisant')
+    expect(diffuse(crediteur)[0].courrier).not.toBeNull()
+    expect(echeancesPrelevementDepuisAvis(crediteur, { prefixeId: 'AV', diffusions: diffuse(crediteur) }).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'montant_nul', codes: [] })
+    const travauxSeuls = avisDAppel({ echeances: [echeances[2]], cles: [cle], positions, comptes })
+    const sansDate = compteDe(contenuAvisAppel(travauxSeuls, options({ datePrelevement: null, ics: null })), 'cpt-A')
+    expect(bloquantsDe(sansDate)).toEqual([])
+    expect(sansDate.instructions).toMatchObject({ montantCentimes: 0, date: null, horsPrelevement: { mode: 'Virement', reference: 'TILL.45000.00001.0' } })
+    const revoque = compteDe(contenuAvisAppel(travauxSeuls, options({ dateEmission: '2026-12-23', reglements: reglements(mandat({ revoqueLe: '2026-12-20' })) })), 'cpt-A')
+    expect(bloquantsDe(revoque)).toEqual([])
+    expect(revoque.anomalies).toContainEqual(expect.objectContaining({ code: 'mandat_revoque', gravite: 'avertissement' }))
+    expect(codes(revoque)).not.toContain('preavis_insuffisant')
+  })
+
+  it('prélèvement partiel : la lettre donne le reste à payer et comment le régler (virement, à défaut chèque)', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.instructions).toMatchObject({ resteHorsPrelevementCentimes: 24_000, horsPrelevement: { mode: 'Virement', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00001.0' } })
+    expect(a.mentions.find((m) => m.cle === 'prenotification')?.texte).toMatch(/Reste à régler hors prélèvement : 240,00.*virement.*FR1420041010050500013M02606/)
+    const [d] = diffuse(contenu)
+    expect(d.valeursFusion['reglement.instructions']).toMatch(/Prélèvement SEPA de 400,00.*Reste à régler hors prélèvement : 240,00.*virement.*FR1420041010050500013M02606.*TILL\.45000\.00001\.0/)
+    expect(d.valeursFusion['prelevement.resteCentimes']).toBe(24_000)
+    expect(d.valeursFusion['mention.prenotification']).toBe(a.mentions.find((m) => m.cle === 'prenotification')?.texte)
+    expect(d.valeursFusion['mention.fondsTravaux']).toBe(a.mentions.find((m) => m.cle === 'fonds_travaux')?.texte)
+    expect(controlerContexteFusion('avis_appel_fonds', d.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    const sansIban = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE })), 'cpt-A')
+    expect(sansIban.instructions).toMatchObject({ horsPrelevement: { mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)', reference: 'TILL.45000.00001.0' } })
+  })
+
+  it('compte en contentieux : l’avis n’annonce aucun prélèvement, donne les instructions de virement, et le lot l’écarte', () => {
+    const contenu = contenuAvisAppel(avis, options({ comptesEnContentieux: new Set(['cpt-A']) }))
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.modeReglement).toBe('Virement')
+    expect(a.instructions).toMatchObject({ mode: 'Virement', reference: 'TILL.45000.00001.0' })
+    expect(a.mentions.map((m) => m.cle)).not.toContain('prenotification')
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'prelevement_suspendu', gravite: 'avertissement' }))
+    expect(diffuse(contenu)[0].valeursFusion).not.toHaveProperty('prelevement.date')
+    const lot = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu) })
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'contentieux', codes: ['prelevement_suspendu'] })
+  })
+
+  it('fondements des anomalies de mandat : nom du débiteur (recueil EPC, DS-01) ; antériorité de la signature déduite du consentement', () => {
+    const anomalieDe = (m: MandatPrelevement, code: string) =>
+      compteDe(contenuAvisAppel(avis, options({ reglements: reglements(m) })), 'cpt-A').anomalies.find((x) => x.code === code)
+    expect(anomalieDe(mandat({ debiteur: ' ' }), 'mandat_incomplet')?.fondement).toMatch(/DS-01/)
+    const nonSigne = anomalieDe(mandat({ dateSignature: '2026-12-16', dernierPrelevementLe: null }), 'mandat_non_signe')
+    expect(nonSigne?.fondement).toMatch(/art\. 5, § 3, a\) ii\)/)
+    expect(nonSigne?.fondement).toMatch(/L\. 133-6/)
+    expect(nonSigne?.fondement).toMatch(/déduite/)
+  })
+})
+
+describe('retours de relecture du point 17 — contenu, mentions et diffusion', () => {
+  const cle2 = creerCleRepartition({
+    id: 'cle-002',
+    coproprieteId: 'copro-1',
+    code: '002',
+    libelle: 'Ascenseur (fictif)',
+    lots: [
+      { lotId: 'lot-1', tantiemes: 1 },
+      { lotId: 'lot-2', tantiemes: 999 },
+    ],
+  })
+  const ascenseur = (id: string, exigibilite: string): EcheanceAppel => ({ ...echeances[2], id, cleId: 'cle-002', libelle: `Ascenseur — ${id}`, montantCentimes: 400, exigibilite })
+
+  it('quote-part arrondie à zéro : ni exigibilité fantôme, ni date limite repoussée, ni fausse alerte d’émission tardive', () => {
+    const avec = avisDAppel({ echeances: [echeances[0], ascenseur('ASC-0', '2026-12-10'), ascenseur('ASC-1', '2027-03-01')], cles: [cle, cle2], positions, comptes })
+    const contenu = contenuAvisAppel(avec, options({ cles: [cle, cle2], reglements: cheques }))
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.lignes.map((l) => l.echeanceId)).toEqual(['B-2027-001-1'])
+    expect(a.parExigibilite).toEqual([{ exigibilite: '2027-01-01', montantCentimes: 40_000 }])
+    expect(a.aReglerAvantLe).toBe('2027-01-01')
+    expect(codes(a)).not.toContain('exigibilites_multiples')
+    expect(codes(a)).not.toContain('emis_apres_exigibilite')
+    expect(codes(compteDe(contenu, 'cpt-B'))).toContain('emis_apres_exigibilite')
+    expect(diffuse(contenu)[0].courrier?.objet).toMatch(/à régler avant le 01\/01\/2027/)
+  })
+
+  it('compte sans aucun fonds appelé (quotes-parts nulles) : signalé, pas d’avis à diffuser, sans blocage de fusion', () => {
+    const contenu = contenuAvisAppel(avisDAppel({ echeances: [ascenseur('ASC-1', '2027-01-01')], cles: [cle, cle2], positions, comptes }), options({ cles: [cle, cle2], reglements: cheques }))
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.lignes).toEqual([])
+    expect(a.parExigibilite).toEqual([])
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'sans_appel', gravite: 'information' }))
+    const [d] = diffuse(contenu)
+    expect(d).toMatchObject({ compteId: 'cpt-A', courrier: null })
+    expect(d.anomalies.map((x) => x.code)).toEqual(['sans_appel'])
+  })
+
+  it('mention du fonds de travaux : L. 1965 art. 14-2-1, III, recopié tel quel et entre guillemets', () => {
+    const a = compteDe(contenuAvisAppel(avis, options()), 'cpt-A')
+    expect(a.mentions.find((m) => m.cle === 'fonds_travaux')?.texte).toBe(
+      'Article 14-2-1, III, de la loi n° 65-557 du 10 juillet 1965 : « Les sommes versées au titre du fonds de travaux sont attachées aux lots et entrent définitivement, dès leur versement, dans le patrimoine du syndicat des copropriétaires. ' +
+        "Elles ne donnent pas lieu à un remboursement par le syndicat des copropriétaires à l'occasion de la cession d'un lot. " +
+        "L'acquéreur peut consentir à verser au vendeur un montant équivalent à ces sommes en sus du prix de vente du lot. »",
+    )
+  })
+
+  it('administrateur provisoire : l’appel consécutif à sa décision accompagne la copie de celle-ci (D. 1967 art. 62-9)', () => {
+    const decisions = [{ echeanceId: '00042-T1', decision: 'Décision n° 3 du 02/10/2026 (fictive)' }]
+    const contenu = contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291', decisionsAdministrateur: decisions }))
+    const a = compteDe(contenu, 'cpt-A')
+    const mention = a.mentions.find((m) => m.cle === 'decision_administrateur')
+    expect(mention?.fondement).toBe('D. 1967 art. 62-9')
+    expect(mention?.texte).toMatch(/Décision n° 3 du 02\/10\/2026 \(fictive\)/)
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'decision_a_joindre', gravite: 'avertissement', fondement: 'D. 1967 art. 62-9' }))
+    const [d] = diffuse(contenu)
+    expect(d.valeursFusion['mention.decisionAdministrateur']).toBe(mention?.texte)
+    expect(controlerContexteFusion('avis_appel_fonds', d.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    expect(gabaritCourrier('avis_appel_fonds').fondements).toContain('D. 1967 art. 62-9')
+    expect(compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291' })), 'cpt-A').mentions.map((m) => m.cle)).not.toContain('decision_administrateur')
+    expect(() => contenuAvisAppel(avis, options({ decisionsAdministrateur: decisions }))).toThrow(/administrateur provisoire/)
+    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291', decisionsAdministrateur: [{ echeanceId: 'X', decision: 'D' }] }))).toThrow(/absente/)
+    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291', decisionsAdministrateur: [{ echeanceId: '00042-T1', decision: ' ' }] }))).toThrow(/référence/)
+  })
+
+  it('adresse communiquée pour les avis (art. 35-2) préférée à celle des notifications (art. 65), qui n’en tient lieu qu’à défaut', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const pourAvis = [
+      creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'avis-a@exemple.invalid', communiqueeLe: '2026-02-01' }),
+      creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-B', adresse: 'avis-b@exemple.invalid', communiqueeLe: '2026-02-01' }),
+    ]
+    const [a, b] = diffuse(contenu, { communicationsAvis: pourAvis })
+    expect(a).toMatchObject({ canal: 'electronique', adresseElectronique: 'avis-a@exemple.invalid' })
+    expect(b).toMatchObject({ canal: 'electronique', adresseElectronique: 'avis-b@exemple.invalid' })
+    expect(diffuse(contenu)[0]).toMatchObject({ canal: 'electronique', adresseElectronique: 'a@exemple.invalid' })
+  })
+
+  it('J69 (J67, R20) : adresse donnée pour les avis : courriel même si la voie postale est demandée pour les notifications', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = creerDemandeVoiePostale({ identiteId: 'i-cpt-A', recueLe: '2026-11-01', origine: 'courrier' })
+    const pourAvis = [creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'avis-a@exemple.invalid', communiqueeLe: '2026-02-01' })]
+    const [a] = diffuse(contenu, { demandesVoiePostale: [demande], communicationsAvis: pourAvis })
+    expect(a).toMatchObject({ canal: 'electronique', adresseElectronique: 'avis-a@exemple.invalid', origineAdresse: 'avis' })
+    expect(a.valeursFusion['mention.confirmationAdresse']).toBeNull()
+    expect(a.valeursFusion['mention.voiePostale']).toMatch(/par voie postale/)
+    expect(diffuse(contenu, { demandesVoiePostale: [demande] })[0]).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J74, relecture : la renonciation à la voie postale lève la demande à son effet ; son adresse sert alors d’adresse des notifications', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = creerDemandeVoiePostale({ identiteId: 'i-cpt-A', recueLe: '2026-11-01', origine: 'courrier' })
+    const renonciation = creerRenonciationVoiePostale({
+      identiteId: 'i-cpt-A',
+      dateeLe: '2026-12-08',
+      recueLe: '2026-12-10',
+      justificatif: 'Avis de réception',
+      adresseElectronique: 'renonce-a@exemple.invalid',
+    })
+    const le = (date: string, renonciations = [renonciation]) =>
+      preparerDiffusionAvis(contenu, diffusion({ date, demandesVoiePostale: [demande], renonciations }))[0]
+    // avant l'effet (le 19/12/2026) : la demande demeure, lettre simple
+    for (const date of ['2026-12-15', '2026-12-18']) expect(le(date), date).toMatchObject({ canal: 'postal', origineAdresse: null })
+    // à l'effet : courriel à l'adresse donnée avec la renonciation (D. 1967 art. 65), la plus récente
+    expect(le('2026-12-19')).toMatchObject({ canal: 'electronique', adresseElectronique: 'renonce-a@exemple.invalid', origineAdresse: 'notifications' })
+    // sans renonciation : lettre simple
+    expect(le('2026-12-19', [])).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J69 (J67, R20) : adresse des notifications à défaut — premier avis : invitation à confirmer ; après un retour en erreur : lettre simple', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const [premier] = diffuse(contenu)
+    expect(premier).toMatchObject({ canal: 'electronique', adresseElectronique: 'a@exemple.invalid', origineAdresse: 'notifications' })
+    expect(premier.valeursFusion['mention.confirmationAdresse']).toMatch(/adresse électronique donnée pour les notifications.*confirmez.*lettre simple/)
+    expect(controlerContexteFusion('avis_appel_fonds', premier.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    const envoye = { identiteId: 'i-cpt-A', adresse: 'a@exemple.invalid', envoyeLe: '2026-09-15', retourEnErreurLe: null }
+    expect(diffuse(contenu, { courrielsAvis: [envoye] })[0].valeursFusion['mention.confirmationAdresse']).toBeNull()
+    const enErreur = { ...envoye, retourEnErreurLe: '2026-09-16' }
+    const [postal] = diffuse(contenu, { courrielsAvis: [enErreur] })
+    expect(postal).toMatchObject({ canal: 'postal', origineAdresse: null })
+    expect(postal.courrier?.modeleId).toBe('mod-postal')
+    expect(postal.anomalies).toContainEqual(expect.objectContaining({ code: 'courriel_avis_en_erreur', gravite: 'avertissement' }))
+    const nouvelle = creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'a2@exemple.invalid', communiqueeLe: '2026-10-01' })
+    expect(diffuse(contenu, { courrielsAvis: [enErreur], communications: [nouvelle] })[0]).toMatchObject({ canal: 'electronique', adresseElectronique: 'a2@exemple.invalid' })
+  })
+
+  it('J69 (J67, R20) : réponse à l’invitation, lettre simple demandée pour les avis : lettre simple ; une adresse donnée ensuite pour les avis l’emporte', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = { identiteId: 'i-cpt-A', recueLe: '2026-11-01' }
+    const [postal] = diffuse(contenu, { demandesLettreSimpleAvis: [demande] })
+    expect(postal).toMatchObject({ canal: 'postal', adresseElectronique: null, origineAdresse: null })
+    expect(postal.courrier?.modeleId).toBe('mod-postal')
+    expect(postal.valeursFusion['mention.confirmationAdresse']).toBeNull()
+    // Demande reçue après la diffusion : sans effet ; demande d'une autre identité : sans effet.
+    for (const sansEffet of [{ ...demande, recueLe: '2026-12-16' }, { ...demande, identiteId: 'i-cpt-B' }])
+      expect(diffuse(contenu, { demandesLettreSimpleAvis: [sansEffet] })[0]).toMatchObject({ canal: 'electronique', origineAdresse: 'notifications' })
+    // Adresse donnée pour les avis après la demande : courriel à cette adresse ; donnée avant : la demande l'emporte.
+    const pourAvis = creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'avis-a@exemple.invalid', communiqueeLe: '2026-11-20' })
+    expect(diffuse(contenu, { demandesLettreSimpleAvis: [demande], communicationsAvis: [pourAvis] })[0]).toMatchObject({ canal: 'electronique', origineAdresse: 'avis' })
+    const pourAvisAvant = { ...pourAvis, communiqueeLe: '2026-02-01' }
+    expect(diffuse(contenu, { demandesLettreSimpleAvis: [demande], communicationsAvis: [pourAvisAvant] })[0]).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J67, R100 : indivision — un avis par personne, « à payer une seule fois » ; avis principal au mandataire commun, copie aux autres', () => {
+    const indivision = [...positions, position('p3', 'lot-2', 'cpt-B', 'i-cpt-B2')]
+    const duCompteB = (sorties: DiffusionAvisCompte[]) => sorties.filter((s) => s.compteId === 'cpt-B').map((s) => [s.identiteId, s.exemplaire, s.valeursFusion['mention.payerUneFois']])
+    const UNE_FOIS = 'Même somme pour tout le lot, à payer une seule fois.'
+    expect(duCompteB(diffuse(contenuAvisAppel(avis, options()), { positions: indivision }))).toEqual([
+      ['i-cpt-B', 'principal', UNE_FOIS],
+      ['i-cpt-B2', 'principal', UNE_FOIS],
+    ])
+    const avecMandataire = (mandataireCommunId: string) => options({ comptes: comptes.map((c) => (c.id === 'cpt-B' ? { ...c, mandataireCommunId } : c)) })
+    const COPIE = `${UNE_FOIS} Copie : l'avis principal est adressé au mandataire commun (L. 1965 art. 23).`
+    expect(duCompteB(diffuse(contenuAvisAppel(avis, avecMandataire('i-cpt-B2')), { positions: indivision }))).toEqual([
+      ['i-cpt-B2', 'principal', UNE_FOIS],
+      ['i-cpt-B', 'copie', COPIE],
+    ])
+    const tiers = creerIdentite({ id: 'i-mandataire', nature: 'physique', civilite: 'Maître', nom: 'Mandataire commun', prenom: 'Fictif', telecoms: [], adresses: [adresse('adr-M')] })
+    expect(duCompteB(diffuse(contenuAvisAppel(avis, avecMandataire('i-mandataire')), { positions: indivision, identites: [...identites, tiers] }))).toEqual([
+      ['i-mandataire', 'principal', UNE_FOIS],
+      ['i-cpt-B', 'copie', COPIE],
+      ['i-cpt-B2', 'copie', COPIE],
+    ])
+    expect(diffuse(contenuAvisAppel(avis, options()))[0]).toMatchObject({ exemplaire: 'principal', valeursFusion: { 'mention.payerUneFois': null } })
+  })
+
+  it('J67 : questions tranchées retirées des 🔴 (R20 / J69, R97, R98, R99, R100, R113)', () => {
+    const { texte } = enTeteDuModule('avis-appel')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    for (const tranchee of [
+      /a demandé la voie postale pour les notifications, mais a communiqué/,
+      /vaut-elle adresse "communiquée à cet effet"/,
+      /Le prélèvement peut-il précéder l'exigibilité/,
+      /que l'art\. 64-9 ne vise pas, est-il/,
+      /Indivision ou démembrement : un avis à chaque identité/,
+      /Vente du lot entre l'avis et l'exigibilité/,
+      /Budget voté en cours d'exercice/,
+    ])
+      expect(ouvert).not.toMatch(tranchee)
+    for (const n of ['R20', 'R97', 'R98', 'R99', 'R100', 'R113']) expect(texte).toContain(`J67, ${n}`)
+    expect(texte).toMatch(/J69.*J52 reste valable pour les notifications/)
+  })
+
+  it('en-tête : art. 62-9, 64-9 et 29-1 lus ; administrateur de l’art. 47 tranché (J67, R99) ; art. 65 → art. 35-2 ; ISO 20022 à l’annexe, point 1 b)', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'avis-appel.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/'))
+    expect(entete).toMatch(/D\. 1967 art\. 62-9/)
+    expect(entete).toMatch(/art\. 64-9/)
+    expect(entete).toMatch(/L\. 1965 art\. 29-1, I, al\. 2/)
+    expect(entete).not.toMatch(/29-1 non relu/)
+    expect(entete).toMatch(/administrateur provisoire de l'art\. 47/)
+    expect(entete).toMatch(/art\. 65/)
+    expect(entete).toMatch(/annexe, point 1 b\)/)
+    expect(entete).not.toMatch(/point 3 a\) : le créancier fournit type de prélèvement, IBAN du\s+\*?\s*payeur, RUM, date de signature du mandat, montant, identifiant créancier ; format ISO 20022/)
+  })
+})
+
+describe('préparation de la diffusion par le circuit Courrier', () => {
+  it('voie électronique à l’adresse communiquée (D. 1967 art. 35-2), sinon lettre simple ; courrier en préparation, forme copiée du modèle', () => {
+    const [a, b] = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion())
+    expect(a).toMatchObject({ compteId: 'cpt-A', identiteId: 'i-cpt-A', canal: 'electronique', formeEnvoi: 'Email direct', adresseElectronique: 'a@exemple.invalid', anomalies: [] })
+    expect(a.courrier).toMatchObject({ modeleId: 'mod-email', formeEnvoi: 'Email direct', statut: 'Préparation', coproprieteId: 'copro-1', mandatId: 'mandat-1', personneId: 'i-cpt-A' })
+    expect(a.courrier?.objet).toBe("Avis d'appel de fonds — compte TILL.45000.00001.0 — à régler avant le 01/01/2027")
+    expect(b).toMatchObject({ compteId: 'cpt-B', identiteId: 'i-cpt-B', canal: 'postal', formeEnvoi: 'Normal', adresseElectronique: null })
+    expect(b.adressePostale?.id).toBe('adr-B')
+    expect(b.courrier?.modeleId).toBe('mod-postal')
+  })
+
+  it('les valeurs de fusion remplissent le gabarit « avis_appel_fonds » ; la forme libre ne bloque aucun envoi', () => {
+    const [a, b] = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion())
+    expect(controlerContexteFusion('avis_appel_fonds', a.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    expect(a.valeursFusion).toMatchObject({
+      'compte.numero': 'TILL.45000.00001.0',
+      'appel.totalAPayerCentimes': 64_000,
+      'reglement.mode': 'Prélèvement',
+      'prelevement.date': '2027-01-05',
+      'prelevement.montantCentimes': 40_000,
+      'creancier.ics': ICS,
+    })
+    expect(b.valeursFusion['appel.soldeAnterieurCentimes']).toBe(-5_000)
+    expect(b.valeursFusion).not.toHaveProperty('prelevement.date')
+    expect(controlerContexteFusion('avis_appel_fonds', b.valeursFusion).complet).toBe(true)
+    expect(controlerFormeEnvoi('avis_appel_fonds', 'Email direct', { voie: 'electronique' })).toEqual([])
+    expect(controlerFormeEnvoi('avis_appel_fonds', 'Normal', { voie: 'postale' })).toEqual([])
+  })
+
+  it('demande de voie postale en vigueur : lettre simple, même avec une adresse électronique communiquée', () => {
+    const demande = creerDemandeVoiePostale({ identiteId: 'i-cpt-A', recueLe: '2026-11-01', origine: 'courrier' })
+    const [a] = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ demandesVoiePostale: [demande] }))
+    expect(a).toMatchObject({ canal: 'postal', formeEnvoi: 'Normal' })
+  })
+
+  it('indivision : un courrier par identité du compte ; sans adresse postale pour la lettre simple : bloquant, pas de courrier', () => {
+    const indivision = [...positions, position('p3', 'lot-2', 'cpt-B', 'i-cpt-B2')]
+    const sorties = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ positions: indivision }))
+    const b = sorties.filter((s) => s.compteId === 'cpt-B')
+    expect(b.map((s) => s.identiteId)).toEqual(['i-cpt-B', 'i-cpt-B2'])
+    expect(b[1].courrier).toBeNull()
+    expect(b[1].anomalies).toContainEqual(expect.objectContaining({ code: 'sans_adresse', gravite: 'bloquant' }))
+  })
+
+  it('J67, R19 : seule une adresse d’origine « autre » ; l’avis, lettre simple et non notification, part à cette adresse, avec un avertissement', () => {
+    const autre = creerAdresseDatee({ ...adresse('adr-B-autre'), origine: 'autre' })
+    const avecAutre = identites.map((i) => (i.id === 'i-cpt-B' ? creerIdentite({ ...i, adresses: [autre] }) : i))
+    const b = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ identites: avecAutre })).find((s) => s.compteId === 'cpt-B')
+    expect(b).toMatchObject({ canal: 'postal', formeEnvoi: 'Normal' })
+    expect(b?.adressePostale?.id).toBe('adr-B-autre')
+    expect(b?.courrier?.modeleId).toBe('mod-postal')
+    expect(b?.anomalies).toEqual([expect.objectContaining({ code: 'adresse_autre', gravite: 'avertissement' })])
+  })
+
+  it('aucun destinataire en place, ou contenu bloqué : pas de courrier', () => {
+    const sansB = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ positions: [positions[0]] })).find((s) => s.compteId === 'cpt-B')
+    expect(sansB).toMatchObject({ identiteId: null, courrier: null })
+    expect(sansB?.anomalies).toContainEqual(expect.objectContaining({ code: 'sans_destinataire', gravite: 'bloquant' }))
+    const [a] = preparerDiffusionAvis(contenuAvisAppel(avis, options({ dateEmission: '2026-12-23' })), diffusion({ date: '2026-12-23' }))
+    expect(a.courrier).toBeNull()
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'contenu_bloque', gravite: 'bloquant' }))
+  })
+
+  it('diffusion après l’émission : la pré-notification se recompte depuis la diffusion ; diffusion avant l’émission refusée', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const [aJ] = preparerDiffusionAvis(contenu, diffusion({ date: '2026-12-22' }))
+    expect(aJ.anomalies.map((x) => x.code)).not.toContain('preavis_insuffisant')
+    expect(aJ.courrier).not.toBeNull()
+    const [aTard, bTard] = preparerDiffusionAvis(contenu, diffusion({ date: '2026-12-23' }))
+    expect(aTard.courrier).toBeNull()
+    expect(aTard.anomalies).toContainEqual(expect.objectContaining({ code: 'preavis_insuffisant', gravite: 'bloquant' }))
+    expect(bTard.anomalies.map((x) => x.code)).not.toContain('preavis_insuffisant')
+    expect(bTard.courrier).not.toBeNull()
+    expect(() => preparerDiffusionAvis(contenu, diffusion({ date: '2026-12-14' }))).toThrow(/émission/)
+  })
+
+  it('diffusion le jour de l’exigibilité ou après (D. 1967 art. 35-2 : avis préalable) : avertissement, courrier préparé', () => {
+    const contenu = contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-A', mode: 'Chèque' }, { compteId: 'cpt-B', mode: 'Chèque' }] }))
+    const [a] = preparerDiffusionAvis(contenu, diffusion({ date: '2027-01-01' }))
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'diffuse_apres_exigibilite', gravite: 'avertissement' }))
+    expect(a.courrier).not.toBeNull()
+    expect(preparerDiffusionAvis(contenu, diffusion())[0].anomalies.map((x) => x.code)).not.toContain('diffuse_apres_exigibilite')
+  })
+
+  it('socle incomplet : fusion incomplète, bloquant', () => {
+    const [a] = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ socle: { ...socle, 'mandat.rg': undefined } }))
+    expect(a.courrier).toBeNull()
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'fusion_incomplete', gravite: 'bloquant' }))
+  })
+})
+
+describe('contrôle du point 17 — l’avis n’annonce que le débit que le lot présentera', () => {
+  const lotDe = (contenu: ContenuAvisAppel, diffusions: DiffusionAvisCompte[]) => echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions })
+  const tiersSansAdresse = creerIdentite({ id: 'i-tiers', nature: 'physique', civilite: 'Madame', nom: 'Tiers payeur', prenom: 'Fictive', telecoms: [], adresses: [] })
+  const tiersAvecAdresse = creerIdentite({ id: 'i-tiers', nature: 'physique', civilite: 'Madame', nom: 'Tiers payeur', prenom: 'Fictive', telecoms: [], adresses: [adresse('adr-T')] })
+  const mandatDuTiers = mandat({ debiteur: 'Tiers payeur (fictif)', debiteurIdentiteId: 'i-tiers' })
+
+  it('détenteur du compte non rattaché à une identité : comme en contentieux, l’avis n’annonce aucun débit et donne le règlement hors prélèvement ; le lot l’écarte', () => {
+    const contenu = contenuAvisAppel(avis, options({ reglements: reglements(mandat({ debiteurIdentiteId: null })) }))
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.modeReglement).toBe('Virement')
+    expect(a.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00001.0' })
+    expect(a.mentions.map((m) => m.cle)).not.toContain('prenotification')
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'prenotification_sans_detenteur', gravite: 'avertissement' }))
+    expect(bloquantsDe(a)).toEqual([])
+    const [d] = diffuse(contenu)
+    expect(d.courrier).not.toBeNull()
+    expect(d.valeursFusion['mention.prenotification']).toBeNull()
+    expect(d.valeursFusion).not.toHaveProperty('prelevement.montantCentimes')
+    expect(d.valeursFusion['reglement.instructions']).toMatch(/^Par virement à SDC Les Tilleuls \(fictif\)/)
+    const lot = lotDe(contenu, diffuse(contenu))
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'prenotification_absente', codes: ['prenotification_sans_detenteur'] })
+    const revoqueSansIban = compteDe(
+      contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE, reglements: reglements(mandat({ debiteurIdentiteId: null, revoqueLe: '2026-12-01' })) })),
+      'cpt-A',
+    )
+    expect(revoqueSansIban.instructions).toMatchObject({ mode: 'Chèque', reference: 'TILL.45000.00001.0' })
+    expect(bloquantsDe(revoqueSansIban)).toEqual([])
+    expect(revoqueSansIban.anomalies).toContainEqual(expect.objectContaining({ code: 'mandat_revoque', gravite: 'avertissement' }))
+  })
+
+  it('détenteur sans courrier possible à la diffusion (tiers ou indivisaire sans adresse) : les autres courriers du compte partent sans le débit ; le lot écarte le compte', () => {
+    const contenu = contenuAvisAppel(avis, options({ reglements: reglements(mandatDuTiers) }))
+    const sorties = diffuse(contenu, { identites: [...identites, tiersSansAdresse] })
+    const [pourA, pourTiers] = sorties.filter((s) => s.compteId === 'cpt-A')
+    expect(pourTiers).toMatchObject({ identiteId: 'i-tiers', prenotification: true, courrier: null })
+    expect(pourTiers.anomalies).toContainEqual(expect.objectContaining({ code: 'sans_adresse', gravite: 'bloquant' }))
+    expect(pourA).toMatchObject({ identiteId: 'i-cpt-A', prenotification: false })
+    expect(pourA.courrier).not.toBeNull()
+    expect(pourA.anomalies).toContainEqual(expect.objectContaining({ code: 'prenotification_impossible', gravite: 'avertissement' }))
+    expect(pourA.valeursFusion['reglement.mode']).toBe('Virement')
+    expect(pourA.valeursFusion['reglement.instructions']).toMatch(/^Par virement à SDC Les Tilleuls \(fictif\)/)
+    expect(pourA.valeursFusion['mention.prenotification']).toBeNull()
+    expect(pourA.valeursFusion).not.toHaveProperty('prelevement.montantCentimes')
+    expect(controlerContexteFusion('avis_appel_fonds', pourA.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    const lot = lotDe(contenu, sorties)
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees).toContainEqual(expect.objectContaining({ compteId: 'cpt-A', motif: 'prenotification_absente', codes: expect.arrayContaining(['sans_adresse']) }))
+
+    const indivision = [...positions, position('p3', 'lot-1', 'cpt-A', 'i-cpt-B2')]
+    const indivisaire = contenuAvisAppel(avis, options({ reglements: reglements(mandat({ debiteur: 'Indivisaire B2', debiteurIdentiteId: 'i-cpt-B2' })) }))
+    const [x, y] = diffuse(indivisaire, { positions: indivision }).filter((s) => s.compteId === 'cpt-A')
+    expect([x.identiteId, x.prenotification, x.courrier === null, x.valeursFusion['mention.prenotification']]).toEqual(['i-cpt-A', false, false, null])
+    expect([y.identiteId, y.prenotification, y.courrier]).toEqual(['i-cpt-B2', true, null])
+
+    const atteint = diffuse(contenu, { identites: [...identites, tiersAvecAdresse] }).filter((s) => s.compteId === 'cpt-A')
+    expect(atteint.map((s) => [s.courrier === null, s.valeursFusion['prelevement.montantCentimes']])).toEqual([
+      [false, 40_000],
+      [false, 40_000],
+    ])
+    const tard = preparerDiffusionAvis(contenu, diffusion({ date: '2026-12-23', identites: [...identites, tiersAvecAdresse] })).filter((s) => s.compteId === 'cpt-A')
+    expect(tard.map((s) => s.courrier)).toEqual([null, null])
+  })
+
+  it('l’adaptateur n’accepte comme pré-notification que la diffusion de CE contenu : même avis, même montant, même date, même mandat et détenteur', () => {
+    const c1 = contenuAvisAppel(avis, options())
+    const d1 = diffuse(c1)
+    const autreDebit = { compteId: 'cpt-A', motif: 'prenotification_absente', codes: ['prenotification_autre_debit'] }
+    expect(lotDe(c1, d1).echeances.map((e) => e.montantEcheanceCentimes)).toEqual([40_000])
+
+    const elargi = contenuAvisAppel(avis, options({ reglements: reglements(mandat({ natures: { budget: true, autres: true } })) }))
+    expect(lotDe(elargi, d1).echeances).toEqual([])
+    expect(lotDe(elargi, d1).ecartees).toContainEqual(autreDebit)
+    expect(lotDe(elargi, [...d1, ...diffuse(elargi)]).echeances.map((e) => e.montantEcheanceCentimes)).toEqual([54_000])
+
+    const avance = contenuAvisAppel(avis, options({ datePrelevement: '2027-01-02' }))
+    expect(lotDe(avance, d1).ecartees).toContainEqual(autreDebit)
+    expect(lotDe(avance, diffuse(avance)).echeances).toHaveLength(1)
+
+    const avisT2 = avisDAppel({ echeances: [{ ...echeances[0], id: 'B-2027-001-2', exigibilite: '2027-04-01', libelle: 'Budget 2027 — provision 2/4' }], cles: [cle], positions, comptes })
+    const t2 = contenuAvisAppel(avisT2, options({ dateEmission: '2027-03-10', datePrelevement: '2027-04-05' }))
+    expect(lotDe(t2, d1).ecartees).toContainEqual(autreDebit)
+    expect(lotDe(t2, diffuse(t2)).echeances).toHaveLength(1)
+
+    const nouveauMandat = contenuAvisAppel(avis, options({ reglements: reglements(mandat({ rum: 'RUM-TILL-00002' })) }))
+    expect(lotDe(nouveauMandat, d1).ecartees).toContainEqual(autreDebit)
+    const autreDetenteur = contenuAvisAppel(avis, options({ reglements: reglements(mandatDuTiers) }))
+    expect(lotDe(autreDetenteur, d1).ecartees).toContainEqual(autreDebit)
+    expect(lotDe(autreDetenteur, diffuse(autreDetenteur, { identites: [...identites, tiersAvecAdresse] })).echeances).toHaveLength(1)
+  })
+
+  it('compte créditeur en prélèvement sans mandat : rien n’est prélevé, « mandat_absent » à régulariser et l’avis de l’art. 35-2 part, comme sous un mandat vide', () => {
+    const crediteur = avisDAppel({ echeances, cles: [cle], positions, comptes, soldesAnterieurs: { 'cpt-A': -100_000 } })
+    const sansMandat = contenuAvisAppel(crediteur, options({ reglements: reglements(null) }))
+    const a = compteDe(sansMandat, 'cpt-A')
+    expect(a.totalAPayerCentimes).toBe(-46_000)
+    expect(bloquantsDe(a)).toEqual([])
+    expect(a.anomalies).toContainEqual(expect.objectContaining({ code: 'mandat_absent', gravite: 'avertissement' }))
+    expect(a.instructions).toMatchObject({ mode: 'Prélèvement', montantCentimes: 0, resteHorsPrelevementCentimes: -46_000, rum: null, mandat: null })
+    expect(a.mentions.map((m) => m.cle)).not.toContain('prenotification')
+    const [d] = diffuse(sansMandat)
+    expect(d.courrier).not.toBeNull()
+    expect(d.valeursFusion['reglement.instructions']).toBe('Aucun prélèvement sur cet avis.')
+
+    const vide = contenuAvisAppel(crediteur, options({ reglements: reglements(mandat({ rum: ' ', iban: 'X', debiteur: ' ', dateSignature: 'x' })) }))
+    const v = compteDe(vide, 'cpt-A')
+    expect(bloquantsDe(v)).toEqual([])
+    expect(v.anomalies).toContainEqual(expect.objectContaining({ code: 'mandat_incomplet', gravite: 'avertissement' }))
+    const [dv] = diffuse(vide)
+    expect(dv.courrier).not.toBeNull()
+    expect(dv.valeursFusion['reglement.instructions']).toBe('Aucun prélèvement sur cet avis.')
+
+    for (const contenu of [sansMandat, vide]) expect(lotDe(contenu, diffuse(contenu)).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'montant_nul', codes: [] })
+    expect(bloquantsDe(compteDe(contenuAvisAppel(avis, options({ reglements: reglements(null) })), 'cpt-A'))).toEqual(['mandat_absent'])
+  })
+})
+
+describe('J67, R113 : vente du lot entre l’avis et l’exigibilité (D. 1967 art. 6-2, 1° et 2°)', () => {
+  const comptesVente = [...comptes, creerCompteCoproprietaire({ id: 'cpt-Q', coproprieteId: 'copro-1', serie: '3', libelle: 'Acquéreur Q' })]
+  /** Lot 1 (compte A, prélevé) vendu à Q, ou au compte donné, à la date donnée ; avis du 15/12/2026, exigibilité au 01/01/2027. */
+  const vendu = (date: string, compteId = 'cpt-Q') =>
+    muterLot(positions, {
+      lotId: 'lot-1',
+      date,
+      sortantes: ['p1'],
+      nature: 'onereuse',
+      entrantes: [{ id: 'pQ', identiteId: `i-${compteId}`, compteId, qualite: 'Copropriétaire', part: { numerateur: 1, denominateur: 1 } }],
+    }).positions
+  const soldesAnterieurs = { 'cpt-A': 10_000, 'cpt-B': -5_000 }
+  const contenuApres = (date: string) =>
+    contenuAvisAppel(
+      avisDAppel({ echeances, cles: [cle], positions: vendu(date), comptes: comptesVente, soldesAnterieurs }),
+      options({ comptes: comptesVente, reglements: [...reglements(), { compteId: 'cpt-Q', mode: 'Virement' }] }),
+    )
+  const avant = contenuAvisAppel(avis, options({ comptes: comptesVente }))
+  const diffusionsAvant = diffuse(avant)
+
+  it('les postes exigibles après la vente passent à l’acquéreur, qui reçoit un avis ; le prélèvement annoncé au vendeur n’a pas lieu', () => {
+    const apres = contenuApres('2026-12-20')
+    const effets = effetsMutationSurAvis(avant, apres, diffusionsAvant)
+    expect(effets.postesTransferes.map((p) => [p.echeanceId, p.lotId, p.deCompteId, p.versCompteId, p.quotePartCentimes])).toEqual([
+      ['B-2027-001-1', 'lot-1', 'cpt-A', 'cpt-Q', 40_000],
+      ['FT-2027-1', 'lot-1', 'cpt-A', 'cpt-Q', 2_000],
+      ['00042-T1', 'lot-1', 'cpt-A', 'cpt-Q', 12_000],
+    ])
+    expect(effets.comptesARediffuser).toEqual(['cpt-A', 'cpt-Q'])
+    expect(effets.prelevementsAnnules).toEqual([
+      {
+        compteId: 'cpt-A',
+        identiteId: 'i-cpt-A',
+        montantCentimes: 40_000,
+        date: '2027-01-05',
+        message: expect.stringMatching(
+          /400,00.*05\/01\/2027.*n'aura pas lieu : après la vente du lot, les sommes exigibles après le jour de la vente sont dues par l'acquéreur ; celle exigible le jour même reste à votre charge \(D\. 1967 art\. 6-2\)/,
+        ),
+      },
+    ])
+    expect(effets.prelevementsAnnules[0].message).not.toMatch(/depuis sa date/)
+    expect(compteDe(apres, 'cpt-Q').lignes.map((l) => l.echeanceId)).toEqual(['B-2027-001-1', 'FT-2027-1', '00042-T1'])
+    const lot = echeancesPrelevementDepuisAvis(apres, { prefixeId: 'APP-2027-01', diffusions: diffusionsAvant })
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees.map((e) => e.compteId)).not.toContain('cpt-A')
+  })
+
+  it('acquéreur déjà prélevé (compte B) : il reçoit le nouvel avis, jamais le message d’annulation prévu pour le vendeur', () => {
+    const mandatB = mandat({ rum: 'RUM-TILL-00002', debiteur: 'Copropriétaire B', debiteurIdentiteId: 'i-cpt-B' })
+    const prelevesTous = options({ reglements: [...reglements().filter((r) => r.compteId !== 'cpt-B'), { compteId: 'cpt-B', mode: 'Prélèvement', mandat: mandatB }] })
+    const avantB = contenuAvisAppel(avis, prelevesTous)
+    const apresB = contenuAvisAppel(avisDAppel({ echeances, cles: [cle], positions: vendu('2026-12-20', 'cpt-B'), comptes, soldesAnterieurs }), prelevesTous)
+    const debitDeB = (contenu: ContenuAvisAppel) => compteDe(contenu, 'cpt-B').instructions
+    expect(debitDeB(avantB)).toMatchObject({ mode: 'Prélèvement', montantCentimes: 60_000, date: '2027-01-05' })
+    expect(debitDeB(apresB)).toMatchObject({ mode: 'Prélèvement', montantCentimes: 100_000, date: '2027-01-05' })
+    const effets = effetsMutationSurAvis(avantB, apresB, diffuse(avantB))
+    expect(effets.comptesARediffuser).toEqual(['cpt-A', 'cpt-B'])
+    expect(effets.prelevementsAnnules.map((p) => p.compteId)).toEqual(['cpt-A'])
+  })
+
+  it('le poste exigible le jour de la vente reste au vendeur : rien ne change, aucun message', () => {
+    expect(effetsMutationSurAvis(avant, contenuApres('2027-01-01'), diffusionsAvant)).toEqual({ postesTransferes: [], comptesARediffuser: [], prelevementsAnnules: [] })
+    expect(() => effetsMutationSurAvis(avant, { ...contenuApres('2026-12-20'), dateEmission: '2026-12-16' }, diffusionsAvant)).toThrow(/même avis/)
+  })
+})

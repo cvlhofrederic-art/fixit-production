@@ -1,21 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  DEMO_COPROPRIETES,
-  DEMO_TOTAL_BUDGET,
-  DEMO_TOTAL_DEPENSES,
-  type CoproprieteDemo,
-} from '@/components/administrateur-judiciaire/data/coproprietes'
+import { DEMO_COPROPRIETES, type CoproprieteDemo } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
+import { sousTitreFige } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import type { ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeLigneDemo, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /** Ligne du tableau des comptes : copropriété de démonstration et solde disponible (budget − charges). */
 export type LigneReddition = CoproprieteDemo & {
@@ -30,19 +29,28 @@ interface FicheReddition {
   fields: ChampDetail[]
 }
 
+/** Référence du rapport déposé au greffe sans copropriété choisie (document figé de la maquette). */
+const META_RAPPORT_GREFFE_DEMO = 'Tribunal judiciaire de Nanterre · RG 26/00892'
+
 /**
- * Reddition de comptes (démonstration) : export, dépôt du rapport au greffe (documents figés), indicateurs et
- * comptes par copropriété.
+ * Reddition de comptes (démonstration) : export, dépôt du rapport au greffe (documents figés, au tribunal et au RG de
+ * la copropriété choisie), indicateurs et comptes de la copropriété choisie ; sans sélection (écran rendu seul), les
+ * comptes et les totaux de toutes les copropriétés de démonstration.
  * Bizarrerie conservée de la maquette : le clic sur une ligne (ou sur « Détails ») prépare une fiche de reddition,
  * mais aucune DetailModal n'est rendue, donc rien ne s'affiche.
  */
 export function RedditionComptesModule() {
   const { push } = useToast()
   const [, setFiche] = useState<FicheReddition | null>(null)
-  const lignes: LigneReddition[] = DEMO_COPROPRIETES.map((copro) => ({
-    ...copro,
-    disponible: copro.budget - copro.depense,
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const lignes: LigneReddition[] = filtrerParCopro(DEMO_COPROPRIETES, code, (ligne) => codeLigneDemo(ligne.code)).map((ligne) => ({
+    ...ligne,
+    disponible: ligne.budget - ligne.depense,
   }))
+  const totalBudget = lignes.reduce((total, ligne) => total + ligne.budget, 0)
+  const totalDepenses = lignes.reduce((total, ligne) => total + ligne.depense, 0)
+  const metaRapport = code ? `${copro.tribunal} · RG ${copro.rg}` : META_RAPPORT_GREFFE_DEMO
 
   return (
     <>
@@ -65,7 +73,7 @@ export function RedditionComptesModule() {
                   title: 'Dépôt du rapport au greffe',
                   eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
                   docTitle: "Rapport de l'administrateur provisoire",
-                  meta: 'Tribunal judiciaire de Nanterre · RG 26/00892',
+                  meta: metaRapport,
                   lines: [
                     "Le rapport périodique de l'administrateur provisoire a été déposé au greffe conformément à la mission ordonnée.",
                     {
@@ -99,19 +107,19 @@ export function RedditionComptesModule() {
             icon: 'doc',
             num: 2,
             lbl: 'Redditions à produire',
-            sub: '1 au tribunal · 1 au syndic élu',
+            sub: sousTitreFige(code, '1 au tribunal · 1 au syndic élu'),
             accent: 'amber',
           },
           {
             icon: 'coin',
-            num: formatEuros(DEMO_TOTAL_DEPENSES),
+            num: formatEuros(totalDepenses),
             lbl: 'Charges justifiées',
             sub: 'Pièces rapprochées',
             accent: 'sage',
           },
           {
             icon: 'bank',
-            num: formatEuros(DEMO_TOTAL_BUDGET - DEMO_TOTAL_DEPENSES),
+            num: formatEuros(totalBudget - totalDepenses),
             lbl: 'Solde de trésorerie',
             sub: 'Compte séparé · art. 18',
           },
@@ -119,7 +127,7 @@ export function RedditionComptesModule() {
             icon: 'check',
             num: '94%',
             lbl: 'Pièces rapprochées',
-            sub: '6 écritures à valider',
+            sub: sousTitreFige(code, '6 écritures à valider'),
             accent: 'sage',
           },
         ]}
@@ -212,6 +220,7 @@ export function RedditionComptesModule() {
             })
           }
         />
+        {lignes.length === 0 && <EmptyState icon="chart" title={`Aucun compte pour ${copro.nom}`} />}
       </Panel>
     </>
   )

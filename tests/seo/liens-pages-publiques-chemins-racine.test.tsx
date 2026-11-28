@@ -72,9 +72,9 @@ vi.stubGlobal('IntersectionObserver', IntersectionObserverFactice)
 
 import CGUPage from '@/app/fr/cgu/page'
 import { BookingForm } from '@/components/artisan-profile/BookingForm'
-import ConformitePage from '@/app/pro/conformite/page'
+import ConformitePage from '@/app/(commun)/pro/conformite/page'
 import ArtisansCatalogueSection from '@/components/ArtisansCatalogueSection'
-import LoginPage from '@/app/auth/login/page'
+import LoginPage from '@/app/(commun)/auth/login/page'
 import AProposPage from '@/app/fr/a-propos/page'
 
 function hrefDuTexte(texte: string | RegExp): string | null {
@@ -169,14 +169,14 @@ describe('liens légaux et de recherche vers les URL finales', () => {
 // de sa locale : branche PT /termos et /privacidade, branche FR /cgu et
 // /confidentialite.
 describe('garde statique : slugs légaux FR passés à LocaleLink', () => {
-  it.each(['app/pro/register/page.tsx', 'app/auth/login/page.tsx'])('%s', (fichier) => {
+  it.each(['app/(commun)/pro/register/page.tsx', 'app/(commun)/auth/login/page.tsx'])('%s', (fichier) => {
     const source = readFileSync(path.resolve(__dirname, '../..', fichier), 'utf8')
     const littéraux = source.match(/<LocaleLink\s+href="\/(cgu|confidentialite|mentions-legales|cookies)\/?"/g) ?? []
     expect(littéraux).toEqual([])
   })
 
-  it('app/pro/register/page.tsx : CGU et confidentialité visent /termos et /privacidade côté PT', () => {
-    const source = readFileSync(path.resolve(__dirname, '../..', 'app/pro/register/page.tsx'), 'utf8')
+  it('app/(commun)/pro/register/page.tsx : CGU et confidentialité visent /termos et /privacidade côté PT', () => {
+    const source = readFileSync(path.resolve(__dirname, '../..', 'app/(commun)/pro/register/page.tsx'), 'utf8')
     const slugsLegauxFr = ['/cgu', '/confidentialite', '/mentions-legales', '/cookies']
     const paires = Array.from(
       source.matchAll(/<LocaleLink\s+href=\{(?:isPt|locale === 'pt') \? '([^']+)' : '([^']+)'\}/g),

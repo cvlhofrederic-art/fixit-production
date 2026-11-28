@@ -87,14 +87,73 @@ export function docIdentityKey(
   return (d?.id as string) || num || ''
 }
 
+/** Options de fusion des listes de documents (dedupeDocsByIdentity). */
+export interface OptionsFusionDocuments {
+  /**
+   * Sociétés BTP : deux documents d'identifiants stables (UUID) différents sont deux documents, même s'ils portent le
+   * même numéro définitif (par exemple un numéro attribué hors connexion par le navigateur, puis le même par le
+   * serveur) : les deux restent. Sans l'option (artisan) : fusion d'origine, le numéro définitif fait l'identité.
+   */
+  conserverIdsDistincts?: boolean
+}
+
+/**
+ * Options de fusion selon le rôle du compte (orgRole du tableau de bord, ou app_metadata.role) : l'option BTP n'est
+ * donnée qu'au rôle pro_societe (audit des fondations BTP du 11/11/2026, constat documents-cycle-1).
+ */
+export function optionsFusionPourRole(role: string | null | undefined): OptionsFusionDocuments | undefined {
+  return role === 'pro_societe' ? { conserverIdsDistincts: true } : undefined
+}
+
+type DocumentIdentifiable = { id?: string | null; docNumber?: string | null; status?: string | null }
+
+/** Numéro définitif d'un document (tout sauf brouillon BR-), ou ''. */
+const numeroDefinitif = (d: DocumentIdentifiable | null | undefined): string => {
+  const n = (d?.docNumber as string) || ''
+  return n && !/^BR-/i.test(n) ? n : ''
+}
+
+/**
+ * Même document, pour les actions d'une liste (statut, case à cocher, suppression). Option conserverIdsDistincts
+ * (sociétés BTP) : deux identifiants stables (UUID) différents désignent deux documents, même au même numéro, comme
+ * dans la fusion. Sans l'option : identité d'origine (docIdentityKey : le numéro définitif fait l'identité).
+ */
+export function memeDocument(
+  a: DocumentIdentifiable | null | undefined,
+  b: DocumentIdentifiable | null | undefined,
+  options?: OptionsFusionDocuments,
+): boolean {
+  if (options?.conserverIdsDistincts === true && isStableDocId(a?.id) && isStableDocId(b?.id)) return a?.id === b?.id
+  const cle = docIdentityKey(a)
+  return Boolean(cle) && cle === docIdentityKey(b)
+}
+
+/**
+ * Sociétés BTP : un AUTRE document de `documents`, non annulé, porte-t-il le même numéro définitif que `doc` ? Après la
+ * fusion BTP, deux documents distincts peuvent porter le même numéro ; une action que le serveur rattache au seul numéro
+ * (annulation, devis accepté ou refusé) toucherait alors l'autre document en base (relecture adverse du lot
+ * numérotation, 16/11/2026). Un document annulé ne compte pas : le serveur refuse déjà toute action sur lui.
+ */
+export function numeroPorteParUnAutreDocument(doc: DocumentIdentifiable, documents: readonly DocumentIdentifiable[]): boolean {
+  const numero = numeroDefinitif(doc)
+  if (!numero) return false
+  return documents.some(d =>
+    d !== doc &&
+    numeroDefinitif(d) === numero &&
+    !(d.id && d.id === doc.id) &&
+    d.status !== 'cancelled' && d.status !== 'annule',
+  )
+}
+
 /**
  * Fusionne deux listes de documents par identité stable (docIdentityKey) :
  * `incoming` prime sur `existing` à clé égale, l'ordre de `existing` est
  * préservé, et les entrées de `incoming` absentes sont ajoutées. Les docs sans
  * identité ne sont jamais fusionnés (clé de repli unique). Mutualise la dédup
  * du merge cloud (dashboard) ET du refresh localStorage des listes V5.
+ * Option `conserverIdsDistincts` (sociétés BTP) : voir OptionsFusionDocuments.
  */
-export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
+export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[], options?: OptionsFusionDocuments): T[] {
   // Deux docs sont le MÊME document s'ils partagent un id stable OU un numéro
   // DÉFINITIF (DEV-/FACT-/AC-/AV-). Couvre les deux cas de fusion :
   //  - brouillon → émis : même id, le numéro légal est attribué à la validation ;
@@ -105,17 +164,35 @@ export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
   const result: T[] = []
   const byId = new Map<string, number>()
   const byNum = new Map<string, number>()
+  // Option BTP : tous les emplacements de chaque numéro définitif (deux documents distincts peuvent le porter).
+  const conserverIdsDistincts = options?.conserverIdsDistincts === true
+  const emplacementsParNumero = new Map<string, number[]>()
   const idOf = (d: T): string => ((d as { id?: string | null })?.id as string) || ''
   const numOf = (d: T): string => {
     const n = ((d as { docNumber?: string | null })?.docNumber as string) || ''
     return n && !/^BR-/i.test(n) ? n : ''
   }
+  // Emplacement du document qui porte déjà ce numéro définitif, ou -1.
+  // Sans l'option : le dernier document de ce numéro (fusion d'origine).
+  // Option BTP : un document d'identifiant stable ne rejoint jamais un document d'un AUTRE identifiant stable (deux
+  // documents distincts, gardés tous les deux) ; une copie à identifiant historique (non UUID) ou sans identifiant
+  // rejoint le document de ce numéro s'il est seul (doublons du 05/06/2026), sinon elle reste à part plutôt que d'en
+  // remplacer un au hasard.
+  const parNumero = (num: string, id: string): number => {
+    if (!num) return -1
+    if (!conserverIdsDistincts) return byNum.has(num) ? byNum.get(num)! : -1
+    const candidats = (emplacementsParNumero.get(num) ?? []).filter(i => numOf(result[i]) === num)
+    if (!isStableDocId(id)) return candidats.length === 1 ? candidats[0] : -1
+    const memeDocument = candidats.find(i => {
+      const autre = idOf(result[i])
+      return !isStableDocId(autre) || autre === id
+    })
+    return memeDocument ?? -1
+  }
   const upsert = (d: T) => {
     const id = idOf(d)
     const num = numOf(d)
-    let idx = id && byId.has(id) ? byId.get(id)!
-      : num && byNum.has(num) ? byNum.get(num)!
-      : -1
+    let idx = id && byId.has(id) ? byId.get(id)! : parNumero(num, id)
     if (idx >= 0) {
       result[idx] = d // incoming prime à identité égale
     } else {
@@ -123,7 +200,12 @@ export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
       result.push(d)
     }
     if (id) byId.set(id, idx)
-    if (num) byNum.set(num, idx)
+    if (num) {
+      byNum.set(num, idx)
+      const emplacements = emplacementsParNumero.get(num) ?? []
+      if (!emplacements.includes(idx)) emplacements.push(idx)
+      emplacementsParNumero.set(num, emplacements)
+    }
   }
   for (const d of existing) upsert(d)
   for (const d of incoming) upsert(d)
@@ -353,6 +435,11 @@ export function getStatusLabel(code: string, t?: (key: string, fallback?: string
     'unipessoal': 'Unipessoal Lda.',
     'lda': 'Sociedade por Quotas (Lda.)',
     'sa': 'Sociedade Anónima (SA)',
+    // Autres formes portugaises reconnues (codeFormeJuridique, lib/formes-juridiques-portugaises.ts) : BTP, artisan sur /pt
+    'eirl_pt': 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)',
+    'snc_pt': 'Sociedade em Nome Coletivo',
+    'comandita': 'Sociedade em Comandita',
+    'cooperativa': 'Cooperativa',
   }
   return labels[code] || code
 }
@@ -379,7 +466,9 @@ export function getCompanyStatuses(locale: Locale): Array<{ value: string; label
 
 /** Check if status is a société-type (needing capital, RCS etc.) */
 export function isSocieteStatus(status: string, locale: Locale): boolean {
-  if (locale === 'pt') return ['lda', 'sa'].includes(status)
+  // Unipessoal Lda. : société par quotas à associé unique, capital social exigé (art. 171.º du Código das Sociedades
+  // Comerciais), comme la mention d'identification qui l'imprime déjà.
+  if (locale === 'pt') return ['lda', 'unipessoal', 'sa'].includes(status)
   return ['sarl', 'eurl', 'sas', 'sa'].includes(status)
 }
 

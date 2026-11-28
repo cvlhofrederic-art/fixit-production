@@ -6,14 +6,26 @@ import { MessageSquare, Send, X, Calendar, FileText, Loader2, Mic, Camera } from
 import { FixyAvatar } from '@/components/common/RobotAvatars'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
 import { useLocale } from '@/lib/i18n/context'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import {
   parseDate, parseTime, parseClientName, parseServiceMatch, parseAmount, parseAddress,
   detectIntent, formatDateFr, formatRecordingTime,
   findClientByName, findServiceByVoice,
-  type ClientData, type ServiceItem, type Intent,
+  type ClientData, type ServiceItem, type Intent, type LangueMessage,
 } from '@/lib/chat-parsers'
 import DocumentPreviewCard from './DocumentPreviewCard'
 import type { Artisan } from '@/lib/types'
+import { htDepuisTtcTauxNormal, localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
+
+// Réponses tapées à une demande de confirmation, selon la langue de l'interface (le français reste celui d'origine).
+const REPONSES_OUI: Record<LangueMessage, readonly string[]> = {
+  fr: ['oui', 'o', 'yes', 'ok', 'confirme', 'confirmer', 'c\'est bon', 'go', 'valide'],
+  pt: ['sim', 's', 'ok', 'yes', 'confirmo', 'confirmar', 'confirma', 'está bem', 'esta bem', 'certo', 'validar', 'pode ser'],
+}
+const REPONSES_NON: Record<LangueMessage, readonly string[]> = {
+  fr: ['non', 'n', 'no', 'annule', 'annuler'],
+  pt: ['não', 'nao', 'n', 'no', 'cancela', 'cancelar', 'cancelo'],
+}
 
 type DocumentPreview = {
   type: 'devis' | 'facture' | 'rapport'
@@ -209,17 +221,22 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
   // Load artisan's client database
   useEffect(() => {
     if (artisan?.id && !clientsLoaded) {
-      fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.clients) {
-            setClients(data.clients)
-          }
-          setClientsLoaded(true)
+      // Appel authentifié (Bearer) : un fetch nu recevait 401 à chaque chargement du dashboard, sans que rien ne
+      // le signale (lot 4 Sentry du 28/10/2026). Un 403 (compte sans fiche artisan) n'a simplement pas de clients.
+      fetchAuthentifie(`/api/artisan-clients?artisan_id=${artisan.id}`)
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          if (res.status === 403) return
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+          if (data.clients) setClients(data.clients)
         })
-        .catch(() => { setClientsLoaded(true); toast.error('Impossible de charger la liste des clients') })
+        .catch((e: unknown) => {
+          console.warn('[AiChatBot] liste des clients non chargée :', e instanceof Error ? e.message : e)
+          toast.error(locale === 'pt' ? 'Não foi possível carregar a lista de clientes' : 'Impossible de charger la liste des clients')
+        })
+        .finally(() => setClientsLoaded(true))
     }
-  }, [artisan?.id, clientsLoaded])
+  }, [artisan?.id, clientsLoaded, locale])
 
   const startVoiceRecording = useCallback(() => {
     const w = window as unknown as Record<string, unknown>
@@ -228,7 +245,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
     if (!SpeechRecognition) return
 
     const recognition = new SpeechRecognition()
-    recognition.lang = 'fr-FR'
+    // Dictée dans la langue de l'interface : un artisan portugais dicte en portugais.
+    recognition.lang = locale === 'pt' ? 'pt-PT' : 'fr-FR'
     recognition.continuous = true
     recognition.interimResults = true
     recognition.maxAlternatives = 1
@@ -255,7 +273,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       console.error('Speech recognition error:', event.error)
       if (event.error === 'not-allowed') {
         setVoiceSupported(false)
-        toast.error('Permission microphone refusée. Activez-la dans les paramètres de votre navigateur.')
+        toast.error(locale === 'pt' ? 'Permissão do microfone recusada. Ative-a nas definições do seu navegador.' : 'Permission microphone refusée. Activez-la dans les paramètres de votre navigateur.')
       }
       setIsRecording(false)
       setRecordingDuration(0)
@@ -279,7 +297,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
     } catch (e) {
       console.error('Failed to start speech recognition:', e)
     }
-  }, [])
+  }, [locale])
 
   const [voicePendingSend, setVoicePendingSend] = useState(false)
 
@@ -339,8 +357,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         id: 'welcome',
         role: 'assistant',
         content: locale === 'pt'
-          ? `Olá! Sou o Fixy, o seu assistente pessoal! 🔧\n\nGiro **tudo** na sua conta:\n\n📅 **Marcações** : "Marcação terça 14h Sr. Silva"\n⏰ **Disponibilidades** : "Ativa segunda a sexta 9h-18h"\n🔧 **Motivos** : "Ativa todos os meus motivos"\n📄 **Orçamentos/Faturas** : "Orçamento poda 150€ Silva"\n👥 **Clientes** : "A minha lista de clientes"\n💰 **Receitas** : "Quanto ganhei este mês?"\n📊 **Declaração** : "A minha declaração trimestral"\n💬 **Mensagens** : "Mensagens da marcação de Silva"\n🏢 **Empresa** : "O meu NIF"\n🧭 **Navegação** : "Abre a contabilidade"\n\n💡 Escreva como quiser, mesmo com erros, eu percebo!\n\nO que fazemos?`
-          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?\n\n📋 **Pour créer un devis/rapport par commande vocale, suivez cet ordre :**\n👤 1. Nom du client\n📍 2. À [adresse ou résidence]\n🕐 3. À [heure] ← optionnel\n🔧 4. [Type d'intervention]\n💶 5. [Prix]€\n\n✅ **Exemple** : "Devis Dupont à La Sauvagère à 14h ${services[0]?.name || 'élagage'} 850€"\n➕ **Nouveau motif** : "Devis Martin rue des Lilas nettoyage de façade 600€"\n\nJe confirmerai toujours ce que j'ai compris avant d'agir !`
+          ? `Olá! Sou o Fixy, o seu assistente pessoal! 🔧\n\nGiro **tudo** na sua conta:\n\n📅 **Marcações**: "Marcação terça 14h Sr. Silva"\n⏰ **Disponibilidades**: "Ativa segunda a sexta 9h-18h"\n🔧 **Serviços**: "Ativa todos os meus serviços"\n📄 **Orçamentos/Faturas**: "Orçamento poda 150€ Silva"\n👥 **Clientes**: "A minha lista de clientes"\n💰 **Receitas**: "Quanto ganhei este mês?"\n📊 **Declaração**: "A minha declaração trimestral"\n💬 **Mensagens**: "Mensagens da marcação de Silva"\n🏢 **Empresa**: "O meu NIF"\n🧭 **Navegação**: "Abre a contabilidade"\n\n💡 Escreva como quiser, mesmo com erros, eu percebo!\n\nO que fazemos?`
+          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?\n\n📋 **Pour créer un devis/rapport par commande vocale, suivez cet ordre :**\n👤 1. Nom du client\n📍 2. À [adresse ou résidence]\n🕐 3. À [heure] ← optionnel\n🔧 4. [Type d'intervention]\n💶 5. [Prix]€\n\n✅ **Exemple** : "Devis Dupont à la Résidence Les Pins à 14h ${services[0]?.name || 'élagage'} 850€"\n➕ **Nouveau motif** : "Devis Martin rue des Lilas nettoyage de façade 600€"\n\nJe confirmerai toujours ce que j'ai compris avant d'agir !`
       }])
       setTimeout(() => inputRef.current?.focus(), 300)
     }
@@ -408,9 +426,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 30000)
 
-      const res = await fetch('/api/fixy-ai', {
+      // La route exige le Bearer (getAuthUser) : appel authentifié.
+      const res = await fetchAuthentifie('/api/fixy-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
           message: text,
@@ -479,7 +497,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       const msg: Message = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: response || 'Action effectuée.',
+        content: response || (locale === 'pt' ? 'Ação efetuada.' : 'Action effectuée.'),
         actionsExecuted: actions_executed?.length ? actions_executed : undefined,
         documentPreview: docPreview,
       }
@@ -491,35 +509,41 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         return true
       }
       console.error('AI processing error:', err)
-      toast.error('Erreur de traitement IA')
+      toast.error(locale === 'pt' ? 'Erro no processamento pela IA' : 'Erreur de traitement IA')
       return false
     }
   }
 
   // ─── Fallback regex-based processing ───
   const processMessageFallback = async (text: string) => {
-    const intent = detectIntent(text)
+    // Le message se lit dans la langue de l'interface : le portugais n'est jamais essayé sur un message français.
+    const langue: LangueMessage = locale === 'pt' ? 'pt' : 'fr'
+    const intent = detectIntent(text, langue)
 
     switch (intent) {
       case 'create_rdv': {
-        const date = parseDate(text)
-        const time = parseTime(text)
-        const clientName = parseClientName(text)
-        const service = parseServiceMatch(text, services)
-        const address = parseAddress(text)
+        const date = parseDate(text, langue)
+        const time = parseTime(text, langue)
+        const clientName = parseClientName(text, langue)
+        const service = parseServiceMatch(text, services, langue)
+        const address = parseAddress(text, langue)
 
         if (!date && !time && !clientName) {
-          addMessage('assistant', "Je comprends que vous voulez créer un RDV. Pouvez-vous me donner plus de détails ?\n\nExemple : **RDV mardi 15h Mme Dupont**\n\nIl me faut au minimum :\n• Un **jour** (mardi, demain, 17/03...)\n• Une **heure** (14h, 15h30...)\n• Un **nom de client**")
+          addMessage('assistant', locale === 'pt'
+            ? 'Percebo que quer criar uma marcação. Pode dar-me mais detalhes?\n\nExemplo: **Marcação terça 15h Sr. Silva**\n\nPreciso, no mínimo, de:\n• Um **dia** (terça, amanhã, 17/03...)\n• Uma **hora** (14h, 15h30...)\n• O **nome do cliente**'
+            : "Je comprends que vous voulez créer un RDV. Pouvez-vous me donner plus de détails ?\n\nExemple : **RDV mardi 15h Mme Dupont**\n\nIl me faut au minimum :\n• Un **jour** (mardi, demain, 17/03...)\n• Une **heure** (14h, 15h30...)\n• Un **nom de client**")
           break
         }
 
         const missing: string[] = []
-        if (!date) missing.push('la **date** (ex: mardi, demain, 15/03)')
-        if (!time) missing.push("l'**heure** (ex: 14h, 9h30)")
-        if (!clientName) missing.push('le **nom du client** (ex: Mme Dupont)')
+        if (!date) missing.push(locale === 'pt' ? 'a **data** (ex.: terça, amanhã, 15/03)' : 'la **date** (ex: mardi, demain, 15/03)')
+        if (!time) missing.push(locale === 'pt' ? 'a **hora** (ex.: 14h, 9h30)' : "l'**heure** (ex: 14h, 9h30)")
+        if (!clientName) missing.push(locale === 'pt' ? 'o **nome do cliente** (ex.: Sr. Silva)' : 'le **nom du client** (ex: Mme Dupont)')
 
         if (missing.length > 0) {
-          addMessage('assistant', `Il me manque quelques informations pour créer le RDV :\n\n${missing.map(m => `• ${m}`).join('\n')}\n\nPouvez-vous compléter ?`)
+          addMessage('assistant', locale === 'pt'
+            ? `Faltam algumas informações para criar a marcação:\n\n${missing.map(m => `• ${m}`).join('\n')}\n\nPode completar?`
+            : `Il me manque quelques informations pour créer le RDV :\n\n${missing.map(m => `• ${m}`).join('\n')}\n\nPouvez-vous compléter ?`)
           break
         }
 
@@ -532,7 +556,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
           notes: '',
         }
 
-        const summary = `Voici le RDV que je vais créer :\n\n📅 **Date** : ${formatDateFr(date!, dateFmtLocale)}\n⏰ **Heure** : ${time}\n👤 **Client** : ${clientName}${service ? `\n🔧 **Service** : ${service.name}` : ''}${address ? `\n📍 **Adresse** : ${address}` : ''}\n\n**Confirmez-vous ?** (oui/non)`
+        const summary = locale === 'pt'
+          ? `Esta é a marcação que vou criar:\n\n📅 **Data**: ${formatDateFr(date!, dateFmtLocale)}\n⏰ **Hora**: ${time}\n👤 **Cliente**: ${clientName}${service ? `\n🔧 **Serviço**: ${service.name}` : ''}${address ? `\n📍 **Morada**: ${address}` : ''}\n\n**Confirma?** (sim/não)`
+          : `Voici le RDV que je vais créer :\n\n📅 **Date** : ${formatDateFr(date!, dateFmtLocale)}\n⏰ **Heure** : ${time}\n👤 **Client** : ${clientName}${service ? `\n🔧 **Service** : ${service.name}` : ''}${address ? `\n📍 **Adresse** : ${address}` : ''}\n\n**Confirmez-vous ?** (oui/non)`
 
         const msg = addMessage('assistant', summary, { type: 'create_rdv', data: rdvData })
         setPendingAction(msg)
@@ -541,10 +567,10 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
       case 'create_devis':
       case 'create_facture': {
-        const clientName = parseClientName(text)
-        const service = parseServiceMatch(text, services)
+        const clientName = parseClientName(text, langue)
+        const service = parseServiceMatch(text, services, langue)
         const amount = parseAmount(text)
-        const address = parseAddress(text)
+        const address = parseAddress(text, langue)
         const isFacture = intent === 'create_facture'
         const docType = isFacture ? 'facture' : 'devis'
 
@@ -565,38 +591,48 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
         if (amount || service) {
           const desc = service?.name || 'Prestation'
-          const priceHT = amount ? (amount / 1.2) : (service?.price_ht || 0)
+          // Taux du pays (lib/tva-calculator.ts) : 23 % sur /pt, 20 % en France ; le montant dicté est TTC
+          const pays = localeTva(locale)
+          const tauxTva = tauxTvaParDefaut(pays)
+          const priceHT = amount ? htDepuisTtcTauxNormal(amount, pays) : (service?.price_ht || 0)
           devisData.lines = [{
             id: Date.now(),
             description: desc,
             qty: 1,
             unit: 'u',
             priceHT: Math.round(priceHT * 100) / 100,
-            tvaRate: 20,
+            tvaRate: tauxTva,
             totalHT: Math.round(priceHT * 100) / 100,
           }]
         }
 
-        let summary = `Je vais préparer ${isFacture ? 'une facture' : 'un devis'} :\n\n`
+        const pt = locale === 'pt'
+        const libelleDoc = pt ? (isFacture ? 'fatura' : 'orçamento') : docType
+        let summary = pt
+          ? `Vou preparar ${isFacture ? 'uma fatura' : 'um orçamento'}:\n\n`
+          : `Je vais préparer ${isFacture ? 'une facture' : 'un devis'} :\n\n`
+        const ligne = (icone: string, titre: string, valeur: string) => `${icone} **${titre}**${pt ? ':' : ' :'} ${valeur}\n`
 
         if (matchedClient) {
-          summary += `👤 **Client** : ${matchedClient.name} ✅ (trouvé dans votre base)\n`
-          if (matchedClient.phone) summary += `📞 **Tél** : ${matchedClient.phone}\n`
-          if (matchedClient.email) summary += `📧 **Email** : ${matchedClient.email}\n`
-          if (matchedClient.address) summary += `📍 **Adresse** : ${matchedClient.address}\n`
+          summary += ligne('👤', pt ? 'Cliente' : 'Client', `${matchedClient.name} ✅ (${pt ? 'encontrado na sua base' : 'trouvé dans votre base'})`)
+          if (matchedClient.phone) summary += ligne('📞', pt ? 'Tel.' : 'Tél', matchedClient.phone)
+          if (matchedClient.email) summary += ligne('📧', pt ? 'E-mail' : 'Email', matchedClient.email)
+          if (matchedClient.address) summary += ligne('📍', pt ? 'Morada' : 'Adresse', matchedClient.address)
         } else if (clientName) {
-          summary += `👤 **Client** : ${clientName} (non trouvé dans la base)\n`
+          summary += ligne('👤', pt ? 'Cliente' : 'Client', `${clientName} (${pt ? 'não encontrado na base' : 'non trouvé dans la base'})`)
         }
 
-        if (service) summary += `🔧 **Service** : ${service.name}\n`
-        if (amount) summary += `💰 **Montant TTC** : ${amount.toFixed(2)}€\n`
-        else if (service?.price_ttc) summary += `💰 **Montant TTC** : ${service.price_ttc?.toFixed(2)}€\n`
-        if (address && !matchedClient?.address) summary += `📍 **Adresse** : ${address}\n`
+        if (service) summary += ligne('🔧', pt ? 'Serviço' : 'Service', service.name)
+        if (amount) summary += ligne('💰', pt ? 'Valor c/ IVA' : 'Montant TTC', `${amount.toFixed(2)}€`)
+        else if (service?.price_ttc) summary += ligne('💰', pt ? 'Valor c/ IVA' : 'Montant TTC', `${service.price_ttc?.toFixed(2)}€`)
+        if (address && !matchedClient?.address) summary += ligne('📍', pt ? 'Morada' : 'Adresse', address)
 
         if (!clientName && !service && !amount) {
-          summary = `Je vais ouvrir le formulaire de ${docType}. Vous pourrez remplir les détails directement.\n\n**Ouvrir le formulaire ?** (oui/non)`
+          summary = pt
+            ? `Vou abrir o formulário de ${libelleDoc}. Pode preencher os detalhes diretamente.\n\n**Abrir o formulário?** (sim/não)`
+            : `Je vais ouvrir le formulaire de ${docType}. Vous pourrez remplir les détails directement.\n\n**Ouvrir le formulaire ?** (oui/non)`
         } else {
-          summary += `\n**Ouvrir le formulaire pré-rempli ?** (oui/non)`
+          summary += pt ? `\n**Abrir o formulário pré-preenchido?** (sim/não)` : `\n**Ouvrir le formulaire pré-rempli ?** (oui/non)`
         }
 
         const msg = addMessage('assistant', summary, { type: intent, data: devisData })
@@ -611,14 +647,16 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
           .slice(0, 5)
 
         if (upcoming.length === 0) {
-          addMessage('assistant', "Vous n'avez aucun rendez-vous à venir. Voulez-vous en créer un ?")
+          addMessage('assistant', locale === 'pt' ? 'Não tem nenhuma marcação agendada. Quer criar uma?' : "Vous n'avez aucun rendez-vous à venir. Voulez-vous en créer un ?")
         } else {
-          let list = '📋 **Vos prochains RDV** :\n\n'
+          let list = locale === 'pt' ? '📋 **As suas próximas marcações**:\n\n' : '📋 **Vos prochains RDV** :\n\n'
           upcoming.forEach((b, i) => {
             const notes = b.notes || ''
             const clientMatch = notes.match(/Client:\s*([^|]+)/)
-            const clientName = clientMatch ? clientMatch[1].trim() : 'Client'
-            list += `${i + 1}. **${formatDateFr(b.booking_date, dateFmtLocale)}** à ${b.booking_time?.substring(0, 5) || '?'}\n   ${b.services?.name || 'Intervention'} — ${clientName}\n\n`
+            const clientName = clientMatch ? clientMatch[1].trim() : (locale === 'pt' ? 'Cliente' : 'Client')
+            list += locale === 'pt'
+              ? `${i + 1}. **${formatDateFr(b.booking_date, dateFmtLocale)}** às ${b.booking_time?.substring(0, 5) || '?'}\n   ${b.services?.name || 'Intervenção'} · ${clientName}\n\n`
+              : `${i + 1}. **${formatDateFr(b.booking_date, dateFmtLocale)}** à ${b.booking_time?.substring(0, 5) || '?'}\n   ${b.services?.name || 'Intervention'} — ${clientName}\n\n`
           })
           addMessage('assistant', list)
         }
@@ -627,14 +665,14 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
       case 'help': {
         addMessage('assistant', locale === 'pt'
-          ? `É o Fixy! Aqui está tudo o que sei fazer 💪\n\n🗓️ **Criar marcação** :\n• "Marcação terça 14h Sr. Silva"\n• "Visita amanhã 10h casa do Sr. Costa"\n\n📄 **Criar orçamento** :\n• "Orçamento poda 150€ para Carlos Silva"\n• "Cria orçamento motivo canalização preço 250€ cliente Ferreira"\n\n🧾 **Criar fatura** :\n• "Fatura intervenção Sra. Santos 180€"\n\n📋 **Ver agenda** :\n• "As minhas próximas marcações"\n• "A minha agenda"\n\n💡 **Base de clientes** : Encontro automaticamente os seus clientes e preencho as informações!\n\nFale comigo naturalmente, percebo tudo!`
-          : `C'est Fixy ! Voici tout ce que je sais faire 💪\n\n🗓️ **Créer un RDV** :\n• "RDV mardi 14h Mme Dupont"\n• "Rendez-vous demain 10h chez M. Martin"\n\n📄 **Créer un devis** :\n• "Devis élagage 150€ pour Frédéric Neiva Carvalho"\n• "Crée le devis motif plomberie prix 250€ pour le client Dupont"\n\n🧾 **Créer une facture** :\n• "Facture intervention Mme Legrand 180€"\n\n📋 **Voir le planning** :\n• "Mes prochains RDV"\n• "Mon agenda"\n\n💡 **Base clients** : Je retrouve automatiquement vos clients et pré-remplis leurs infos !\n\nParlez-moi naturellement, je comprends !`)
+          ? `É o Fixy! Aqui está tudo o que sei fazer 💪\n\n🗓️ **Criar marcação**:\n• "Marcação terça 14h Sr. Silva"\n• "Visita amanhã 10h casa do Sr. Costa"\n\n📄 **Criar orçamento**:\n• "Orçamento poda 150€ para Carlos Silva"\n• "Cria orçamento motivo canalização preço 250€ cliente Ferreira"\n\n🧾 **Criar fatura**:\n• "Fatura intervenção Sra. Santos 180€"\n\n📋 **Ver agenda**:\n• "As minhas próximas marcações"\n• "A minha agenda"\n\n💡 **Base de clientes**: Encontro automaticamente os seus clientes e preencho as informações!\n\nFale comigo naturalmente, percebo tudo!`
+          : `C'est Fixy ! Voici tout ce que je sais faire 💪\n\n🗓️ **Créer un RDV** :\n• "RDV mardi 14h Mme Dupont"\n• "Rendez-vous demain 10h chez M. Martin"\n\n📄 **Créer un devis** :\n• "Devis élagage 150€ pour Julien Moreau"\n• "Crée le devis motif plomberie prix 250€ pour le client Dupont"\n\n🧾 **Créer une facture** :\n• "Facture intervention Mme Legrand 180€"\n\n📋 **Voir le planning** :\n• "Mes prochains RDV"\n• "Mon agenda"\n\n💡 **Base clients** : Je retrouve automatiquement vos clients et pré-remplis leurs infos !\n\nParlez-moi naturellement, je comprends !`)
         break
       }
 
       default: {
         addMessage('assistant', locale === 'pt'
-          ? "Não percebi bem. Pode reformular?\n\nExemplos :\n• **Marcação terça 15h Sr. Silva**\n• **Orçamento canalização 200€ Sr. Costa**\n• **As minhas próximas marcações**\n\nEscreva **ajuda** para ver todos os comandos."
+          ? "Não percebi bem. Pode reformular?\n\nExemplos:\n• **Marcação terça 15h Sr. Silva**\n• **Orçamento canalização 200€ Sr. Costa**\n• **As minhas próximas marcações**\n\nEscreva **ajuda** para ver todos os comandos."
           : "Je n'ai pas bien compris. Pouvez-vous reformuler ?\n\nExemples :\n• **RDV mardi 15h Mme Dupont**\n• **Devis plomberie 200€ M. Martin**\n• **Mes prochains RDV**\n\nDites **aide** pour voir toutes les commandes.")
       }
     }
@@ -675,9 +713,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
       setProcessing(true)
       try {
-        const res = await fetch('/api/fixy-ai', {
+        const res = await fetchAuthentifie('/api/fixy-ai', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             artisan_id: artisan?.id,
             confirm_token: pc.confirm_token,
@@ -687,10 +724,10 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         })
         const result = await res.json()
         if (result.success) {
-          addMessage('assistant', `✅ **${pc.description}** — ${result.detail || 'Fait !'}`)
+          addMessage('assistant', locale === 'pt' ? `✅ **${pc.description}**: ${result.detail || 'Feito!'}` : `✅ **${pc.description}** — ${result.detail || 'Fait !'}`)
           onDataRefresh?.()
         } else {
-          addMessage('assistant', `❌ ${result.detail || 'Erreur lors de l\'exécution.'}`)
+          addMessage('assistant', `❌ ${result.detail || (locale === 'pt' ? 'Erro na execução.' : 'Erreur lors de l\'exécution.')}`)
         }
       } catch (error) {
         console.error('[AiChatBot] Confirmation request failed:', error instanceof Error ? error.message : error)
@@ -749,13 +786,14 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
     // Check if this is a confirmation response
     if (pendingAction) {
       const lower = input.toLowerCase().trim()
-      if (lower === 'oui' || lower === 'o' || lower === 'yes' || lower === 'ok' || lower === 'confirme' || lower === 'confirmer' || lower === 'c\'est bon' || lower === 'go' || lower === 'valide') {
+      const langue: LangueMessage = locale === 'pt' ? 'pt' : 'fr'
+      if (REPONSES_OUI[langue].includes(lower)) {
         addMessage('user', input)
         setInput('')
         handleConfirmation(true)
         return
       }
-      if (lower === 'non' || lower === 'n' || lower === 'no' || lower === 'annule' || lower === 'annuler') {
+      if (REPONSES_NON[langue].includes(lower)) {
         addMessage('user', input)
         setInput('')
         handleConfirmation(false)
@@ -786,10 +824,10 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
               const docLabel = selectedDoc.service || selectedDoc.clientName || selectedDoc.id
               if (pendingLink.type === 'devis') {
                 lastRapport.linkedDevisId = selectedDoc.id
-                lastRapport.linkedDevisRef = `Devis ${docLabel}`
+                lastRapport.linkedDevisRef = `${locale === 'pt' ? 'Orçamento' : 'Devis'} ${docLabel}`
               } else {
                 lastRapport.linkedFactureId = selectedDoc.id
-                lastRapport.linkedFactureRef = `Facture ${docLabel}`
+                lastRapport.linkedFactureRef = `${locale === 'pt' ? 'Fatura' : 'Facture'} ${docLabel}`
               }
               localStorage.setItem(rapportsKey, JSON.stringify(rapports))
             }
@@ -801,7 +839,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
               : m
           ))
           const docTypeLabel = pendingLink.type === 'devis' ? 'devis' : 'facture'
-          addMessage('assistant', `${pendingLink.type === 'devis' ? '📋' : '🧾'} **Rapport lié à la ${docTypeLabel} : ${selectedDoc.clientName} — ${selectedDoc.service || 'Service'} — ${selectedDoc.totalTTC ?? '—'}€**\n\nVoulez-vous envoyer ce rapport au client maintenant ?`)
+          addMessage('assistant', locale === 'pt'
+            ? `${pendingLink.type === 'devis' ? '📋' : '🧾'} **Relatório associado ${pendingLink.type === 'devis' ? 'ao orçamento' : 'à fatura'}: ${selectedDoc.clientName} · ${selectedDoc.service || 'Serviço'} · ${selectedDoc.totalTTC ?? '—'}€**\n\nQuer enviar este relatório ao cliente agora?`
+            : `${pendingLink.type === 'devis' ? '📋' : '🧾'} **Rapport lié à la ${docTypeLabel} : ${selectedDoc.clientName} — ${selectedDoc.service || 'Service'} — ${selectedDoc.totalTTC ?? '—'}€**\n\nVoulez-vous envoyer ce rapport au client maintenant ?`)
           return
         }
       } catch { /* ignore parse errors */ }
@@ -812,7 +852,12 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
   }
 
   // Quick action buttons
-  const quickActions = [
+  const quickActions = locale === 'pt' ? [
+    { label: 'Nova marcação', icon: '📅', prompt: 'Quero criar uma marcação' },
+    { label: 'Disponibilidades', icon: '⏰', prompt: 'Quais são as minhas disponibilidades?' },
+    { label: 'Fazer orçamento', icon: '📄', prompt: 'Quero fazer um orçamento' },
+    { label: 'Planeamento', icon: '📋', prompt: 'As minhas próximas marcações' },
+  ] : [
     { label: 'Nouveau RDV', icon: '📅', prompt: 'Je veux créer un rendez-vous' },
     { label: 'Mes dispos', icon: '⏰', prompt: 'C\'est quoi mes disponibilités ?' },
     { label: 'Faire un devis', icon: '📄', prompt: 'Je veux faire un devis' },
@@ -828,7 +873,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
           onTouchStart={onArtisanTouchStart}
           className="fixed z-50 bg-white hover:bg-amber-50 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center cursor-grab active:cursor-grabbing select-none border-2 border-[#FFC107]"
           style={{ left: btnPos.x, top: btnPos.y, width: ARTISAN_BTN_SIZE, height: ARTISAN_BTN_SIZE, touchAction: 'none' }}
-          title="Fixy — votre assistant"
+          title={locale === 'pt' ? 'Fixy, o seu assistente' : 'Fixy — votre assistant'}
           role="button"
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setIsOpen(true) }}
@@ -844,7 +889,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       {isOpen && (
         <div
           role="dialog"
-          aria-label="Fixy — Assistant IA"
+          aria-label={locale === 'pt' ? 'Fixy, assistente IA' : 'Fixy — Assistant IA'}
           onKeyDown={(e) => { if (e.key === 'Escape') setIsOpen(false) }}
           className="bg-white rounded-2xl shadow-2xl flex flex-col border border-gray-200 overflow-hidden max-w-[calc(100vw-2rem)]" style={getArtisanChatStyle()}>
           {/* Header */}
@@ -855,7 +900,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
               </div>
               <div>
                 <h3 className="font-bold text-gray-900 text-sm">Fixy</h3>
-                <p className="text-[11px] text-gray-700 opacity-80">Votre assistant personnel</p>
+                <p className="text-[11px] text-gray-700 opacity-80">{locale === 'pt' ? 'O seu assistente pessoal' : 'Votre assistant personnel'}</p>
               </div>
             </div>
             <button
@@ -932,21 +977,21 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                 <div className="flex gap-2 ml-1">
                   <button
                     onClick={() => {
-                      addMessage('user', 'Oui')
+                      addMessage('user', locale === 'pt' ? 'Sim' : 'Oui')
                       handleConfirmation(true)
                     }}
                     className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition flex items-center gap-1.5"
                   >
-                    ✓ Confirmer
+                    {locale === 'pt' ? '✓ Confirmar' : '✓ Confirmer'}
                   </button>
                   <button
                     onClick={() => {
-                      addMessage('user', 'Non')
+                      addMessage('user', locale === 'pt' ? 'Não' : 'Non')
                       handleConfirmation(false)
                     }}
                     className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-semibold transition flex items-center gap-1.5"
                   >
-                    ✗ Annuler
+                    {locale === 'pt' ? '✗ Cancelar' : '✗ Annuler'}
                   </button>
                 </div>
               </div>
@@ -989,7 +1034,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                 <span className="text-sm text-red-700 font-medium flex-1">
-                  {'🎙️'} Enregistrement en cours... {formatRecordingTime(recordingDuration)}
+                  {'🎙️'} {locale === 'pt' ? 'A gravar...' : 'Enregistrement en cours...'} {formatRecordingTime(recordingDuration)}
                 </span>
                 {voiceTranscript && (
                   <span className="text-xs text-red-500 italic truncate max-w-[150px]">{voiceTranscript}</span>
@@ -1007,7 +1052,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={isRecording ? (locale === 'pt' ? '🎙️ Fale agora...' : '🎙️ Parlez maintenant...') : pendingAction ? (locale === 'pt' ? 'Responda sim ou não...' : 'Répondez oui ou non...') : (locale === 'pt' ? 'Ex: Marcação terça 15h Sr. Silva...' : 'Ex: RDV mardi 14h Mme Dupont...')}
-                aria-label="Message pour l'assistant IA"
+                aria-label={locale === 'pt' ? 'Mensagem para o assistente IA' : "Message pour l'assistant IA"}
                 className={`flex-1 px-3.5 py-2.5 border-2 rounded-xl focus:outline-none transition text-sm ${
                   isRecording
                     ? 'border-red-300 bg-red-50 text-red-700'
@@ -1022,7 +1067,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                   type="button"
                   onClick={() => setShowReceiptScanner(true)}
                   className="p-2.5 bg-gray-100 hover:bg-amber-100 text-gray-600 hover:text-amber-700 rounded-xl transition flex-shrink-0"
-                  title="Scanner un ticket de caisse"
+                  title={locale === 'pt' ? 'Digitalizar um talão de compra' : 'Scanner un ticket de caisse'}
                 >
                   <Camera className="w-4 h-4" />
                 </button>
@@ -1034,7 +1079,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                   type="button"
                   disabled
                   className="p-2.5 rounded-xl bg-gray-100 text-gray-300 flex-shrink-0 cursor-not-allowed"
-                  title="Dictée vocale non supportée par ce navigateur"
+                  title={locale === 'pt' ? 'Ditado por voz não suportado por este navegador' : 'Dictée vocale non supportée par ce navigateur'}
                 >
                   <Mic className="w-4 h-4" />
                 </button>
@@ -1055,7 +1100,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                       ? 'bg-red-500 hover:bg-red-600 text-white scale-110 shadow-lg shadow-red-200'
                       : 'bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800'
                   }`}
-                  title={isRecording ? 'Cliquez pour arrêter' : 'Cliquez pour dicter'}
+                  title={locale === 'pt' ? (isRecording ? 'Clique para parar' : 'Clique para ditar') : (isRecording ? 'Cliquez pour arrêter' : 'Cliquez pour dicter')}
                 >
                   <Mic className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />
                 </button>
@@ -1072,7 +1117,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
             </div>
             {voiceSupported && !isRecording && (
               <p className="text-[10px] text-gray-500 mt-1 text-center">
-                {'🎤'} Cliquez sur le micro pour dicter votre message
+                {'🎤'} {locale === 'pt' ? 'Clique no microfone para ditar a sua mensagem' : 'Cliquez sur le micro pour dicter votre message'}
               </p>
             )}
           </form>
@@ -1086,14 +1131,18 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
           onInject={(lines: DevisReceiptLine[], storeName?: string) => {
             setShowReceiptScanner(false)
             // Add a message showing what was scanned
-            const summary = lines.map(l => `• ${l.description} (x${l.qty}) — ${l.priceHT.toFixed(2)} EUR HT`).join('\n')
+            const summary = lines.map(l => locale === 'pt'
+              ? `• ${l.description} (x${l.qty}): ${l.priceHT.toFixed(2)} EUR s/ IVA`
+              : `• ${l.description} (x${l.qty}) — ${l.priceHT.toFixed(2)} EUR HT`).join('\n')
             const totalHT = lines.reduce((s, l) => s + l.totalHT, 0)
             setMessages(prev => [
               ...prev,
               {
                 id: `scan-${Date.now()}`,
                 role: 'assistant',
-                content: `📋 **Ticket scanné${storeName ? ` — ${storeName}` : ''}**\n\n${summary}\n\n**Total HT (avec marge) : ${totalHT.toFixed(2)} EUR**\n\nLes ${lines.length} article(s) ont été préparés. Rendez-vous dans l'onglet Devis pour les retrouver.`,
+                content: locale === 'pt'
+                  ? `📋 **Talão digitalizado${storeName ? `: ${storeName}` : ''}**\n\n${summary}\n\n**Total s/ IVA (com margem): ${totalHT.toFixed(2)} EUR**\n\n${lines.length === 1 ? 'O artigo foi preparado' : `Os ${lines.length} artigos foram preparados`}. Encontra-os no separador Orçamentos.`
+                  : `📋 **Ticket scanné${storeName ? ` — ${storeName}` : ''}**\n\n${summary}\n\n**Total HT (avec marge) : ${totalHT.toFixed(2)} EUR**\n\nLes ${lines.length} article(s) ont été préparés. Rendez-vous dans l'onglet Devis pour les retrouver.`,
                 action: {
                   type: 'create_devis',
                   data: { receiptLines: lines, storeName },

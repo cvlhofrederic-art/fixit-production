@@ -1,0 +1,689 @@
+{
+  "famille": {
+    "id": "impermeabilizacao",
+    "nom": "Impermeabilização",
+    "description": "Produtos para travar a entrada de água em terraços, coberturas, fachadas, caves e zonas húmidas: membranas líquidas, telas asfálticas, argamassas impermeabilizantes, hidrofugantes, fitas e materiais de reforço e drenagem.",
+    "icone": "💧",
+    "sousFamilles": [
+      {
+        "id": "membranas-liquidas",
+        "nom": "Membranas líquidas",
+        "description": "Impermeabilizantes aplicados a rolo ou trincha que formam uma pele contínua em terraços, coberturas e remates, classificados pela resina (acrílica, poliuretano, silicone, polímero MS)."
+      },
+      {
+        "id": "telas-fitas-betuminosas",
+        "nom": "Telas asfálticas e primários betuminosos",
+        "description": "Telas betuminosas em rolo (ardósia, alumínio, lisas), emulsão betuminosa de primário e fitas autoadesivas para remates."
+      },
+      {
+        "id": "zonas-humidas",
+        "nom": "Zonas húmidas (duches e casas de banho)",
+        "description": "Sistemas para impermeabilizar paredes e pavimentos antes de assentar cerâmica: membrana líquida e bandas de reforço."
+      },
+      {
+        "id": "argamassas-aditivos",
+        "nom": "Argamassas impermeabilizantes e aditivos",
+        "description": "Argamassas cimentícias flexíveis ou rígidas, hidrófugos de massa e aceleradores para estancar fugas de água."
+      },
+      {
+        "id": "hidrofugantes-incolores",
+        "nom": "Hidrofugantes e impermeabilizantes incolores",
+        "description": "Repelentes de água e impermeabilizantes transparentes para fachadas, telhados, pavimentos porosos e terraços, que não alteram ou alteram pouco o aspeto do suporte."
+      },
+      {
+        "id": "anti-humidade-interior",
+        "nom": "Anti-humidade interior",
+        "description": "Produtos para paredes interiores com humidade e salitre e absorventes de humidade do ar."
+      },
+      {
+        "id": "reforco-drenagem-protecao",
+        "nom": "Reforço, drenagem e proteção",
+        "description": "Redes de armadura, geotêxtil, lâmina drenante e filme plástico que completam um sistema de impermeabilização."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "membrana-liquida-acrilica-elastica",
+      "famille": "impermeabilizacao",
+      "sousFamille": "membranas-liquidas",
+      "nom": "Membrana líquida acrílica elástica",
+      "aussiAppele": [
+        "pele elástica",
+        "tela líquida",
+        "membrana elástica",
+        "borracha líquida",
+        "tinta de borracha",
+        "impermeabilizante de terraços",
+        "tinta impermeabilizante para coberturas",
+        "tinta para telhados",
+        "tinta impermeabilizante",
+        "tinta de cobertura"
+      ],
+      "usage": "Impermeabiliza terraços não transitáveis, coberturas, platibandas, muretes e remates, formando uma pele contínua e elástica. Aplica-se a rolo ou trincha em várias demãos.",
+      "aSavoir": "Aplicar em suporte seco, limpo e com pendente, em demãos cruzadas e sem chuva prevista. Não é indicada para zonas onde a água fica empoçada. Em fissuras e remates, armar com rede de fibra de vidro.",
+      "conditionnement": "Balde 4-5 kg e 15-20 kg (branco, cinza ou cor telha)",
+      "recherche": "membrana elástica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "membrana-liquida-acrilica-com-fibras",
+      "famille": "impermeabilizacao",
+      "sousFamille": "membranas-liquidas",
+      "nom": "Membrana líquida acrílica com fibras",
+      "aussiAppele": [
+        "pele elástica com fibras",
+        "borracha acrílica com fibras",
+        "membrana fibrada",
+        "tela líquida com fibras"
+      ],
+      "usage": "Membrana acrílica já reforçada com fibras, para terraços, coberturas, caleiras e remates com microfissuras, onde se quer dispensar a rede de armadura.",
+      "aSavoir": "As fibras ajudam em microfissuras, mas fissuras abertas e juntas com movimento continuam a precisar de tratamento próprio (selagem e banda ou rede). Suporte seco e sem chuva prevista.",
+      "conditionnement": "Lata 1 kg; balde 4-5 kg e 15-20 kg",
+      "recherche": "membrana com fibras",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "membrana-liquida-poliuretano-transitavel",
+      "famille": "impermeabilizacao",
+      "sousFamille": "membranas-liquidas",
+      "nom": "Membrana líquida de poliuretano transitável",
+      "aussiAppele": [
+        "membrana de poliuretano",
+        "impermeabilizante de poliuretano",
+        "membrana PU",
+        "membrana transitável"
+      ],
+      "usage": "Impermeabiliza coberturas e terraços onde se circula a pé, formando uma membrana contínua mais resistente ao desgaste do que as acrílicas.",
+      "aSavoir": "O suporte tem de estar seco e são: humidade presa por baixo provoca bolhas e descolamento. Respeitar o intervalo entre demãos indicado no rótulo.",
+      "conditionnement": "Balde 5 kg e 20 kg (cinza ou cor telha)",
+      "recherche": "membrana poliuretano",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "membrana-liquida-silicone",
+      "famille": "impermeabilizacao",
+      "sousFamille": "membranas-liquidas",
+      "nom": "Membrana líquida de silicone",
+      "aussiAppele": [
+        "silicone líquido",
+        "impermeabilizante de silicone",
+        "silicone de pintar",
+        "silicone líquido impermeabilizante",
+        "silicone de pincelar",
+        "silicone líquido para telhados",
+        "silicone para terraços"
+      ],
+      "usage": "Impermeabilização elástica de telhados, terraços, caleiras, chaminés e remates, aplicada à trincha ou a rolo.",
+      "aSavoir": "Não é pintável e nada adere bem por cima: uma reparação futura tem de ser feita com produto do mesmo tipo. Não usar onde vai levar cerâmica colada.",
+      "conditionnement": "Lata 1 kg e balde 5 kg (branco, cinza, telha, preto)",
+      "recherche": "silicone líquido",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "membrana-liquida-polimero-ms",
+      "famille": "impermeabilizacao",
+      "sousFamille": "membranas-liquidas",
+      "nom": "Membrana líquida de polímero MS",
+      "aussiAppele": [
+        "impermeabilizante MS",
+        "borracha MS",
+        "impermeabilizante universal",
+        "impermeabilizante multissuportes"
+      ],
+      "usage": "Impermeabilizante líquido multissuportes para terraços, telhados, caleiras e remates no exterior, aplicado a rolo ou trincha.",
+      "aSavoir": "Confirmar no rótulo o intervalo entre demãos e se a superfície fica transitável.",
+      "conditionnement": "Lata 1 kg e balde 4 kg (branco, cinza, vermelho)",
+      "recherche": "impermeabilizante MS",
+      "rechercheEnseigne": {
+        "maxmat": "membrana MS"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tela-asfaltica-ardosia",
+      "famille": "impermeabilizacao",
+      "sousFamille": "telas-fitas-betuminosas",
+      "nom": "Tela asfáltica com acabamento em ardósia (xisto)",
+      "aussiAppele": [
+        "tela betuminosa",
+        "tela de xisto",
+        "tela autoprotegida",
+        "membrana betuminosa",
+        "tela de alcatrão",
+        "tela asfáltica mineral"
+      ],
+      "usage": "Camada final de impermeabilização de coberturas planas, terraços não transitáveis e anexos, que pode ficar à vista graças ao acabamento mineral.",
+      "aSavoir": "Solda-se a maçarico sobre suporte seco e previamente pintado com primário betuminoso. Sobrepor as juntas e rematar bem muretes e ralos, que é onde costuma falhar.",
+      "conditionnement": "Rolo 1 x 10 m",
+      "recherche": "tela asfáltica xisto",
+      "rechercheEnseigne": {
+        "maxmat": "tela de xisto",
+        "leroy-merlin": "tela betuminosa"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tela-asfaltica-aluminio",
+      "famille": "impermeabilizacao",
+      "sousFamille": "telas-fitas-betuminosas",
+      "nom": "Tela asfáltica com acabamento em alumínio",
+      "aussiAppele": [
+        "tela de alumínio",
+        "tela betuminosa aluminizada",
+        "tela asfáltica aluminizada",
+        "tela betuminosa",
+        "tela asfáltica",
+        "tela de xisto",
+        "membrana betuminosa",
+        "tela de impermeabilização"
+      ],
+      "usage": "Impermeabilização à vista de coberturas, caleiras, rufos e remates, com face de alumínio que protege do sol.",
+      "aSavoir": "Solda-se a maçarico sobre primário betuminoso seco. A folha de alumínio é fina: evitar pisar e arrastar materiais por cima.",
+      "conditionnement": "Rolo de cerca de 15 m2",
+      "recherche": "tela asfáltica alumínio",
+      "rechercheEnseigne": {
+        "maxmat": "tela de alumínio",
+        "leroy-merlin": "tela asfáltica"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tela-asfaltica-lisa-fibra-vidro",
+      "famille": "impermeabilizacao",
+      "sousFamille": "telas-fitas-betuminosas",
+      "nom": "Tela asfáltica lisa (armadura de fibra de vidro)",
+      "aussiAppele": [
+        "tela betuminosa lisa",
+        "tela de base",
+        "tela de remates",
+        "tela asfáltica sem xisto"
+      ],
+      "usage": "Tela sem acabamento mineral para remates em muretes, chaminés e caleiras, ou como primeira camada num sistema de duas telas.",
+      "aSavoir": "Não tem autoproteção: não deve ficar exposta ao sol, leva por cima a tela de acabamento ou outra proteção.",
+      "conditionnement": "Rolo de cerca de 13 m2",
+      "recherche": "tela asfáltica fibra vidro",
+      "rechercheEnseigne": {
+        "maxmat": "tela fibra vidro"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "emulsao-betuminosa-primario",
+      "famille": "impermeabilizacao",
+      "sousFamille": "telas-fitas-betuminosas",
+      "nom": "Emulsão betuminosa (primário para telas)",
+      "aussiAppele": [
+        "primário betuminoso",
+        "primário asfáltico",
+        "tinta asfáltica",
+        "tinta betuminosa",
+        "emulsão asfáltica",
+        "flintkote"
+      ],
+      "usage": "Primário aplicado no betão ou na betonilha antes de soldar telas asfálticas, para garantir a aderência. Usa-se também em demãos para proteger muros enterrados e fundações do lado da terra.",
+      "aSavoir": "Deixar secar completamente antes de aplicar a tela a maçarico. Sozinha não constitui a impermeabilização de uma cobertura.",
+      "conditionnement": "Lata 5 kg e balde 25 kg",
+      "recherche": "emulsão betuminosa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "membrana-liquida-zonas-humidas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "zonas-humidas",
+      "nom": "Membrana líquida impermeabilizante para zonas húmidas (sob cerâmica)",
+      "aussiAppele": [
+        "impermeabilizante de duche",
+        "membrana para base de duche",
+        "borracha líquida para casa de banho",
+        "impermeabilização sob azulejo",
+        "membrana monocomponente"
+      ],
+      "usage": "Impermeabiliza paredes e pavimentos de duches, casas de banho e cozinhas antes de assentar cerâmica ou pedra. Aplica-se sobre gesso cartonado, estuque, reboco, betão e contraplacado.",
+      "aSavoir": "Não fica à vista: leva sempre revestimento colado por cima. Não serve para imersão permanente. Reforçar cantos, juntas e ralos com banda impermeabilizante.",
+      "conditionnement": "Balde 6 kg",
+      "recherche": "membrana impermeabilizante líquida",
+      "rechercheEnseigne": {
+        "maxmat": "membrana impermeabilizante"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "banda-impermeabilizante-cantos-juntas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "zonas-humidas",
+      "nom": "Banda impermeabilizante de reforço para cantos e juntas",
+      "aussiAppele": [
+        "banda impermeável",
+        "banda de reforço",
+        "fita de cantos",
+        "banda elástica de impermeabilização",
+        "banda para duche"
+      ],
+      "usage": "Reforça e impermeabiliza os pontos críticos de zonas húmidas interiores: encontros parede/chão, cantos, juntas de dilatação e uniões, em casas de banho e cozinhas.",
+      "aSavoir": "Coloca-se embebida entre duas demãos de membrana líquida ou de argamassa flexível, sem rugas nem bolhas de ar.",
+      "conditionnement": "Rolo 12 cm x 10 m",
+      "recherche": "banda impermeável",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-impermeabilizante-flexivel-monocomponente",
+      "famille": "impermeabilizacao",
+      "sousFamille": "argamassas-aditivos",
+      "nom": "Argamassa impermeabilizante flexível monocomponente",
+      "aussiAppele": [
+        "argamassa de impermeabilização elástica",
+        "impermeabilizante cimentício flexível",
+        "cimento impermeabilizante flexível",
+        "argamassa elástica"
+      ],
+      "usage": "Impermeabiliza paredes e pavimentos de casas de banho, cozinhas, varandas, terraços e piscinas antes da colagem de cerâmica. Também usada em depósitos e tanques.",
+      "aSavoir": "Aplicar em duas demãos com banda de reforço nos cantos e juntas, e esperar a secagem indicada antes de colar a cerâmica.",
+      "conditionnement": "Saco 5 kg e 20 kg",
+      "recherche": "argamassa impermeabilização flexível",
+      "rechercheEnseigne": {
+        "maxmat": "argamassa impermeabilização"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-impermeabilizante-bicomponente",
+      "famille": "impermeabilizacao",
+      "sousFamille": "argamassas-aditivos",
+      "nom": "Argamassa impermeabilizante bicomponente (rígida)",
+      "aussiAppele": [
+        "argamassa de impermeabilização dois componentes",
+        "impermeabilizante cimentício bicomponente",
+        "barramento impermeabilizante bicomponente"
+      ],
+      "usage": "Impermeabiliza betão, rebocos de cimento e alvenaria de tijolo ou blocos, no interior e no exterior: caves, paredes enterradas e depósitos de água potável.",
+      "aSavoir": "Misturar os dois componentes do kit na proporção fornecida, sem acrescentar água. É de tipo rígido: não acompanha fissuras nem suportes com movimento, e a reparação de pequenas fissuras só vale em betão sem movimento.",
+      "conditionnement": "Kit pré-doseado de cerca de 25 kg (pó + líquido)",
+      "recherche": "argamassa impermeabilização",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-impermeabilizante-rigida-barramento",
+      "famille": "impermeabilizacao",
+      "sousFamille": "argamassas-aditivos",
+      "nom": "Argamassa impermeabilizante cimentícia rígida (camada fina)",
+      "aussiAppele": [
+        "argamassa de impermeabilização",
+        "cimento impermeabilizante",
+        "barramento impermeabilizante",
+        "impermeabilizante para tanques",
+        "impermeabilizante para caves"
+      ],
+      "usage": "Argamassa fluida aplicada a talocha ou a brocha para impermeabilizar depósitos, tanques, piscinas, caves, caixas de elevador e muros de contenção, mesmo com pressão ou contrapressão de água. Aplica-se sobre betão, reboco de cimento e betonilha.",
+      "aSavoir": "É rígida: não acompanha fissuras nem suportes com movimento. Em piscinas e depósitos de água, respeitar o prazo de cura indicado antes de encher.",
+      "conditionnement": "Saco 5 kg e 25 kg",
+      "recherche": "argamassa impermeabilização",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "reboco-impermeabilizante",
+      "famille": "impermeabilizacao",
+      "sousFamille": "argamassas-aditivos",
+      "nom": "Reboco de impermeabilização (camada grossa)",
+      "aussiAppele": [
+        "reboco impermeável",
+        "argamassa de impermeabilização em camada grossa",
+        "reboco hidrófugo",
+        "reboco para caves"
+      ],
+      "usage": "Argamassa tipo reboco, aplicada a talocha, que regulariza e impermeabiliza de uma só vez paredes, pavimentos e tetos de alvenaria ou base cimentícia, incluindo suportes com pressão ou contrapressão de água.",
+      "aSavoir": "Precisa de vários dias de secagem antes de revestir. Em piscinas e depósitos, respeitar o prazo de cura indicado antes de encher.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "argamassa impermeabilização",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acelerador-presa-estancar-fugas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "argamassas-aditivos",
+      "nom": "Acelerador de presa para estancar fugas de água",
+      "aussiAppele": [
+        "cimento de tamponamento",
+        "tampão hidráulico",
+        "tapa-fugas",
+        "obturador de fugas",
+        "acelerador de presa",
+        "cimento rápido para fugas",
+        "acelerador de presa para tapar entradas de água",
+        "tamponamento",
+        "cimento tapa-águas"
+      ],
+      "usage": "Líquido pronto a usar que, misturado com cimento, faz presa muito rápida para tapar entradas de água em betão, rocha e alvenaria (caves, depósitos, fissuras, juntas). Serve também para acelerar argamassas de fixação e reparação.",
+      "aSavoir": "A presa é muito rápida: preparar pequenas quantidades de cada vez. É um tamponamento pontual, a fazer antes da impermeabilização contínua da superfície.",
+      "conditionnement": "Embalagem 2 L ou 5 L",
+      "recherche": "acelerador de presa",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "hidrofugante-incolor-fachadas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "hidrofugantes-incolores",
+      "nom": "Hidrofugante incolor para fachadas",
+      "aussiAppele": [
+        "hidrorrepelente",
+        "hidrorepelente",
+        "repelente de água",
+        "hidrófugo de fachada",
+        "impermeabilizante incolor para paredes",
+        "hidrofugante de pedra",
+        "hidrofugante para tijolo"
+      ],
+      "usage": "Penetra no suporte e cria uma barreira invisível contra a água da chuva sem alterar o aspeto: tijolo à vista, pedra natural, reboco, telha cerâmica, fibrocimento.",
+      "aSavoir": "Não tapa fissuras nem resiste a água parada ou sob pressão: é para superfícies porosas verticais ou inclinadas. Aplicar em suporte seco e limpo.",
+      "conditionnement": "Embalagens de 1 L e 5 L",
+      "recherche": "hidrofugante incolor",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "impermeabilizante-incolor-pavimentos-porosos",
+      "famille": "impermeabilizacao",
+      "sousFamille": "hidrofugantes-incolores",
+      "nom": "Impermeabilizante incolor para pavimentos porosos exteriores",
+      "aussiAppele": [
+        "hidrofugante de pavimentos",
+        "selante de poros",
+        "impermeabilizante para tijoleira",
+        "protetor de pedra e betão",
+        "tapa-poros para pavimento",
+        "impermeabilizante de solos porosos"
+      ],
+      "usage": "Reduz a absorção de água e de sujidade em pavimentos exteriores porosos: tijoleira de barro, pedra, betão, pavê.",
+      "aSavoir": "Só resulta em suportes porosos, limpos e secos. Testar primeiro numa zona pequena, porque pode alterar ligeiramente o tom.",
+      "conditionnement": "Embalagens de 1 L, 4 L e 5 L",
+      "recherche": "hidrofugante pavimentos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "impermeabilizante-transparente-multiusos",
+      "famille": "impermeabilizacao",
+      "sousFamille": "hidrofugantes-incolores",
+      "nom": "Impermeabilizante transparente (invisível) multiusos",
+      "aussiAppele": [
+        "impermeabilizante invisível",
+        "impermeabilizante incolor",
+        "impermeabilizante transparente para terraços",
+        "impermeabilizante acrílico invisível"
+      ],
+      "usage": "Impermeabiliza sem alterar o aspeto do suporte contra infiltrações de água, por exemplo em terraços e varandas já revestidos. Há versões para alvenaria, cimento, betão, pedra, telha, cerâmica e madeira.",
+      "aSavoir": "Não resolve fissuras abertas, juntas degradadas nem falta de pendente: reparar primeiro. Aplicar em suporte seco e limpo.",
+      "conditionnement": "Embalagens de 0,75 L, 1 L e 4 L",
+      "recherche": "impermeabilizante invisível",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "revestimento-acrilico-incolor-fachadas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "hidrofugantes-incolores",
+      "nom": "Revestimento acrílico incolor para fachadas",
+      "aussiAppele": [
+        "verniz de fachada",
+        "verniz para tijolo",
+        "verniz para betão à vista",
+        "impermeabilizante incolor de fachadas",
+        "revestimento incolor exterior"
+      ],
+      "usage": "Revestimento acrílico incolor para o exterior, que protege da chuva paredes e muros de betão, tijolo ou pedra à vista sem os pintar.",
+      "aSavoir": "Ao contrário do hidrofugante, forma película à superfície: testar primeiro numa zona pequena para ver o aspeto final. Suporte seco, limpo e sem musgo.",
+      "conditionnement": "Balde 5 L e 15 L",
+      "recherche": "revestimento acrílico incolor exterior",
+      "rechercheEnseigne": {
+        "leroy-merlin": "verniz de fachada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "impermeabilizante-anti-salitre",
+      "famille": "impermeabilizacao",
+      "sousFamille": "anti-humidade-interior",
+      "nom": "Impermeabilizante anti-salitre",
+      "aussiAppele": [
+        "anti-salitre",
+        "tratamento anti-salitre",
+        "impermeabilizante de paredes com salitre",
+        "anti-eflorescências"
+      ],
+      "usage": "Tratamento para suportes porosos com salitre: estuque, reboco, tijolo, terracota e pedra.",
+      "aSavoir": "Escovar os sais a seco e deixar a parede secar antes de aplicar. Não elimina a origem da humidade.",
+      "conditionnement": "Lata 0,75 L e 2,5 L",
+      "recherche": "anti salitre",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "absorvente-humidade-recarga",
+      "famille": "impermeabilizacao",
+      "sousFamille": "anti-humidade-interior",
+      "nom": "Absorvente de humidade (desumidificador de sais) e recargas",
+      "aussiAppele": [
+        "desumidificador",
+        "anti-humidade",
+        "absorve-humidade",
+        "caixa anti-humidade",
+        "saquetas anti-humidade",
+        "recarga de desumidificador"
+      ],
+      "usage": "Absorve o excesso de humidade do ar em espaços pequenos e fechados: roupeiros, arrecadações, despensas, casas fechadas.",
+      "aSavoir": "Só atua na humidade do ar. Não trata infiltrações nem humidade nas paredes. Substituir a recarga quando os sais se dissolverem.",
+      "conditionnement": "Aparelho com recarga de 250 g ou 450 g; packs de recargas; bolsas para roupeiro",
+      "recherche": "desumidificador recarga",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rede-fibra-vidro-armadura-membranas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "reforco-drenagem-protecao",
+      "nom": "Rede de fibra de vidro para armar membranas e pinturas",
+      "aussiAppele": [
+        "véu de noiva",
+        "rede de pintura",
+        "malha de fibra de vidro",
+        "armadura de fibra",
+        "tela de fibra de vidro",
+        "rede de fibra de vidro fina para pintura e impermeabilização",
+        "rede para membrana líquida",
+        "véu de fibra de vidro",
+        "rede fina"
+      ],
+      "usage": "Armadura que se embebe na membrana líquida ou na tinta para reforçar fissuras, remates, cantos e juntas em terraços, coberturas e paredes.",
+      "aSavoir": "Colocar sobre a primeira demão ainda fresca e cobrir totalmente com a demão seguinte. Sobrepor as tiras entre si.",
+      "conditionnement": "Rolo 1 x 10 m ou rolo de 50 m",
+      "recherche": "rede fibra vidro pintura",
+      "rechercheEnseigne": {
+        "leroy-merlin": "malha de fibra de vidro"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "manta-geotextil",
+      "famille": "impermeabilizacao",
+      "sousFamille": "reforco-drenagem-protecao",
+      "nom": "Manta geotêxtil",
+      "aussiAppele": [
+        "geotêxtil",
+        "feltro geotêxtil",
+        "manta de separação",
+        "manta de proteção"
+      ],
+      "usage": "Camada de separação, filtragem e proteção: sobre impermeabilizações antes de brita ou betonilha, em drenos e valas drenantes, sob gravilha.",
+      "aSavoir": "Não impermeabiliza: serve para separar, filtrar e proteger. Sobrepor as faixas entre si.",
+      "conditionnement": "Rolo 1 x 25 m",
+      "recherche": "geotêxtil",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lamina-drenante-pitonada",
+      "famille": "impermeabilizacao",
+      "sousFamille": "reforco-drenagem-protecao",
+      "nom": "Lâmina drenante (tela pitonada)",
+      "aussiAppele": [
+        "tela pitonada",
+        "tela drenante",
+        "manta drenante",
+        "membrana de nódulos",
+        "lâmina de polietileno drenante",
+        "tela de bolhas"
+      ],
+      "usage": "Lâmina de polietileno de alta densidade para drenagem e ventilação de muros e paredes enterradas e de coberturas ajardinadas. Protege fundações, impermeabilizações e isolamentos.",
+      "aSavoir": "Protege e drena, mas não substitui a impermeabilização do muro, que se faz antes (emulsão betuminosa, tela ou argamassa).",
+      "conditionnement": "Rolo 1 x 30 m",
+      "recherche": "lâmina drenante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "manga-plastica-polietileno",
+      "famille": "impermeabilizacao",
+      "sousFamille": "reforco-drenagem-protecao",
+      "nom": "Manga plástica de polietileno (plástico de obra)",
+      "aussiAppele": [
+        "plástico de obra",
+        "manga de plástico",
+        "filme de polietileno",
+        "plástico preto",
+        "plástico de construção",
+        "tela plástica"
+      ],
+      "usage": "Filme plástico para pôr sob betonilhas e massames como barreira à humidade do terreno, e para proteger materiais e zonas de obra da chuva.",
+      "aSavoir": "Sobrepor bem as faixas e fechar as juntas com fita. Fura-se facilmente com brita e ferros: verificar antes de betonar.",
+      "conditionnement": "Rolo de 10 kg (cerca de 2 x 45 m), preto, transparente ou cristal",
+      "recherche": "manga plástica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "macarico-gas-telas",
+      "famille": "impermeabilizacao",
+      "sousFamille": "telas-fitas-betuminosas",
+      "nom": "Maçarico a gás para telas asfálticas (com mangueira e regulador)",
+      "aussiAppele": [
+        "maçarico de telhador",
+        "maçarico para tela",
+        "queimador a gás propano"
+      ],
+      "usage": "Soldar telas asfálticas e remendos de tela em coberturas e terraços.",
+      "aSavoir": "Liga-se a uma garrafa de gás propano com regulador próprio, vendida à parte. Garrafa sempre de pé e afastada da chama; verificar mangueira e ligações antes de acender, ter um extintor à mão e vigiar a zona depois de acabar.",
+      "conditionnement": "Unidade (lança, mangueira e regulador; garrafa de gás à parte).",
+      "recherche": "maçarico",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "primario-membranas-impermeabilizantes",
+      "famille": "impermeabilizacao",
+      "sousFamille": "membranas-liquidas",
+      "nom": "Primário para membranas líquidas impermeabilizantes",
+      "aussiAppele": [
+        "primário de impermeabilização",
+        "primário para membrana de poliuretano",
+        "primário de aderência para membranas"
+      ],
+      "usage": "Preparar o suporte (betão, betonilha, cerâmica, tela antiga) para a membrana líquida aderir sem bolhas nem descolamento.",
+      "aSavoir": "Tem de ser o primário indicado pelo fabricante da membrana para aquele suporte: primários de sistemas diferentes podem não ser compatíveis. Aplicar em suporte seco e respeitar o intervalo antes da membrana indicado na embalagem.",
+      "conditionnement": "Lata ou bidão.",
+      "recherche": "primário impermeabilização",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "creme-injecao-humidade-ascensional",
+      "famille": "impermeabilizacao",
+      "sousFamille": "anti-humidade-interior",
+      "nom": "Creme de injeção contra humidade ascensional (barreira química)",
+      "aussiAppele": [
+        "barreira química",
+        "creme anti-capilaridade",
+        "injeção anti-humidade",
+        "creme de injeção de silano"
+      ],
+      "usage": "Injetado em furos alinhados na base da parede, forma uma barreira que corta a subida da água do terreno por capilaridade.",
+      "aSavoir": "Diâmetro, profundidade e espaçamento dos furos: ver a embalagem. Resulta mal em paredes de pedra irregular, taipa ou adobe. A parede leva tempo a secar depois da injeção: picar o reboco salitrado e só rebocar e pintar de novo quando secar.",
+      "conditionnement": "Cartucho ou bolsa para pistola",
+      "recherche": "creme injeção humidade ascensional",
+      "rechercheEnseigne": {
+        "leroy-merlin": "creme anti-capilaridade"
+      },
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

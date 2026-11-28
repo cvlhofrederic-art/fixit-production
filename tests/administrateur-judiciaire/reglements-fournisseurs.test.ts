@@ -1,0 +1,1097 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import {
+  MOIS_MAX_SUSPENSION_PROROGEE,
+  MOIS_SUSPENSION_EXIGIBILITE,
+  calculerEcheancesLegales,
+} from '@/lib/administrateur-judiciaire/domain/delais-legaux'
+import { ecritureFactureVentilee } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
+import {
+  creerCompteCoproprietaire,
+  numeroCompteCoproprietaire,
+  type CompteCoproprietaire,
+  type Position,
+} from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { creerOrdreVirement, emettreOrdre, type LigneVirement, type OrdreVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
+import { regrouperVirements, type UnitePaiement } from '@/lib/administrateur-judiciaire/domain/paiement-fournisseurs'
+import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import {
+  MOTIFS_LEVEE_SUSPENSION,
+  STATUTS_REGLEMENT_FOURNISSEUR,
+  annulerReglement,
+  changerStatutReglementFournisseur,
+  controlerBeneficiaireCompte,
+  controlerBeneficiaireIndivisaire,
+  controlerCreanceAnterieure,
+  controlerPaiementPlusieursMandats,
+  creerReglementFournisseur,
+  enregistrerOrdreEmis,
+  mettreDansOrdre,
+  mouvementsReglement,
+  rapprocherReglements,
+  reglementsDeLigne,
+  rejeterVirement,
+  traitementReglements,
+  type BeneficiaireReglement,
+  type ContextePaiement,
+  type LeveeSuspensionExigibilite,
+  type ReglementFournisseur,
+  type SaisieReglementFournisseur,
+  type SuspensionExigibilite,
+} from '@/lib/administrateur-judiciaire/domain/reglements-fournisseurs'
+import { annulerTraitement, mouvementsARepartir } from '@/lib/administrateur-judiciaire/domain/traitements'
+
+/**
+ * Règlements fournisseurs : objet et cycle (point 38 du bilan 2). Gestéam, tranche 36 § Règlements (fiche : traitement,
+ * journal, mode, n° de pièce, ordre de banque, bénéficiaire Fournisseur / Mandant / Indivisaire / Client, grille Mandat ·
+ * Origine · Montant) et tranche 43 § 10 (détail : une ligne par facture réglée, rattachée au traitement « Règlement de
+ * factures », à la facture, au contrat, à la demande, aux travaux et à la tranche ; Demandé → À régler → Enregistré →
+ * Rapproché, ou Annulé ; Imputé / Non imputé). Données fictives.
+ */
+
+const SEGMENT = 'TILL'
+const IBAN_FOURNISSEUR = 'FR76 3000 6000 0112 3456 7890 189'
+const IBAN_AUTRE = 'FR14 2004 1010 0505 0001 3M02 606'
+
+const FOURNISSEUR: BeneficiaireReglement = { type: 'fournisseur', prestataireId: 'p-plomberie', auxiliaire401: 'F0012' }
+const COPROPRIETAIRE: BeneficiaireReglement = { type: 'coproprietaire', compteCoproprietaireId: 'cpt-12', serie450: '00012' }
+const INDIVISAIRE: BeneficiaireReglement = { type: 'indivisaire', compteCoproprietaireId: 'cpt-14', serie450: '00014', identiteId: 'id-7' }
+
+const saisie = (surcharge: Partial<SaisieReglementFournisseur> = {}): SaisieReglementFournisseur => ({
+  id: 'r-1',
+  coproprieteId: 'copro-tilleuls',
+  mandatId: 'm-1',
+  banqueId: 'b-courant',
+  contrepartie512: 'TILL.51200.00001.0',
+  beneficiaire: FOURNISSEUR,
+  factureId: 'f-1',
+  echeance: '2026-10-31',
+  libelle: 'Facture F-118 plomberie',
+  montantCentimes: 120_000,
+  mode: 'Virement',
+  iban: IBAN_FOURNISSEUR,
+  ...surcharge,
+})
+
+const creer = (surcharge: Partial<SaisieReglementFournisseur> = {}) => creerReglementFournisseur(saisie(surcharge), { segmentSyndicat: SEGMENT })
+
+/** Règlement payé hors ordre (prélèvement constaté) : seul un règlement payé s'écrit. */
+const paye = (surcharge: Partial<SaisieReglementFournisseur> = {}) =>
+  changerStatutReglementFournisseur(creer({ mode: 'Prélèvement', iban: null, ...surcharge }), 'Enregistré')
+
+const AU_29 = { date: '2026-10-29' }
+
+const versRegroupement = (r: ReglementFournisseur, unVirementPar: UnitePaiement) => ({
+  reglementId: r.id,
+  factureId: r.factureId ?? r.id,
+  prestataireId: r.beneficiaire.type === 'fournisseur' ? r.beneficiaire.prestataireId : r.id,
+  mandatId: r.mandatId,
+  beneficiaire: 'Plomberie du Centre (fictif)',
+  iban: r.iban ?? '',
+  bic: r.bic,
+  montantCentimes: r.montantCentimes,
+  reference: r.libelle,
+  unVirementPar,
+})
+
+const ordreDe = (reglements: ReglementFournisseur[], unVirementPar: UnitePaiement = 'facture', lignes?: LigneVirement[]): OrdreVirement =>
+  creerOrdreVirement({
+    id: 'o-1',
+    numero: 'OV-1',
+    date: '2026-10-28',
+    coproprieteId: 'copro-tilleuls',
+    banqueId: 'b-courant',
+    traitementId: 't-regl-1',
+    lignes: lignes ?? regrouperVirements(reglements.map((r) => versRegroupement(r, unVirementPar))).map((g) => g.ligne),
+  })
+
+describe('objet ReglementFournisseur', () => {
+  it('cycle observé dans Gestéam : Demandé → À régler → Enregistré → Rapproché, ou Annulé', () => {
+    expect(STATUTS_REGLEMENT_FOURNISSEUR).toEqual(['Demandé', 'À régler', 'Enregistré', 'Rapproché', 'Annulé'])
+  })
+
+  it('naît « Demandé », non imputé, hors de tout ordre, traitement et arrêté ; liens absents à null', () => {
+    expect(creer()).toEqual({
+      ...saisie(),
+      bic: null,
+      numeroPiece: null,
+      contratId: null,
+      demandeId: null,
+      travauxId: null,
+      tranche: null,
+      traitementId: null,
+      ordreId: null,
+      statut: 'Demandé',
+      impute: false,
+      rapprochement: null,
+      rejet: null,
+    })
+  })
+
+  it('garde ses rattachements : contrat, demande, travaux et tranche', () => {
+    expect(creer({ contratId: 'ctr-4', demandeId: 'dem-9', travauxId: 'TX001', tranche: '2' })).toMatchObject({
+      contratId: 'ctr-4',
+      demandeId: 'dem-9',
+      travauxId: 'TX001',
+      tranche: '2',
+    })
+  })
+
+  it('montant en centimes entiers strictement positifs, échéance AAAA-MM-JJ, libellé', () => {
+    for (const montantCentimes of [0, -100, 10.5, Number.NaN]) expect(() => creer({ montantCentimes })).toThrow(/Montant invalide/)
+    expect(() => creer({ echeance: '31/10/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => creer({ libelle: '  ' })).toThrow(/Libellé/)
+  })
+
+  it('syndicat, mandat et compte payeur obligatoires (D1, D-BANQUE)', () => {
+    expect(() => creer({ coproprieteId: ' ' })).toThrow(/syndicat/)
+    expect(() => creer({ mandatId: '' })).toThrow(/mandat/)
+    expect(() => creer({ banqueId: '' })).toThrow(/compte payeur/)
+  })
+
+  it('mode : connu, autre que « Pas de règlement » ; un virement exige un IBAN valide, un chèque non', () => {
+    expect(() => creer({ mode: 'Carte' as never })).toThrow(/Mode de règlement inconnu/)
+    expect(() => creer({ mode: 'Pas de règlement' })).toThrow(/Pas de règlement/)
+    expect(() => creer({ iban: null })).toThrow(/IBAN/)
+    expect(() => creer({ iban: 'FR76 3000 6000 0112 3456 7890 188' })).toThrow(/IBAN/)
+    expect(creer({ mode: 'Chèque', iban: null })).toMatchObject({ mode: 'Chèque', iban: null })
+  })
+
+  it('J25 : espèces refusées par décision du cabinet ; le paiement sortirait du compte 53 « Caisse », jamais d’un 512', () => {
+    expect(() => creer({ mode: 'Espèces', iban: null })).toThrow(/Espèces.*décision J25.*53/)
+    expect(() => creer({ mode: 'Espèces', iban: null })).not.toThrow(/à trancher/)
+  })
+
+  it('en-tête : la décision J25 remplace le 🔴 du paiement en espèces', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).toMatch(/Décision J25 de Hugo du 03\/11\/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs/)
+    expect(entete).toMatch(/ne vise que les salaires \(personnel-syndicat\.ts\), pas un fournisseur/)
+    // J40 (06/11/2026) : la réserve est tranchée, aucun salaire n'est payé en espèces, même sous le seuil.
+    expect(entete).toMatch(/Décisions de Hugo du 06\/11\/2026 \(J40\)/)
+    expect(entete).toMatch(/même sous le seuil/)
+    expect(source).not.toMatch(/🔴 10/)
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/paiement en espèces/)
+  })
+
+  it('bénéficiaire fournisseur : facture obligatoire, auxiliaire 401 sur 5 caractères', () => {
+    expect(() => creer({ factureId: null })).toThrow(/facture/)
+    expect(() => creer({ beneficiaire: { ...FOURNISSEUR, auxiliaire401: 'F12' } })).toThrow(/5 caractères/)
+    expect(() => creer({ beneficiaire: { ...FOURNISSEUR, prestataireId: ' ' } })).toThrow(/fournisseur/)
+  })
+
+  it('bénéficiaire copropriétaire ou indivisaire : ni facture ni contrat ; l’indivisaire est une identité', () => {
+    expect(creer({ beneficiaire: COPROPRIETAIRE, factureId: null })).toMatchObject({ beneficiaire: COPROPRIETAIRE, factureId: null })
+    expect(() => creer({ beneficiaire: COPROPRIETAIRE })).toThrow(/facture/)
+    expect(() => creer({ beneficiaire: COPROPRIETAIRE, factureId: null, contratId: 'ctr-4' })).toThrow(/contrat/)
+    expect(() => creer({ beneficiaire: { ...INDIVISAIRE, identiteId: '' }, factureId: null })).toThrow(/identité/)
+    expect(() => creer({ beneficiaire: { ...COPROPRIETAIRE, serie450: '12' }, factureId: null })).toThrow(/5 caractères/)
+    expect(() => creer({ beneficiaire: { type: 'mandant' } as never })).toThrow(/Type de bénéficiaire inconnu/)
+  })
+
+  it('travaux : n° d’opération sur 5 caractères ; une tranche exige ses travaux', () => {
+    expect(() => creer({ travauxId: 'TX1' })).toThrow(/5 caractères/)
+    expect(() => creer({ tranche: '2' })).toThrow(/Tranche/)
+  })
+
+  it('contrepartie : un compte 512 du syndicat (D1)', () => {
+    expect(() => creer({ contrepartie512: 'TILL.40100.00001.0' })).toThrow(/512/)
+    expect(() => creer({ contrepartie512: 'ROSE.51200.00001.0' })).toThrow(/syndicat/)
+    expect(() => creer({ contrepartie512: '51200' })).toThrow(/512/)
+  })
+})
+
+describe('lignes de virement et règlements', () => {
+  it('ligne simple : son identifiant ; ligne groupée : ses règlements, jamais l’identifiant synthétique', () => {
+    const r1 = creer()
+    const r2 = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
+    const [simple] = ordreDe([r1]).lignes
+    expect(reglementsDeLigne({ ...simple, reglementIds: undefined })).toEqual(['r-1'])
+    const [groupee] = ordreDe([r1, r2], 'mandat').lignes
+    expect(groupee.reglementId).toBe('r-1+1')
+    expect(reglementsDeLigne(groupee)).toEqual(['r-1', 'r-2'])
+    expect(() => reglementsDeLigne({ ...groupee, reglementIds: [] })).toThrow(/aucun règlement/)
+  })
+})
+
+describe('entrée dans un ordre de virement et émission', () => {
+  const r1 = creer()
+  const r2 = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
+
+  it('les règlements passent « À régler » : ordre, traitement de l’ordre, n° de pièce = identifiant du virement', () => {
+    const ordre = ordreDe([r1, r2], 'mandat')
+    expect(mettreDansOrdre([r1, r2], ordre)).toEqual([
+      { ...r1, statut: 'À régler', ordreId: 'o-1', traitementId: 't-regl-1', numeroPiece: 'r-1+1' },
+      { ...r2, statut: 'À régler', ordreId: 'o-1', traitementId: 't-regl-1', numeroPiece: 'r-1+1' },
+    ])
+  })
+
+  it('refuse un ordre déjà émis', () => {
+    expect(() => mettreDansOrdre([r1], emettreOrdre(ordreDe([r1]), '2026-10-29'))).toThrow(/déjà émis/)
+  })
+
+  it('les règlements doivent être exactement ceux de l’ordre', () => {
+    expect(() => mettreDansOrdre([r1, r2], ordreDe([r1]))).toThrow(/r-2.*absent de l'ordre/)
+    expect(() => mettreDansOrdre([r1], ordreDe([r1, r2], 'mandat'))).toThrow(/r-2.*non fourni/)
+    expect(() => mettreDansOrdre([r1, r1], ordreDe([r1]))).toThrow(/double/)
+  })
+
+  it('même syndicat et même compte payeur que l’ordre', () => {
+    const autreSyndicat = { ...r1, coproprieteId: 'copro-roses' }
+    const autreCompte = { ...r1, banqueId: 'b-fonds-travaux' }
+    expect(() => mettreDansOrdre([autreSyndicat], ordreDe([r1]))).toThrow(/syndicat/)
+    expect(() => mettreDansOrdre([autreCompte], ordreDe([r1]))).toThrow(/compte/)
+  })
+
+  it('chaque ligne : montant égal à la somme de ses règlements, même IBAN, un seul mandat (D-BANQUE)', () => {
+    const [ligne] = ordreDe([r1]).lignes
+    expect(() => mettreDansOrdre([r1], ordreDe([r1], 'facture', [{ ...ligne, montantCentimes: 120_001 }]))).toThrow(/montant/)
+    expect(() => mettreDansOrdre([r1], ordreDe([r1], 'facture', [{ ...ligne, iban: IBAN_AUTRE }]))).toThrow(/IBAN/)
+    const autreMandat = { ...r2, mandatId: 'm-2' }
+    const melee: LigneVirement = { ...ligne, reglementId: 'r-1+1', reglementIds: ['r-1', 'r-2'], montantCentimes: 150_000 }
+    expect(() => mettreDansOrdre([r1, autreMandat], ordreDe([r1], 'facture', [melee]))).toThrow(/plusieurs mandats/)
+    const autreBeneficiaire = { ...r2, beneficiaire: { ...FOURNISSEUR, prestataireId: 'p-ascenseurs' } }
+    expect(() => mettreDansOrdre([r1, autreBeneficiaire], ordreDe([r1], 'facture', [melee]))).toThrow(/bénéficiaires/)
+  })
+
+  it('un ordre ne mêle jamais règlements de factures et remboursements de soldes : un seul traitement, d’une seule famille', () => {
+    const solde = creer({ id: 'r-3', beneficiaire: COPROPRIETAIRE, factureId: null, montantCentimes: 4_500 })
+    expect(() => mettreDansOrdre([r1, solde], ordreDe([r1, solde]))).toThrow(/mêler/)
+  })
+
+  it('deux virements distincts n’ont jamais le même n° de pièce : un ordre à deux lignes de même identifiant est refusé dès sa création', () => {
+    const [l1] = ordreDe([r1]).lignes
+    const [l2] = ordreDe([r2]).lignes
+    const lignes = [
+      { ...l1, reglementId: 'X', reglementIds: ['r-1'] },
+      { ...l2, reglementId: 'X', reglementIds: ['r-2'] },
+    ]
+    expect(() => mettreDansOrdre([r1, r2], ordreDe([r1, r2], 'facture', lignes))).toThrow(/X.*double/)
+  })
+
+  it('un ordre recomposé sans creerOrdreVirement (relu du stockage) dont deux lignes ont le même identifiant est refusé aussi à l’entrée et à l’émission', () => {
+    const ordre = ordreDe([r1, r2])
+    const lignesX = ordre.lignes.map((l) => ({ ...l, reglementId: 'X', reglementIds: reglementsDeLigne(l) }))
+    expect(() => mettreDansOrdre([r1, r2], { ...ordre, lignes: lignesX })).toThrow(/« X » en double/)
+    const aRegler = mettreDansOrdre([r1, r2], ordre)
+    expect(() => enregistrerOrdreEmis(aRegler, { ...emettreOrdre(ordre, '2026-10-29'), lignes: lignesX })).toThrow(/« X » en double/)
+  })
+
+  it('seul un virement « Demandé » entre dans un ordre', () => {
+    const dansOrdre = mettreDansOrdre([r1], ordreDe([r1]))
+    expect(() => mettreDansOrdre(dansOrdre, ordreDe([r1]))).toThrow(/Demandé/)
+    const cheque = creer({ mode: 'Chèque', iban: IBAN_FOURNISSEUR })
+    expect(() => mettreDansOrdre([cheque], ordreDe([r1]))).toThrow(/virement/)
+  })
+
+  it('ordre émis : tous ses règlements passent « Enregistré » ; ordre non émis refusé', () => {
+    const ordre = ordreDe([r1, r2], 'mandat')
+    const aRegler = mettreDansOrdre([r1, r2], ordre)
+    expect(() => enregistrerOrdreEmis(aRegler, ordre)).toThrow(/pas émis/)
+    const enregistres = enregistrerOrdreEmis(aRegler, emettreOrdre(ordre, '2026-10-29'))
+    expect(enregistres.map((r) => r.statut)).toEqual(['Enregistré', 'Enregistré'])
+    expect(enregistres[0]).toMatchObject({ ordreId: 'o-1', numeroPiece: 'r-1+1', impute: false })
+  })
+
+  it('un règlement sorti de l’ordre que l’ordre émis paie encore est signalé (ordre à refaire avant émission)', () => {
+    const ordre = ordreDe([r1])
+    const [aRegler] = mettreDansOrdre([r1], ordre)
+    const sorti = changerStatutReglementFournisseur(aRegler, 'Annulé', { ordre: 'Enregistré' })
+    expect(() => enregistrerOrdreEmis([sorti], emettreOrdre(ordre, '2026-10-29'))).toThrow(/n'est plus à régler/)
+  })
+})
+
+describe('changements de statut à la main', () => {
+  const r1 = creer()
+  const [aRegler] = mettreDansOrdre([r1], ordreDe([r1]))
+
+  it('« Rapproché » n’est jamais posé ni retiré à la main : il est propagé depuis l’arrêté', () => {
+    const enregistre = enregistrerOrdreEmis([aRegler], emettreOrdre(ordreDe([r1]), '2026-10-29'))[0]
+    expect(() => changerStatutReglementFournisseur(enregistre, 'Rapproché')).toThrow(/arrêté/)
+    expect(() => changerStatutReglementFournisseur({ ...enregistre, statut: 'Rapproché' }, 'Enregistré')).toThrow(/arrêté/)
+  })
+
+  it('« À régler » seulement par l’ordre ; un virement à régler n’est « Enregistré » que par l’émission de son ordre', () => {
+    expect(() => changerStatutReglementFournisseur(r1, 'À régler')).toThrow(/mettreDansOrdre/)
+    expect(() => changerStatutReglementFournisseur(aRegler, 'Enregistré', { ordre: 'Émis' })).toThrow(/enregistrerOrdreEmis/)
+  })
+
+  it('hors ordre : un chèque est « Enregistré » avec son numéro ; un prélèvement subi aussi ; un virement non', () => {
+    const cheque = creer({ mode: 'Chèque', iban: null })
+    expect(() => changerStatutReglementFournisseur(cheque, 'Enregistré')).toThrow(/n° de chèque/)
+    expect(changerStatutReglementFournisseur(cheque, 'Enregistré', { numeroPiece: ' 0001234 ' })).toMatchObject({
+      statut: 'Enregistré',
+      numeroPiece: '0001234',
+    })
+    expect(changerStatutReglementFournisseur(creer({ mode: 'Prélèvement', iban: null }), 'Enregistré').statut).toBe('Enregistré')
+    expect(() => changerStatutReglementFournisseur(r1, 'Enregistré')).toThrow(/ordre de virement/)
+  })
+
+  it('« Demandé » → « Annulé » : abandon sans écriture', () => {
+    expect(changerStatutReglementFournisseur(r1, 'Annulé').statut).toBe('Annulé')
+  })
+
+  it('sortie d’un ordre non émis : retour « Demandé » sans ordre, traitement ni n° de pièce, ou « Annulé »', () => {
+    expect(changerStatutReglementFournisseur(aRegler, 'Demandé', { ordre: 'Enregistré' })).toEqual(r1)
+    expect(changerStatutReglementFournisseur(aRegler, 'Annulé', { ordre: 'Enregistré' })).toEqual({ ...r1, statut: 'Annulé' })
+    expect(() => changerStatutReglementFournisseur(aRegler, 'Demandé')).toThrow(/statut de son ordre/)
+    expect(() => changerStatutReglementFournisseur(aRegler, 'Annulé', { ordre: 'Émis' })).toThrow(/déjà émis/)
+  })
+
+  it('🔴 après enregistrement, aucune annulation à la main (contre-passation à trancher) ; rien après « Annulé »', () => {
+    const enregistre = changerStatutReglementFournisseur(creer({ mode: 'Prélèvement', iban: null }), 'Enregistré')
+    expect(() => changerStatutReglementFournisseur(enregistre, 'Annulé')).toThrow(/Transition refusée/)
+    expect(() => changerStatutReglementFournisseur(changerStatutReglementFournisseur(r1, 'Annulé'), 'Demandé')).toThrow(/Transition refusée/)
+  })
+})
+
+describe('écriture du règlement et imputation', () => {
+  const ligneCharge = {
+    comptePlan: '61400',
+    analytique: null,
+    cleRepartition: 'GEN',
+    rubrique: null,
+    codeFiscal: null,
+    montantTtcCentimes: 120_000,
+    recupLocatairePct: 0,
+    lotId: null,
+    rattachement: null,
+  }
+
+  it('fournisseur : débit du 401 que la saisie de la facture a crédité, crédit de la contrepartie 512 ; jamais la charge', () => {
+    const facture = ecritureFactureVentilee({
+      id: 't-fact',
+      date: '2026-10-02',
+      segmentSyndicat: SEGMENT,
+      auxiliaireFournisseur: 'F0012',
+      fournisseurId: 'p-plomberie',
+      totalTtcCentimes: 120_000,
+      lignes: [ligneCharge],
+    })
+    const credit401 = facture.mouvements.find((m) => m.sens === 'credit')
+    const r = creer({ contratId: 'ctr-4', travauxId: 'TX001' })
+    expect(mouvementsReglement(r)).toEqual([
+      { compte: credit401?.compte, sens: 'debit', montantCentimes: 120_000, liens: { fournisseurId: 'p-plomberie', contratId: 'ctr-4', travauxId: 'TX001' } },
+      { compte: 'TILL.51200.00001.0', sens: 'credit', montantCentimes: 120_000 },
+    ])
+    const { traitement: reglement } = traitementReglements([paye({ contratId: 'ctr-4', travauxId: 'TX001' })], { id: 't-regl-1', ...AU_29 })
+    expect(mouvementsARepartir([facture, reglement], { du: '2026-10-01', au: '2026-10-31' }).map((m) => m.montantCentimes)).toEqual([120_000])
+  })
+
+  it('copropriétaire : débit de son compte 450 ; famille « Règlement de soldes de compte »', () => {
+    const r = creer({ beneficiaire: COPROPRIETAIRE, factureId: null, montantCentimes: 4_500 })
+    const compte450 = numeroCompteCoproprietaire({ id: 'cpt-12', coproprieteId: 'copro-tilleuls', serie: '00012', libelle: 'Lot 12' }, SEGMENT)
+    expect(mouvementsReglement(r)[0]).toEqual({ compte: compte450, sens: 'debit', montantCentimes: 4_500, liens: { compteCoproprietaireId: 'cpt-12' } })
+    const solde = paye({ beneficiaire: COPROPRIETAIRE, factureId: null, montantCentimes: 4_500 })
+    expect(traitementReglements([solde], { id: 't-solde', ...AU_29 }).traitement.famille).toBe('Règlement de soldes de compte')
+  })
+
+  it('traitement « Règlement de factures » : une paire par règlement, équilibré', () => {
+    const { traitement } = traitementReglements([paye(), paye({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })], { id: 't-regl-1', ...AU_29 })
+    expect(traitement.famille).toBe('Règlement de factures')
+    expect(traitement.mouvements).toHaveLength(4)
+  })
+
+  it('traitement refusé : liste vide, factures et soldes mêlés, plusieurs syndicats, règlement annulé ou déjà imputé', () => {
+    const date = { id: 't', ...AU_29 }
+    const solde = paye({ id: 'r-9', beneficiaire: COPROPRIETAIRE, factureId: null })
+    expect(() => traitementReglements([], date)).toThrow(/aucun règlement/)
+    expect(() => traitementReglements([paye(), solde], date)).toThrow(/mêler/)
+    expect(() => traitementReglements([paye(), { ...paye({ id: 'r-2' }), coproprieteId: 'copro-roses' }], date)).toThrow(/syndicat/)
+    expect(() => traitementReglements([changerStatutReglementFournisseur(creer(), 'Annulé')], date)).toThrow(/payé/)
+    expect(() => traitementReglements([{ ...paye(), impute: true }], date)).toThrow(/déjà imputé/)
+  })
+
+  it('un même règlement deux fois dans l’appel : refusé, jamais deux paires pour un paiement', () => {
+    const r = paye()
+    expect(() => traitementReglements([r, r], { id: 't', ...AU_29 })).toThrow(/r-1 en double/)
+  })
+
+  it('aucune écriture avant le paiement : ni demandé, ni à régler, ni sorti de l’ordre ; un ordre abandonné ne laisse rien à contre-passer', () => {
+    const r1 = creer()
+    const ordre = ordreDe([r1])
+    const [aRegler] = mettreDansOrdre([r1], ordre)
+    expect(() => traitementReglements([r1], { id: 't-regl-1', ...AU_29 })).toThrow(/payé/)
+    expect(() => traitementReglements([aRegler], { id: 't-regl-1', ...AU_29 })).toThrow(/payé/)
+    const sorti = changerStatutReglementFournisseur(aRegler, 'Demandé', { ordre: 'Enregistré' })
+    expect(() => traitementReglements([sorti], { id: 't-regl-2', ...AU_29 })).toThrow(/payé/)
+    expect(changerStatutReglementFournisseur(aRegler, 'Annulé', { ordre: 'Enregistré' })).toMatchObject({ statut: 'Annulé', impute: false, traitementId: null })
+  })
+
+  it('règlement payé par un ordre : écrit et imputé dans le traitement de son ordre, et dans aucun autre', () => {
+    const r1 = creer()
+    const ordre = ordreDe([r1])
+    const emis = emettreOrdre(ordre, '2026-10-29')
+    const [enregistre] = enregistrerOrdreEmis(mettreDansOrdre([r1], ordre), emis)
+    expect(() => traitementReglements([enregistre], { id: 't-autre', ...AU_29, ordre: emis })).toThrow(/rattaché au traitement t-regl-1/)
+    const { traitement, reglements } = traitementReglements([enregistre], { id: 't-regl-1', ...AU_29, ordre: emis })
+    expect(reglements).toEqual([{ ...enregistre, impute: true }])
+    expect(traitement.mouvements).toEqual(mouvementsReglement(enregistre).map((m) => ({ ...m, traitementId: 't-regl-1' })))
+  })
+
+  describe('un ordre s’écrit en un seul traitement, avec l’ordre émis, et ce traitement n’écrit que lui', () => {
+    const rA = creer()
+    const rB = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
+    const ordre = ordreDe([rA, rB])
+    const emis = emettreOrdre(ordre, '2026-10-29')
+    const enregistres = enregistrerOrdreEmis(mettreDansOrdre([rA, rB], ordre), emis)
+    const ecrire = (reglements: ReglementFournisseur[], ordrePasse?: OrdreVirement) =>
+      traitementReglements(reglements, { id: 't-regl-1', ...AU_29, ...(ordrePasse ? { ordre: ordrePasse } : {}) })
+
+    it('règlements d’un ordre sans leur ordre : refusé (rien ne prouverait qu’ils s’écrivent ensemble)', () => {
+      expect(() => ecrire(enregistres)).toThrow(/payé par l'ordre o-1 : passer cet ordre/)
+    })
+
+    it('écriture partielle d’un ordre : refusée, jamais deux traitements de même identifiant pour un ordre', () => {
+      expect(() => ecrire([enregistres[0]], emis)).toThrow(/r-2.*non fourni/)
+      expect(() => ecrire([enregistres[1]], emis)).toThrow(/r-1.*non fourni/)
+    })
+
+    it('un règlement hors de l’ordre (chèque) n’entre pas dans le traitement de l’ordre', () => {
+      const cheque = changerStatutReglementFournisseur(creer({ id: 'c-1', factureId: 'f-9', mode: 'Chèque', iban: null }), 'Enregistré', { numeroPiece: '0001' })
+      expect(() => ecrire([...enregistres, cheque], emis)).toThrow(/c-1 hors de l'ordre OV-1/)
+      expect(() => ecrire([cheque], emis)).toThrow(/c-1 hors de l'ordre OV-1/)
+    })
+
+    it('l’ordre passé doit être émis et porter l’identifiant du traitement écrit', () => {
+      expect(() => ecrire(enregistres, ordre)).toThrow(/OV-1 pas émis/)
+      expect(() => ecrire(enregistres, { ...emis, traitementId: 't-autre' })).toThrow(/traitement t-autre, pas t-regl-1/)
+    })
+
+    it('tous les règlements de l’ordre, avec l’ordre émis : un traitement, une paire chacun, tous imputés', () => {
+      const { traitement, reglements } = ecrire(enregistres, emis)
+      expect(traitement).toMatchObject({ id: 't-regl-1', famille: 'Règlement de factures' })
+      expect(traitement.mouvements).toHaveLength(4)
+      expect(reglements.map((r) => [r.id, r.impute, r.traitementId])).toEqual([
+        ['r-1', true, 't-regl-1'],
+        ['r-2', true, 't-regl-1'],
+      ])
+    })
+  })
+
+  it('un règlement imputé n’entre dans aucun autre traitement : une seule écriture par paiement', () => {
+    const { reglements } = traitementReglements([paye()], { id: 't-1', ...AU_29 })
+    expect(() => traitementReglements(reglements, { id: 't-2', ...AU_29 })).toThrow(/déjà imputé.*t-1/)
+  })
+
+  it('deux paiements identiques (même fournisseur, même montant, même 512) : chacun sa paire, jamais l’imputation de l’un par l’écriture de l’autre', () => {
+    const cheque = (id: string, factureId: string, numeroPiece: string) =>
+      changerStatutReglementFournisseur(creer({ id, factureId, mode: 'Chèque', iban: null, montantCentimes: 1_000 }), 'Enregistré', { numeroPiece })
+    const c1 = cheque('c-1', 'f-1', '0001')
+    const c2 = cheque('c-2', 'f-2', '0002')
+    const premier = traitementReglements([c1], { id: 't-1', ...AU_29 })
+    expect(premier.reglements).toEqual([{ ...c1, impute: true, traitementId: 't-1' }])
+    expect(premier.traitement.mouvements).toHaveLength(2)
+    expect(() => traitementReglements([premier.reglements[0], c2], { id: 't-3', ...AU_29 })).toThrow(/c-1 déjà imputé.*t-1/)
+    const second = traitementReglements([c2], { id: 't-3', ...AU_29 })
+    expect(second.reglements).toEqual([{ ...c2, impute: true, traitementId: 't-3' }])
+    expect(second.traitement.mouvements).toEqual(mouvementsReglement(c2).map((m) => ({ ...m, traitementId: 't-3' })))
+    const rA = creer()
+    const rB = creer({ id: 'r-2', factureId: 'f-2' })
+    const ordre = ordreDe([rA, rB])
+    const emis = emettreOrdre(ordre, '2026-10-29')
+    const enregistres = enregistrerOrdreEmis(mettreDansOrdre([rA, rB], ordre), emis)
+    const { traitement, reglements } = traitementReglements(enregistres, { id: 't-regl-1', ...AU_29, ordre: emis })
+    expect(traitement.mouvements).toHaveLength(4)
+    expect(reglements.map((r) => [r.id, r.impute])).toEqual([
+      ['r-1', true],
+      ['r-2', true],
+    ])
+  })
+
+  it('hors ordre (chèque) : le traitement est rattaché au règlement', () => {
+    const cheque = changerStatutReglementFournisseur(creer({ mode: 'Chèque', iban: null }), 'Enregistré', { numeroPiece: '0001234' })
+    const { reglements } = traitementReglements([cheque], { id: 't-cheques', ...AU_29 })
+    expect(reglements[0]).toMatchObject({ impute: true, traitementId: 't-cheques' })
+  })
+
+  it('contre-passation du traitement d’un règlement : par « Annuler le règlement » (Décision du 20/11/2026, partie C, F84), le règlement passe « Annulé », relié à l’écriture d’origine et à l’annulation', () => {
+    const cheque = changerStatutReglementFournisseur(creer({ mode: 'Chèque', iban: null }), 'Enregistré', { numeroPiece: '0001234' })
+    const { traitement, reglements } = traitementReglements([cheque], { id: 't-cheques', ...AU_29 })
+    // la contre-passation générique (traitements.ts) ne touche pas au règlement : la décision passe par annulerReglement
+    expect(annulerTraitement(traitement, { id: 't-annul', date: '2026-10-30' })).toMatchObject({ famille: 'Annulation de règlements', annule: 't-cheques' })
+    const [ecrit] = reglements
+    expect(ecrit).toMatchObject({ statut: 'Enregistré', impute: true, traitementId: 't-cheques' })
+    expect(() => traitementReglements([ecrit], { id: 't-reprise', ...AU_29 })).toThrow(/déjà imputé/)
+    expect(() => changerStatutReglementFournisseur(ecrit, 'Annulé')).toThrow(/Transition refusée.*annulerReglement/)
+    const annule = annulerReglement(ecrit, { id: 't-annul', date: '2026-10-30', motif: 'erreur_ecriture', precision: null }, traitement)
+    expect(annule.traitement).toMatchObject({ famille: 'Annulation de règlements', annule: 't-cheques', date: '2026-10-30' })
+    expect(annule.reglement).toMatchObject({
+      statut: 'Annulé',
+      impute: true,
+      traitementId: 't-cheques',
+      annulation: { le: '2026-10-30', motif: 'erreur_ecriture', traitementId: 't-annul', ecritureOrigineId: 't-cheques' },
+    })
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(nonEtabli).not.toMatch(/contre-passation du traitement d'un règlement/)
+  })
+})
+
+describe('paiement sur plusieurs mandats : seulement depuis le compte du cabinet (D-BANQUE)', () => {
+  const cabinet = () => 'centralisateur_cabinet' as const
+  const sousCompte = () => 'sous_compte_centralisateur' as const
+  const m1 = creer({ banqueId: 'b-cab-1' })
+  const saisieRoses = saisie({ id: 'r-2', factureId: 'f-2', coproprieteId: 'copro-roses', mandatId: 'm-2', banqueId: 'b-cab-2', contrepartie512: 'ROSE.51200.00001.0' })
+  const m2Cree = () => creerReglementFournisseur(saisieRoses, { segmentSyndicat: 'ROSE' })
+
+  it('chaque part reste sur son syndicat, son mandat et sa propre contrepartie 512', () => {
+    expect(() => creerReglementFournisseur(saisieRoses, { segmentSyndicat: SEGMENT })).toThrow(/syndicat/)
+    expect(m2Cree().contrepartie512).toBe('ROSE.51200.00001.0')
+  })
+
+  it('un seul mandat et un seul compte : rien à signaler', () => {
+    expect(controlerPaiementPlusieursMandats([creer(), creer({ id: 'r-2' })], { modeDuMandat: () => 'compte_separe_syndicat', natureDuCompte: () => 'courant' })).toEqual([])
+  })
+
+  it('plusieurs mandats, tous en compte centralisateur du cabinet, sur leurs sous-comptes : admis', () => {
+    expect(controlerPaiementPlusieursMandats([m1, m2Cree()], { modeDuMandat: cabinet, natureDuCompte: sousCompte })).toEqual([])
+  })
+
+  it('un mandat hors du mode « centralisateur du cabinet », ou un compte qui n’est pas un sous-compte : bloquant', () => {
+    const anomalies = controlerPaiementPlusieursMandats([m1, m2Cree()], {
+      modeDuMandat: (mandatId) => (mandatId === 'm-2' ? 'compte_separe_syndicat' : 'centralisateur_cabinet'),
+      natureDuCompte: (banqueId) => (banqueId === 'b-cab-1' ? 'courant' : 'sous_compte_centralisateur'),
+    })
+    expect(anomalies.map((a) => a.code)).toEqual(['plusieurs_mandats_hors_compte_cabinet', 'plusieurs_mandats_hors_compte_cabinet'])
+    expect(anomalies[0].message).toMatch(/^Mandat m-2 /)
+    expect(anomalies[1].message).toMatch(/^Compte b-cab-1 /)
+  })
+
+  it('jamais le compte du fonds de travaux regroupé avec un autre compte, même au sein d’un seul mandat ; groupé sur ce seul compte : admis', () => {
+    const contexte: ContextePaiement = {
+      modeDuMandat: cabinet,
+      natureDuCompte: (banqueId) => (banqueId === 'b-fonds' ? 'fonds_travaux' : 'sous_compte_centralisateur'),
+    }
+    const courant = creer()
+    const fonds = creer({ id: 'r-2', factureId: 'f-2', banqueId: 'b-fonds' })
+    const anomalies = controlerPaiementPlusieursMandats([courant, fonds], contexte)
+    expect(anomalies).toEqual([expect.objectContaining({ code: 'fonds_travaux_regroupe', fondement: 'L. 1965 art. 18, II, al. 4' })])
+    expect(anomalies[0].message).toMatch(/jamais regroupé avec un autre compte, mandat ou syndicat/)
+    const fonds2 = creer({ id: 'r-3', factureId: 'f-3', banqueId: 'b-fonds' })
+    expect(controlerPaiementPlusieursMandats([fonds, fonds2], contexte)).toEqual([])
+  })
+
+  it('un paiement va à un seul bénéficiaire, sur un seul IBAN, par un seul mode', () => {
+    const contexte = { modeDuMandat: cabinet, natureDuCompte: sousCompte }
+    const autreFournisseur = creer({ id: 'r-2', beneficiaire: { ...FOURNISSEUR, prestataireId: 'p-ascenseurs' } })
+    const autreIban = creer({ id: 'r-3', iban: IBAN_AUTRE })
+    const cheque = creer({ id: 'r-4', mode: 'Chèque' })
+    expect(controlerPaiementPlusieursMandats([creer(), autreFournisseur], contexte).map((a) => a.code)).toEqual(['beneficiaires_differents'])
+    expect(controlerPaiementPlusieursMandats([creer(), autreIban], contexte).map((a) => a.code)).toEqual(['beneficiaires_differents'])
+    expect(controlerPaiementPlusieursMandats([creer(), cheque], contexte).map((a) => a.code)).toEqual(['modes_differents'])
+  })
+})
+
+describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hugo du 30/10/2026)', () => {
+  const position = (surcharge: Partial<Position> = {}): Position => ({
+    id: 'pos-1',
+    identiteId: 'id-7',
+    lotId: 'lot-14',
+    compteId: 'cpt-14',
+    qualite: 'Indivisaire',
+    part: { numerateur: 1, denominateur: 2 },
+    statut: 'En place',
+    dateEntree: '2020-01-15',
+    dateSortie: null,
+    ...surcharge,
+  })
+  const coIndivisaire = position({ id: 'pos-2', identiteId: 'id-8' })
+  const indivision = (mandataireCommunId?: string | null) =>
+    creerCompteCoproprietaire({
+      id: 'cpt-14',
+      coproprieteId: 'copro-tilleuls',
+      serie: '14',
+      libelle: 'Indivision Martin',
+      ...(mandataireCommunId === undefined ? {} : { mandataireCommunId }),
+    })
+  const DESIGNE = [indivision('id-7')]
+  const r = creer({ beneficiaire: INDIVISAIRE, factureId: null })
+  const codes = (positions: Position[], comptes = DESIGNE) =>
+    controlerBeneficiaireIndivisaire(r, positions, '2026-10-29', comptes).map((a) => a.code)
+
+  it('le mandataire commun est une donnée facultative du compte copropriétaire, gardée à la création', () => {
+    expect(indivision('id-7').mandataireCommunId).toBe('id-7')
+    expect(indivision().mandataireCommunId).toBeUndefined()
+  })
+
+  it('admis si l’identité est indivisaire en place, à la date, sur le compte débité, et en est le mandataire commun désigné', () => {
+    expect(controlerBeneficiaireIndivisaire(r, [position(), coIndivisaire], '2026-10-29', DESIGNE)).toEqual([])
+    expect(codes([position()], [indivision(' id-7 ')])).toEqual([])
+  })
+
+  const SANS_POSITION_EN_PLACE = [{ dateSortie: '2026-06-30' }, { compteId: 'cpt-99' }, { qualite: 'Copropriétaire' as const }, { identiteId: 'id-8' }]
+
+  it('mandataire commun désigné qui n’est pas indivisaire (tiers désigné par le juge, L. 1965 art. 23, al. 2) : admis sans position, l’indivision restant en place (J10)', () => {
+    expect(codes([coIndivisaire])).toEqual([])
+    // une position sur un autre compte, ou d'une autre qualité, n'en fait pas un indivisaire de ce compte : il y est un tiers
+    for (const surcharge of [{ compteId: 'cpt-99' }, { qualite: 'Copropriétaire' as const }]) expect(codes([position(surcharge), coIndivisaire])).toEqual([])
+  })
+
+  it('mandataire désigné dont la position d’indivisaire sur ce compte a pris fin (part cédée) : refusé, la désignation non datée est à vérifier', () => {
+    const anomalies = controlerBeneficiaireIndivisaire(r, [position({ dateSortie: '2026-06-30' }), coIndivisaire], '2026-10-29', DESIGNE)
+    expect(anomalies).toEqual([expect.objectContaining({ code: 'mandataire_commun_position_sortie', fondement: 'L. 1965 art. 23, al. 2' })])
+    expect(anomalies[0].message).toMatch(/refusé/)
+    expect(anomalies[0].message).toMatch(/sortie le 2026-06-30/)
+    expect(anomalies[0].message).toMatch(/vérifier que la désignation vaut encore/)
+    // position pas encore commencée : même refus
+    expect(codes([position({ dateEntree: '2026-11-15' }), coIndivisaire])).toEqual(['mandataire_commun_position_sortie'])
+  })
+
+  it('plus aucun indivisaire en place sur le compte débité : refusé, que le mandataire ait été indivisaire ou soit un tiers', () => {
+    expect(codes([position({ dateSortie: '2026-06-30' }), position({ id: 'pos-2', identiteId: 'id-8', dateSortie: '2026-06-30' })])).toEqual([
+      'mandataire_commun_position_sortie',
+    ])
+    for (const positions of [[], [position({ identiteId: 'id-8', dateSortie: '2026-06-30' })], [position({ compteId: 'cpt-99' })]]) {
+      const anomalies = controlerBeneficiaireIndivisaire(r, positions, '2026-10-29', DESIGNE)
+      expect(anomalies).toEqual([expect.objectContaining({ code: 'indivision_sans_indivisaire_en_place', fondement: 'L. 1965 art. 23, al. 2' })])
+      expect(anomalies[0].message).toMatch(/aucun indivisaire en place le 2026-10-29 sur le compte cpt-14/)
+      expect(anomalies[0].message).toMatch(/vérifier que la désignation vaut encore/)
+    }
+  })
+
+  it('bénéficiaire qui n’est pas le mandataire désigné : refusé, et sa position reste contrôlée (sortie, autre compte, autre qualité)', () => {
+    for (const surcharge of SANS_POSITION_EN_PLACE)
+      expect(codes([position(surcharge)], [indivision('id-8')])).toEqual(['indivisaire_sans_position', 'indivisaire_non_mandataire_commun'])
+  })
+
+  it('sans mandataire commun désigné sur le compte (absent, null ou vide) : refusé, avec un message qui dit quoi faire', () => {
+    for (const mandataire of [undefined, null, '  ']) {
+      const anomalies = controlerBeneficiaireIndivisaire(r, [position(), coIndivisaire], '2026-10-29', [indivision(mandataire)])
+      expect(anomalies).toEqual([expect.objectContaining({ code: 'indivisaire_sans_mandataire_commun', fondement: 'L. 1965 art. 23, al. 2' })])
+      expect(anomalies[0].message).toMatch(/refusé/)
+      expect(anomalies[0].message).toMatch(/aucun mandataire commun désigné/)
+      expect(anomalies[0].message).toMatch(/président du tribunal judiciaire/)
+    }
+  })
+
+  it('un indivisaire en place qui n’est pas le mandataire commun désigné : refusé, le mandataire est nommé', () => {
+    const anomalies = controlerBeneficiaireIndivisaire(r, [position(), coIndivisaire], '2026-10-29', [indivision('id-8')])
+    expect(anomalies).toEqual([expect.objectContaining({ code: 'indivisaire_non_mandataire_commun', fondement: 'L. 1965 art. 23, al. 2' })])
+    expect(anomalies[0].message).toMatch(/refusé/)
+    expect(anomalies[0].message).toMatch(/id-8/)
+  })
+
+  it('les défauts se cumulent : ni position en place, ni mandataire commun désigné', () => {
+    expect(codes([position({ dateSortie: '2026-06-30' })], [indivision(null)])).toEqual(['indivisaire_sans_position', 'indivisaire_sans_mandataire_commun'])
+  })
+
+  it('compte débité non fourni : erreur, c’est lui qui porte le mandataire commun', () => {
+    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '2026-10-29', [])).toThrow(/compte débité cpt-14 non fourni/)
+    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '2026-10-29', [{ ...indivision('id-7'), id: 'cpt-99' }])).toThrow(/non fourni/)
+  })
+
+  it('sans objet pour un autre bénéficiaire ; date contrôlée', () => {
+    expect(controlerBeneficiaireIndivisaire(creer(), [], '2026-10-29', [])).toEqual([])
+    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '29/10/2026', DESIGNE)).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('en-tête : la décision J10 remplace le 🔴 du bénéficiaire indivisaire', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).toMatch(/Décision J10 de Hugo du 30\/10\/2026/)
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/bénéficiaire indivisaire : à qui payer/)
+    expect(source).not.toMatch(/🔴 Ne dit pas si l'indivisaire peut recevoir seul le paiement/)
+    // J10 appliquée au mandataire tiers : plus une question ouverte
+    expect(nonEtabli).not.toMatch(/mandataire commun qui n'est pas lui-même indivisaire/)
+    expect(entete).toMatch(/mandataire commun désigné, indivisaire ou non \(tiers désigné par le président du tribunal judiciaire, L\. 1965 art\. 23, al\. 2 : ni J10 ni le texte n'exigent qu'il soit indivisaire\)/)
+    // relecture du 17/11/2026 : seul le tiers est dispensé de position ; la fin de position ou d'indivision reste un refus
+    expect(entete).toContain('mandataire_commun_position_sortie')
+    expect(entete).toContain('indivision_sans_indivisaire_en_place')
+    expect(nonEtabli).toMatch(/gravité de ces deux refus \(bloquants par prudence\) à confirmer par Hugo/)
+  })
+})
+
+describe('statut « Rapproché » propagé depuis l’arrêté', () => {
+  const r1 = creer()
+  const r2 = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
+  const ordre = emettreOrdre(ordreDe([r1, r2], 'mandat'), '2026-10-29')
+  const enregistres = enregistrerOrdreEmis(mettreDansOrdre([r1, r2], ordreDe([r1, r2], 'mandat')), ordre)
+  const [ligne] = ordre.lignes
+  const arrete = (rapproche: false | 'auto', banqueId = 'b-courant'): ArreteRapprochement => ({
+    id: 'a-1',
+    banqueId,
+    dateArrete: '2026-11-10',
+    soldeBanqueCentimes: 0,
+    soldeComptaCentimes: 0,
+    statut: 'En cours',
+    elements: [
+      {
+        id: 'rel-1',
+        cote: 'banque',
+        montantCentimes: -ligne.montantCentimes,
+        rapproche,
+        date: '2026-10-30',
+        rapprocheLe: rapproche ? '2026-11-02' : null,
+        pieces: reglementsDeLigne(ligne).map((id) => ({ type: 'reglement' as const, id })),
+      },
+    ],
+  })
+
+  it('la ligne du relevé du virement groupé rapproche ses deux règlements ; le dépointage les ramène à « Enregistré »', () => {
+    const rapproches = rapprocherReglements(enregistres, [arrete('auto')])
+    expect(rapproches.anomalies).toEqual([])
+    expect(rapproches.reglements.map((r) => [r.statut, r.rapprochement?.elementId])).toEqual([
+      ['Rapproché', 'rel-1'],
+      ['Rapproché', 'rel-1'],
+    ])
+    expect(rapprocherReglements(rapproches.reglements, [arrete(false)]).reglements).toEqual(enregistres)
+  })
+
+  it('arrêté d’un autre compte que le compte payeur : anomalie, rien n’est propagé', () => {
+    const { reglements, anomalies } = rapprocherReglements(enregistres, [arrete('auto', 'b-autre')])
+    expect(anomalies.map((a) => a.code)).toEqual(['autre_compte', 'autre_compte'])
+    expect(reglements.map((r) => r.statut)).toEqual(['Enregistré', 'Enregistré'])
+  })
+
+  it('à une date antérieure au pointage, les règlements restent « Enregistré »', () => {
+    expect(rapprocherReglements(enregistres, [arrete('auto')], { aLaDate: '2026-11-01' }).reglements.map((r) => r.statut)).toEqual([
+      'Enregistré',
+      'Enregistré',
+    ])
+  })
+})
+
+describe('virement rejeté ou retourné après émission (décision J9 de Hugo du 30/10/2026)', () => {
+  const rA = creer()
+  const rB = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
+  /** Un virement par facture : deux lignes, deux virements. */
+  const ordre = ordreDe([rA, rB])
+  const emis = emettreOrdre(ordre, '2026-10-29')
+  const enregistres = enregistrerOrdreEmis(mettreDansOrdre([rA, rB], ordre), emis)
+  const ecrits = traitementReglements(enregistres, { id: 't-regl-1', ...AU_29, ordre: emis })
+  const [ecritA, ecritB] = ecrits.reglements
+  const REJET = { id: 't-annul-1', date: '2026-11-03', motif: 'AC04 — compte clos' }
+  const contraire = (sens: 'debit' | 'credit') => (sens === 'debit' ? 'credit' : 'debit')
+
+  const arrete = (rapproche: false | 'auto'): ArreteRapprochement => ({
+    id: 'a-1',
+    banqueId: 'b-courant',
+    dateArrete: '2026-11-10',
+    soldeBanqueCentimes: 0,
+    soldeComptaCentimes: 0,
+    statut: 'En cours',
+    elements: [
+      {
+        id: 'rel-1',
+        cote: 'banque',
+        montantCentimes: -rA.montantCentimes,
+        rapproche,
+        date: '2026-10-30',
+        rapprocheLe: rapproche ? '2026-11-02' : null,
+        pieces: [{ type: 'reglement', id: 'r-1' }],
+      },
+    ],
+  })
+
+  it('rejet après émission : écriture contraire « Annulation de règlements » du seul virement rejeté, sous renvoi au traitement de l’ordre', () => {
+    const { traitement } = rejeterVirement([ecritA], emis, REJET, ecrits.traitement)
+    expect(traitement).toMatchObject({ id: 't-annul-1', famille: 'Annulation de règlements', date: '2026-11-03', annule: 't-regl-1' })
+    expect(traitement.mouvements).toEqual(mouvementsReglement(ecritA).map((m) => ({ ...m, sens: contraire(m.sens), traitementId: 't-annul-1' })))
+    const solde = (compte: string) =>
+      [...ecrits.traitement.mouvements, ...traitement.mouvements]
+        .filter((m) => m.compte === compte)
+        .reduce((s, m) => s + (m.sens === 'debit' ? m.montantCentimes : -m.montantCentimes), 0)
+    expect(solde(rA.contrepartie512)).toBe(-30_000)
+    expect(solde(mouvementsReglement(ecritA)[0].compte)).toBe(30_000)
+  })
+
+  it('le règlement rejeté passe « Annulé » avec la date et le motif du rejet ; il garde son écriture, son ordre et son n° de pièce', () => {
+    const { reglements } = rejeterVirement([ecritA], emis, { ...REJET, motif: '  AC04 — compte clos ' }, ecrits.traitement)
+    expect(reglements).toEqual([{ ...ecritA, statut: 'Annulé', rejet: { le: '2026-11-03', motif: 'AC04 — compte clos', traitementId: 't-annul-1' } }])
+    expect(reglements[0]).toMatchObject({ impute: true, traitementId: 't-regl-1', ordreId: 'o-1', numeroPiece: 'r-1' })
+    expect(ecritA.statut).toBe('Enregistré')
+  })
+
+  it('« Annulé » est définitif : ni réécriture, ni changement de statut ; la facture se paie par un nouveau règlement', () => {
+    const [rejete] = rejeterVirement([ecritA], emis, REJET, ecrits.traitement).reglements
+    expect(() => traitementReglements([rejete], { id: 't-reprise', ...AU_29 })).toThrow(/payé/)
+    expect(() => changerStatutReglementFournisseur(rejete, 'Demandé')).toThrow(/Transition refusée/)
+  })
+
+  it('double rejet refusé : un rejet ne s’écrit qu’une fois', () => {
+    const { reglements } = rejeterVirement([ecritA], emis, REJET, ecrits.traitement)
+    expect(() => rejeterVirement(reglements, emis, { ...REJET, id: 't-annul-2' }, ecrits.traitement)).toThrow(/r-1 déjà rejeté le 2026-11-03.*t-annul-1/)
+  })
+
+  it('ordre non émis : aucun virement n’est parti, le règlement sort de l’ordre (pas de rejet)', () => {
+    const [aRegler] = mettreDansOrdre([rA, rB], ordre)
+    expect(() => rejeterVirement([aRegler], ordre, REJET, ecrits.traitement)).toThrow(/OV-1 pas émis/)
+  })
+
+  it('avant l’écriture de l’ordre : refusé, rien à contre-passer (l’ordre s’écrit d’abord, en une fois)', () => {
+    expect(() => rejeterVirement([enregistres[0]], emis, REJET, ecrits.traitement)).toThrow(/écrire d'abord l'ordre OV-1/)
+  })
+
+  it('un rejet porte sur tout un virement : la ligne groupée entière, jamais deux virements à la fois', () => {
+    const groupe = ordreDe([rA, rB], 'mandat')
+    const groupeEmis = emettreOrdre(groupe, '2026-10-29')
+    const { traitement: groupeEcriture, reglements: groupeEcrit } = traitementReglements(
+      enregistrerOrdreEmis(mettreDansOrdre([rA, rB], groupe), groupeEmis),
+      { id: 't-regl-1', ...AU_29, ordre: groupeEmis },
+    )
+    expect(() => rejeterVirement([groupeEcrit[0]], groupeEmis, REJET, groupeEcriture)).toThrow(/tout le virement.*r-2 non fourni/)
+    const { traitement, reglements } = rejeterVirement(groupeEcrit, groupeEmis, REJET, groupeEcriture)
+    expect(traitement.mouvements).toHaveLength(4)
+    expect(reglements.map((r) => [r.id, r.statut])).toEqual([
+      ['r-1', 'Annulé'],
+      ['r-2', 'Annulé'],
+    ])
+    expect(() => rejeterVirement([ecritA, ecritB], emis, REJET, ecrits.traitement)).toThrow(/plusieurs virements/)
+  })
+
+  it('contrôles : au moins un règlement, motif, date AAAA-MM-JJ pas antérieure à l’émission, identifiant propre, virement de l’ordre', () => {
+    expect(() => rejeterVirement([], emis, REJET, ecrits.traitement)).toThrow(/aucun règlement/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, motif: '  ' }, ecrits.traitement)).toThrow(/motif/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, date: '03/11/2026' }, ecrits.traitement)).toThrow(/AAAA-MM-JJ/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, date: '2026-10-28' }, ecrits.traitement)).toThrow(/antérieur à l'émission/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, id: 't-regl-1' }, ecrits.traitement)).toThrow(/propre identifiant/)
+    expect(() => rejeterVirement([ecritA, ecritA], emis, REJET, ecrits.traitement)).toThrow(/en double/)
+    const cheque = traitementReglements(
+      [changerStatutReglementFournisseur(creer({ id: 'c-1', factureId: 'f-9', mode: 'Chèque', iban: null }), 'Enregistré', { numeroPiece: '0001' })],
+      { id: 't-cheques', ...AU_29 },
+    ).reglements[0]
+    expect(() => rejeterVirement([cheque], emis, REJET, ecrits.traitement)).toThrow(/c-1 hors de l'ordre OV-1/)
+  })
+
+  it('rejet daté d’avant l’écriture de l’ordre : écriture contraire datée au plus tôt de celle-ci, le rejet garde sa date réelle', () => {
+    const tardive = traitementReglements(enregistres, { id: 't-regl-1', date: '2026-11-10', ordre: emis })
+    const { traitement, reglements } = rejeterVirement([tardive.reglements[0]], emis, { ...REJET, date: '2026-11-01' }, tardive.traitement)
+    expect(traitement).toMatchObject({ id: 't-annul-1', date: '2026-11-10', annule: 't-regl-1' })
+    expect(reglements[0].rejet).toEqual({ le: '2026-11-01', motif: 'AC04 — compte clos', traitementId: 't-annul-1' })
+    expect(rejeterVirement([ecritA], emis, REJET, ecrits.traitement).traitement.date).toBe('2026-11-03')
+  })
+
+  it('l’écriture contraire inverse les mouvements de l’écriture fournie : celle du traitement de l’ordre, qui porte le virement', () => {
+    expect(() => rejeterVirement([ecritA], emis, REJET, { ...ecrits.traitement, id: 't-autre' })).toThrow(/t-autre.*t-regl-1/)
+    const sansSortie = { ...ecrits.traitement, mouvements: ecrits.traitement.mouvements.filter((m) => m.compte !== rA.contrepartie512) }
+    expect(() => rejeterVirement([ecritA], emis, REJET, sansSortie)).toThrow(/t-regl-1.*introuvable/)
+    const ecrite = ecrits.traitement.mouvements.map((m) => ({ ...m, attributs: { analytique: 'ECRIT' } }))
+    const { traitement } = rejeterVirement([ecritA], emis, REJET, { ...ecrits.traitement, mouvements: ecrite })
+    expect(traitement.mouvements.map((m) => m.attributs?.analytique)).toEqual(['ECRIT', 'ECRIT'])
+  })
+
+  it('après rapprochement : traité — la sortie reste pointée, le règlement passe « Annulé » ; la propagation ne le signale pas et ne le rend jamais « Rapproché »', () => {
+    const pointes = rapprocherReglements([ecritA, ecritB], [arrete('auto')]).reglements
+    expect(pointes[0].statut).toBe('Rapproché')
+    const [rejete] = rejeterVirement([pointes[0]], emis, REJET, ecrits.traitement).reglements
+    expect(rejete).toMatchObject({ statut: 'Annulé', rapprochement: { elementId: 'rel-1', rapprocheLe: '2026-11-02' } })
+    const repropage = rapprocherReglements([rejete, pointes[1]], [arrete('auto')])
+    expect(repropage.anomalies).toEqual([])
+    expect(repropage.reglements[0]).toEqual(rejete)
+    const depointe = rapprocherReglements([rejete, pointes[1]], [arrete(false)]).reglements[0]
+    expect(depointe).toEqual({ ...rejete, rapprochement: null })
+  })
+
+  it('rejet avant le relevé, sortie pointée ensuite (retour) : « Annulé », pointage gardé, sans anomalie', () => {
+    const [rejete] = rejeterVirement([ecritA], emis, REJET, ecrits.traitement).reglements
+    const { reglements, anomalies } = rapprocherReglements([rejete, ecritB], [arrete('auto')])
+    expect(anomalies).toEqual([])
+    expect(reglements[0]).toMatchObject({ statut: 'Annulé', rapprochement: { elementId: 'rel-1' } })
+  })
+
+  it('à une date antérieure au rejet, le virement garde le statut propagé à cette date ; « Annulé » à partir du rejet', () => {
+    const pointes = rapprocherReglements([ecritA, ecritB], [arrete('auto')]).reglements
+    const [rejete] = rejeterVirement([pointes[0]], emis, { ...REJET, date: '2026-11-20' }, ecrits.traitement).reglements
+    const statutAu = (aLaDate?: string) => rapprocherReglements([rejete, pointes[1]], [arrete('auto')], { aLaDate }).reglements[0].statut
+    expect(statutAu('2026-11-01')).toBe('Enregistré')
+    expect(statutAu('2026-11-05')).toBe('Rapproché')
+    expect(statutAu('2026-11-20')).toBe('Annulé')
+    expect(statutAu()).toBe('Annulé')
+  })
+
+  it('en-tête : la décision J9 remplace le 🔴 de l’annulation après émission', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).toMatch(/Décision J9 de Hugo du 30\/10\/2026/)
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/annulation après émission \(virement rejeté ou retourné\) : refusée/)
+  })
+
+  it('en-tête : « Rapproché » au pointage par la décision J8, plus une hypothèse de travail renvoyant à un 🔴', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).not.toMatch(/hypothèse de travail, voir son 🔴/)
+    expect(entete).toMatch(/au pointage, décision J8 de Hugo du 30\/10\/2026/)
+  })
+})
+
+describe('J67, R79 — dettes du syndicat nées avant la désignation : exigibilité suspendue (L. 1965 art. 29-3, 29-5)', () => {
+  const suspension = (surcharge: Partial<SuspensionExigibilite> = {}): SuspensionExigibilite => ({
+    designationLe: '2026-03-10',
+    dureeProrogeeMois: null,
+    planApurement: null,
+    ...surcharge,
+  })
+  const r = creer()
+  const codes = (anomalies: readonly { code: string }[]) => anomalies.map((a) => a.code)
+  const ancienne = { prestationLe: '2026-02-01', factureLe: '2026-02-15' }
+  const levee = (surcharge: Partial<LeveeSuspensionExigibilite> = {}): LeveeSuspensionExigibilite => ({
+    motif: 'creance_publique_ou_sociale',
+    precision: null,
+    collaborateurId: 'col-compta',
+    le: '2026-10-28',
+    ...surcharge,
+  })
+  const planHomologue = { homologueLe: '2026-09-15', termeLe: '2029-12-31', respecte: true }
+
+  it('prestation antérieure à la désignation, pendant les douze mois : bloquant, avec la fin de la suspension et ce qui le lève', () => {
+    expect(MOIS_SUSPENSION_EXIGIBILITE).toBe(12)
+    expect(MOIS_MAX_SUSPENSION_PROROGEE).toBe(30)
+    const [bloque] = controlerCreanceAnterieure(r, { prestationLe: '2026-02-01', factureLe: '2026-04-01' }, suspension(), '2026-10-29')
+    expect(bloque).toMatchObject({ code: 'creance_anterieure_suspendue', gravite: 'bloquant' })
+    expect(bloque.fondement).toMatch(/29-3/)
+    expect(bloque.justification).toMatch(/10\/03\/2027/)
+    expect(bloque.message).toMatch(/créance publique ou sociale/)
+    // prestation du jour de la désignation ou après : origine postérieure, rien
+    expect(controlerCreanceAnterieure(r, { prestationLe: '2026-03-10', factureLe: '2026-04-01' }, suspension(), '2026-10-29')).toEqual([])
+  })
+
+  it('période : douze mois, ou la durée prorogée (trente mois au plus), puis tant que le plan homologué est respecté', () => {
+    expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2027-03-10')).toHaveLength(1)
+    expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2027-03-11')).toEqual([])
+    expect(controlerCreanceAnterieure(r, ancienne, suspension({ dureeProrogeeMois: 30 }), '2028-09-01')).toHaveLength(1)
+    const plan = { homologueLe: '2027-02-01', termeLe: '2029-12-31', respecte: true }
+    expect(controlerCreanceAnterieure(r, ancienne, suspension({ planApurement: plan }), '2028-06-01')).toHaveLength(1)
+    expect(controlerCreanceAnterieure(r, ancienne, suspension({ planApurement: { ...plan, respecte: false } }), '2028-06-01')).toEqual([])
+    expect(() => controlerCreanceAnterieure(r, ancienne, suspension({ dureeProrogeeMois: 31 }), '2026-10-29')).toThrow(/30 mois/)
+  })
+
+  it('prestation non datée : facture antérieure à la désignation, bloquant ; facture postérieure, alerte « origine à vérifier »', () => {
+    expect(codes(controlerCreanceAnterieure(r, { prestationLe: null, factureLe: '2026-03-01' }, suspension(), '2026-10-29'))).toEqual([
+      'creance_anterieure_suspendue',
+    ])
+    const [alerte] = controlerCreanceAnterieure(r, { prestationLe: null, factureLe: '2026-05-01' }, suspension(), '2026-10-29')
+    expect(alerte).toMatchObject({ code: 'origine_creance_a_verifier', gravite: 'alerte' })
+  })
+
+  it('levée par un motif tracé : créance publique ou sociale, échéancier du plan homologué, autre avec texte ; jamais « contrat poursuivi »', () => {
+    expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee())).toEqual([])
+    const echeancier = levee({ motif: 'echeancier_plan_homologue' })
+    expect(controlerCreanceAnterieure(r, ancienne, suspension({ planApurement: planHomologue }), '2026-10-29', echeancier)).toEqual([])
+    expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ motif: 'autre', precision: 'Accord écrit du créancier' }))).toEqual([])
+    expect(() => controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ motif: 'autre' }))).toThrow(/texte/)
+    expect(() => controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ collaborateurId: ' ' }))).toThrow(/collaborateur/)
+    // @ts-expect-error — motif hors MOTIFS_LEVEE_SUSPENSION (J67, R79 : le III de l'art. 29-3 ne vise pas les sommes dues avant)
+    expect(() => controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ motif: 'contrat_poursuivi' }))).toThrow(/29-3, III/)
+    expect([...MOTIFS_LEVEE_SUSPENSION]).toEqual(['creance_publique_ou_sociale', 'echeancier_plan_homologue', 'autre'])
+  })
+
+  it('relecture : la levée ne vaut ni tracée après le règlement, ni « échéancier » sans plan homologué à sa date', () => {
+    const tardive = controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ le: '2027-01-15' }))
+    expect(codes(tardive)).toEqual(['creance_anterieure_suspendue'])
+    expect(tardive[0].message).toMatch(/levée tracée le 15\/01\/2027, après le règlement du 29\/10\/2026/)
+    const echeancier = levee({ motif: 'echeancier_plan_homologue', le: '2026-10-28' })
+    const sansPlan = controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', echeancier)
+    expect(codes(sansPlan)).toEqual(['creance_anterieure_suspendue'])
+    expect(sansPlan[0].message).toMatch(/sans plan d'apurement homologué au 29\/10\/2026/)
+    const planPosterieur = suspension({ planApurement: { ...planHomologue, homologueLe: '2026-12-01' } })
+    expect(codes(controlerCreanceAnterieure(r, ancienne, planPosterieur, '2026-10-29', echeancier))).toEqual(['creance_anterieure_suspendue'])
+  })
+
+  it('fin de la suspension : la même que l’échéance du mandat (delais-legaux.ts), prorogation comprise', () => {
+    for (const dureeProrogeeMois of [null, 30]) {
+      const [bloque] = controlerCreanceAnterieure(r, ancienne, suspension({ dureeProrogeeMois }), '2026-10-29')
+      const echeance = calculerEcheancesLegales({ regime: 'ap291', dateOrdonnance: '2026-03-10', suspensionProrogeeJusquAMois: dureeProrogeeMois }).find(
+        (e) => e.regleId === 'fin-suspension-exigibilite-ap291',
+      )
+      const [annee, mois, jour] = (echeance?.dateLegale ?? '').split('-')
+      expect(bloque.justification).toContain(`jusqu'au ${jour}/${mois}/${annee}`)
+    }
+  })
+
+  it('remboursement à un copropriétaire ou règlement avant la désignation : hors du contrôle', () => {
+    expect(controlerCreanceAnterieure(creer({ beneficiaire: COPROPRIETAIRE, factureId: null }), ancienne, suspension(), '2026-10-29')).toEqual([])
+    expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-03-01')).toEqual([])
+  })
+})
+
+describe('J67, R80 — remboursement d’un compte en indivision ou démembré : à qui payer (C. civ. art. 1342-2)', () => {
+  const position = (identiteId: string, qualite: Position['qualite'], compteId = 'cpt-12'): Position => ({
+    id: `pos-${identiteId}`,
+    identiteId,
+    lotId: 'lot-12',
+    compteId,
+    qualite,
+    part: { numerateur: 1, denominateur: 2 },
+    statut: 'En place',
+    dateEntree: '2020-01-15',
+    dateSortie: null,
+  })
+  const compte = (surcharge: Partial<CompteCoproprietaire> = {}) =>
+    creerCompteCoproprietaire({ id: 'cpt-12', coproprieteId: 'copro-tilleuls', serie: '12', libelle: 'Compte 12', ...surcharge })
+  const rembourse = (identiteIds?: string[]) =>
+    creer({ beneficiaire: { ...COPROPRIETAIRE, ...(identiteIds === undefined ? {} : { identiteIds }) }, factureId: null })
+  const codes = (r: ReglementFournisseur, positions: Position[], comptes = [compte()]) =>
+    controlerBeneficiaireCompte(r, positions, '2026-10-29', comptes).map((a) => a.code)
+
+  it('(3) un règlement qui ne nomme personne est refusé', () => {
+    expect(codes(rembourse(), [position('id-1', 'Copropriétaire')])).toEqual(['beneficiaire_non_nomme'])
+    expect(codes(rembourse([' ']), [position('id-1', 'Copropriétaire')])).toEqual(['beneficiaire_non_nomme'])
+    expect(codes(rembourse(['id-1']), [position('id-1', 'Copropriétaire')])).toEqual([])
+  })
+
+  it('(1) compte en indivision, bénéficiaire « copropriétaire » : mandataire commun, ou tous les indivisaires ensemble ; un seul : refusé', () => {
+    const indivis = [position('id-1', 'Indivisaire'), position('id-2', 'Indivisaire')]
+    expect(codes(rembourse(['id-1']), indivis)).toEqual(['paiement_indivision_hors_mandataire'])
+    expect(codes(rembourse(['id-1']), indivis, [compte({ mandataireCommunId: 'id-1' })])).toEqual([])
+    expect(codes(rembourse(['id-1', 'id-2']), indivis)).toEqual([])
+    // un indivisaire sorti n'a pas à être payé ; le type « indivisaire » garde la règle de J10
+    expect(codes(rembourse(['id-1']), [indivis[0], { ...indivis[1], dateSortie: '2026-06-30' }])).toEqual([])
+    const parJ10 = creer({ beneficiaire: { type: 'indivisaire', compteCoproprietaireId: 'cpt-12', serie450: '00012', identiteId: 'id-1' }, factureId: null })
+    expect(codes(parJ10, indivis)).toEqual(['indivisaire_sans_mandataire_commun'])
+  })
+
+  it('(1) relecture : payé seul, le mandataire commun passe par le contrôle de J10, quel que soit le type saisi', () => {
+    // mandataire dont la position d'indivisaire est sortie le 30/06/2026 : refusé comme en type « indivisaire »
+    const indivis = [{ ...position('id-m', 'Indivisaire'), dateSortie: '2026-06-30' }, position('id-1', 'Indivisaire'), position('id-2', 'Indivisaire')]
+    const designe = [compte({ mandataireCommunId: 'id-m' })]
+    expect(codes(rembourse(['id-m']), indivis, designe)).toEqual(['mandataire_commun_position_sortie'])
+    const parJ10 = creer({ beneficiaire: { type: 'indivisaire', compteCoproprietaireId: 'cpt-12', serie450: '00012', identiteId: 'id-m' }, factureId: null })
+    expect(codes(parJ10, indivis, designe)).toEqual(['mandataire_commun_position_sortie'])
+    // tiers désigné qui n'a jamais été indivisaire : admis, comme en J10
+    expect(codes(rembourse(['id-tiers']), indivis.slice(1), [compte({ mandataireCommunId: 'id-tiers' })])).toEqual([])
+  })
+
+  it('« tous ensemble » : personne d’autre que les titulaires en place du compte (indivision et démembrement)', () => {
+    const indivis = [position('id-1', 'Indivisaire'), position('id-2', 'Indivisaire')]
+    const [enTrop] = controlerBeneficiaireCompte(rembourse(['id-1', 'id-2', 'id-tiers']), indivis, '2026-10-29', [compte()])
+    expect(enTrop.code).toBe('paiement_indivision_hors_mandataire')
+    expect(enTrop.message).toMatch(/pas titulaires en place du compte : id-tiers/)
+    const demembre = [position('id-u', 'Usufruitier'), position('id-n', 'Nu propriétaire')]
+    expect(codes(rembourse(['id-u', 'id-n', 'id-tiers']), demembre)).toEqual(['demembrement_sans_accord'])
+  })
+
+  it('(2) usufruit et nue-propriété : la personne désignée par l’accord écrit des deux, ou les deux ensemble ; sans accord, refusé', () => {
+    const demembre = [position('id-u', 'Usufruitier'), position('id-n', 'Nu propriétaire')]
+    const [sansAccord] = controlerBeneficiaireCompte(rembourse(['id-n']), demembre, '2026-10-29', [compte()])
+    expect(sansAccord.code).toBe('demembrement_sans_accord')
+    expect(sansAccord.message).toMatch(/accord écrit/)
+    expect(codes(rembourse(['id-u', 'id-n']), demembre)).toEqual([])
+    const accord = { beneficiaireId: 'id-u', documentId: 'doc-accord', signeLe: '2026-09-01' }
+    expect(codes(rembourse(['id-u']), demembre, [compte({ accordPaiementDemembrement: accord })])).toEqual([])
+    expect(codes(rembourse(['id-n']), demembre, [compte({ accordPaiementDemembrement: accord })])).toEqual(['demembrement_sans_accord'])
+    // accord signé après le règlement : ne vaut pas encore
+    expect(codes(rembourse(['id-u']), demembre, [compte({ accordPaiementDemembrement: { ...accord, signeLe: '2026-11-01' } })])).toEqual([
+      'demembrement_sans_accord',
+    ])
+  })
+
+  it('fournisseur : sans objet ; compte débité non fourni ou date invalide : erreur', () => {
+    expect(controlerBeneficiaireCompte(creer(), [], '2026-10-29', [])).toEqual([])
+    expect(() => controlerBeneficiaireCompte(rembourse(['id-1']), [], '2026-10-29', [])).toThrow(/non fourni/)
+    expect(() => controlerBeneficiaireCompte(rembourse(['id-1']), [], '29/10/2026', [compte()])).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('en-tête : R79 et R80 ne sont plus des questions ; textes cités', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\r?\n \* */g, ' ')
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toContain('créances nées avant la désignation')
+    expect(nonEtabli).not.toContain("d'un compte détenu en indivision ou en démembrement")
+    for (const attendu of ['J67, R79', 'J67, R80', 'L. 1965 art. 29-3', '29-5', 'C. civ. art. 1342-2']) expect(entete).toContain(attendu)
+  })
+})

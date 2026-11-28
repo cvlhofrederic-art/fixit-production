@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   DEMO_EQUIPE_PLANNING,
@@ -12,6 +12,7 @@ import {
   type EvenementPlanning,
   type ReglagesPlanning,
 } from '@/components/administrateur-judiciaire/data/planning'
+import { champCoproprieteChoisie, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
@@ -19,6 +20,7 @@ import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast, type OptionsFormulaire } from '@/components/administrateur-judiciaire/ui/toast'
+import { codeLigneDemo, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Ligne horaire de la grille : index (0 = premier créneau) et libellé « HH:MM ». */
 interface CreneauPlanning {
@@ -65,6 +67,21 @@ const FORMULAIRE_NOUVEL_EVENEMENT: OptionsFormulaire = {
   },
 }
 
+/** Formulaire « Nouvel événement », copropriété choisie préremplie ; le formulaire de base sans copropriété choisie. */
+function formulaireNouvelEvenement(nomCopro: string | null): OptionsFormulaire {
+  if (!nomCopro) return FORMULAIRE_NOUVEL_EVENEMENT
+  return {
+    ...FORMULAIRE_NOUVEL_EVENEMENT,
+    fields: FORMULAIRE_NOUVEL_EVENEMENT.fields?.map((champ) =>
+      champ === CHAMP_COPROPRIETE ? champCoproprieteChoisie(nomCopro, champ) : champ,
+    ),
+  }
+}
+
+/** Liste vide : message propre à la copropriété choisie, ou celui des filtres sans copropriété choisie. */
+const texteAucunEvenement = (nomCopro: string | null): string =>
+  nomCopro ? `Aucun événement pour ${nomCopro} cette semaine.` : 'Aucun événement cette semaine avec les filtres actuels.'
+
 /** Heures proposées dans les réglages (début, puis fin) et durées de créneau possibles (minutes). */
 const HEURES_DEBUT = [6, 7, 8, 9, 10, 11]
 const HEURES_FIN = [16, 17, 18, 19, 20, 21, 22]
@@ -102,9 +119,13 @@ function calculerCreneaux(reglages: ReglagesPlanning): CreneauPlanning[] {
  * Planning hebdomadaire de l'équipe (surtitre « Gestion courante ») : semaine figée du 8 au 14 juin 2026,
  * filtre par collaborateur (menu déroulant), réglages d'affichage (jours ouvrés, plage horaire, durée des
  * créneaux) appliqués seulement via « Appliquer ». Les ajouts sont simulés (formulaire sans enregistrement).
+ * Avec une copropriété choisie en haut de page, ses événements sont affichés avec les tâches du cabinet (événements
+ * sans copropriété, visibles quelle que soit la copropriété choisie) et le formulaire la propose par défaut.
  */
 export function PlanningModule() {
   const { push } = useToast()
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const formulaire = useMemo(() => formulaireNouvelEvenement(nomCopro), [nomCopro])
   const [reglagesAppliques, setReglagesAppliques] = useState<ReglagesPlanning>(REGLAGES_PLANNING_DEFAUT)
   const [brouillon, setBrouillon] = useState<ReglagesPlanning>(REGLAGES_PLANNING_DEFAUT)
   const [reglagesOuverts, setReglagesOuverts] = useState(false)
@@ -191,7 +212,10 @@ export function PlanningModule() {
   const joursAffiches = JOURS_SEMAINE_PLANNING.filter((jour) => reglagesAppliques.workingDays.includes(jour.key))
   const creneaux = calculerCreneaux(reglagesAppliques)
 
-  const evenementsVisibles = DEMO_EVENEMENTS_PLANNING.filter(
+  // Une tâche du cabinet (sans copropriété) reste visible quelle que soit la copropriété choisie.
+  const evenementsVisibles = filtrerParCopro(DEMO_EVENEMENTS_PLANNING, code, (evenement) =>
+    evenement.code ? codeLigneDemo(evenement.code) : code,
+  ).filter(
     (evenement) =>
       !(
         (membreSelectionneId && evenement.owner !== membreSelectionneId) ||
@@ -294,7 +318,7 @@ export function PlanningModule() {
               <Icon name="wrench" />
               Réglages
             </button>
-            <button className="btn gold" onClick={() => push(FORMULAIRE_NOUVEL_EVENEMENT)}>
+            <button className="btn gold" onClick={() => push(formulaire)}>
               <Icon name="plus" />
               Ajouter
             </button>
@@ -328,7 +352,7 @@ export function PlanningModule() {
               {joursAffiches.map((jour) => (
                 <div
                   className="week-cell"
-                  onClick={() => push(FORMULAIRE_NOUVEL_EVENEMENT)}
+                  onClick={() => push(formulaire)}
                   aria-hidden="true"
                   key={`c-${jour.key}-${creneau.idx}`}
                 />
@@ -388,7 +412,7 @@ export function PlanningModule() {
               fontSize: 13,
             }}
           >
-            Aucun événement cette semaine avec les filtres actuels.
+            {texteAucunEvenement(nomCopro)}
           </div>
         ) : (
           evenementsVisibles.map((evenement) => {

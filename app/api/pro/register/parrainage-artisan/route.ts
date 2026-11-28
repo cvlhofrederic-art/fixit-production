@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/pro/register/parrainage-artisan
 // Lien entre l'artisan qui s'inscrit (filleul) et son parrain, appelée par le
-// formulaire artisan (app/pro/register) après /api/auth/create-profile.
+// formulaire artisan (app/(commun)/pro/register) après /api/auth/create-profile.
 // Route sœur de /api/pro/register/finalize-artisan.
 //
 // Quand la confirmation d'e-mail est active, supabase.auth.signUp ne renvoie

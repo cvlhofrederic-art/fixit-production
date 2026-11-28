@@ -12,6 +12,7 @@
 | Section Devis | `DevisSection` branche artisan | `DevisSection` branche pro_societe | `components/dashboard/DevisSection.tsx` |
 | Section Factures | `FacturesSectionV5` branche artisan | `FacturesSectionV5` branche pro_societe | `components/dashboard/FacturesSection.tsx` |
 | Section Prestations | artisan uniquement | BTP n'a pas de Prestations | `components/dashboard/PrestationsSection.tsx` |
+| Listes Devis/Factures V5 : recherche, cases à cocher, téléchargement groupé (ZIP) | `useBtpDesign: false` (PDF V2) | `useBtpDesign: true` (PDF V3, mode `action: 'fichier'`) | `components/dashboard/documents/OutilsListeDocuments.tsx`, `lib/documents/recherche-documents.ts`, `lib/pdf/telechargement-groupe.ts` |
 
 ## Règles de modification
 
@@ -24,7 +25,7 @@
 - **Layout V5 est partagé** : `isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'`. Toucher V5 sans condition impacte les deux. Exemple : bouton Télécharger ajouté dans `FacturesSectionV5` conditionné par `orgRole === 'artisan'`.
 - **`useBtpDesign` flag** : `downloadSavedDevis` route vers V2 (artisan) ou V3 (BTP) selon ce flag. Par défaut `false` → V2.
 - **Franchise 293B** : Artisan EI/auto/micro. Adapter les mentions PDF V2 en conséquence (`PRIX U.` au lieu de `PRIX U. TTC`, pas de TVA calculée dans la liste factures, etc.). Le V3 BTP gère sa propre logique.
-- **Numérotation** : séquence partagée via RPC `next_doc_number`, par `docType` et `artisan_id`. Pas de différenciation artisan/BTP à ce niveau.
+- **Numérotation** : séquence partagée via RPC `next_doc_number`, par `docType` et `artisan_id`. Pas de différenciation artisan/BTP à ce niveau. Préfixes selon le marché du titulaire de la série (migrations 20261122 et 20261122b) : une fiche en portugais → ORC/FT/NC/FA, sinon DEV/FACT/AV/AC ; le repli local des artisans suit la langue de la fiche (`lib/numerotation-prefixes.ts`).
 
 ## Check-list avant commit
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/context'
+import { safeNavigate } from '@/lib/security/safe-url'
 
 export default function GmailConnectButton({ syndicId, userEmail }: { syndicId?: string; userEmail?: string }) {
   const { t } = useTranslation()
@@ -44,7 +45,7 @@ export default function GmailConnectButton({ syndicId, userEmail }: { syndicId?:
     // Récupérer le token de session pour l'envoyer à la route connect
     const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
     if (session?.access_token) {
-      window.location.href = `/api/email-agent/connect?token=${session.access_token}`
+      safeNavigate(`/api/email-agent/connect?token=${encodeURIComponent(session.access_token)}`, { allowRelative: true })
     } else {
       setLoading(false)
     }

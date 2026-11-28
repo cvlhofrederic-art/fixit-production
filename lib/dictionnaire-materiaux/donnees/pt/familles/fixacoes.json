@@ -1,0 +1,1011 @@
+{
+  "famille": {
+    "id": "fixacoes",
+    "nom": "Fixações e ancoragens",
+    "description": "Buchas, ancoragem química, parafusos, pregos, varão roscado, porcas, anilhas, abraçadeiras e esquadros para fixar em betão, tijolo, gesso cartonado, madeira e metal.",
+    "icone": "🔩",
+    "sousFamilles": [
+      {
+        "id": "buchas-nylon",
+        "nom": "Buchas de nylon",
+        "description": "Buchas de plástico para betão, pedra e tijolo: de expansão, universais, para tijolo furado, longas, de bater e kits de louça sanitária."
+      },
+      {
+        "id": "buchas-gesso-cartonado",
+        "nom": "Buchas para gesso cartonado",
+        "description": "Buchas próprias para placas e paredes ocas: de nylon, metálicas de expansão, autoperfurantes e basculantes."
+      },
+      {
+        "id": "buchas-metalicas",
+        "nom": "Buchas metálicas",
+        "description": "Buchas de aço e de latão para cargas pesadas em betão e pedra, com parafuso, gancho, pitão ou rosca interior."
+      },
+      {
+        "id": "ancoragem-quimica",
+        "nom": "Ancoragem química",
+        "description": "Bucha química em cartucho e o casquilho de rede para a aplicar em material oco."
+      },
+      {
+        "id": "parafusos",
+        "nom": "Parafusos",
+        "description": "Parafusos para madeira, chapa e metal, por tipo de rosca e de cabeça."
+      },
+      {
+        "id": "varao-porcas-anilhas",
+        "nom": "Varão roscado, porcas e anilhas",
+        "description": "Varão roscado ao metro e a respetiva ferragem métrica."
+      },
+      {
+        "id": "pregos",
+        "nom": "Pregos",
+        "description": "Pregos de construção, de cabeça plana, de aço, estriados e de acabamento."
+      },
+      {
+        "id": "ganchos-rebites",
+        "nom": "Camarões, escápulas e rebites",
+        "description": "Ferragens roscadas para pendurar e rebites para unir chapa."
+      },
+      {
+        "id": "abracadeiras-fitas",
+        "nom": "Abraçadeiras e fita perfurada",
+        "description": "Abraçadeiras de serrilha, metálicas e de tubo, e fita perfurada para suspender e prender."
+      },
+      {
+        "id": "esquadros-chapas",
+        "nom": "Esquadros, chapas e suportes",
+        "description": "Ferragens de ligação para estruturas de madeira: esquadros, chapas e suportes de viga."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "bucha-nylon-expansao",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-nylon",
+      "nom": "Bucha de nylon de expansão (5 a 12 mm)",
+      "aussiAppele": [
+        "bucha de plástico",
+        "bucha de parede",
+        "bucha com bordo",
+        "bucha sem bordo"
+      ],
+      "usage": "Fixação corrente em betão, pedra e tijolo maciço: prateleiras, calhas, suportes, rodapés. Vende-se sozinha ou já com parafuso.",
+      "aSavoir": "Em tijolo furado ou gesso cartonado roda em falso: usar a bucha própria. A broca tem o diâmetro da bucha.",
+      "conditionnement": "Saco de 20 a 100 un. ou blister, com ou sem parafuso",
+      "recherche": "bucha nylon",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-universal",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-nylon",
+      "nom": "Bucha universal (maciço e oco)",
+      "aussiAppele": [
+        "bucha multimaterial",
+        "bucha multiusos",
+        "bucha para todos os materiais"
+      ],
+      "usage": "Bucha que expande em material maciço e dá nó em material oco. Útil quando não se sabe o que está por trás do reboco.",
+      "conditionnement": "Saco de 30 a 100 un. ou blister com parafuso",
+      "recherche": "bucha universal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-tijolo-furado",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-nylon",
+      "nom": "Bucha para tijolo furado",
+      "aussiAppele": [
+        "bucha de tijolo",
+        "bucha para tijolo oco",
+        "bucha para alvenaria furada"
+      ],
+      "usage": "Fixação em paredes de tijolo furado e blocos ocos, onde a bucha comum não agarra.",
+      "aSavoir": "Furar sem percussão para não rebentar os septos do tijolo.",
+      "conditionnement": "Saco de 30 un. ou blister, com ou sem parafuso (6, 8 e 10 mm)",
+      "recherche": "bucha tijolo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-longa-com-parafuso",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-nylon",
+      "nom": "Bucha longa com parafuso (aros e barrotes)",
+      "aussiAppele": [
+        "bucha de aro",
+        "bucha de caixilho",
+        "bucha comprida",
+        "bucha de montagem atravessante"
+      ],
+      "usage": "Fixação atravessante de aros de portas e janelas, barrotes e ripas à parede: fura-se através da peça e aperta-se.",
+      "conditionnement": "Saco de 4 un. (10x80 e 10x120 mm)",
+      "recherche": "bucha longa",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-de-bater",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-nylon",
+      "nom": "Bucha de bater com prego-parafuso",
+      "aussiAppele": [
+        "bucha de prego",
+        "bucha de impacto",
+        "bucha de martelo",
+        "bucha tapit",
+        "tapit"
+      ],
+      "usage": "Fixação rápida de ripas, perfis, calhas e rodapés: fura-se através da peça e crava-se com o martelo.",
+      "aSavoir": "Para cargas leves; em tijolo furado segura pouco.",
+      "conditionnement": "Saco de 20 a 30 un. ou blister (6x60, 8x80, 8x100 mm)",
+      "recherche": "bucha de bater",
+      "rechercheEnseigne": {
+        "maxmat": "bucha tapit"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "kit-fixacao-louca-sanitaria",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-nylon",
+      "nom": "Kit de fixação de louça sanitária (sanita, bidé, lavatório)",
+      "aussiAppele": [
+        "fixação de sanita",
+        "parafusos de sanita",
+        "fixação de bidé",
+        "fixação de lavatório",
+        "kit de fixação sanitários"
+      ],
+      "usage": "Conjunto de buchas, pernos, porcas e anilhas para fixar a sanita ou o bidé ao pavimento, ou o lavatório à parede.",
+      "aSavoir": "Apertar com moderação: o aperto excessivo racha a louça.",
+      "conditionnement": "Blister com 2 fixações",
+      "recherche": "fixação sanitários",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-nylon-gesso-cartonado",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-gesso-cartonado",
+      "nom": "Bucha de nylon para gesso cartonado",
+      "aussiAppele": [
+        "bucha de pladur",
+        "bucha para placa de gesso",
+        "bucha borboleta de nylon"
+      ],
+      "usage": "Cargas leves em placa de gesso cartonado: quadros, calhas, pequenos acessórios.",
+      "aSavoir": "Só para cargas leves; para móveis ou louça suspensa fixar à estrutura ou usar buchas metálicas.",
+      "conditionnement": "Blister ou saco de 50 a 200 un.",
+      "recherche": "bucha gesso cartonado",
+      "rechercheEnseigne": {
+        "maxmat": "bucha para placa de gesso"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-metalica-expansao-gesso-cartonado",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-gesso-cartonado",
+      "nom": "Bucha metálica de expansão para gesso cartonado (guarda-chuva)",
+      "aussiAppele": [
+        "bucha molly",
+        "bucha guarda-chuva",
+        "bucha metálica de pladur",
+        "bucha aranha"
+      ],
+      "usage": "Fixação de cargas médias em placas de gesso cartonado e paredes ocas: a bucha abre por trás da placa ao apertar.",
+      "aSavoir": "Escolher o comprimento conforme a espessura da placa (simples ou dupla). O alicate de buchas de expansão facilita o aperto.",
+      "conditionnement": "Blister de 4 un. (M5 e M6)",
+      "recherche": "bucha metálica guarda-chuva",
+      "rechercheEnseigne": {
+        "leroy-merlin": "bucha metálica de expansão para gesso cartonado"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-autoperfurante-gesso-cartonado",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-gesso-cartonado",
+      "nom": "Bucha autoperfurante para gesso cartonado (metálica ou de nylon)",
+      "aussiAppele": [
+        "bucha recartilhada",
+        "bucha zamak",
+        "bucha de rosca para pladur",
+        "bucha autorroscante"
+      ],
+      "usage": "Enrosca-se diretamente na placa com a aparafusadora, sem furo prévio, para cargas leves.",
+      "aSavoir": "Não reaproveitar o mesmo furo: a rosca na placa fica moída.",
+      "conditionnement": "Blister ou saco",
+      "recherche": "bucha autoperfurante gesso",
+      "rechercheEnseigne": {
+        "maxmat": "bucha recartilhada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-basculante",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-gesso-cartonado",
+      "nom": "Bucha basculante de nylon para placa de gesso",
+      "aussiAppele": [
+        "bucha de báscula",
+        "bucha basculante",
+        "bucha para teto falso"
+      ],
+      "usage": "Fixação em paredes e tetos de gesso cartonado: a báscula apoia por trás da placa e reparte a carga.",
+      "aSavoir": "Precisa de um furo largo (10 mm) para a báscula passar.",
+      "conditionnement": "Blister, com ou sem parafuso",
+      "recherche": "bucha basculante",
+      "rechercheEnseigne": {
+        "maxmat": "bucha placa gesso"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-metalica-com-parafuso",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-metalicas",
+      "nom": "Bucha metálica de expansão com parafuso (M6 e M8)",
+      "aussiAppele": [
+        "bucha de aço",
+        "bucha de camisa",
+        "bucha metálica para betão",
+        "ancoragem metálica"
+      ],
+      "usage": "Cargas pesadas em betão e pedra: toldos, portões, corrimãos, estruturas metálicas e de madeira.",
+      "aSavoir": "Só em material maciço; não usar em tijolo furado. Afastar das arestas do betão.",
+      "conditionnement": "Blister ou saco de 4 a 8 un.",
+      "recherche": "bucha aço parafuso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-metalica-com-gancho",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-metalicas",
+      "nom": "Bucha metálica com gancho ou pitão",
+      "aussiAppele": [
+        "bucha de aço com gancho",
+        "bucha de aço com olhal",
+        "gancho de teto"
+      ],
+      "usage": "Suspensão em teto ou parede de betão: candeeiros pesados, baloiços, redes, cabos.",
+      "aSavoir": "Só em betão ou pedra maciça.",
+      "conditionnement": "Saco ou blister de 4 un.",
+      "recherche": "bucha aço gancho",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-latao",
+      "famille": "fixacoes",
+      "sousFamille": "buchas-metalicas",
+      "nom": "Bucha de latão de rosca interior (M6 e M8)",
+      "aussiAppele": [
+        "bucha latão",
+        "bucha de rosca métrica",
+        "bucha fêmea",
+        "bucha para varão roscado"
+      ],
+      "usage": "Bucha metálica com rosca interior para betão e pedra: recebe varão roscado ou parafuso métrico. Corrente na suspensão de tetos falsos, calhas e tubagens.",
+      "aSavoir": "Só em material maciço. A broca é mais larga do que a rosca: a M6 pede broca de 8 mm.",
+      "conditionnement": "Saco de 5 un. ou caixa de 50 a 200 un.",
+      "recherche": "bucha latão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-quimica-poliester",
+      "famille": "fixacoes",
+      "sousFamille": "ancoragem-quimica",
+      "nom": "Bucha química de poliéster",
+      "aussiAppele": [
+        "ancoragem química",
+        "resina de ancoragem",
+        "químico",
+        "bucha química"
+      ],
+      "usage": "Resina de dois componentes para chumbar varão roscado em tijolo furado, bloco, betão e pedra, incluindo junto a arestas, porque não expande.",
+      "aSavoir": "Limpar bem o pó do furo. Em material oco usar casquilho de rede. Deitar fora o início até a mistura sair de cor uniforme e respeitar o tempo de cura antes de carregar. Um cartucho começado só volta a servir com ponteira misturadora nova.",
+      "conditionnement": "Cartucho 280-300 ml",
+      "recherche": "bucha química",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-quimica-vinilester",
+      "famille": "fixacoes",
+      "sousFamille": "ancoragem-quimica",
+      "nom": "Bucha química de viniléster",
+      "aussiAppele": [
+        "ancoragem química viniléster",
+        "resina vinílica",
+        "químico para betão"
+      ],
+      "usage": "Ancoragem química para cargas mais elevadas em betão e alvenaria; admite furos húmidos.",
+      "aSavoir": "Limpar bem o furo e respeitar o tempo de cura. O cartucho reutiliza-se trocando a ponteira misturadora.",
+      "conditionnement": "Cartucho 280-300 ml",
+      "recherche": "bucha química viniléster",
+      "rechercheEnseigne": {
+        "leroy-merlin": "bucha química"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "casquilho-rede-bucha-quimica",
+      "famille": "fixacoes",
+      "sousFamille": "ancoragem-quimica",
+      "nom": "Casquilho de rede para bucha química",
+      "aussiAppele": [
+        "rede para bucha química",
+        "casquilho perfurado",
+        "manga de rede",
+        "tamis"
+      ],
+      "usage": "Manga perfurada que retém a resina dentro do furo em tijolo furado e blocos ocos.",
+      "aSavoir": "Indispensável em material oco; sem casquilho a resina perde-se nos alvéolos.",
+      "conditionnement": "Bolsa de 5 un.",
+      "recherche": "casquilho bucha química",
+      "rechercheEnseigne": {
+        "leroy-merlin": "rede para bucha química"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-madeira-aglomerado",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso para madeira e aglomerado (cabeça de embeber)",
+      "aussiAppele": [
+        "parafuso de aglomerado",
+        "parafuso de madeira",
+        "parafuso pozidriv",
+        "parafuso de cabeça chata"
+      ],
+      "usage": "Parafuso corrente para madeira, aglomerado e MDF, e para apertar em buchas de nylon.",
+      "conditionnement": "Blister ou caixa de 20 a 100 un.",
+      "recherche": "parafuso aglomerado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-inox-madeira",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso inox para madeira (exterior)",
+      "aussiAppele": [
+        "parafuso inox",
+        "parafuso de deck",
+        "parafuso torx inox"
+      ],
+      "usage": "Madeira no exterior e zonas húmidas: decks, vedações, pérgulas, casas de banho.",
+      "conditionnement": "Caixa de 10 a 25 un.",
+      "recherche": "parafuso madeira inox",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tirafundo",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Tirafundo (parafuso sextavado para madeira)",
+      "aussiAppele": [
+        "tirefond",
+        "tira-fundo",
+        "parafuso de cabeça sextavada para madeira",
+        "parafuso de barrote"
+      ],
+      "usage": "Fixações fortes em madeira e em buchas grandes: vigas, barrotes, suportes de toldo, ferragens pesadas.",
+      "aSavoir": "Fazer pré-furo na madeira para não rachar.",
+      "conditionnement": "Blister de 2 a 6 un. ou caixa de 20 un.",
+      "recherche": "parafuso tirefond",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-autorroscante-chapa",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso autorroscante para chapa",
+      "aussiAppele": [
+        "parafuso de chapa",
+        "parafuso auto-roscante",
+        "parafuso parker"
+      ],
+      "usage": "Une chapas finas e perfis metálicos e fixa acessórios em chapa, com pré-furo.",
+      "aSavoir": "Precisa de pré-furo; sem furo usar parafuso autoperfurante.",
+      "conditionnement": "Blister de 10 a 30 un.",
+      "recherche": "parafuso chapa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-autoperfurante",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso autoperfurante (ponta de broca)",
+      "aussiAppele": [
+        "parafuso ponta broca",
+        "parafuso auto-brocante",
+        "parafuso de serralheiro"
+      ],
+      "usage": "Fura e rosca de uma só vez em chapa e perfis de aço e alumínio: caixilharia, calhas, estruturas leves.",
+      "conditionnement": "Blister de 8 a 25 un.",
+      "recherche": "parafuso autoperfurante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-sextavado-metrico",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso sextavado métrico (M6 a M10)",
+      "aussiAppele": [
+        "parafuso de cabeça sextavada",
+        "parafuso de porca",
+        "parafuso métrico"
+      ],
+      "usage": "Ligações aparafusadas com porca e anilha em estruturas metálicas, ferragens e máquinas.",
+      "conditionnement": "Blister de 2 a 10 un. ou caixa de 10 a 15 un.",
+      "recherche": "parafuso sextavado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-com-quadra",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso com quadra (cabeça redonda)",
+      "aussiAppele": [
+        "parafuso de cabeça de tremoço",
+        "parafuso de quadra",
+        "parafuso de cabeça redonda com quadra"
+      ],
+      "usage": "Ligações madeira-madeira e madeira-metal com porca: portões, vedações, bancos, estruturas. A quadra trava na madeira e a cabeça fica lisa.",
+      "conditionnement": "Blister de 4 a 6 un. (M6 e M8)",
+      "recherche": "parafuso com quadra",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-duas-roscas",
+      "famille": "fixacoes",
+      "sousFamille": "parafusos",
+      "nom": "Parafuso de duas roscas (madeira e métrica)",
+      "aussiAppele": [
+        "perno de dupla rosca",
+        "parafuso de lavatório",
+        "parafuso de rosca madeira/metal"
+      ],
+      "usage": "Um lado rosca na bucha ou na madeira, o outro leva porca: lavatórios, abraçadeiras de tubo, suportes desmontáveis.",
+      "conditionnement": "Blister de 2 a 6 un. (M6 e M8)",
+      "recherche": "parafuso duas roscas",
+      "rechercheEnseigne": {
+        "leroy-merlin": "parafuso roscas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "varao-roscado",
+      "famille": "fixacoes",
+      "sousFamille": "varao-porcas-anilhas",
+      "nom": "Varão roscado (zincado ou inox)",
+      "aussiAppele": [
+        "varão de rosca",
+        "perno roscado",
+        "tirante roscado",
+        "varão roscado M8",
+        "varão roscado M6"
+      ],
+      "usage": "Corta-se à medida para ancoragens químicas, suspensão de tetos falsos, tubagens e calhas.",
+      "aSavoir": "Inox no exterior e em zonas húmidas; o zincado acaba por oxidar.",
+      "conditionnement": "Vara de 1 m (M6 também em 2 m)",
+      "recherche": "varão roscado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "porca-sextavada",
+      "famille": "fixacoes",
+      "sousFamille": "varao-porcas-anilhas",
+      "nom": "Porca sextavada (M4 a M12)",
+      "aussiAppele": [
+        "porca",
+        "porca zincada",
+        "porca hexagonal"
+      ],
+      "usage": "Aperto em varão roscado e parafusos métricos.",
+      "conditionnement": "Blister de 6 a 20 un. ou caixa de 30 a 100 un.",
+      "recherche": "porca sextavada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "porca-autoblocante",
+      "famille": "fixacoes",
+      "sousFamille": "varao-porcas-anilhas",
+      "nom": "Porca autoblocante (com anel de nylon)",
+      "aussiAppele": [
+        "porca nyloc",
+        "porca de freio",
+        "porca de segurança"
+      ],
+      "usage": "Porca que não desaperta com a vibração: portões, máquinas, estruturas com movimento.",
+      "conditionnement": "Blister de 10 a 20 un. ou caixa de 25 a 80 un.",
+      "recherche": "porca autoblocante",
+      "rechercheEnseigne": {
+        "maxmat": "porca nyloc"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "anilha-plana",
+      "famille": "fixacoes",
+      "sousFamille": "varao-porcas-anilhas",
+      "nom": "Anilha plana (normal e de aba larga)",
+      "aussiAppele": [
+        "anilha de chapa",
+        "anilha zincada",
+        "anilha DIN 125",
+        "anilha de aba larga",
+        "anilha larga",
+        "anilha DIN 9021"
+      ],
+      "usage": "Reparte o aperto da porca ou da cabeça do parafuso e protege a peça.",
+      "aSavoir": "Sobre madeira, chapa fina ou furos largos usar a de aba larga: a normal enterra-se.",
+      "conditionnement": "Blister de 8 a 20 un. ou caixa de 30 a 100 un. (M4 a M12)",
+      "recherche": "anilha chapa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "anilha-mola",
+      "famille": "fixacoes",
+      "sousFamille": "varao-porcas-anilhas",
+      "nom": "Anilha de mola",
+      "aussiAppele": [
+        "anilha de pressão",
+        "anilha grower",
+        "anilha de freio"
+      ],
+      "usage": "Coloca-se sob a porca para dificultar o desaperto.",
+      "conditionnement": "Blister de 10 un. ou caixa de 25 a 100 un.",
+      "recherche": "anilha mola",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "anilha-vedacao-neoprene",
+      "famille": "fixacoes",
+      "sousFamille": "varao-porcas-anilhas",
+      "nom": "Anilha de vedação com neoprene",
+      "aussiAppele": [
+        "anilha de borracha para cobertura",
+        "anilha vedante",
+        "anilha de chapa com borracha"
+      ],
+      "usage": "Veda o furo do parafuso em chapas de cobertura, caleiras e rufos.",
+      "aSavoir": "Apertar até a borracha encostar, sem a esmagar.",
+      "conditionnement": "Blister de 10 un.",
+      "recherche": "anilha neoprene",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "prego-construcao",
+      "famille": "fixacoes",
+      "sousFamille": "pregos",
+      "nom": "Prego de construção (galeota, meia galeota, telhar)",
+      "aussiAppele": [
+        "prego quadrado",
+        "prego de carpinteiro",
+        "prego de cofragem",
+        "prego galeota",
+        "prego de ferro",
+        "prego de telhar"
+      ],
+      "usage": "Carpintaria de obra: cofragens, ripado, barrotes, estruturas de madeira.",
+      "conditionnement": "Saco de 0,25 kg, 0,5 kg ou 1 kg",
+      "recherche": "prego galeota",
+      "rechercheEnseigne": {
+        "leroy-merlin": "prego quadrado"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "prego-cabeca-plana",
+      "famille": "fixacoes",
+      "sousFamille": "pregos",
+      "nom": "Prego redondo de cabeça plana",
+      "aussiAppele": [
+        "prego comum",
+        "prego redondo",
+        "prego de cabeça chata",
+        "prego de arame"
+      ],
+      "usage": "Prego corrente para pregar madeira: caixas, ripas, paletes, pequenas estruturas e reparações.",
+      "conditionnement": "Caixa de 10 a 500 un. (20 a 80 mm)",
+      "recherche": "prego cabeça plana",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "prego-aco",
+      "famille": "fixacoes",
+      "sousFamille": "pregos",
+      "nom": "Prego de aço",
+      "aussiAppele": [
+        "prego de betão",
+        "prego temperado",
+        "prego de alvenaria"
+      ],
+      "usage": "Crava-se diretamente em reboco, tijolo e betão para fixar ripas, rodapés e pequenos suportes.",
+      "aSavoir": "Usar óculos de proteção: parte-se e salta se for batido torto.",
+      "conditionnement": "Caixa de 50 a 300 un.",
+      "recherche": "prego aço",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "prego-estriado",
+      "famille": "fixacoes",
+      "sousFamille": "pregos",
+      "nom": "Prego estriado",
+      "aussiAppele": [
+        "prego anelado",
+        "prego de esquadro",
+        "prego ranhurado"
+      ],
+      "usage": "Fixa esquadros, chapas e suportes de viga à madeira; as estrias resistem ao arrancamento.",
+      "conditionnement": "Blister de 20 a 25 un.",
+      "recherche": "prego estriado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "prego-cabeca-atarracada",
+      "famille": "fixacoes",
+      "sousFamille": "pregos",
+      "nom": "Prego de cabeça perdida (cabeça atarracada)",
+      "aussiAppele": [
+        "prego ponta de Paris",
+        "prego sem cabeça",
+        "prego de acabamento",
+        "prego fino",
+        "prego de cabeça atarracada"
+      ],
+      "usage": "Acabamentos em madeira: rodapés, guarnições, molduras, lambris. A cabeça pequena fica escondida.",
+      "conditionnement": "Blister ou caixa de 30 a 300 un.",
+      "recherche": "prego cabeça perdida",
+      "rechercheEnseigne": {
+        "leroy-merlin": "prego sem cabeça"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "camarao-pitao-roscado",
+      "famille": "fixacoes",
+      "sousFamille": "ganchos-rebites",
+      "nom": "Camarão e pitão roscados",
+      "aussiAppele": [
+        "camarão aberto",
+        "camarão fechado",
+        "pitão",
+        "gancho de rosca",
+        "olhal roscado"
+      ],
+      "usage": "Ganchos e olhais de rosca para madeira ou bucha: pendurar vasos, cabos, cortinas, estendais.",
+      "conditionnement": "Blister de 5 a 20 un.",
+      "recherche": "camarão roscado",
+      "rechercheEnseigne": {
+        "leroy-merlin": "camarão aberto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escapula-roscada",
+      "famille": "fixacoes",
+      "sousFamille": "ganchos-rebites",
+      "nom": "Escápula roscada (sozinha ou com bucha)",
+      "aussiAppele": [
+        "escápula",
+        "gancho em L",
+        "escápula de esquentador",
+        "bucha com escápula",
+        "bucha de esquentador"
+      ],
+      "usage": "Gancho em L de rosca para pendurar esquentadores, espelhos, armários e quadros pesados. Vende-se sozinha ou em conjunto com a bucha.",
+      "conditionnement": "Blister de 5 a 15 un.",
+      "recherche": "escápula roscada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rebite-aluminio",
+      "famille": "fixacoes",
+      "sousFamille": "ganchos-rebites",
+      "nom": "Rebite de alumínio (3 a 5 mm)",
+      "aussiAppele": [
+        "rebite pop",
+        "rebite cego",
+        "rebite de repuxo"
+      ],
+      "usage": "Une chapas, perfis de alumínio, caleiras e rufos metálicos com a rebitadora.",
+      "conditionnement": "Blister de 6 a 20 un.",
+      "recherche": "rebite alumínio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "abracadeira-serrilha-nylon",
+      "famille": "fixacoes",
+      "sousFamille": "abracadeiras-fitas",
+      "nom": "Abraçadeira de serrilha em nylon",
+      "aussiAppele": [
+        "abraçadeira plástica",
+        "abraçadeira de cabos",
+        "fita de serrilha",
+        "abraçadeira de nylon",
+        "abraçadeiras de serrilha",
+        "bridas",
+        "unex"
+      ],
+      "usage": "Prender cabos, tubos, redes e mangueiras; arrumação e fixações provisórias.",
+      "aSavoir": "No exterior preferir as pretas, que aguentam melhor o sol.",
+      "conditionnement": "Saco de 50 un.",
+      "recherche": "abraçadeira serrilha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "abracadeira-metalica-fita",
+      "famille": "fixacoes",
+      "sousFamille": "abracadeiras-fitas",
+      "nom": "Abraçadeira metálica de fita (aperto sem-fim)",
+      "aussiAppele": [
+        "abraçadeira de mangueira",
+        "abraçadeira de aperto",
+        "abraçadeira inox",
+        "abraçadeira galvanizada",
+        "abraçadeira de fita",
+        "abraçadeira metálica",
+        "abraçadeira de parafuso"
+      ],
+      "usage": "Aperta mangueiras e tubos flexíveis sobre uniões e espigões.",
+      "aSavoir": "Inox em zonas húmidas e no exterior.",
+      "conditionnement": "Saco de 2 un., por gama de diâmetros",
+      "recherche": "abraçadeira fita",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "abracadeira-tubo-com-borracha",
+      "famille": "fixacoes",
+      "sousFamille": "abracadeiras-fitas",
+      "nom": "Abraçadeira de tubo com borracha (rosca M8/M10)",
+      "aussiAppele": [
+        "abraçadeira isofónica",
+        "abraçadeira de suspensão",
+        "abraçadeira com junta",
+        "abraçadeira de tubagem",
+        "abraçadeira de tubo M8 com borracha",
+        "abraçadeira de parede",
+        "abraçadeira com perno",
+        "abraçadeira M8/M10"
+      ],
+      "usage": "Fixa tubos de água e de esgoto a paredes e tetos, com parafuso de duas roscas ou varão roscado; a borracha reduz o ruído.",
+      "conditionnement": "Unidade, por gama de diâmetros (15-19 a 107-112 mm)",
+      "recherche": "abraçadeira borracha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-perfurada-galvanizada",
+      "famille": "fixacoes",
+      "sousFamille": "abracadeiras-fitas",
+      "nom": "Fita perfurada galvanizada",
+      "aussiAppele": [
+        "fita furada",
+        "banda perfurada",
+        "fita de suspensão"
+      ],
+      "usage": "Suspender tubos e condutas, prender e contraventar peças; corta-se e dobra-se à medida.",
+      "conditionnement": "Rolo",
+      "recherche": "fita perfurada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esquadro-canto-galvanizado",
+      "famille": "fixacoes",
+      "sousFamille": "esquadros-chapas",
+      "nom": "Esquadro de canto galvanizado",
+      "aussiAppele": [
+        "esquadro metálico",
+        "cantoneira de fixação",
+        "esquadro de união",
+        "esquadro de reforço"
+      ],
+      "usage": "Liga e reforça peças de madeira em ângulo: prateleiras, barrotes, estruturas de pérgulas e telheiros.",
+      "conditionnement": "Unidade (até 150x150 mm)",
+      "recherche": "esquadro galvanizado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chapa-fixacao-plana",
+      "famille": "fixacoes",
+      "sousFamille": "esquadros-chapas",
+      "nom": "Chapa de fixação plana",
+      "aussiAppele": [
+        "chapa de união",
+        "placa de ligação",
+        "chapa perfurada de união"
+      ],
+      "usage": "Une ou reforça duas peças de madeira no mesmo plano.",
+      "conditionnement": "Saco de 4 un.",
+      "recherche": "chapa fixação",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "suporte-de-viga",
+      "famille": "fixacoes",
+      "sousFamille": "esquadros-chapas",
+      "nom": "Suporte de viga",
+      "aussiAppele": [
+        "estribo de viga",
+        "sapata de viga",
+        "suporte de barrote"
+      ],
+      "usage": "Apoia vigas e barrotes de madeira em paredes ou noutras vigas: pisos, pérgulas, telheiros.",
+      "aSavoir": "Escolher pela secção da viga; fixar com pregos estriados ou parafusos em todos os furos.",
+      "conditionnement": "Unidade",
+      "recherche": "suporte viga",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rebitadora-manual",
+      "famille": "fixacoes",
+      "sousFamille": "ganchos-rebites",
+      "nom": "Rebitadora manual (alicate de rebites)",
+      "aussiAppele": [
+        "alicate de rebitar",
+        "pistola de rebites",
+        "rebitadeira"
+      ],
+      "usage": "Colocar rebites cegos de alumínio em chapa, caleiras metálicas e perfis.",
+      "aSavoir": "Confirmar que a rebitadora traz a ponteira do diâmetro do rebite. O furo tem o diâmetro do rebite e o comprimento do rebite escolhe-se pela espessura das peças a unir.",
+      "conditionnement": "Unidade, com ponteiras de vários diâmetros.",
+      "recherche": "rebitadora",
+      "rechercheEnseigne": {
+        "maxmat": "alicate de rebitar"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escovilhao-bomba-limpeza-furos",
+      "famille": "fixacoes",
+      "sousFamille": "ancoragem-quimica",
+      "nom": "Escovilhão e bomba de sopro para limpeza de furos",
+      "aussiAppele": [
+        "bomba de sopro",
+        "escova de limpeza de furos",
+        "kit de limpeza para bucha química"
+      ],
+      "usage": "Tirar o pó do furo antes de injetar a bucha química, para a resina agarrar à parede.",
+      "aSavoir": "Escolher o escovilhão pelo diâmetro do furo e alternar sopro e escova as vezes indicadas na embalagem da resina.",
+      "conditionnement": "Unidade ou conjunto",
+      "recherche": "bomba limpeza furos",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

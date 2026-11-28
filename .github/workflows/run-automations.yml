@@ -5,13 +5,19 @@ on:
     - cron: '*/5 * * * *'  # toutes les 5 min
   workflow_dispatch: {}
 
+# Aucune permission (lot 6 Aikido, 28/10/2026) : le job n'utilise pas le jeton GitHub.
+permissions: {}
+
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Trigger cron endpoint
+        env:
+          # Secret lu depuis l'environnement, jamais interpolé dans run:.
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
         run: |
           curl -s -X POST https://vitfix.io/api/cron/run-automations \
-            -H "x-cron-secret: ${{ secrets.INTERNAL_API_SECRET }}" \
+            -H "x-cron-secret: ${INTERNAL_API_SECRET}" \
             --fail-with-body

@@ -1,0 +1,141 @@
+# ── App Android — envoi Play ──────────────────────────────────────────────────
+# Fabrique le bundle signé (AAB) de Vitfix Pro et le dépose sur un canal de la Google Play Console,
+# « test interne » par défaut : les employés invités l'installent alors depuis le Play Store.
+# Le workflow « App Android — APK de test » reste à côté pour essayer l'appli sans passer par Google.
+#
+# Rien de secret n'est écrit dans le dépôt : la clé d'envoi et le compte de service viennent des secrets,
+# sont posés dans le dossier temporaire du runner et effacés en fin de job. L'AAB signé n'est jamais publié
+# en artefact : sur un dépôt public, tout le monde pourrait le télécharger.
+#
+# Secrets à créer par Frédéric (Settings → Secrets and variables → Actions) :
+#   ANDROID_KEYSTORE_BASE64           clé d'envoi (.p12 ou .jks) encodée en base64
+#   ANDROID_KEYSTORE_PASSWORD         mot de passe du magasin
+#   ANDROID_KEY_ALIAS                 alias de la clé dans le magasin
+#   ANDROID_KEY_PASSWORD              mot de passe de la clé (souvent le même que le magasin)
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  clé JSON d'un compte de service « Release manager »
+# Procédure détaillée : MOBILE_GUIDE.md, section « Publication sur les stores ».
+#
+# La clé d'envoi ne se remplace pas : la perdre interdit toute mise à jour de l'appli. En garder une copie
+# hors du poste et hors du dépôt.
+
+name: "App Android — envoi Play"
+
+on:
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: "Canal Play visé"
+        required: true
+        default: internal
+        type: choice
+        options: [internal, alpha, beta, production]
+      statut:
+        description: "draft tant que l'appli n'a jamais été publiée (Google refuse completed) ; completed ensuite"
+        required: true
+        default: draft
+        type: choice
+        options: [draft, completed]
+      notes:
+        description: "Notes de version (fr-FR), facultatives"
+        required: false
+        type: string
+
+permissions: {}
+
+# Pas d'annulation en cours de route : un versionCode déposé ne peut plus être réutilisé.
+concurrency:
+  group: mobile-android-release
+  cancel-in-progress: false
+
+jobs:
+  play:
+    name: "Bundle signé et envoi Play"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      # Échouer ici, avec un message lisible, plutôt qu'au milieu de Gradle sur une erreur de signature.
+      - name: Vérifier les secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          manquants=""
+          [ -n "$ANDROID_KEYSTORE_BASE64" ] || manquants="$manquants ANDROID_KEYSTORE_BASE64"
+          [ -n "$ANDROID_KEYSTORE_PASSWORD" ] || manquants="$manquants ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$ANDROID_KEY_ALIAS" ] || manquants="$manquants ANDROID_KEY_ALIAS"
+          [ -n "$ANDROID_KEY_PASSWORD" ] || manquants="$manquants ANDROID_KEY_PASSWORD"
+          [ -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ] || manquants="$manquants GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+          if [ -n "$manquants" ]; then
+            echo "::error::Secrets absents :$manquants — voir MOBILE_GUIDE.md, « Publication sur les stores »."
+            exit 1
+          fi
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      # Seuls @capacitor/cli et les paquets natifs servent ici : aucun script d'installation n'est nécessaire.
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      # Copie la page hors connexion (mobile/www), la configuration et la liste des plugins dans le projet Android.
+      # Binaire local du lockfile, pas npx (qui pourrait télécharger un paquet hors lockfile).
+      - name: Synchroniser Capacitor (Android)
+        run: ./node_modules/.bin/cap sync android
+
+      - name: Déposer la clé d'envoi
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+          if [ ! -s "$RUNNER_TEMP/upload.keystore" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 ne contient pas un magasin de clés lisible (base64 invalide ?)."
+            exit 1
+          fi
+
+      # Capacitor 8 exige le JDK 21, installé sur les runners Ubuntu mais pas par défaut.
+      # Le versionCode vient du numéro de run : Google Play refuse un numéro déjà envoyé.
+      - name: Construire le bundle signé
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/upload.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          if [ -z "${JAVA_HOME_21_X64:-}" ]; then
+            echo "::error::JDK 21 introuvable sur le runner (JAVA_HOME_21_X64)."
+            exit 1
+          fi
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Envoyer sur la Play Console
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_PACKAGE_NAME: io.vitfix.pro
+          PLAY_AAB: android/app/build/outputs/bundle/release/app-release.aab
+          PLAY_TRACK: ${{ inputs.canal }}
+          PLAY_STATUS: ${{ inputs.statut }}
+          PLAY_NOTES: ${{ inputs.notes }}
+        run: node scripts/mobile/publier-play.mjs
+
+      - name: Effacer la clé d'envoi
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.keystore"

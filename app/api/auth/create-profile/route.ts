@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { getUserRole, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
@@ -39,17 +40,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ id: existing.id })
     }
 
-    // Only allow fields that exist in profiles_artisan
+    // Only allow fields that exist in profiles_artisan. verified et kyc_status ne viennent jamais du
+    // corps : la route est appelée sans session, tout compte de moins de 10 minutes aurait pu créer
+    // une fiche déjà « vérifiée ». Le serveur les fixe, le KYC les fait évoluer ensuite.
     const ALLOWED_FIELDS = [
       'user_id', 'company_name', 'siret', 'siren', 'bio', 'categories',
-      'verified', 'kyc_status', 'kyc_market', 'phone', 'email', 'language',
+      'kyc_market', 'phone', 'email', 'language',
       'legal_form', 'naf_code', 'naf_label', 'company_address', 'company_city',
       'company_postal_code',
     ]
-    const sanitized: Record<string, unknown> = { user_id }
+    // pt_btp : société BTP inscrite en portugais (NIPC et certidão contrôlés par lib/kyc-orchestrate.ts).
+    const MARCHES_KYC: readonly unknown[] = ['fr_artisan', 'fr_btp', 'pt_artisan', 'pt_btp']
+    const sanitized: Record<string, unknown> = { user_id, verified: false, kyc_status: 'pending' }
     for (const key of ALLOWED_FIELDS) {
       if (key in profileData) sanitized[key] = profileData[key]
     }
+    if ('kyc_market' in sanitized && !MARCHES_KYC.includes(sanitized.kyc_market)) delete sanitized.kyc_market
+    // pt_btp réservé à un compte société (rôle d'app_metadata, posé par trg_sync_user_role, non forgeable), comme
+    // /api/pro/register/finalize : un autre compte qui l'enverrait passerait par le registre et le score des sociétés.
+    if (sanitized.kyc_market === 'pt_btp' && getUserRole(user.user) !== 'pro_societe') delete sanitized.kyc_market
 
     const { data, error } = await supabaseAdmin
       .from('profiles_artisan')
@@ -109,7 +118,8 @@ async function saveSpecialties(userId: string, slugs: unknown) {
 // Rôle lu dans app_metadata (posé par le trigger trg_sync_user_role, non
 // forgeable), jamais dans user_metadata. Idempotent et non bloquant.
 async function ensureGerant(authUser: User) {
-  if (authUser.app_metadata?.role !== 'pro_societe' || !authUser.email) return
+  // Compte rattaché à la société d'un autre (co-gérant, salarié invité) : pas de société à son nom (25/11/2026).
+  if (authUser.app_metadata?.role !== 'pro_societe' || !authUser.email || societeDunAutreCompte(authUser)) return
   const email = authUser.email.toLowerCase().trim()
   const fullName = typeof authUser.user_metadata?.full_name === 'string' ? authUser.user_metadata.full_name.trim() : ''
   const phone = typeof authUser.user_metadata?.phone === 'string' ? authUser.user_metadata.phone.trim() : ''

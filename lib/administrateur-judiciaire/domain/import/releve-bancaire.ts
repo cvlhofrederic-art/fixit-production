@@ -275,3 +275,50 @@ export function proposerImputations<L extends LigneReleve, C extends { nom: stri
     }
   })
 }
+
+/**
+ * Payeur tiers (point 40 du bilan 2 ; Gestéam, tranche 43 § 2 : le libellé de la pièce peut nommer un autre payeur que le
+ * copropriétaire crédité) : aucun mot significatif du nom crédité ne se retrouve dans le nom du payeur. Sans payeur : non.
+ */
+export function payeurEstUnTiers(payeur: string | null, nomCredite: string): boolean {
+  const motsPayeur = new Set(motsSignificatifs(payeur ?? ''))
+  if (motsPayeur.size === 0) return false
+  return !motsSignificatifs(nomCredite).some((mot) => motsPayeur.has(mot))
+}
+
+/**
+ * Clé de rapprochement retenue, à garder sur l'encaissement (Gestéam, tranche 43 § 2 : notes « SYN / IMM / COMPTE /
+ * TIERS » du rapprochement automatique d'un fichier de virements reçus).
+ */
+export interface CleRapprochement {
+  /** Règle qui a retenu le candidat (motif de la proposition), ou choix du gestionnaire. */
+  regle: string
+  /** « manuelle » : compte choisi par le gestionnaire (encaissementDepuisReleve). */
+  confiance: ConfianceImputation | 'manuelle'
+  compteId: string | null
+  coproprieteId: string | null
+  mandatId: string | null
+  /** Payeur (détenteur du compte émetteur) ; null : non lu. */
+  payeur: string | null
+  /** Le payeur n'est pas le copropriétaire crédité. */
+  payeurTiers: boolean
+}
+
+/** Clé d'une proposition retenue ; null sans candidat. */
+export function cleDeRapprochement<
+  L extends LigneReleve,
+  C extends { nom: string; solde: number; compteId?: string | null; coproprieteId?: string | null; mandatId?: string | null },
+>(proposition: PropositionImputation<L, C>, { payeur = null }: { payeur?: string | null } = {}): CleRapprochement | null {
+  const { candidat, confiance } = proposition
+  if (!candidat || !confiance) return null
+  const payeurLu = payeur?.trim() || null
+  return {
+    regle: proposition.motif,
+    confiance,
+    compteId: candidat.compteId ?? null,
+    coproprieteId: candidat.coproprieteId ?? null,
+    mandatId: candidat.mandatId ?? null,
+    payeur: payeurLu,
+    payeurTiers: payeurEstUnTiers(payeurLu, candidat.nom),
+  }
+}

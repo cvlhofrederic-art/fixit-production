@@ -16,6 +16,7 @@ export function langueCopro(locale: string | null | undefined): LangueCopro {
   return (locale || '').toLowerCase().startsWith('pt') ? 'pt' : 'fr'
 }
 
+/** Écrans du portail (« AJ Signalement » est un espace indépendant depuis le 10/11/2026 : le menu n'en garde qu'un lien). */
 export type EcranCopro = 'accueil' | 'demandes' | 'charges' | 'documents' | 'assemblees' | 'annonces' | 'informations' | 'question'
 
 export const TEXTES = {
@@ -33,6 +34,8 @@ export const TEXTES = {
       /** Libellés courts de la barre du bas (téléphone). */
       court: { accueil: 'Accueil', demandes: 'Demandes', charges: 'Charges', documents: 'Documents' },
       panneauAdmin: 'Panneau admin',
+      /** Lien vers l'espace indépendant /fr/aj-signalement/ (super admin seulement). */
+      ajSignalement: 'AJ Signalement',
       deconnexion: 'Déconnexion',
       menu: 'Menu',
       fermerMenu: 'Fermer le menu',
@@ -384,6 +387,7 @@ export const TEXTES = {
       plus: 'Mais',
       court: { accueil: 'Início', demandes: 'Pedidos', charges: 'Quotas', documents: 'Documentos' },
       panneauAdmin: 'Painel de administração',
+      ajSignalement: 'AJ Signalement',
       deconnexion: 'Terminar sessão',
       menu: 'Menu',
       fermerMenu: 'Fechar o menu',

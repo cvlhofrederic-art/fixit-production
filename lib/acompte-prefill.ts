@@ -46,6 +46,8 @@ export function buildAcomptePrefill(
     docDate: new Date().toISOString().slice(0, 10),
     docTitle: `Acompte N°${p.ordre} sur ${p.total} (${p.percentage}%) — ${docTitle}`,
     factureSubType: 'acompte',
+    // Escompte du PDF artisan (lib/escompte-pdf.ts) : l'acompte imprime ce que son parent imprime.
+    escompteSurPdf: parent.escompteSurPdf === true,
     // L'acompte ne porte PAS l'échéancier du devis parent : ce serait un bloc
     // « Échéancier 50/30/20 » parasite sur la facture d'acompte elle-même (qui
     // EST déjà un acompte). Même remise à zéro que buildAvoirPrefill.

@@ -244,6 +244,16 @@ describe('prochainAppel', () => {
     expect(prochainAppel([appel({ id: 'a', resteAPayer: 0, statut: 'solde' })], aujourdhui)).toBeNull()
   })
 
+  it('en retard : montantEnRetard additionne tous les appels en retard, pas seulement le plus ancien', () => {
+    const resultat = prochainAppel([
+      appel({ id: 't2', echeance: '2026-04-01', resteAPayer: 1524.6, statut: 'en_retard' }),
+      appel({ id: 't1', echeance: '2026-01-01', resteAPayer: 315.4, statut: 'partiellement_paye' }),
+      appel({ id: 't4', echeance: '2026-12-01', resteAPayer: 855 }),
+    ], aujourdhui)
+    expect(resultat).toMatchObject({ enRetard: true, montantEnRetard: 1840 })
+    expect(resultat?.appel.id).toBe('t1')
+  })
+
   it('ignore les appels annulés même avec un reste à payer', () => {
     expect(prochainAppel([appel({ id: 'a', statut: 'annule', resteAPayer: 300 })], aujourdhui)).toBeNull()
   })

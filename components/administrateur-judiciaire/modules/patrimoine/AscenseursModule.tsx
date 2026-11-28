@@ -6,24 +6,34 @@ import {
   PILL_PAR_ETAT_ASCENSEUR,
   type AscenseurDemo,
 } from '@/components/administrateur-judiciaire/data/ascenseurs'
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { champCoproprieteChoisie, titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+
+/** Nombre d'appareils du parc dans l'état donné. */
+const compterEtat = (parc: readonly AscenseurDemo[], etat: AscenseurDemo[5]): number =>
+  parc.filter((ascenseur) => ascenseur[5] === etat).length
 
 /**
- * Gestion des ascenseurs (parc de démonstration, contrôle technique quinquennal — décret 2004-964).
- * Indicateurs en dur (4 / 2 / 1 / 1). Le formulaire « Nouvel ascenseur » est simulé (toast « Ascenseur enregistré ») ;
- * sa liste « Ascensoriste » reprend des prestataires sans rapport avec les ascenseurs (comme la maquette).
+ * Gestion des ascenseurs (parc de démonstration, contrôle technique quinquennal — décret 2004-964), affichée selon la
+ * copropriété choisie dans le sélecteur du haut de page : parc filtré, indicateurs calculés sur lui, champ Copropriété
+ * du formulaire prérempli (copie locale). Sans copropriété choisie (écran rendu seul) : tout le parc (4 / 2 / 1 / 1).
+ * Le formulaire « Nouvel ascenseur » est simulé (toast « Ascenseur enregistré ») ; sa liste « Ascensoriste » reprend
+ * des prestataires sans rapport avec les ascenseurs (comme la maquette).
  */
 export function AscenseursModule() {
   const { push } = useToast()
   const [ascenseurOuvert, setAscenseurOuvert] = useState<AscenseurDemo | null>(null)
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const parc = filtrerParCopro(DEMO_PARC_ASCENSEURS, code, (ascenseur) => codeDeNomCopro(ascenseur[1]))
 
   return (
     <>
@@ -40,7 +50,7 @@ export function AscenseursModule() {
                 icon: 'building',
                 title: 'Nouvel ascenseur',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(nomCopro),
                   {
                     label: 'Référence appareil',
                     placeholder: 'ex. ASC-A-2024',
@@ -80,64 +90,68 @@ export function AscenseursModule() {
         items={[
           {
             icon: 'building',
-            num: 4,
+            num: parc.length,
             lbl: 'Ascenseurs suivis',
           },
           {
             icon: 'check',
-            num: 2,
+            num: compterEtat(parc, 'conforme'),
             lbl: 'En conformité',
             accent: 'sage',
           },
           {
             icon: 'clock',
-            num: 1,
+            num: compterEtat(parc, 'proche'),
             lbl: 'Contrôle < 90 j',
             accent: 'amber',
           },
           {
             icon: 'siren',
-            num: 1,
+            num: compterEtat(parc, 'en retard'),
             lbl: 'Inspection en retard',
             accent: 'rust',
           },
         ]}
       />
       <Panel title="Parc d'ascenseurs" icon="building" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Ascenseur',
-              render: (ascenseur) => <b>{ascenseur[0]}</b>,
-            },
-            {
-              h: 'Bâtiment',
-              render: (ascenseur) => ascenseur[1],
-            },
-            {
-              h: 'Entretien',
-              render: (ascenseur) => ascenseur[2],
-            },
-            {
-              h: 'Dernier contrôle',
-              render: (ascenseur) => <span className="mono">{ascenseur[3]}</span>,
-            },
-            {
-              h: 'Prochain',
-              render: (ascenseur) => <span className="mono">{ascenseur[4]}</span>,
-            },
-            {
-              h: 'État',
-              render: (ascenseur) => (
-                <Pill kind={PILL_PAR_ETAT_ASCENSEUR[ascenseur[5]]} noDot>
-                  {ascenseur[5]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={DEMO_PARC_ASCENSEURS}
-          onRow={setAscenseurOuvert}
-        />
+        {parc.length === 0 ? (
+          <EmptyState icon="building" title={titreListeVide('Aucun ascenseur', nomCopro)} />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                h: 'Ascenseur',
+                render: (ascenseur) => <b>{ascenseur[0]}</b>,
+              },
+              {
+                h: 'Bâtiment',
+                render: (ascenseur) => ascenseur[1],
+              },
+              {
+                h: 'Entretien',
+                render: (ascenseur) => ascenseur[2],
+              },
+              {
+                h: 'Dernier contrôle',
+                render: (ascenseur) => <span className="mono">{ascenseur[3]}</span>,
+              },
+              {
+                h: 'Prochain',
+                render: (ascenseur) => <span className="mono">{ascenseur[4]}</span>,
+              },
+              {
+                h: 'État',
+                render: (ascenseur) => (
+                  <Pill kind={PILL_PAR_ETAT_ASCENSEUR[ascenseur[5]]} noDot>
+                    {ascenseur[5]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={parc}
+            onRow={setAscenseurOuvert}
+          />
+        )}
       </Panel>
       <DetailModal
         open={!!ascenseurOuvert}

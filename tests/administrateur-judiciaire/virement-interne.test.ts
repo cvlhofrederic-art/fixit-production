@@ -1,0 +1,802 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { annulerTraitement } from '@/lib/administrateur-judiciaire/domain/traitements'
+import { controlerRangsDuLot, emettreOrdreConstate } from '@/lib/administrateur-judiciaire/domain/types-ordres-banque'
+import * as moduleVirement from '@/lib/administrateur-judiciaire/domain/virement-interne'
+import {
+  creerLotVirementsInternes,
+  creerVirementInterne,
+  emettreLotVirementsInternes,
+  fichierVirementInterne,
+  mouvementFondsTravaux,
+  mouvementsVirementInterne,
+  ordresDuLotVirementsInternes,
+  recomposerLotVirementsInternes,
+  rejeterVirementInterne,
+  traitementVirementsInternes,
+  type CompteVirementInterne,
+  type SaisieVirementDuLot,
+  type SaisieVirementInterne,
+  type VirementInterne,
+} from '@/lib/administrateur-judiciaire/domain/virement-interne'
+
+/**
+ * Virement de banque à banque entre comptes du syndicat (point 39 du bilan 2 ; Gestéam, tranche 43 § 12 : traitement
+ * distinct « Règlement de banque à banque », par exemple du compte courant vers le compte du fonds de travaux).
+ * D-BANQUE : le compte du fonds de travaux est toujours distinct. Données fictives.
+ */
+
+const SEGMENT = 'TILL'
+const IBAN_COURANT = 'FR76 3000 6000 0112 3456 7890 189'
+const IBAN_FONDS = 'FR14 2004 1010 0505 0001 3M02 606'
+const IBAN_REPRIS = 'FR76 3000 4000 0312 3456 7890 143'
+const IBAN_PLACEMENT = 'FR37 1027 8060 0000 0204 2010 154'
+
+const compte = (surcharge: Partial<CompteVirementInterne> = {}): CompteVirementInterne => ({
+  banqueId: 'b-courant',
+  coproprieteId: 'copro-tilleuls',
+  nature: 'courant',
+  iban: IBAN_COURANT,
+  bic: 'AGRIFRPP',
+  compte512: 'TILL.51200.00000.0',
+  actif: true,
+  ...surcharge,
+})
+const COURANT = compte()
+const FONDS = compte({ banqueId: 'b-fonds', nature: 'fonds_travaux', iban: IBAN_FONDS, bic: 'PSSTFRPP', compte512: 'TILL.51210.00000.0' })
+const FONDS_CDC = compte({ banqueId: 'b-fonds-cdc', nature: 'fonds_travaux', iban: null, bic: null, compte512: 'TILL.51220.00000.0' })
+const REPRIS = compte({ banqueId: 'b-repris', nature: 'repris_ancien_gestionnaire', iban: IBAN_REPRIS, compte512: 'TILL.51290.00000.0' })
+const PLACEMENT = compte({ banqueId: 'b-placement', nature: 'placement', iban: IBAN_PLACEMENT, compte512: 'TILL.51230.00000.0' })
+/** J71 : compte de placement au nom du syndicat, réservé au fonds de travaux (IBAN fictif, clé valide). */
+const PLACEMENT_FONDS = compte({
+  banqueId: 'b-placement-fonds',
+  nature: 'placement',
+  iban: 'FR17 1010 7001 1800 1234 5678 906',
+  compte512: 'TILL.51231.00000.0',
+  reserveAuFondsTravaux: true,
+})
+/** Ancien compte du fonds de travaux, repris de l'ancien gestionnaire. */
+const REPRIS_FONDS: CompteVirementInterne = { ...REPRIS, banqueId: 'b-repris-fonds', compte512: 'TILL.51291.00000.0', tenaitFondsTravaux: true }
+
+/** Saisie d'un virement sans sa place dans le lot (traitement, rang, taille du lot). */
+const BASE: SaisieVirementDuLot = {
+  id: 'vi-1',
+  numero: 'BAB-0001',
+  date: '2026-10-29',
+  coproprieteId: 'copro-tilleuls',
+  mandatId: 'm-1',
+  source: COURANT,
+  destination: FONDS,
+  montantCentimes: 250_000,
+  libelle: 'Cotisations fonds de travaux T4',
+}
+const saisieDuLot = (surcharge: Partial<SaisieVirementDuLot> = {}): SaisieVirementDuLot => ({ ...BASE, ...surcharge })
+/** Saisie unitaire : virement seul de son lot (rang 1, lot de 1), sauf surcharge. */
+const saisie = (surcharge: Partial<SaisieVirementInterne> = {}): SaisieVirementInterne => ({
+  ...BASE,
+  traitementId: 't-bab-1',
+  rang: 1,
+  nombreOrdresDuLot: 1,
+  ...surcharge,
+})
+/** Date du jour des saisies (J30 : la date d'une décision ou d'une ordonnance structurée ne la dépasse pas). */
+const AUJOURDHUI = '2026-10-29'
+/** Décision d'affectation de l'assemblée et ordonnance du juge, dans la forme exigée par J30. */
+const DECISION_AG = { dateAg: '2026-06-12', numeroResolution: '14' }
+const ORDONNANCE = { juridiction: 'Tribunal judiciaire de Lyon', date: '2026-09-02', numero: 'RG 26/01234' }
+const creer = (surcharge: Partial<SaisieVirementInterne> = {}) =>
+  creerVirementInterne(saisie(surcharge), { segmentSyndicat: SEGMENT, aujourdhui: AUJOURDHUI })
+/** Émission d'un lot, le 30/10/2026, journal vide et aucun virement connu, sauf surcharge. */
+const emettreLot = (lot: VirementInterne[], options: Partial<Parameters<typeof emettreLotVirementsInternes>[1]> = {}) =>
+  emettreLotVirementsInternes(lot, { dateEmission: '2026-10-30', journal: [], virementsConnus: [], ...options })
+/** Émission d'un virement seul de son lot (lot de un). */
+const emis = (v: VirementInterne) => emettreLot([v])[0]
+/** Virement émis relu tel quel (stockage), sans passer par emettreLotVirementsInternes : l'écriture refait les contrôles. */
+const relu = (v: VirementInterne): VirementInterne => ({ ...v, statut: 'Émis', dateEmission: '2026-10-30' })
+const AU_30 = { id: 't-bab-1', date: '2026-10-30', journal: [] }
+
+/** Sortie du fonds de travaux vers le compte courant (paiement de travaux). */
+const sortie = (emploiFondsTravaux: SaisieVirementInterne['emploiFondsTravaux']) =>
+  creer({ source: FONDS, destination: COURANT, libelle: 'Travaux du plan, tranche 1', emploiFondsTravaux })
+
+describe('sens du virement au regard du fonds de travaux', () => {
+  it('alimentation, sortie, changement de compte du fonds, ou aucun', () => {
+    expect(mouvementFondsTravaux(COURANT, FONDS)).toBe('alimentation')
+    expect(mouvementFondsTravaux(FONDS, COURANT)).toBe('sortie')
+    expect(mouvementFondsTravaux(FONDS, FONDS_CDC)).toBe('changement_de_compte')
+    expect(mouvementFondsTravaux(REPRIS, COURANT)).toBe('aucun')
+  })
+
+  it('🔵 ancien compte du fonds repris : un compte du fonds (sortie vers le compte courant, changement de compte vers le fonds)', () => {
+    expect(mouvementFondsTravaux(REPRIS_FONDS, COURANT)).toBe('sortie')
+    expect(mouvementFondsTravaux(REPRIS_FONDS, { nature: 'sous_compte_centralisateur' })).toBe('sortie')
+    expect(mouvementFondsTravaux(REPRIS_FONDS, FONDS)).toBe('changement_de_compte')
+  })
+})
+
+describe('alimentation du fonds de travaux depuis le compte courant (L. 1965 art. 18, II, al. 4)', () => {
+  it('🟢 admise sans condition : virement enregistré, non émis, non imputé, sans tiers', () => {
+    const v = creer()
+    expect(v).toMatchObject({
+      type: 'Virement interne',
+      famille: 'Règlement de banque à banque',
+      mouvementFondsTravaux: 'alimentation',
+      affectation: null,
+      emploiFondsTravaux: null,
+      decisionPlacement: null,
+      statut: 'Enregistré',
+      dateEmission: null,
+      impute: false,
+    })
+    expect(v).not.toHaveProperty('tiers')
+  })
+
+  it('écriture : débit du 512 de destination, crédit du 512 de source, montant brut', () => {
+    expect(mouvementsVirementInterne(creer())).toEqual([
+      { compte: 'TILL.51210.00000.0', sens: 'debit', montantCentimes: 250_000 },
+      { compte: 'TILL.51200.00000.0', sens: 'credit', montantCentimes: 250_000 },
+    ])
+  })
+
+  it('traitement « Règlement de banque à banque » équilibré après émission ; le virement devient imputé', () => {
+    const { traitement, virements } = traitementVirementsInternes([emis(creer())], AU_30)
+    expect(traitement).toMatchObject({ id: 't-bab-1', famille: 'Règlement de banque à banque', date: '2026-10-30' })
+    expect(traitement.mouvements.map((m) => [m.compte, m.sens, m.traitementId])).toEqual([
+      ['TILL.51210.00000.0', 'debit', 't-bab-1'],
+      ['TILL.51200.00000.0', 'credit', 't-bab-1'],
+    ])
+    expect(virements[0]).toMatchObject({ impute: true, statut: 'Émis' })
+  })
+})
+
+describe('sortie du fonds de travaux : décision d’affectation ou ordonnance (L. 1965 art. 14-2-1, I ; art. 29-14, 2°)', () => {
+  it('🔵 sans emploi rattaché : refusée', () => {
+    expect(() => sortie(null)).toThrow(/14-2-1/)
+    expect(() => sortie(undefined)).toThrow(/décision d'affectation/)
+  })
+
+  it('travaux du plan avec décision d’assemblée : admise, contrôle d’affectation conservé', () => {
+    const v = sortie({ objet: 'travaux_ppt', decisionAg: DECISION_AG })
+    expect(v.mouvementFondsTravaux).toBe('sortie')
+    expect(v.affectation).toMatchObject({ autorise: true, cause: 'admis' })
+    expect(v.emploiFondsTravaux).toEqual({ objet: 'travaux_ppt', decisionAg: DECISION_AG })
+    expect(v.emploiFondsTravaux?.decisionAg).not.toBe(DECISION_AG)
+  })
+
+  it('travaux urgents sans décision, charges courantes : refusées', () => {
+    expect(() => sortie({ objet: 'travaux_urgents', decisionAg: null })).toThrow(/décision d'assemblée/)
+    expect(() => sortie({ objet: 'charges_courantes', decisionAg: DECISION_AG })).toThrow(/exclue/)
+  })
+
+  it('administration provisoire : gestion courante sur ordonnance du juge (art. 29-14, 2°)', () => {
+    expect(() => sortie({ objet: 'redressement_29_14', decisionAg: null })).toThrow(/ordonnance/)
+    const v = sortie({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: ORDONNANCE })
+    expect(v.affectation?.fondement).toContain('29-14')
+  })
+
+  describe('J30 : ordonnance de l’art. 29-14, 2° en forme structurée (juridiction, date, n°)', () => {
+    const sortieAu = (emploiFondsTravaux: SaisieVirementInterne['emploiFondsTravaux'], { aujourdhui }: { aujourdhui?: string } = { aujourdhui: AUJOURDHUI }) =>
+      creerVirementInterne(saisie({ source: FONDS, destination: COURANT, libelle: 'Gestion courante', emploiFondsTravaux }), {
+        segmentSyndicat: SEGMENT,
+        aujourdhui,
+      })
+
+    it('ordonnance complète : sortie admise, forme complète, ordonnance conservée sur le virement', () => {
+      const v = sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: ORDONNANCE })
+      expect(v.affectation).toMatchObject({ autorise: true, cause: 'admis', formeIncomplete: null })
+      expect(v.emploiFondsTravaux?.autorisationJuge).toEqual(ORDONNANCE)
+      expect(v.emploiFondsTravaux?.autorisationJuge).not.toBe(ORDONNANCE)
+    })
+
+    it('un champ manquant ou une date future : sortie refusée, motif explicite', () => {
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: { ...ORDONNANCE, numero: ' ' } })).toThrow(
+        /Sortie du fonds de travaux refusée : .*manque : n° de l'ordonnance.*forme exigée : juridiction, date et n° de l'ordonnance/,
+      )
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: { ...ORDONNANCE, date: '2026-11-15' } })).toThrow(
+        /postérieure à aujourd'hui/,
+      )
+    })
+
+    it('forme structurée sans date du jour : erreur d’appel', () => {
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: ORDONNANCE }, {})).toThrow(
+        /date du jour attendue/,
+      )
+    })
+
+    it('nouvelle saisie en texte libre (ordonnance ou décision d’AG) : sortie refusée, motif « forme incomplète » à l’appui', () => {
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: 'ok' })).toThrow(
+        /Sortie du fonds de travaux refusée : .*saisie en texte libre \(« ok »\) : forme incomplète, refusée pour une nouvelle saisie ; forme exigée : juridiction, date et n° de l'ordonnance/,
+      )
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: 'Ordonnance du 02/09/2026' }, {})).toThrow(
+        /forme incomplète/,
+      )
+      expect(() => sortieAu({ objet: 'travaux_ppt', decisionAg: 'AG du 12/06/2026, résolution 14' })).toThrow(
+        /saisie en texte libre .* forme incomplète, refusée pour une nouvelle saisie ; forme attendue : date de l'assemblée et n° de la résolution/,
+      )
+    })
+
+    it('lot de virements : une sortie du fonds en texte libre fait refuser le lot', () => {
+      const emploiTexte = { objet: 'travaux_ppt' as const, decisionAg: 'Résolution 14' }
+      const sortieDuLot = saisieDuLot({ id: 'vi-2', numero: 'BAB-0002', source: FONDS, destination: COURANT, emploiFondsTravaux: emploiTexte })
+      const options = { traitementId: 't-lot', segmentSyndicat: SEGMENT, aujourdhui: AUJOURDHUI }
+      expect(() => creerLotVirementsInternes([saisieDuLot(), sortieDuLot], options)).toThrow(/forme incomplète, refusée pour une nouvelle saisie/)
+      const structuree = { ...sortieDuLot, emploiFondsTravaux: { ...emploiTexte, decisionAg: DECISION_AG } }
+      expect(creerLotVirementsInternes([saisieDuLot(), structuree], options)[1].affectation).toMatchObject({ autorise: true, formeIncomplete: null })
+    })
+
+    it('🔵 décision d’affectation de l’assemblée : date de l’AG et n° de la résolution', () => {
+      const v = sortieAu({ objet: 'travaux_ppt', decisionAg: { dateAg: '2026-06-12', numeroResolution: '14' } })
+      expect(v.affectation).toMatchObject({ autorise: true, formeIncomplete: null })
+      expect(() => sortieAu({ objet: 'travaux_ppt', decisionAg: { dateAg: '2026-06-12', numeroResolution: '' } })).toThrow(
+        /manque : n° de la résolution/,
+      )
+    })
+  })
+
+  it('J71 — vers un compte de placement qui n’est pas réservé au fonds : refusée, même avec emploi admis et décision de placement', () => {
+    const versPlacement = () =>
+      creer({ source: FONDS, destination: PLACEMENT, emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG }, decisionPlacement: 'AG du 12/06/2026, résolution 9' })
+    expect(versPlacement).toThrow(/Fonds de travaux vers un compte de placement qui n'est pas réservé au fonds : refusé/)
+    expect(versPlacement).toThrow(/J71/)
+    expect(versPlacement).not.toThrow(/à trancher/)
+  })
+
+  it('un emploi rattaché à un virement qui ne sort pas du fonds : refusé (sens à vérifier)', () => {
+    expect(() => creer({ emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG } })).toThrow(/ne sort pas du fonds/)
+  })
+})
+
+describe('changement de compte du fonds de travaux', () => {
+  it('🔵 vers un autre compte du fonds (par exemple à la Caisse des dépôts) : admis sans décision', () => {
+    expect(creer({ source: FONDS, destination: FONDS_CDC })).toMatchObject({ mouvementFondsTravaux: 'changement_de_compte', affectation: null })
+  })
+})
+
+describe('J71 — placement du fonds de travaux (L. 1965 art. 18, II, al. 4 ; D. 1967 art. 35, 5°, et 35-1 ; décret n° 2005-240, art. 4)', () => {
+  const DECISION_PLACEMENT = 'AG du 12/06/2026, résolution 9'
+  const EMPLOI = { objet: 'travaux_ppt' as const, decisionAg: DECISION_AG }
+
+  it('le compte de placement réservé au fonds tient le fonds : y aller ou en revenir vers le fonds change de compte', () => {
+    expect(mouvementFondsTravaux(FONDS, PLACEMENT_FONDS)).toBe('changement_de_compte')
+    expect(mouvementFondsTravaux(PLACEMENT_FONDS, FONDS)).toBe('changement_de_compte')
+    expect(mouvementFondsTravaux(PLACEMENT_FONDS, COURANT)).toBe('sortie')
+    expect(mouvementFondsTravaux(COURANT, PLACEMENT_FONDS)).toBe('alimentation')
+    expect(mouvementFondsTravaux(FONDS, PLACEMENT)).toBe('sortie')
+  })
+
+  it('avec une décision de placement : admis ; ce n’est pas un emploi (aucun contrôle d’affectation, l’argent reste au fonds)', () => {
+    expect(creer({ source: FONDS, destination: PLACEMENT_FONDS, decisionPlacement: DECISION_PLACEMENT })).toMatchObject({
+      mouvementFondsTravaux: 'changement_de_compte',
+      affectation: null,
+      emploiFondsTravaux: null,
+      decisionPlacement: DECISION_PLACEMENT,
+    })
+  })
+
+  it('sans décision de placement : refusé (code actuel) ; un emploi rattaché : refusé, un placement n’est pas un emploi', () => {
+    expect(() => creer({ source: FONDS, destination: PLACEMENT_FONDS })).toThrow(/rattacher la décision de l'assemblée qui place les fonds/)
+    expect(() => creer({ source: FONDS, destination: PLACEMENT_FONDS, decisionPlacement: DECISION_PLACEMENT, emploiFondsTravaux: EMPLOI })).toThrow(
+      /ne sort pas du fonds \(changement_de_compte\)/,
+    )
+  })
+
+  it('le placement ne revient qu’à un compte du fonds, sans décision ; vers un autre compte : refusé, même avec un emploi', () => {
+    expect(creer({ source: PLACEMENT_FONDS, destination: FONDS })).toMatchObject({ mouvementFondsTravaux: 'changement_de_compte', decisionPlacement: null })
+    expect(() => creer({ source: PLACEMENT_FONDS, destination: COURANT, emploiFondsTravaux: EMPLOI })).toThrow(
+      /Placement du fonds de travaux : il ne revient qu'à un compte du fonds \(J71/,
+    )
+  })
+
+  it('le placement n’est alimenté que depuis un compte du fonds : depuis le compte courant, refusé', () => {
+    expect(() => creer({ source: COURANT, destination: PLACEMENT_FONDS, decisionPlacement: DECISION_PLACEMENT })).toThrow(
+      /Placement du fonds de travaux : alimenté seulement depuis un compte du fonds.*18, II, al\. 4/,
+    )
+  })
+
+  it('la mention « réservé au fonds de travaux » est réservée aux comptes de placement', () => {
+    expect(() => creer({ destination: { ...FONDS, reserveAuFondsTravaux: true } })).toThrow(/seul un compte de placement porte la mention « réservé au fonds de travaux »/)
+  })
+})
+
+describe('comptes du virement', () => {
+  it('fonds de travaux et autre compte sur un même IBAN : refusé (L. 1965 art. 18, II, al. 4)', () => {
+    expect(() => creer({ destination: { ...FONDS, iban: IBAN_COURANT } })).toThrow(/18, II, al\. 4/)
+  })
+
+  it('deux comptes sur un même IBAN, un même compte, un même 512 : refusés', () => {
+    expect(() => creer({ destination: { ...PLACEMENT, iban: IBAN_COURANT }, decisionPlacement: 'AG' })).toThrow(/même IBAN/)
+    expect(() => creer({ destination: { ...FONDS, banqueId: 'b-courant' } })).toThrow(/même compte/)
+    expect(() => creer({ destination: { ...FONDS, compte512: 'TILL.51200.00000.0' } })).toThrow(/même compte 512/)
+  })
+
+  it('compte d’un autre syndicat : refusé (D1) ; une avance de fonds n’est pas un virement interne', () => {
+    expect(() => creer({ source: { ...COURANT, coproprieteId: 'cabinet' } })).toThrow(/autre syndicat.*18, II, dernier al\./)
+  })
+
+  it('🟢 avance de fonds : interdite au syndic, sauf syndic provisoire et administrateur provisoire des art. 29-1 et 29-11', () => {
+    const apport = () => creer({ source: { ...COURANT, coproprieteId: 'cabinet' } })
+    expect(apport).toThrow(/le syndic ne peut en faire, sauf le syndic provisoire et l'administrateur provisoire désigné en application des art\. 29-1 et 29-11/)
+    expect(apport).not.toThrow(/encaissement avec tiers/)
+  })
+
+  it('compte inactif, nature inconnue, IBAN invalide, 512 mal formé ou d’un autre segment : refusés', () => {
+    expect(() => creer({ destination: { ...FONDS, actif: false } })).toThrow(/inactif/)
+    expect(() => creer({ destination: { ...FONDS, nature: 'livret' as never } })).toThrow(/nature inconnue/)
+    expect(() => creer({ destination: { ...FONDS, iban: 'FR14 2004 1010 0505 0001 3M02 607' } })).toThrow(/IBAN invalide/)
+    expect(() => creer({ destination: { ...FONDS, compte512: 'TILL.40100.00000.0' } })).toThrow(/512/)
+    expect(() => creer({ destination: { ...FONDS, compte512: 'AUTR.51210.00000.0' } })).toThrow(/segment « TILL »/)
+  })
+
+  it('🔵 compte repris de l’ancien gestionnaire : se solde vers le compte du mandat, jamais alimenté', () => {
+    expect(creer({ source: REPRIS, destination: COURANT, libelle: 'Solde du compte repris' }).mouvementFondsTravaux).toBe('aucun')
+    expect(() => creer({ source: COURANT, destination: REPRIS })).toThrow(/repris/)
+  })
+
+  it('🔵 ancien compte du fonds repris : son solde reste au fonds, ou en sort sous contrôle d’affectation (L. 1965 art. 18, II, al. 4)', () => {
+    const solde = (surcharge: Partial<SaisieVirementInterne>) => creer({ source: REPRIS_FONDS, libelle: 'Solde de l’ancien compte du fonds', ...surcharge })
+    expect(() => solde({ destination: COURANT })).toThrow(/Sortie du fonds de travaux.*14-2-1/)
+    expect(() => solde({ destination: compte({ banqueId: 'b-centr', nature: 'sous_compte_centralisateur', iban: null, compte512: 'TILL.51250.00000.0' }) })).toThrow(/14-2-1/)
+    expect(() => solde({ destination: PLACEMENT, decisionPlacement: 'AG' })).toThrow(/Fonds de travaux vers un compte de placement qui n'est pas réservé au fonds : refusé/)
+    expect(solde({ destination: FONDS })).toMatchObject({ mouvementFondsTravaux: 'changement_de_compte', affectation: null })
+    const sortieAdmise = solde({ destination: COURANT, emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG } })
+    expect(sortieAdmise).toMatchObject({ mouvementFondsTravaux: 'sortie', affectation: { autorise: true } })
+    expect(() => creer({ destination: REPRIS_FONDS })).toThrow(/repris/)
+  })
+
+  it('« tenait le fonds de travaux » sur un compte qui n’est pas repris : refusé', () => {
+    expect(() => creer({ source: { ...COURANT, tenaitFondsTravaux: true } })).toThrow(/seul un compte repris/)
+    expect(() => creer({ destination: { ...FONDS, tenaitFondsTravaux: true } })).toThrow(/seul un compte repris/)
+  })
+})
+
+describe('placement des fonds (D. 1967 art. 35-1)', () => {
+  it('🔵 vers un compte de placement : décision de l’assemblée (ou ordonnance qui en confie le pouvoir) exigée', () => {
+    expect(() => creer({ destination: PLACEMENT })).toThrow(/35-1/)
+    expect(creer({ destination: PLACEMENT, decisionPlacement: ' AG du 12/06/2026, résolution 9 ' }).decisionPlacement).toBe('AG du 12/06/2026, résolution 9')
+  })
+
+  it('retour du placement vers le compte courant : admis ; décision de placement sans placement : refusée', () => {
+    expect(creer({ source: PLACEMENT, destination: COURANT }).decisionPlacement).toBeNull()
+    expect(() => creer({ decisionPlacement: 'AG' })).toThrow(/sans compte de placement/)
+  })
+})
+
+describe('saisie', () => {
+  it('montant, date, libellé, syndicat, mandat, numéro, traitement : contrôlés', () => {
+    expect(() => creer({ montantCentimes: 10.5 })).toThrow(/Montant/)
+    expect(() => creer({ montantCentimes: 0 })).toThrow(/Montant/)
+    expect(() => creer({ date: '29/10/2026' })).toThrow(/Date/)
+    expect(() => creer({ libelle: ' ' })).toThrow(/Libellé/)
+    expect(() => creer({ coproprieteId: '' })).toThrow(/D1/)
+    expect(() => creer({ mandatId: '' })).toThrow(/mandat/)
+    expect(() => creer({ numero: '' })).toThrow(/numéro/)
+    expect(() => creer({ traitementId: '' })).toThrow(/traitement/)
+  })
+
+  it('rang dans le lot : entier à partir de 1', () => {
+    expect(() => creer({ rang: 0 })).toThrow(/Rang invalide/)
+    expect(() => creer({ rang: 1.5 })).toThrow(/Rang invalide/)
+    expect(creer({ rang: 3, nombreOrdresDuLot: 3 }).rang).toBe(3)
+  })
+
+  it('taille du lot : entier à partir de 1, saisie avec le rang ; rang compris dans le lot', () => {
+    expect(() => creer({ nombreOrdresDuLot: 0 })).toThrow(/Taille du lot invalide/)
+    expect(() => creer({ nombreOrdresDuLot: 1.5 })).toThrow(/Taille du lot invalide/)
+    expect(() => creer({ nombreOrdresDuLot: undefined as never })).toThrow(/Taille du lot invalide/)
+    expect(() => creer({ rang: 3, nombreOrdresDuLot: 2 })).toThrow(/Rang 3 hors du lot de 2 virements/)
+    expect(creer({ rang: 2, nombreOrdresDuLot: 2 })).toMatchObject({ rang: 2, nombreOrdresDuLot: 2 })
+  })
+})
+
+describe('émission et écriture', () => {
+  it('émission unique, à une date ISO', () => {
+    const v = emis(creer())
+    expect(v).toMatchObject({ statut: 'Émis', dateEmission: '2026-10-30' })
+    expect(() => emettreLot([v], { dateEmission: '2026-10-31' })).toThrow(/déjà émis/)
+    expect(() => emettreLot([creer()], { dateEmission: '30/10/2026' })).toThrow(/Date d'émission invalide/)
+  })
+
+  it('la vue d’un virement (ordre du lot) ne s’émet pas seule : on émet le lot, puis on relit la vue', () => {
+    const v = creer()
+    const [vue] = ordresDuLotVirementsInternes([v])
+    expect(() => emettreOrdreConstate(vue, '2026-10-30')).toThrow(/emettreLotVirementsInternes/)
+    expect(ordresDuLotVirementsInternes([emis(v)])[0]).toMatchObject({ statut: 'Émis', dateEmission: '2026-10-30' })
+  })
+
+  it('pas d’écriture avant l’émission, ni deux fois, ni sous un autre traitement, ni pour plusieurs syndicats', () => {
+    expect(() => traitementVirementsInternes([creer()], AU_30)).toThrow(/pas émis/)
+    const { virements } = traitementVirementsInternes([emis(creer())], AU_30)
+    expect(() => traitementVirementsInternes(virements, AU_30)).toThrow(/déjà imputé/)
+    expect(() => traitementVirementsInternes([emis(creer())], { ...AU_30, id: 't-autre' })).toThrow(/t-autre/)
+    expect(() => traitementVirementsInternes([emis(creer()), { ...emis(creer({ id: 'vi-2' })), coproprieteId: 'copro-autre' }], AU_30)).toThrow(/D1/)
+    expect(() => traitementVirementsInternes([emis(creer()), emis(creer())], AU_30)).toThrow(/double/)
+    expect(() => traitementVirementsInternes([], AU_30)).toThrow(/aucun virement/)
+  })
+
+  it('un lot de deux virements de sens contraires : écritures brutes, jamais compensées ; rangs 1 et 2, sans tiers', () => {
+    const [aller, retour] = emettreLot([
+      creer({ nombreOrdresDuLot: 2 }),
+      creer({
+        id: 'vi-2',
+        numero: 'BAB-0002',
+        rang: 2,
+        nombreOrdresDuLot: 2,
+        source: FONDS,
+        destination: COURANT,
+        montantCentimes: 100_000,
+        emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG },
+      }),
+    ])
+    const { traitement } = traitementVirementsInternes([aller, retour], AU_30)
+    expect(traitement.mouvements.map((m) => m.montantCentimes)).toEqual([250_000, 250_000, 100_000, 100_000])
+    const ordres = ordresDuLotVirementsInternes([aller, retour])
+    expect(ordres.map((o) => [o.rang, o.type, o.tiers, o.banqueId, o.numeroPiece])).toEqual([
+      [1, 'Virement interne', null, 'b-courant', 'BAB-0001'],
+      [2, 'Virement interne', null, 'b-fonds', 'BAB-0002'],
+    ])
+    expect(controlerRangsDuLot(ordres)).toEqual([])
+  })
+
+  it('le rang est celui du virement, pas sa position dans la liste passée', () => {
+    const v1 = creer({ traitementId: 't-lot', nombreOrdresDuLot: 2 })
+    const v2 = creer({ id: 'vi-2', numero: 'BAB-0002', traitementId: 't-lot', rang: 2, nombreOrdresDuLot: 2 })
+    const rangs =(virements: VirementInterne[]) => ordresDuLotVirementsInternes(virements).map((o) => [o.numero, o.rang])
+    expect(rangs([v1, v2])).toEqual([['BAB-0001', 1], ['BAB-0002', 2]])
+    expect(rangs([v2])).toEqual([['BAB-0002', 2]])
+    expect(rangs([v2, v1])).toEqual([['BAB-0002', 2], ['BAB-0001', 1]])
+    expect(controlerRangsDuLot(ordresDuLotVirementsInternes([v2])).map((a) => a.code)).toEqual(['rang_manquant'])
+  })
+
+  it('🔴 contre-passation générale : aucune annulation observée pour « Règlement de banque à banque » ; seul le rejet d’une ligne s’écrit (J68)', () => {
+    const { traitement } = traitementVirementsInternes([emis(creer())], AU_30)
+    expect(() => annulerTraitement(traitement, { id: 't-ann', date: '2026-10-31' })).toThrow(/Aucune annulation observée/)
+  })
+})
+
+describe('J68 — virement d’un lot émis rejeté par la banque : le lot reste écrit entier, la seule ligne rejetée reçoit une écriture contraire', () => {
+  const T_LOT = { id: 't-lot', date: '2026-10-30', journal: [] }
+  const REJET = { id: 't-rejet', date: '2026-11-03', motif: '  Compte clos (AC04) ' }
+  /** Lot de deux virements émis le 30/10/2026 : alimentation du fonds (rang 1), sortie du fonds pour des travaux (rang 2). */
+  const lotEmis = () =>
+    emettreLot([
+      creer({ traitementId: 't-lot', nombreOrdresDuLot: 2 }),
+      creer({
+        id: 'vi-2',
+        numero: 'BAB-0002',
+        traitementId: 't-lot',
+        rang: 2,
+        nombreOrdresDuLot: 2,
+        source: FONDS,
+        destination: COURANT,
+        montantCentimes: 100_000,
+        libelle: 'Travaux du plan, tranche 1',
+        emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG },
+      }),
+    ])
+  const lotEcrit = (date = T_LOT.date) => traitementVirementsInternes(lotEmis(), { ...T_LOT, date })
+  const lignes = (t: { mouvements: { compte: string; sens: string; montantCentimes: number }[] }) =>
+    t.mouvements.map((m) => [m.compte, m.sens, m.montantCentimes])
+
+  it('sortie du fonds rejetée : débit du 512 source (le montant revient au fonds), crédit du 512 destination, datée du retour, avec motif', () => {
+    const { traitement: ecriture, virements } = lotEcrit()
+    const { traitement, virement } = rejeterVirementInterne(virements[1], REJET, ecriture)
+    expect(traitement).toMatchObject({ id: 't-rejet', famille: 'Annulation de règlements', date: '2026-11-03', annule: 't-lot' })
+    expect(lignes(traitement)).toEqual([
+      ['TILL.51200.00000.0', 'credit', 100_000],
+      ['TILL.51210.00000.0', 'debit', 100_000],
+    ])
+    expect(virement).toMatchObject({
+      statut: 'Émis',
+      impute: true,
+      traitementId: 't-lot',
+      rang: 2,
+      mouvementFondsTravaux: 'sortie',
+      rejet: { le: '2026-11-03', motif: 'Compte clos (AC04)', traitementId: 't-rejet' },
+    })
+    // Le lot a été émis et écrit : il reste entier, l'autre virement n'est pas touché.
+    expect(lignes(ecriture)).toHaveLength(4)
+    expect(virements[0].rejet).toBeNull()
+  })
+
+  it('alimentation du fonds rejetée : l’argent n’y est jamais entré (débit du compte source, crédit du compte du fonds)', () => {
+    const { traitement: ecriture, virements } = lotEcrit()
+    expect(lignes(rejeterVirementInterne(virements[0], REJET, ecriture).traitement)).toEqual([
+      ['TILL.51210.00000.0', 'credit', 250_000],
+      ['TILL.51200.00000.0', 'debit', 250_000],
+    ])
+  })
+
+  it('rejet constaté avant l’écriture du lot : écriture contraire datée du jour de l’écriture, le rejet gardant sa date réelle', () => {
+    const { traitement: ecriture, virements } = lotEcrit('2026-11-05')
+    const { traitement, virement } = rejeterVirementInterne(virements[1], REJET, ecriture)
+    expect(traitement.date).toBe('2026-11-05')
+    expect(virement.rejet?.le).toBe('2026-11-03')
+  })
+
+  it('refus : virement non émis, émis mais pas encore écrit, rejet antérieur à l’émission, sans motif, sous l’identifiant du lot, date invalide', () => {
+    const { traitement: ecriture, virements } = lotEcrit()
+    expect(() => rejeterVirementInterne(creer(), REJET, ecriture)).toThrow(/pas émis : le retirer du lot avant l'émission/)
+    expect(() => rejeterVirementInterne(lotEmis()[1], REJET, ecriture)).toThrow(/écrire d'abord le lot/)
+    expect(() => rejeterVirementInterne(virements[1], { ...REJET, date: '2026-10-29' }, ecriture)).toThrow(/antérieur à l'émission/)
+    expect(() => rejeterVirementInterne(virements[1], { ...REJET, motif: ' ' }, ecriture)).toThrow(/motif/)
+    expect(() => rejeterVirementInterne(virements[1], { ...REJET, id: 't-lot' }, ecriture)).toThrow(/propre identifiant/)
+    expect(() => rejeterVirementInterne(virements[1], { ...REJET, date: '03/11/2026' }, ecriture)).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('refus : écriture d’un autre traitement, ou qui ne porte pas la ligne ; un rejet ne s’écrit qu’une fois', () => {
+    const { traitement: ecriture, virements } = lotEcrit()
+    expect(() => rejeterVirementInterne(virements[1], REJET, { ...ecriture, id: 't-autre' })).toThrow(/écriture t-autre fournie.*t-lot/)
+    const sansLaLigne = { ...ecriture, mouvements: ecriture.mouvements.filter((m) => m.montantCentimes !== 100_000) }
+    expect(() => rejeterVirementInterne(virements[1], REJET, sansLaLigne)).toThrow(/introuvable/)
+    const { virement } = rejeterVirementInterne(virements[1], REJET, ecriture)
+    expect(() => rejeterVirementInterne(virement, { ...REJET, id: 't-rejet-2' }, ecriture)).toThrow(/déjà rejeté le 2026-11-03/)
+  })
+})
+
+describe('écriture de virements relus : un lot s’écrit en une fois, entier, sous un traitement neuf (taille du lot, journal)', () => {
+  const T_LOT = { id: 't-lot', date: '2026-10-30', journal: [] }
+  /** Virement émis relu d'un lot de deux sous « t-lot », rang 1 sauf surcharge. */
+  const duLotDeDeux = (surcharge: Partial<SaisieVirementInterne> = {}) => relu(creer({ traitementId: 't-lot', nombreOrdresDuLot: 2, ...surcharge }))
+
+  it('(a) deux virements saisis au même rang : refusés dès le premier appel, seuls comme ensemble', () => {
+    const vi1 = duLotDeDeux()
+    const vi2 = duLotDeDeux({ id: 'vi-2', numero: 'BAB-0002' })
+    expect(() => traitementVirementsInternes([vi1], T_LOT)).toThrow(/le lot compte 2 virement\(s\), 1 passé\(s\)/)
+    expect(() => traitementVirementsInternes([vi2], { ...T_LOT, date: '2026-10-31' })).toThrow(/le lot compte 2 virement\(s\)/)
+    expect(() => traitementVirementsInternes([vi1, vi2], T_LOT)).toThrow(/rang 1 déjà pris/)
+  })
+
+  it('(a) deux saisies unitaires (rang 1, lot de 1) sous le même traitement : la seconde est refusée, le traitement étant au journal', () => {
+    const vi1 = relu(creer({ traitementId: 't-lot' }))
+    const vi2 = relu(creer({ id: 'vi-2', numero: 'BAB-0002', traitementId: 't-lot' }))
+    const { traitement } = traitementVirementsInternes([vi1], T_LOT)
+    expect(() => traitementVirementsInternes([vi2], { ...T_LOT, date: '2026-10-31', journal: [traitement] })).toThrow(
+      /Traitement t-lot déjà passé au journal/,
+    )
+    expect(() => traitementVirementsInternes([vi1, vi2], T_LOT)).toThrow(/le lot compte 1 virement\(s\), 2 passé\(s\)/)
+  })
+
+  it('(b) rang final oublié : refusé dès le premier appel ; le lot entier s’écrit, une fois', () => {
+    const vi1 = duLotDeDeux()
+    const vi2 = duLotDeDeux({ id: 'vi-2', numero: 'BAB-0002', rang: 2, montantCentimes: 50_000 })
+    expect(() => traitementVirementsInternes([vi1], T_LOT)).toThrow(/1 passé\(s\) ; passer tous les virements du lot/)
+    expect(() => traitementVirementsInternes([vi2], T_LOT)).toThrow(/1 passé\(s\)/)
+    expect(() => traitementVirementsInternes([vi1, { ...vi2, rang: 1 }], T_LOT)).toThrow(/rang 1 déjà pris/)
+    const { traitement, virements } = traitementVirementsInternes([vi2, vi1], T_LOT)
+    expect(traitement.mouvements).toHaveLength(4)
+    expect(virements.map((v) => v.impute)).toEqual([true, true])
+    expect(() => traitementVirementsInternes([vi1, vi2], { ...T_LOT, journal: [traitement] })).toThrow(/déjà passé au journal/)
+  })
+
+  it('virements qui déclarent des lots de tailles différentes : refusés', () => {
+    const vi1 = duLotDeDeux()
+    const vi2 = duLotDeDeux({ id: 'vi-2', numero: 'BAB-0002', rang: 2, nombreOrdresDuLot: 3 })
+    expect(() => traitementVirementsInternes([vi1, vi2], T_LOT)).toThrow(/tailles différentes \(2, 3\)/)
+  })
+
+  it('creerLotVirementsInternes attribue le traitement, les rangs 1 à n et la taille n ; le lot s’écrit tel quel', () => {
+    const lot = creerLotVirementsInternes([saisieDuLot(), saisieDuLot({ id: 'vi-2', numero: 'BAB-0002', montantCentimes: 50_000 })], {
+      traitementId: 't-lot',
+      segmentSyndicat: SEGMENT,
+    })
+    expect(lot.map((v) => [v.id, v.traitementId, v.rang, v.nombreOrdresDuLot, v.statut])).toEqual([
+      ['vi-1', 't-lot', 1, 2, 'Enregistré'],
+      ['vi-2', 't-lot', 2, 2, 'Enregistré'],
+    ])
+    expect(traitementVirementsInternes(emettreLot(lot), T_LOT).traitement.mouvements).toHaveLength(4)
+  })
+
+  it('creerLotVirementsInternes refuse un lot vide, un virement en double, plusieurs syndicats, et contrôle chaque virement', () => {
+    const options = { traitementId: 't-lot', segmentSyndicat: SEGMENT }
+    expect(() => creerLotVirementsInternes([], options)).toThrow(/aucun virement/)
+    expect(() => creerLotVirementsInternes([saisieDuLot(), saisieDuLot()], options)).toThrow(/vi-1 en double/)
+    expect(() => creerLotVirementsInternes([saisieDuLot(), saisieDuLot({ id: 'vi-2', coproprieteId: 'copro-autre' })], options)).toThrow(/plusieurs syndicats \(D1\)/)
+    expect(() => creerLotVirementsInternes([saisieDuLot(), saisieDuLot({ id: 'vi-2', montantCentimes: 0 })], options)).toThrow(/Montant/)
+    expect(() => creerLotVirementsInternes([saisieDuLot()], { ...options, traitementId: ' ' })).toThrow(/traitement/)
+  })
+})
+
+describe('un lot est contrôlé avant l’envoi à la banque : émis entier, il s’écrit toujours', () => {
+  const T_LOT = { id: 't-lot', date: '2026-10-30', journal: [] }
+  const SOUS_T_LOT = { traitementId: 't-lot', segmentSyndicat: SEGMENT }
+  /** Lot de deux sous « t-lot » : vi-1 courant → fonds ; vi-2 fonds → compte du fonds à la Caisse des dépôts (hors fichier). */
+  const lotDeDeux = () =>
+    creerLotVirementsInternes(
+      [saisieDuLot(), saisieDuLot({ id: 'vi-2', numero: 'BAB-0002', source: FONDS, destination: FONDS_CDC, montantCentimes: 500 })],
+      SOUS_T_LOT,
+    )
+
+  it('l’émission isolée d’un virement n’existe plus : seul un lot s’émet (un virement seul est un lot de un)', () => {
+    expect(moduleVirement).not.toHaveProperty('emettreVirementInterne')
+    expect(emis(creer())).toMatchObject({ statut: 'Émis', dateEmission: '2026-10-30' })
+  })
+
+  it('(1) émission d’une partie du lot : refusée, rien ne part ; le virement abandonné se retire, le lot recomposé s’émet et s’écrit', () => {
+    const [vi1, vi2] = lotDeDeux()
+    expect(() => emettreLot([vi1])).toThrow(/le lot compte 2 virement\(s\), 1 passé\(s\)/)
+    expect(() => emettreLot([vi2])).toThrow(/le lot compte 2 virement\(s\), 1 passé\(s\)/)
+    expect([vi1.statut, vi2.statut]).toEqual(['Enregistré', 'Enregistré'])
+    const [seul] = recomposerLotVirementsInternes([vi1], { traitementId: 't-lot' })
+    expect(seul).toMatchObject({ id: 'vi-1', traitementId: 't-lot', rang: 1, nombreOrdresDuLot: 1, statut: 'Enregistré', montantCentimes: 250_000 })
+    const { traitement, virements } = traitementVirementsInternes(emettreLot([seul], { virementsConnus: [vi1, vi2] }), T_LOT)
+    expect(traitement.mouvements.map((m) => [m.compte, m.sens, m.montantCentimes])).toEqual([
+      ['TILL.51210.00000.0', 'debit', 250_000],
+      ['TILL.51200.00000.0', 'credit', 250_000],
+    ])
+    expect(virements[0]).toMatchObject({ id: 'vi-1', statut: 'Émis', impute: true })
+  })
+
+  it('(1) lot entier émis en une fois, à une même date : chacun de ses virements émis s’écrit avec lui', () => {
+    const lotEmis = emettreLot(lotDeDeux())
+    expect(lotEmis.map((v) => [v.id, v.rang, v.statut, v.dateEmission])).toEqual([
+      ['vi-1', 1, 'Émis', '2026-10-30'],
+      ['vi-2', 2, 'Émis', '2026-10-30'],
+    ])
+    expect(traitementVirementsInternes(lotEmis, T_LOT).virements.map((v) => v.impute)).toEqual([true, true])
+  })
+
+  it('(2) même rang saisi deux fois : l’émission refuse le lot, aucun virement ne part ; recomposé, il s’émet et s’écrit', () => {
+    const vi1 = creer({ traitementId: 't-lot', nombreOrdresDuLot: 2 })
+    const vi2 = creer({ id: 'vi-2', numero: 'BAB-0002', traitementId: 't-lot', nombreOrdresDuLot: 2 })
+    expect(() => emettreLot([vi1, vi2])).toThrow(/rang 1 déjà pris/)
+    expect(() => emettreLot([vi2, vi1])).toThrow(/rang 1 déjà pris/)
+    expect(() => emettreLot([vi1])).toThrow(/1 passé\(s\)/)
+    expect(() => emettreLot([vi2])).toThrow(/1 passé\(s\)/)
+    const lot = recomposerLotVirementsInternes([vi1, vi2], { traitementId: 't-lot' })
+    expect(lot.map((v) => [v.id, v.rang, v.nombreOrdresDuLot])).toEqual([
+      ['vi-1', 1, 2],
+      ['vi-2', 2, 2],
+    ])
+    expect(traitementVirementsInternes(emettreLot(lot), T_LOT).traitement.mouvements).toHaveLength(4)
+  })
+
+  it('(3) traitement déjà au journal : l’émission refuse le lot ; recomposé sous un traitement neuf, il s’émet et s’écrit', () => {
+    const premierLot = emettreLot(creerLotVirementsInternes([saisieDuLot()], SOUS_T_LOT))
+    const journal = [traitementVirementsInternes(premierLot, T_LOT).traitement]
+    const [nouveau] = creerLotVirementsInternes([saisieDuLot({ id: 'vi-9', numero: 'BAB-0009' })], SOUS_T_LOT)
+    expect(() => emettreLot([nouveau], { journal })).toThrow(/Traitement t-lot déjà passé au journal/)
+    expect(nouveau.statut).toBe('Enregistré')
+    const neuf = emettreLot(recomposerLotVirementsInternes([nouveau], { traitementId: 't-lot-2' }), { journal })
+    const { virements } = traitementVirementsInternes(neuf, { id: 't-lot-2', date: '2026-10-31', journal })
+    expect(virements[0]).toMatchObject({ id: 'vi-9', traitementId: 't-lot-2', impute: true })
+  })
+
+  it('(3) traitement réservé par un lot émis, pas encore écrit : un autre lot ne s’émet pas sous ce traitement, ni un virement deux fois', () => {
+    const [a] = creerLotVirementsInternes([saisieDuLot()], SOUS_T_LOT)
+    const [b] = creerLotVirementsInternes([saisieDuLot({ id: 'vi-9', numero: 'BAB-0009' })], SOUS_T_LOT)
+    const [aEmis] = emettreLot([a])
+    const virementsConnus = [aEmis, b]
+    expect(() => emettreLot([b], { virementsConnus })).toThrow(/Traitement t-lot déjà réservé par le virement BAB-0001, émis dans un autre lot/)
+    expect(() => emettreLot([a], { virementsConnus })).toThrow(/Virement BAB-0001 déjà émis \(traitement t-lot\)/)
+    const [bEmis] = emettreLot(recomposerLotVirementsInternes([b], { traitementId: 't-lot-b' }), { virementsConnus })
+    const premier = traitementVirementsInternes([aEmis], T_LOT)
+    const second = traitementVirementsInternes([bEmis], { id: 't-lot-b', date: '2026-10-30', journal: [premier.traitement] })
+    expect([premier.virements[0].impute, second.virements[0].impute]).toEqual([true, true])
+  })
+
+  it('émission : lot vide, plusieurs traitements, plusieurs syndicats, virement en double : refusés', () => {
+    const vi1 = creer({ traitementId: 't-lot', nombreOrdresDuLot: 2 })
+    const vi2 = creer({ id: 'vi-2', numero: 'BAB-0002', traitementId: 't-autre', rang: 2, nombreOrdresDuLot: 2 })
+    expect(() => emettreLot([])).toThrow(/aucun virement/)
+    expect(() => emettreLot([vi1, vi2])).toThrow(/plusieurs traitements \(t-lot, t-autre\)/)
+    expect(() => emettreLot([vi1, { ...vi2, traitementId: 't-lot', coproprieteId: 'copro-autre' }])).toThrow(/plusieurs syndicats \(D1\)/)
+    expect(() => emettreLot([vi1, vi1])).toThrow(/vi-1 en double/)
+  })
+
+  it('recomposition : refusée une fois le lot émis, et pour un lot vide, un traitement absent, un double, plusieurs syndicats', () => {
+    const [vi1, vi2] = lotDeDeux()
+    const [vi1Emis] = emettreLot([vi1, vi2])
+    expect(() => recomposerLotVirementsInternes([vi1Emis], { traitementId: 't-lot' })).toThrow(/BAB-0001 déjà émis le 2026-10-30.*ne se recompose plus/)
+    expect(() => recomposerLotVirementsInternes([], { traitementId: 't-lot' })).toThrow(/aucun virement/)
+    expect(() => recomposerLotVirementsInternes([vi1], { traitementId: ' ' })).toThrow(/traitement/)
+    expect(() => recomposerLotVirementsInternes([vi1, vi1], { traitementId: 't-lot' })).toThrow(/vi-1 en double/)
+    expect(() => recomposerLotVirementsInternes([vi1, { ...vi2, coproprieteId: 'copro-autre' }], { traitementId: 't-lot' })).toThrow(/D1/)
+  })
+})
+
+describe('fichier de virement (pain.001.001.03)', () => {
+  const options = { nomSyndicat: 'SDC Les Tilleuls (fictif)', messageId: 'BAB-0001', dateCreation: '2026-10-30T09:00:00', dateExecution: '2026-10-31' }
+
+  it('débiteur = compte source, créancier = le syndicat sur le compte de destination', () => {
+    const xml = fichierVirementInterne(creer(), options)
+    expect(xml).toMatch(/<DbtrAcct><Id><IBAN>FR7630006000011234567890189<\/IBAN>/)
+    expect(xml).toMatch(/<Cdtr><Nm>SDC Les Tilleuls \(fictif\)<\/Nm><\/Cdtr>\s*<CdtrAcct><Id><IBAN>FR1420041010050500013M02606<\/IBAN>/)
+    expect(xml).toContain('<EndToEndId>BAB-0001</EndToEndId>')
+    expect(xml).toContain('<InstdAmt Ccy="EUR">2500.00</InstdAmt>')
+  })
+
+  it('compte sans IBAN ou sans BIC (Caisse des dépôts, sous-compte centralisateur) : virement à ordonner hors fichier', () => {
+    expect(() => fichierVirementInterne(creer({ source: FONDS, destination: FONDS_CDC }), options)).toThrow(/destination .*sans IBAN/)
+    expect(() => fichierVirementInterne(creer({ source: { ...COURANT, bic: null } }), options)).toThrow(/source .*sans IBAN ou BIC/)
+    expect(() => fichierVirementInterne(creer(), { ...options, nomSyndicat: ' ' })).toThrow(/syndicat/)
+  })
+})
+
+describe('en-tête : sources et marqueurs', () => {
+  const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'virement-interne.ts'), 'utf8')
+  const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+
+  it('cite Gestéam (tranche 43 § 12, tranche 29), D-BANQUE et les textes lus', () => {
+    for (const attendu of ['tranche 43 § 12', 'tranche 29', 'D-BANQUE', 'art. 18, II', '14-2-1', '29-14', '35-1', 'arrêté du 14 mars 2005', "contrôlé AVANT l'envoi à la banque"])
+      expect(entete).toContain(attendu)
+    for (const marqueur of ['🟢', '🔵', '🔴']) expect(entete).toContain(marqueur)
+  })
+
+  const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
+
+  it('🔴 pose les questions encore ouvertes (famille de l’annulation, lot émis en partie) ; le sens inverse est décidé (F95)', () => {
+    for (const attendu of ['Annulation', 'Ajustement bancaire fonds travaux', "un ordre d'un lot dont les autres sont « Émis »"]) expect(nonEtabli).toContain(attendu)
+    expect(nonEtabli).not.toContain("vire-t-il d'abord vers le compte courant")
+    expect(entete).toContain('Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) :')
+    expect(entete).toMatch(/Par défaut, la facture se paie directement depuis le compte du fonds : une seule sortie, traçable, sous contrôle d'affectation/)
+  })
+
+  it('J67, R82, R83 et R94, J68, J71 : questions fermées, décisions inscrites avec leurs textes', () => {
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    // R83 : écriture directe de 512 à 512 ; compte du fonds en subdivision du 512.
+    expect(nonEtabli).not.toContain('471, 472')
+    expect(j67).toMatch(/J67, R83 : écriture directe de 512 à 512, sans compte d'attente/)
+    expect(j67).toMatch(/subdivision du 512 \(arrêté du 14 mars 2005, art\. 8/)
+    // R83 et J71 : un placement relève de la classe 50, mais le code ne lit que des sous-comptes 512 : question marquée.
+    expect(j67).toMatch(/le 50 « Fonds placés » reste pour un vrai placement \(D\. 1967 art\. 35-1\), non pris en charge ici \(ci-dessous\)/)
+    expect(nonEtabli).toMatch(/compte de placement \(J71 compris\) lu en sous-compte 512 .*classe 50 « Fonds placés » \(J67, R83\) non prise en charge, à trancher/)
+    // R82 : le syndic ne prend jamais seul sur le fonds pour des travaux urgents.
+    expect(nonEtabli).not.toMatch(/le syndic peut-il prélever sur le fonds/)
+    expect(j67).toMatch(/J67, R82 : .*D\. 1967 art\. 37.*Blocage gardé/)
+    // R94 : C. com. R. 814-41, avec la réserve « matière civile ».
+    expect(entete).not.toContain('livre VIII, non lu')
+    expect(j67).toMatch(/J67, R94 : .*R\. 814-41.*« matière civile » : déduit, à confirmer/)
+    // J68 : rejet d'une ligne d'un lot émis, sur le modèle de J9.
+    expect(nonEtabli).not.toContain('aucune annulation après émission ici')
+    expect(j67).toMatch(/J68 .*rejeterVirementInterne.*écriture contraire de sa seule ligne/)
+    // J71 : placement du fonds admis avec une décision, vers un compte réservé au fonds.
+    expect(nonEtabli).not.toMatch(/un virement du fonds vers un compte de placement est-il un emploi/)
+    expect(j67).toMatch(/J71 .*Sans décision de placement, refus.*réservé au fonds/)
+  })
+
+  it('🟢 art. 18, II, dernier al. au plus près du texte : interdiction faite au syndic, avec ses deux exceptions', () => {
+    expect(entete).toContain(
+      "le syndic ne peut avancer de fonds au syndicat, à l'exception du syndic provisoire et de l'administrateur provisoire désigné en application des art. 29-1 et 29-11",
+    )
+    expect(entete).not.toContain('seuls le syndic provisoire')
+  })
+
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : J30, J31 et J37 inscrites, leurs questions fermées', () => {
+    expect(decisions).toMatch(/J30/)
+    expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
+    expect(decisions).not.toMatch(/🔵 à confirmer/)
+    // J42 (06/11/2026) : la déclinaison de la décision d'affectation de l'AG est confirmée, sans changement de comportement.
+    expect(decisions).toMatch(/J42 : la décision d'affectation de l'AG prend la forme date de l'AG \+ n° de la résolution, obligatoires/)
+    expect(nonEtabli).not.toMatch(/n° de la résolution, 🔵\)/)
+    // Aucun motif ne change : l'en-tête ne prétend plus que le refus dit « forme exigée » pour la décision de l'AG.
+    expect(decisions).not.toMatch(/le motif du refus dit « forme exigée »/)
+    expect(decisions).toMatch(/comportement inchangé \(mêmes refus, mêmes motifs/)
+    expect(decisions).toMatch(/texte libre est refusé, motif « forme incomplète » à l'appui/)
+    expect(decisions).not.toMatch(/texte libre d'avant J30 reste admise/)
+    expect(decisions).toMatch(/J31/)
+    expect(decisions).toContain('D. 1967 art. 46')
+    expect(decisions).toContain("administrateur provisoire de l'art. 47")
+    expect(decisions).toMatch(/J37/)
+    expect(decisions).toMatch(/compte à la Caisse des dépôts, pas un compte centralisateur du cabinet/)
+    expect(decisions).toContain('art. 18, II, al. 4')
+    expect(nonEtabli).not.toContain("L'administrateur provisoire de l'art. 47, qui n'est pas désigné")
+    expect(nonEtabli).not.toContain('sont des textes libres')
+    expect(nonEtabli).not.toContain('quels textes fondent le compte centralisateur du cabinet')
+  })
+
+  it('la forme de la décision de l’administrateur provisoire sous l’art. 29-1 : décidée (F96), elle quitte le 🔴 (les textes du dépôt restent cités : J67, R94)', () => {
+    expect(nonEtabli).not.toMatch(/textes qui fondent le dépôt à la Caisse des dépôts/)
+    expect(nonEtabli).not.toMatch(/ordonnance de l'art\. 29-1 qui confie les pouvoirs de l'assemblée/)
+    expect(nonEtabli).not.toMatch(/elle reste un texte libre, admis et signalé « forme incomplète »/)
+    expect(entete).toMatch(/Décision du 20\/11\/2026 \(partie C, F96\) : .*troisième forme structurée « décision de l'administrateur provisoire »/)
+    expect(entete).toMatch(/la date comparée à la dépense est celle de la décision/)
+  })
+
+  it('🔵 l’emploi du fonds décrit le contrôle réel : décision d’affectation (1° à 4°) ou ordonnance de l’art. 29-14, 2°', () => {
+    expect(entete).not.toContain("VitFix exige l'une ou l'autre")
+    expect(entete).toContain('pour les seules dépenses du I, 1° à 4° (decisionAg)')
+    expect(entete).toContain("exigent l'ordonnance de l'art. 29-14, 2° (autorisationJuge)")
+  })
+})

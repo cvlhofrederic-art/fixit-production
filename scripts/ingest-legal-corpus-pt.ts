@@ -11,7 +11,9 @@
 //
 // Usage :
 //   CLOUDFLARE_API_TOKEN=xxx SUPABASE_SERVICE_ROLE_KEY=xxx \
-//   npx tsx scripts/ingest-legal-corpus-pt.ts <chemin-vers-md>
+//   npx tsx scripts/ingest-legal-corpus-pt.ts <fichier-md>
+//   <fichier-md> : nom d'un fichier de scripts/data/ (ex. regime-juridico-condominio-portugal-2026.md)
+//   ou chemin vers ce dossier, relatif au dossier courant (ex. scripts/data/regime-….md) ou absolu
 //
 // Variables d'env requises :
 //   CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (Workers AI scope)
@@ -21,9 +23,30 @@
 // (même chunk_hash) sont skippés.
 
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { embedBatch, formatVectorLiteral } from '../lib/syndic/embed'
+import { resolveInside } from '../lib/security/safe-fs-path'
+
+// Dossier du corpus : scripts/data/ (source de lib/syndic/legal-corpus-pt-md.ts, voir regen-legal-corpus-md.sh).
+// Le chemin passé en argument doit désigner un fichier de ce dossier (lot 7 du brief Aikido du 28/10/2026, issue 9).
+const CORPUS_DIR = path.join(__dirname, 'data')
+
+/**
+ * Chemin absolu du fichier MD à ingérer, confiné dans scripts/data/ : un simple nom de fichier y est
+ * cherché directement ; un chemin (relatif au dossier courant, ou absolu) doit y aboutir. Erreur
+ * explicite sinon, avant toute lecture.
+ */
+function cheminCorpus(filePath: string): string {
+  const nomSeul = !path.isAbsolute(filePath) && !filePath.includes('/') && !filePath.includes(path.sep)
+  const brut = nomSeul ? path.join(CORPUS_DIR, filePath) : path.resolve(process.cwd(), filePath)
+  try {
+    return resolveInside(CORPUS_DIR, brut)
+  } catch (err) {
+    throw new Error(`Fichier refusé « ${filePath} » : le corpus doit être dans ${CORPUS_DIR} (${(err as Error).message})`)
+  }
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,8 +325,10 @@ async function ingest(filePath: string): Promise<IngestionStats> {
     throw new Error('CLOUDFLARE_ACCOUNT_ID et CLOUDFLARE_API_TOKEN requis')
   }
 
-  console.log(`[ingest-pt] Lecture du fichier ${filePath}`)
-  const md = readFileSync(filePath, 'utf-8')
+  // Nom de fichier ou chemin, confiné dans scripts/data/ (voir cheminCorpus) : erreur explicite sinon
+  const chemin = cheminCorpus(filePath)
+  console.log(`[ingest-pt] Lecture du fichier ${chemin}`)
+  const md = readFileSync(chemin, 'utf-8')
   console.log(`[ingest-pt] ${md.length} caractères, ${md.split('\n').length} lignes`)
 
   const chunks = parseLegalMarkdown(md)
@@ -401,7 +426,9 @@ async function ingest(filePath: string): Promise<IngestionStats> {
 if (require.main === module) {
   const filePath = process.argv[2]
   if (!filePath) {
-    console.error('Usage: tsx scripts/ingest-legal-corpus-pt.ts <chemin-vers-md>')
+    console.error('Usage: tsx scripts/ingest-legal-corpus-pt.ts <fichier-md>')
+    console.error('  <fichier-md> : nom d’un fichier de scripts/data/ (ex. regime-juridico-condominio-portugal-2026.md)')
+    console.error('  ou chemin vers ce dossier, relatif au dossier courant (ex. scripts/data/regime-….md) ou absolu')
     process.exit(1)
   }
   ingest(filePath)

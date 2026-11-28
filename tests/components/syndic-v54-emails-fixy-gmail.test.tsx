@@ -20,7 +20,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const NON_CONNECTEE = { cabinetId: 'cab', connecte: false, provider: null, email: null, misAJour: null, brouillonsEnAttente: 0, emails: [] }
 
 const CONNECTEE_OUTLOOK = {
-  cabinetId: 'cab-1', connecte: true, provider: 'microsoft', email: 'h.carvalho@ajassocies.fr', misAJour: null, brouillonsEnAttente: 1,
+  cabinetId: 'cab-1', connecte: true, provider: 'microsoft', email: 'gestion@exemple.fr', misAJour: null, brouillonsEnAttente: 1,
   emails: [{ id: 'e1', from_email: 'julien.rousseau@example.fr', subject: 'Fuite colonne', resume_ia: 'Fuite persistante au 3e', received_at: '2026-10-12T04:42:00Z', urgence: 'urgente', type_demande: 'sinistre', draft_status: 'pending_review', draft_subject: 'Re: Fuite' }],
 }
 
@@ -85,6 +85,22 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
     expect(screen.getByText(/MICROSOFT_CLIENT_ID manquant/)).toBeInTheDocument()
   })
 
+  it('adresse renvoyée hors Google/Microsoft : aucune redirection, même toast d’échec, bouton réutilisable', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/email-agent/status') return json(NON_CONNECTEE)
+      return json({ url: 'https://evil.example/oauth?client_id=m' })
+    }))
+    rendre(authed())
+    fireEvent.click(await screen.findByRole('button', { name: 'Outlook / Microsoft 365' }))
+    expect(await screen.findByText('Ligação da caixa de email impossível')).toBeInTheDocument()
+    expect(assign).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith('[safe-url] redirection refusée')
+    expect(screen.getByRole('button', { name: 'Outlook / Microsoft 365' })).toBeEnabled()
+  })
+
   it('connectée : fournisseur + adresse, e-mails analysés, brouillon à valider ; « Analisar agora » relève la boîte', async () => {
     let releves = 0
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
@@ -101,7 +117,7 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
     expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     expect(screen.getByText('Fuite persistante au 3e')).toBeInTheDocument()
     expect(screen.getByText('Rascunho a validar')).toBeInTheDocument()
-    expect(screen.getByText(/h\.carvalho@ajassocies\.fr \(Outlook \/ Microsoft 365\)/)).toBeInTheDocument()
+    expect(screen.getByText(/gestion@exemple\.fr \(Outlook \/ Microsoft 365\)/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Analisar agora/ }))
     await waitFor(() => expect(releves).toBe(1))
     expect(await screen.findByText('Caixa analisada')).toBeInTheDocument()
@@ -114,6 +130,8 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
       return json({}, 404)
     }))
     rendre(authed())
+    // Boîte chargée avant le clic : avant la réponse de /status, le bouton n'ouvre que le toast « bientôt » (faux rouge CI).
+    expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Analisar agora/ }))
     expect(await screen.findByText('12 novos emails · 20 lidos · 8 por analisar — clique novamente')).toBeInTheDocument()
   })
@@ -127,6 +145,8 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
       return json({}, 404)
     }))
     rendre(authed())
+    // Boîte chargée avant le clic : avant la réponse de /status, le bouton n'ouvre que le toast « bientôt » (faux rouge CI).
+    expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Analisar agora/ }))
     expect(await screen.findByText('Análise impossível')).toBeInTheDocument()
     expect(screen.getByText('A ligação à caixa de email expirou: volte a ligá-la.')).toBeInTheDocument()
@@ -222,9 +242,9 @@ describe('Retour de connexion de la boîte (RetourConnexionBoite)', () => {
   afterEach(() => { window.history.replaceState(null, '', '/') })
 
   it('boîte connectée : message générique avec adresse et fournisseur', async () => {
-    retour('?email_connected=true&email=h.carvalho%40ajassocies.fr&email_provider=microsoft')
+    retour('?email_connected=true&email=gestion%40exemple.fr&email_provider=microsoft')
     expect(await screen.findByText('Caixa de email ligada')).toBeInTheDocument()
-    expect(screen.getByText(/h\.carvalho@ajassocies\.fr \(Outlook \/ Microsoft 365\)/)).toBeInTheDocument()
+    expect(screen.getByText(/gestion@exemple\.fr \(Outlook \/ Microsoft 365\)/)).toBeInTheDocument()
     await waitFor(() => expect(window.location.search).toBe(''))
   })
 

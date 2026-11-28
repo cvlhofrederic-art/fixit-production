@@ -1,0 +1,1062 @@
+{
+  "famille": {
+    "id": "canalizacao",
+    "nom": "Canalização",
+    "description": "Tubos, acessórios, vedantes, sifões, torneiras de corte, peças de autoclismo e produtos para desentupir ou reparar fugas em instalações de água e esgoto domésticas.",
+    "icone": "🚰",
+    "sousFamilles": [
+      {
+        "id": "vedantes-roscas",
+        "nom": "Vedantes de roscas",
+        "description": "Produtos para vedar ligações roscadas de água: fita, linho e pasta."
+      },
+      {
+        "id": "tubos-agua",
+        "nom": "Tubos de água",
+        "description": "Tubos para abastecimento de água fria e quente (multicamada, PEX e PPR) e isolamento tubular."
+      },
+      {
+        "id": "acessorios-ligacao",
+        "nom": "Acessórios de ligação",
+        "description": "Acessórios para tubo multicamada e PEX e acessórios roscados de latão para ligar tubos entre si e às torneiras."
+      },
+      {
+        "id": "esgoto-pvc",
+        "nom": "Esgoto em PVC",
+        "description": "Tubos, acessórios, cola e ralos para a rede de esgoto doméstico."
+      },
+      {
+        "id": "sifoes-valvulas-escoamento",
+        "nom": "Sifões e válvulas de escoamento",
+        "description": "Sifões e válvulas de lavatório, lava-loiça e base de duche."
+      },
+      {
+        "id": "bichas-flexiveis",
+        "nom": "Bichas e tubos flexíveis",
+        "description": "Ligações flexíveis de torneiras, autoclismos, chuveiros e máquinas de lavar."
+      },
+      {
+        "id": "torneiras-corte-valvulas",
+        "nom": "Torneiras de corte e válvulas",
+        "description": "Torneiras de esquadria e de máquina, válvulas de esfera, de retenção, redutoras e de segurança."
+      },
+      {
+        "id": "reparacao-torneiras",
+        "nom": "Peças para reparar torneiras",
+        "description": "Castelos, cartuchos e arejadores para torneiras que pingam, não fecham ou têm o jato fraco."
+      },
+      {
+        "id": "autoclismo-sanita",
+        "nom": "Autoclismo e sanita",
+        "description": "Mecanismos de descarga e enchimento, ligações e fixações de sanita."
+      },
+      {
+        "id": "juntas-aneis",
+        "nom": "Juntas, anilhas e o-rings",
+        "description": "Juntas de borracha planas e cónicas e o-rings para porcas, bichas, sifões e torneiras."
+      },
+      {
+        "id": "desentupir-reparar-fugas",
+        "nom": "Desentupir e reparar fugas",
+        "description": "Desentupidores químicos e manuais e produtos de reparação rápida de fugas."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "fita-ptfe-vedante-roscas",
+      "famille": "canalizacao",
+      "sousFamille": "vedantes-roscas",
+      "nom": "Fita PTFE para roscas",
+      "aussiAppele": [
+        "fita de vedação",
+        "fita vedante",
+        "fita branca de canalizador"
+      ],
+      "aussiCherche": [
+        "teflon",
+        "fita teflon"
+      ],
+      "usage": "Veda roscas de torneiras, bichas, casquilhos e acessórios de água. Enrola-se sobre a rosca macho antes de apertar.",
+      "aSavoir": "Enrolar no sentido do aperto da rosca. Depois de apertada, não desapertar para acertar a posição: a ligação perde a vedação e é preciso refazer.",
+      "conditionnement": "Rolo 12 mm x 12 m",
+      "recherche": "fita PTFE",
+      "rechercheEnseigne": {
+        "maxmat": "teflon"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "linho-canalizador",
+      "famille": "canalizacao",
+      "sousFamille": "vedantes-roscas",
+      "nom": "Linho de canalizador",
+      "aussiAppele": [
+        "estopa",
+        "linho para roscas",
+        "cânhamo",
+        "fio de linho"
+      ],
+      "usage": "Vedação tradicional de roscas metálicas (latão, ferro galvanizado), enrolado na rosca macho e coberto com pasta vedante.",
+      "aSavoir": "Usar sempre com pasta vedante por cima. Em roscas de plástico, preferir fita PTFE.",
+      "conditionnement": "Meada pequena",
+      "recherche": "linho canalizador",
+      "rechercheEnseigne": {
+        "maxmat": "linho"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pasta-vedante-roscas",
+      "famille": "canalizacao",
+      "sousFamille": "vedantes-roscas",
+      "nom": "Pasta vedante para roscas",
+      "aussiAppele": [
+        "pasta de canalizador",
+        "massa vedante de roscas",
+        "pasta para linho"
+      ],
+      "usage": "Pasta que se aplica sobre o linho (ou diretamente na rosca) para vedar ligações roscadas metálicas de água.",
+      "aSavoir": "É para roscas metálicas. Confirmar na embalagem se é própria para água potável.",
+      "conditionnement": "Lata ou bisnaga, cerca de 300 g",
+      "recherche": "pasta vedante",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-multicamada",
+      "famille": "canalizacao",
+      "sousFamille": "tubos-agua",
+      "nom": "Tubo multicamada (16, 20 e 25 mm)",
+      "aussiAppele": [
+        "multicamadas",
+        "tubo pex-al-pex",
+        "tubo multicamada 16x2"
+      ],
+      "usage": "Tubo para água fria e quente em remodelações de casas de banho e cozinhas. Dobra-se à mão e mantém a forma.",
+      "aSavoir": "Cortar com corta-tubos e calibrar a boca do tubo antes de montar o acessório, para não danificar o o-ring. Os acessórios têm de ser próprios para multicamada e do mesmo diâmetro.",
+      "conditionnement": "Rolos de 5, 10, 25, 50 ou 100 m; diâmetros 16x2, 20x2 e 25x2 mm",
+      "recherche": "tubo multicamada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-pex",
+      "famille": "canalizacao",
+      "sousFamille": "tubos-agua",
+      "nom": "Tubo PEX (12, 16 e 20 mm)",
+      "aussiAppele": [
+        "pex",
+        "tubo de polietileno reticulado",
+        "tubo pex 16",
+        "manga para pex"
+      ],
+      "usage": "Tubo flexível para água fria e quente, muito usado embutido com distribuição por coletor.",
+      "aSavoir": "Embutido, passa-se normalmente dentro de manga corrugada (azul para fria, vermelha para quente), vendida à parte. Usar acessórios próprios para PEX com o mesmo diâmetro e espessura.",
+      "conditionnement": "Vendido ao metro; 12x2, 16x2 e 20x2 mm",
+      "recherche": "tubo pex",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-acessorios-ppr",
+      "famille": "canalizacao",
+      "sousFamille": "tubos-agua",
+      "nom": "Tubo e acessórios PPR de soldar (20 e 25 mm)",
+      "aussiAppele": [
+        "ppr",
+        "tubo de polipropileno",
+        "tubo de termofusão",
+        "tubo azul de soldar",
+        "joelho ppr",
+        "união ppr",
+        "tê ppr",
+        "tampão ppr"
+      ],
+      "usage": "Tubo rígido para água fria e quente e respetivos joelhos, uniões, tês, reduções e tampões, unidos por soldadura (termofusão).",
+      "aSavoir": "Não leva cola nem vedante: solda-se com máquina de termofusão própria. Não é compatível com acessórios de PVC.",
+      "conditionnement": "Tubo em vara de 4 m; acessórios à unidade; diâmetros 20 e 25 mm",
+      "recherche": "tubo ppr",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-isolamento-polietileno",
+      "famille": "canalizacao",
+      "sousFamille": "tubos-agua",
+      "nom": "Isolamento tubular para canos",
+      "aussiAppele": [
+        "coquilha",
+        "manga isolante",
+        "isolamento de tubo",
+        "espuma para tubos"
+      ],
+      "usage": "Manga de espuma de polietileno que se enfia nos tubos de água quente ou fria para reduzir perdas de calor e condensação.",
+      "aSavoir": "Escolher o diâmetro interior igual ao diâmetro exterior do tubo.",
+      "conditionnement": "Vara de 2 m; diâmetros interiores 13, 16 e 19 mm",
+      "recherche": "isolamento tubo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acessorios-multicamada",
+      "famille": "canalizacao",
+      "sousFamille": "acessorios-ligacao",
+      "nom": "Acessórios para tubo multicamada (de cravar ou de aperto)",
+      "aussiAppele": [
+        "acessórios de cravar",
+        "acessórios de prensar",
+        "press fitting",
+        "acessórios de aperto",
+        "acessórios de compressão",
+        "acessórios niquelados",
+        "união multicamada",
+        "joelho multicamada",
+        "tê multicamada",
+        "casquilho multicamada"
+      ],
+      "usage": "Uniões, joelhos, tês e casquilhos roscados para tubo multicamada. Os de cravar fazem uma ligação definitiva, adequada para ficar embutida; os de aperto montam-se com chaves, sem máquina de cravar.",
+      "aSavoir": "Calibrar a boca do tubo antes de montar. Os de cravar exigem alicate de cravar com mordentes compatíveis com o acessório e, depois de cravados, não se desmontam. Os de aperto, é prática corrente deixá-los acessíveis em vez de os embutir.",
+      "conditionnement": "À unidade; 16, 20 e 25 mm, com saídas roscadas 1/2\" e 3/4\"",
+      "recherche": "acessório multicamada",
+      "rechercheEnseigne": {
+        "maxmat": "união multicamada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acessorios-pex",
+      "famille": "canalizacao",
+      "sousFamille": "acessorios-ligacao",
+      "nom": "Acessórios para tubo PEX",
+      "aussiAppele": [
+        "união pex",
+        "joelho pex",
+        "casquilho pex",
+        "curva terminal pex",
+        "coletor pex"
+      ],
+      "usage": "Uniões, joelhos, tês, casquilhos roscados, curvas terminais e coletores para instalações em tubo PEX.",
+      "aSavoir": "Confirmar diâmetro e espessura do tubo (por exemplo 16x2,0). Não são intermutáveis com os acessórios de multicamada.",
+      "conditionnement": "À unidade; 12, 16 e 20 mm",
+      "recherche": "acessório pex",
+      "rechercheEnseigne": {
+        "maxmat": "união pex"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acessorios-latao-roscados",
+      "famille": "canalizacao",
+      "sousFamille": "acessorios-ligacao",
+      "nom": "Acessórios roscados de latão (casquilhos, joelhos, tês, junções, tacos)",
+      "aussiAppele": [
+        "casquilho de latão",
+        "joelho de latão",
+        "tê de latão",
+        "união de latão",
+        "taco de latão",
+        "tampão roscado",
+        "redução de latão",
+        "machão",
+        "junção cónica",
+        "união de três peças",
+        "união desmontável",
+        "racord"
+      ],
+      "usage": "Casquilhos, uniões, joelhos, tês, reduções e tacos (tampões) roscados para ligar, derivar, reduzir ou tamponar pontos de água. A junção cónica (união de três peças) permite desmontar um troço de tubagem sem rodar os tubos, por exemplo junto a contadores, esquentadores ou bombas.",
+      "aSavoir": "Vedar sempre a rosca com fita PTFE ou linho com pasta; o assento cónico das junções não leva vedante. Confirmar a medida em polegadas (3/8\", 1/2\", 3/4\", 1\") e se é macho ou fêmea.",
+      "conditionnement": "À unidade; de 1/4\" a 1\", em latão ou cromado",
+      "recherche": "casquilho latão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-pvc-esgoto",
+      "famille": "canalizacao",
+      "sousFamille": "esgoto-pvc",
+      "nom": "Tubo PVC de esgoto",
+      "aussiAppele": [
+        "tubo de esgoto",
+        "tubo pvc série b",
+        "tubo de saneamento",
+        "tubo cinzento"
+      ],
+      "usage": "Tubo rígido para esgoto doméstico de lavatórios, lava-loiças, duches e sanitas.",
+      "aSavoir": "Confirmar se o sistema é de colar ou de encaixe com o-ring e comprar os acessórios do mesmo tipo. Dar sempre pendente no sentido do escoamento.",
+      "conditionnement": "Varas de 3 m; diâmetros correntes 32, 40, 50, 75, 90, 110 e 125 mm",
+      "recherche": "tubo pvc esgoto",
+      "rechercheEnseigne": {
+        "maxmat": "tubo pvc série b"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acessorios-pvc-esgoto",
+      "famille": "canalizacao",
+      "sousFamille": "esgoto-pvc",
+      "nom": "Acessórios PVC de esgoto",
+      "aussiAppele": [
+        "curva pvc",
+        "joelho de esgoto",
+        "forquilha",
+        "tê de esgoto",
+        "redução pvc",
+        "aumento pvc",
+        "tampão de visita",
+        "união pvc"
+      ],
+      "usage": "Curvas a 45° e 87°30', tês, forquilhas, uniões, reduções, aumentos e tampões para montar e alterar a rede de esgoto em PVC.",
+      "aSavoir": "Para mudar de direção, duas curvas de 45° escoam melhor do que uma de 87°30'. Nas peças com o-ring, não colar: encaixar com a junta limpa.",
+      "conditionnement": "À unidade; diâmetros 32 a 125 mm",
+      "recherche": "curva pvc esgoto",
+      "rechercheEnseigne": {
+        "maxmat": "curvas 87"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-pvc-tubos",
+      "famille": "canalizacao",
+      "sousFamille": "esgoto-pvc",
+      "nom": "Cola para tubos de PVC",
+      "aussiAppele": [
+        "cola pvc",
+        "cola de pvc rígido",
+        "cola para esgoto",
+        "cola pvc com pincel",
+        "cola pvc gel",
+        "cola para PVC rígido",
+        "cola de tubos",
+        "cola para tubagens"
+      ],
+      "aussiCherche": [
+        "tangit"
+      ],
+      "usage": "Cola que solda quimicamente tubos e acessórios de PVC rígido em esgoto, rega e canalização.",
+      "aSavoir": "Só cola PVC rígido: não serve para PPR, PEX nem polietileno. Superfícies limpas e secas; respeitar o tempo de secagem indicado antes de pôr água.",
+      "conditionnement": "Bisnaga de cerca de 125 ml ou lata com pincel",
+      "recherche": "cola pvc",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ralo-sifonado-pavimento",
+      "famille": "canalizacao",
+      "sousFamille": "esgoto-pvc",
+      "nom": "Ralo sifonado de pavimento",
+      "aussiAppele": [
+        "ralo de chão",
+        "ralo com sifão",
+        "ralo de duche",
+        "ralo inox",
+        "ralo de pavimento"
+      ],
+      "usage": "Ralo com sifão incorporado para pavimentos de casas de banho, duches, varandas e lavandarias.",
+      "aSavoir": "O sifão tem de ter sempre água para não deixar passar cheiros: em ralos pouco usados, deitar água de vez em quando. Confirmar o diâmetro de saída (40 ou 50 mm).",
+      "conditionnement": "À unidade; 10x10 cm (saída 40 mm) ou 15x15 cm (saída 50 mm)",
+      "recherche": "ralo sifonado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "sifao-pavimento-pvc",
+      "famille": "canalizacao",
+      "sousFamille": "esgoto-pvc",
+      "nom": "Sifão de pavimento em PVC",
+      "aussiAppele": [
+        "sifão de chão",
+        "caixa de pavimento",
+        "sifão de 3 entradas",
+        "caixa de reunião"
+      ],
+      "usage": "Sifão embutido no pavimento da casa de banho que recebe os esgotos de lavatório, bidé e duche antes de ligar ao tubo de queda.",
+      "aSavoir": "A tampa (cromada ou em inox, de expansão) e o aro compram-se à parte, pelo diâmetro da boca (por exemplo 90 ou 110 mm). Tem de ficar acessível para limpeza.",
+      "conditionnement": "À unidade; corpo de 110 mm com entradas de 40 e saída de 50 mm",
+      "recherche": "sifão pvc pavimento",
+      "rechercheEnseigne": {
+        "maxmat": "sifão pvc"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "sifao-lavatorio",
+      "famille": "canalizacao",
+      "sousFamille": "sifoes-valvulas-escoamento",
+      "nom": "Sifão de lavatório (garrafa)",
+      "aussiAppele": [
+        "sifão garrafa",
+        "sifão de bidé",
+        "sifão cromado",
+        "sifão de lavatório 1 1/4"
+      ],
+      "usage": "Sifão para lavatório ou bidé, em plástico ou cromado, que retém os cheiros do esgoto.",
+      "aSavoir": "A rosca habitual de lavatório e bidé é 1\"1/4; a de lava-loiça é 1\"1/2. Não apertar as porcas de plástico com ferramenta.",
+      "conditionnement": "À unidade; saída para tubo de 32 ou 40 mm",
+      "recherche": "sifão lavatório",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "sifao-lava-loica",
+      "famille": "canalizacao",
+      "sousFamille": "sifoes-valvulas-escoamento",
+      "nom": "Sifão de lava-loiça (simples ou duplo)",
+      "aussiAppele": [
+        "sifão de banca",
+        "sifão de cozinha",
+        "sifão duplo",
+        "sifão com tomada de máquina"
+      ],
+      "usage": "Sifão para lava-loiça de uma ou duas cubas, com ou sem entrada para o tubo de descarga da máquina de lavar.",
+      "aSavoir": "Confirmar se a banca tem uma ou duas cubas e o diâmetro da válvula. Se houver máquina por perto, escolher o modelo com ligação para máquina.",
+      "conditionnement": "À unidade; rosca 1\"1/2",
+      "recherche": "sifão banca",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-extensivel-esgoto",
+      "famille": "canalizacao",
+      "sousFamille": "sifoes-valvulas-escoamento",
+      "nom": "Tubo extensível de esgoto",
+      "aussiAppele": [
+        "tubo flexível de sifão",
+        "tubo sanfona",
+        "tubo extensível 32/40",
+        "harmónio"
+      ],
+      "usage": "Tubo flexível e extensível para ligar o sifão ou a válvula ao esgoto quando as saídas não estão alinhadas.",
+      "aSavoir": "As pregas acumulam sujidade: usar apenas o comprimento necessário e evitar barrigas onde a água fique parada.",
+      "conditionnement": "À unidade, cerca de 750 mm; pontas 32/40 ou 40/50 mm, com ou sem porca",
+      "recherche": "tubo extensível sifão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-clic-clac-lavatorio",
+      "famille": "canalizacao",
+      "sousFamille": "sifoes-valvulas-escoamento",
+      "nom": "Válvula clic-clac de lavatório",
+      "aussiAppele": [
+        "válvula click-clack",
+        "válvula de lavatório",
+        "válvula automática",
+        "tampa de lavatório"
+      ],
+      "usage": "Válvula de escoamento de lavatório ou bidé que abre e fecha carregando na tampa.",
+      "aSavoir": "Escolher o modelo conforme o lavatório tem ou não furo de avisador (ladrão).",
+      "conditionnement": "À unidade; rosca 1\"1/4",
+      "recherche": "válvula clic clac",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-lava-loica-cesto",
+      "famille": "canalizacao",
+      "sousFamille": "sifoes-valvulas-escoamento",
+      "nom": "Válvula de lava-loiça com cesto",
+      "aussiAppele": [
+        "válvula de banca",
+        "válvula de cesto",
+        "ralo de lava-loiça",
+        "válvula 115"
+      ],
+      "usage": "Válvula de escoamento do lava-loiça com cesto que retém os restos de comida.",
+      "aSavoir": "Medir o furo da cuba antes de comprar: a válvula de cesto grande (aba de cerca de 115 mm) é para furo de cerca de 90 mm; as cubas de furo pequeno (cerca de 60 mm) levam uma válvula mais pequena.",
+      "conditionnement": "À unidade; rosca 1\"1/2",
+      "recherche": "válvula lava-loiça",
+      "rechercheEnseigne": {
+        "maxmat": "válvula de cesto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-base-duche",
+      "famille": "canalizacao",
+      "sousFamille": "sifoes-valvulas-escoamento",
+      "nom": "Válvula sifonada de base de duche",
+      "aussiAppele": [
+        "válvula de duche",
+        "ralo de base de duche",
+        "válvula 90 mm",
+        "válvula extraplana"
+      ],
+      "usage": "Válvula com sifão incorporado para bases de duche; a tampa retira-se para limpar cabelos.",
+      "aSavoir": "Medir o furo da base (60 ou 90 mm) e a altura livre por baixo: em bases muito baixas é preciso o modelo extraplano.",
+      "conditionnement": "À unidade; furo de 60 ou 90 mm, saída de 40 mm",
+      "recherche": "válvula base duche",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bicha-flexivel-inox",
+      "famille": "canalizacao",
+      "sousFamille": "bichas-flexiveis",
+      "nom": "Bicha flexível de ligação (malha inox)",
+      "aussiAppele": [
+        "bicha",
+        "ligação flexível",
+        "flexível de torneira",
+        "flexível de autoclismo",
+        "bicha de esquentador",
+        "bicha de monobloco",
+        "ligação monobloco",
+        "flexível de misturadora",
+        "bicha M10"
+      ],
+      "usage": "Liga a torneira de esquadria à torneira, ao autoclismo, ao esquentador ou ao termoacumulador. Nas torneiras misturadoras monobloco usa-se a bicha de ponta fina roscada, que enrosca diretamente no corpo da torneira.",
+      "aSavoir": "Confirmar as roscas das duas pontas (3/8\", 1/2\" ou 3/4\", macho ou fêmea) e o comprimento. Nas bichas de monobloco a rosca do lado da torneira não é universal: levar a antiga. Não torcer nem dobrar em ângulo apertado; substituir se a malha estiver oxidada. Não servem para gás.",
+      "conditionnement": "À unidade ou em par; comprimentos de 20 a 150 cm",
+      "recherche": "bicha ligação",
+      "rechercheEnseigne": {
+        "maxmat": "ligação monobloco"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bicha-chuveiro",
+      "famille": "canalizacao",
+      "sousFamille": "bichas-flexiveis",
+      "nom": "Bicha de chuveiro",
+      "aussiAppele": [
+        "flexível de duche",
+        "mangueira de chuveiro",
+        "tubo de chuveiro",
+        "bicha de duche"
+      ],
+      "usage": "Tubo flexível que liga a torneira de duche ou banheira ao chuveiro de mão.",
+      "aSavoir": "Rosca de 1/2\" nas duas pontas; a porca cónica fica do lado do chuveiro. Montar com as anilhas de borracha, sem fita nas roscas.",
+      "conditionnement": "À unidade; 150 ou 175 cm",
+      "recherche": "bicha chuveiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubos-maquina-lavar",
+      "famille": "canalizacao",
+      "sousFamille": "bichas-flexiveis",
+      "nom": "Tubos de carga e de descarga para máquina de lavar",
+      "aussiAppele": [
+        "tubo de alimentação da máquina",
+        "mangueira de entrada de água",
+        "tubo de enchimento",
+        "tubo de esgoto da máquina",
+        "mangueira de descarga",
+        "tubo extensível da máquina"
+      ],
+      "usage": "O tubo de carga liga a torneira à entrada de água da máquina de lavar roupa ou loiça; o tubo de descarga, extensível, leva a água da máquina até ao esgoto ou ao sifão com tomada de máquina.",
+      "aSavoir": "Tubo de carga: roscas de 3/4\" nas duas pontas; usar as anilhas novas que vêm com o tubo e apertar à mão. Tubo de descarga: prender em arco, acima do nível da água da máquina, para esta não se esvaziar sozinha.",
+      "conditionnement": "À unidade; carga a partir de 150 cm; descarga extensível de 60 a 200 cm",
+      "recherche": "tubo máquina lavar",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "torneira-esquadria",
+      "famille": "canalizacao",
+      "sousFamille": "torneiras-corte-valvulas",
+      "nom": "Torneira de esquadria e torneira de máquina",
+      "aussiAppele": [
+        "torneira de corte",
+        "torneira de segurança",
+        "torneira de canto",
+        "esquadria",
+        "torneira de máquina de lavar",
+        "torneira 1/2 x 3/4",
+        "torneira da máquina"
+      ],
+      "usage": "Torneira de corte montada na parede, por baixo do lavatório, sanita ou lava-loiça, para fechar a água de cada aparelho. A torneira de máquina tem saída de 3/4\", onde enrosca o tubo de carga da máquina de lavar roupa ou loiça.",
+      "aSavoir": "Entrada de 1/2\" na parede; saída de 3/8\" ou 1/2\" para a bicha e de 3/4\" para máquinas. Há modelos com filtro e modelos duplos (torneira + máquina).",
+      "conditionnement": "À unidade; 1/2\"x3/8\", 1/2\"x1/2\", 1/2\"x3/4\"",
+      "recherche": "torneira esquadria",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-esfera",
+      "famille": "canalizacao",
+      "sousFamille": "torneiras-corte-valvulas",
+      "nom": "Válvula de esfera (torneira de corte geral)",
+      "aussiAppele": [
+        "torneira de esfera",
+        "válvula de corte",
+        "torneira de passagem",
+        "passador",
+        "válvula de macho esférico",
+        "miniválvula"
+      ],
+      "usage": "Corta a água de uma casa, de um ramal ou de um aparelho com um quarto de volta. Manípulo de alavanca ou de borboleta.",
+      "aSavoir": "Trabalha toda aberta ou toda fechada; não serve para regular caudal.",
+      "conditionnement": "À unidade; de 3/8\" a 1\"1/4, macho-fêmea ou fêmea-fêmea",
+      "recherche": "válvula esfera",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-retencao",
+      "famille": "canalizacao",
+      "sousFamille": "torneiras-corte-valvulas",
+      "nom": "Válvula de retenção",
+      "aussiAppele": [
+        "válvula de retorno",
+        "válvula anti-retorno",
+        "válvula antirretorno"
+      ],
+      "usage": "Deixa passar a água num só sentido; usa-se em bombas, furos, termoacumuladores e ramais onde a água não pode voltar para trás.",
+      "aSavoir": "Montar respeitando a seta gravada no corpo, que indica o sentido da água.",
+      "conditionnement": "À unidade; medida em polegadas (por exemplo 1\")",
+      "recherche": "válvula retenção",
+      "rechercheEnseigne": {
+        "maxmat": "válvula de retorno"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-redutora-pressao",
+      "famille": "canalizacao",
+      "sousFamille": "torneiras-corte-valvulas",
+      "nom": "Válvula redutora de pressão",
+      "aussiAppele": [
+        "redutor de pressão",
+        "redutora",
+        "regulador de pressão"
+      ],
+      "usage": "Baixa e estabiliza a pressão da água à entrada da casa ou de um aparelho, quando a pressão da rede é demasiado alta.",
+      "aSavoir": "Montar no sentido da seta.",
+      "conditionnement": "À unidade; 1/2\"",
+      "recherche": "válvula redutora pressão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "valvula-seguranca-termoacumulador",
+      "famille": "canalizacao",
+      "sousFamille": "torneiras-corte-valvulas",
+      "nom": "Válvula de segurança de termoacumulador",
+      "aussiAppele": [
+        "válvula de segurança do cilindro",
+        "grupo de segurança",
+        "válvula do termoacumulador"
+      ],
+      "usage": "Protege o termoacumulador contra excesso de pressão; monta-se na entrada de água fria do aparelho.",
+      "aSavoir": "É normal pingar durante o aquecimento: a saída de descarga deve ser conduzida a um esgoto e nunca tapada.",
+      "conditionnement": "À unidade; 1/2\"",
+      "recherche": "válvula segurança termoacumulador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "castelo-torneira",
+      "famille": "canalizacao",
+      "sousFamille": "reparacao-torneiras",
+      "nom": "Castelo de torneira",
+      "aussiAppele": [
+        "castelo",
+        "castelo cerâmico",
+        "castelo de 1/4 de volta",
+        "cabeça de torneira"
+      ],
+      "usage": "Peça interior das torneiras de dois manípulos que abre e fecha a água. Substitui-se quando a torneira pinga ou fica presa.",
+      "aSavoir": "Levar o castelo antigo à loja: mudam a rosca (1/2\" ou 3/4\"), o tipo (convencional ou 1/4 de volta), o sentido de fecho e o estriado do manípulo.",
+      "conditionnement": "À unidade",
+      "recherche": "castelo torneira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cartucho-misturadora",
+      "famille": "canalizacao",
+      "sousFamille": "reparacao-torneiras",
+      "nom": "Cartucho de torneira misturadora",
+      "aussiAppele": [
+        "cartucho monocomando",
+        "cartucho cerâmico",
+        "cartucho 35",
+        "cartucho 40"
+      ],
+      "usage": "Peça interior das torneiras monocomando que mistura e fecha a água. Substitui-se quando a torneira pinga ou o manípulo fica duro.",
+      "aSavoir": "Levar o cartucho antigo: há de 35 e de 40 mm de diâmetro, em versão alta e baixa.",
+      "conditionnement": "À unidade; 35 ou 40 mm",
+      "recherche": "cartucho torneira",
+      "rechercheEnseigne": {
+        "maxmat": "cartucho 35"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "arejador-torneira",
+      "famille": "canalizacao",
+      "sousFamille": "reparacao-torneiras",
+      "nom": "Arejador de torneira (espumador)",
+      "aussiAppele": [
+        "espumador",
+        "filtro de torneira",
+        "perlizador",
+        "economizador de água",
+        "filtro da bica"
+      ],
+      "usage": "Peça com rede que enrosca na ponta da bica da torneira e mistura ar na água, dando um jato cheio e sem salpicos. Troca-se quando o jato sai fraco ou torto por causa do calcário.",
+      "aSavoir": "Confirmar a rosca da bica antes de comprar: as medidas correntes são M22 e M24, e há adaptadores entre as duas.",
+      "conditionnement": "À unidade; M22 ou M24",
+      "recherche": "espumador torneira",
+      "rechercheEnseigne": {
+        "maxmat": "espumador"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mecanismo-descarga-autoclismo",
+      "famille": "canalizacao",
+      "sousFamille": "autoclismo-sanita",
+      "nom": "Mecanismo de descarga de autoclismo",
+      "aussiAppele": [
+        "válvula de descarga",
+        "descarga dupla",
+        "mecanismo do autoclismo",
+        "botão de descarga",
+        "membrana de autoclismo"
+      ],
+      "usage": "Mecanismo interior do autoclismo que solta a água para a sanita, de descarga simples ou dupla. Substitui-se quando o autoclismo verte para a sanita ou o botão não funciona.",
+      "aSavoir": "Confirmar a altura interior do autoclismo e o diâmetro do furo do botão na tampa. Em muitos modelos basta trocar a membrana vedante da válvula.",
+      "conditionnement": "À unidade",
+      "recherche": "mecanismo descarga autoclismo",
+      "rechercheEnseigne": {
+        "maxmat": "descarga dupla"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "torneira-boia-autoclismo",
+      "famille": "canalizacao",
+      "sousFamille": "autoclismo-sanita",
+      "nom": "Torneira de boia de autoclismo (válvula de enchimento)",
+      "aussiAppele": [
+        "torneira boiadora",
+        "boia do autoclismo",
+        "válvula de enchimento",
+        "mecanismo de alimentação",
+        "torneira de autoclismo"
+      ],
+      "usage": "Enche o autoclismo e fecha a água quando atinge o nível. Substitui-se quando o autoclismo não para de encher ou enche devagar.",
+      "aSavoir": "Ver se a entrada de água é lateral ou por baixo e a rosca (3/8\" ou 1/2\").",
+      "conditionnement": "À unidade; entrada lateral ou inferior",
+      "recherche": "torneira autoclismo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ligacao-sanita",
+      "famille": "canalizacao",
+      "sousFamille": "autoclismo-sanita",
+      "nom": "Ligação de sanita ao esgoto",
+      "aussiAppele": [
+        "manga de sanita",
+        "curva de sanita",
+        "ligação excêntrica",
+        "ligação extensível",
+        "emboque de sanita",
+        "cone de sanita"
+      ],
+      "usage": "Peça com junta de borracha que liga a saída da sanita ao tubo de esgoto: direita, excêntrica, em curva ou extensível.",
+      "aSavoir": "A excêntrica e a extensível resolvem desalinhamentos entre a sanita e o esgoto. Confirmar o diâmetro do tubo (90 ou 110 mm).",
+      "conditionnement": "À unidade",
+      "recherche": "ligação sanita",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fixacao-sanita-bide",
+      "famille": "canalizacao",
+      "sousFamille": "autoclismo-sanita",
+      "nom": "Conjunto de fixação para sanita, bidé e lavatório",
+      "aussiAppele": [
+        "parafusos de sanita",
+        "kit de fixação de sanita",
+        "fixação de bidé",
+        "fixação lateral",
+        "fixação de lavatório",
+        "pernos de lavatório"
+      ],
+      "usage": "Parafusos, buchas e capas para fixar a sanita ou o bidé ao pavimento (na vertical ou pela lateral) e pernos para fixar o lavatório à parede.",
+      "aSavoir": "Apertar com moderação: aperto a mais racha a louça.",
+      "conditionnement": "Conjunto de 2 fixações",
+      "recherche": "fixação sanita",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "juntas-borracha-planas-conicas",
+      "famille": "canalizacao",
+      "sousFamille": "juntas-aneis",
+      "nom": "Juntas de borracha planas e cónicas (anilhas e vedantes de sifão)",
+      "aussiAppele": [
+        "anilhas de borracha",
+        "juntas planas",
+        "vedantes de bicha",
+        "borrachas",
+        "anilhas de vedação",
+        "juntas cónicas",
+        "cones de sifão",
+        "vedante de sifão",
+        "anilha cónica"
+      ],
+      "usage": "Anilhas planas para porcas de bichas, torneiras, tubos de máquina e uniões de assento plano; vedantes cónicos para as porcas dos sifões e dos tubos de esgoto de lavatório e lava-loiça.",
+      "aSavoir": "Escolher pela medida da rosca ou do tubo. No vedante cónico, a parte mais fina fica virada para a peça onde o tubo encaixa e a face plana para a porca. Uma junta ressequida ou deformada troca-se sempre; não se reaproveita.",
+      "conditionnement": "Saqueta com várias unidades; anilhas de 3/8\" a 1\"1/2; cónicos de 32, 40 e 50 mm",
+      "recherche": "anilhas borracha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "o-rings",
+      "famille": "canalizacao",
+      "sousFamille": "juntas-aneis",
+      "nom": "O-rings",
+      "aussiAppele": [
+        "oring",
+        "anéis de borracha",
+        "anel vedante",
+        "orring",
+        "juntas tóricas"
+      ],
+      "usage": "Anéis de borracha para vedar bicas de torneira, castelos, cartuchos e acessórios de encaixe.",
+      "aSavoir": "Medir o diâmetro interior e a espessura do anel antigo antes de comprar.",
+      "conditionnement": "Saqueta com várias unidades",
+      "recherche": "o-rings",
+      "rechercheEnseigne": {
+        "leroy-merlin": "juntas tóricas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "desentupidor-quimico",
+      "famille": "canalizacao",
+      "sousFamille": "desentupir-reparar-fugas",
+      "nom": "Desentupidor químico de canos",
+      "aussiAppele": [
+        "desentupidor líquido",
+        "desentupidor de canos",
+        "desentupidor em gel",
+        "soda cáustica",
+        "desentupidor profissional"
+      ],
+      "usage": "Dissolve gorduras, cabelos e sabão acumulados nos sifões e canos de lavatórios, lava-loiças e duches.",
+      "aSavoir": "Nunca misturar com lixívia nem com outro desentupidor. Usar luvas e óculos, e não usar a ventosa depois de deitar o produto, por causa dos salpicos.",
+      "conditionnement": "Garrafa de 1 L",
+      "recherche": "desentupidor canos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "desentupidor-manual-ventosa-mola",
+      "famille": "canalizacao",
+      "sousFamille": "desentupir-reparar-fugas",
+      "nom": "Desentupidor manual (ventosa ou mola)",
+      "aussiAppele": [
+        "ventosa",
+        "desentupidor de borracha",
+        "desentupidor de fole",
+        "bomba de desentupir",
+        "mola desentupidora",
+        "mola de desentupir",
+        "espiral de desentupir",
+        "desentupidor de mola"
+      ],
+      "usage": "A ventosa desentope lavatórios, lava-loiças, bidés e sanitas por pressão e sucção. A mola é uma espiral de aço flexível com manivela que entra no cano e desfaz ou puxa o entupimento que a ventosa não resolve.",
+      "aSavoir": "Ventosa: no lavatório, tapar o furo do avisador (ladrão) com um pano húmido para a pressão não se perder. Mola: avançar rodando sempre no mesmo sentido, sem forçar nas curvas.",
+      "conditionnement": "À unidade; ventosa simples ou de fole; mola de 3 m",
+      "recherche": "desentupidor",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-epoxi-reparadora",
+      "famille": "canalizacao",
+      "sousFamille": "desentupir-reparar-fugas",
+      "nom": "Massa epóxi reparadora (barra)",
+      "aussiAppele": [
+        "barra reparadora",
+        "massa de dois componentes",
+        "soldadura a frio",
+        "massa epóxida",
+        "plasticina epóxi"
+      ],
+      "usage": "Barra que se amassa à mão e endurece; veda pequenas fugas e fissuras em tubagens e radiadores de metal, cobre e PVC, depósitos e tanques.",
+      "aSavoir": "Amassar até a cor ficar uniforme e aplicar com a superfície limpa. Reparação de recurso: não dispensa substituir a peça danificada.",
+      "conditionnement": "Barra de cerca de 50 g",
+      "recherche": "barra reparadora",
+      "rechercheEnseigne": {
+        "maxmat": "reparadora multiusos"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "abracadeira-tapa-furos",
+      "famille": "canalizacao",
+      "sousFamille": "desentupir-reparar-fugas",
+      "nom": "Abraçadeira tapa-furos",
+      "aussiAppele": [
+        "abraçadeira de reparação",
+        "tapa-furos",
+        "abraçadeira para tubo roto",
+        "manga de reparação"
+      ],
+      "usage": "Abraçadeira com borracha que se aperta sobre um furo num tubo de água para estancar a fuga sem cortar o tubo.",
+      "aSavoir": "Escolher pela medida do tubo (1/2\", 3/4\" ou 1\").",
+      "conditionnement": "À unidade",
+      "recherche": "abraçadeira tapa-furos",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "calibrador-multicamada",
+      "famille": "canalizacao",
+      "sousFamille": "acessorios-ligacao",
+      "nom": "Calibrador-escareador para tubo multicamada",
+      "aussiAppele": [
+        "calibrador de tubo",
+        "escareador multicamada"
+      ],
+      "usage": "Arredondar e chanfrar por dentro a boca do tubo multicamada antes de montar o acessório, para não ferir os o-rings.",
+      "aSavoir": "Escolher pelos diâmetros do tubo (há modelos com vários diâmetros numa só peça). Calibrar depois de cada corte.",
+      "conditionnement": "À unidade.",
+      "recherche": "calibrador multicamada",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "torneira-misturadora",
+      "famille": "canalizacao",
+      "sousFamille": "torneiras-corte-valvulas",
+      "nom": "Torneira misturadora (lavatório, lava-loiça, bidé, duche)",
+      "aussiAppele": [
+        "misturadora",
+        "monocomando",
+        "torneira de lavatório",
+        "torneira de cozinha"
+      ],
+      "usage": "Substituir uma torneira de bancada ou de parede gasta, corroída ou que já não compensa reparar.",
+      "aSavoir": "Confirmar se é de bancada (um furo) ou de parede (distância entre entradas, ligação por excêntricas), a altura da bica e se traz bichas e válvula de escoamento.",
+      "conditionnement": "À unidade, em regra com bichas e material de fixação: ver a caixa.",
+      "recherche": "torneira misturadora",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "limpador-pvc-tubos",
+      "famille": "canalizacao",
+      "sousFamille": "esgoto-pvc",
+      "nom": "Limpador (decapante) para tubos de PVC",
+      "aussiAppele": [
+        "decapante para PVC",
+        "líquido de limpeza para PVC"
+      ],
+      "usage": "Limpar e preparar as pontas do tubo e o interior dos acessórios de PVC rígido logo antes de aplicar a cola.",
+      "aSavoir": "Aplicar com as peças secas, pouco antes da cola. É inflamável e de vapores fortes: arejar e afastar chamas.",
+      "conditionnement": "Frasco ou lata, muitas vezes com pincel na tampa.",
+      "recherche": "limpador pvc",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

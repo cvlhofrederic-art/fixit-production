@@ -376,8 +376,12 @@ export type FamilleProcessus = keyof typeof PROCESSUS;
  * La branche SERVICES/ETUDES contient déjà Administrateur judiciaire, Mandataire judiciaire,
  * Huissier, Avocat, Notaire — mais comme spécialité de prestataire, jamais comme type de mandat.
  * @portee copropriete + gerance
- * @statut ECHANTILLON — 13 racines complètes, feuilles relevées par déploiement
- * @source Gestéam 5.4.22 — référentiel Domaine (arbre déployé)
+ * @statut ECHANTILLON — 13 racines complètes, feuilles relevées par déploiement ; AUTRES ABONNEMENTS
+ * CONTRACTUELS, ELECTRICITE et EQUIPEMENTS complétées en 5.4.23 (9 feuilles, tranche 43 § 20).
+ * Les clés de racine restent sans accent, comme au relevé du 08/10 (la tranche 43 écrit ÉLECTRICITÉ, ÉQUIPEMENTS).
+ * @aconfirmer capitale accentuée de « Électricité » : ailleurs, l'écran écrit « Etanchéité », « Emetteur/récepteur ».
+ * @source Gestéam 5.4.22 — référentiel Domaine (arbre déployé) ; Gestéam 5.4.23 — Gestion → Demandes → sélecteur
+ * Domaine → Déployer (tranche 43 § 20)
  */
 export const DOMAINE = {
   "ACCES": [
@@ -449,12 +453,19 @@ export const DOMAINE = {
     "Vol",
   ],
   "AUTRES ABONNEMENTS CONTRACTUELS": [
-
+    "Assurance PNO",
   ],
   "ELECTRICITE": [
-
+    "Compteur individuel élec.",
+    "Électricité",
+    "Fournitures d'électricité",
+    "Groupe électrogène",
+    "Paratonnerre",
+    "Transformateur",
   ],
   "EQUIPEMENTS": [
+    "Compresseur d'air",
+    "Disconnecteur",
     "Plieuse",
     "Ventilation cuisine",
     "VMC",
@@ -1320,8 +1331,8 @@ export const REFERENTIELS_TRACABILITE = [
     nom: "DOMAINE",
     source: "Gestéam 5.4.22 — référentiel Domaine (arbre déployé)",
     dateReleve: "2026-10-08",
-    statut: "OBSERVE — 13 racines complètes, feuilles relevées par échantillonnage du déploiement",
-    nbValeurs: 115,
+    statut: "OBSERVE — 13 racines complètes, feuilles relevées par échantillonnage du déploiement ; AUTRES ABONNEMENTS CONTRACTUELS, ELECTRICITE, EQUIPEMENTS complétées le 28/10/2026 (5.4.23, tranche 43 § 20)",
+    nbValeurs: 124,
   },
   {
     nom: "TYPE_GESTION_MANDAT",

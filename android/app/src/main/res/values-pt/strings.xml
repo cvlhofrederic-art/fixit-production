@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Canal de notification que @capgo/background-geolocation crée au lancement, en portugais (téléphones en PT). -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Registo com o telemóvel no bolso</string>
+</resources>

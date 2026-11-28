@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+// Client navigateur partagé (singleton @supabase/ssr) plutôt qu'une création à chaque montage.
+import { supabase } from '@/lib/supabase'
 
 interface NotificationEvent {
   email_id: string
@@ -19,11 +20,6 @@ export function useAlfredoNotifications(
 
   useEffect(() => {
     if (!syndicId) return
-
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    )
 
     void (async () => {
       const { count } = await supabase

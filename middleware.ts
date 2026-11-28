@@ -6,12 +6,23 @@
 // toute migration. middleware.ts en edge est le seul état fonctionnel.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import {
+  aiguillageGestionnaireQr, redirectionEspaceCabinetQr, redirectionEspaceQr, viseEspaceQr,
+} from '@/lib/aj-signalement/acces-espace'
+import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+import { estPostUnClicDesinscriptionQr } from '@/lib/aj-signalement/chemin-desinscription'
+import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
+import { CHEMIN_CRM, ROLE_SECRETARIAT } from '@/lib/crm/types'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
+import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
 
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
 const DEFAULT_LOCALE = 'fr'
+// Langues sous lesquelles next.config.ts réécrit les pages communes de app/(commun)/ (connexion, tableaux de bord,
+// espaces syndic et copropriétaire). EN, NL et ES n'en ont pas : leurs redirections vers ces pages visent /pt/.
+const LANGUES_PAGES_COMMUNES = ['fr', 'pt']
 
 function getLocaleFromPath(pathname: string): string | null {
   for (const locale of SUPPORTED_LOCALES) {
@@ -36,30 +47,10 @@ const FRANCOPHONE_COUNTRIES = [
 // Lusophone countries — auto-detect PT
 const LUSOPHONE_COUNTRIES = ['PT','BR','AO','MZ','CV','GW','TL','ST']
 
-// ── SEO public routes — caché côté CDN (1h + SWR 24h)
-// Ces préfixes correspondent au contenu programmatique SEO quasi-statique
-// (services, villes, blog, urgence, perto-de-mim) qui peut être servi
-// depuis le cache Cloudflare sans risque d'inconsistance.
-//
-// Sécurité (review #138) :
-// - Préfixes volontairement limités à des sous-routes publiques identifiables
-//   (pas de wildcard sur racine de locale entière).
-// - /fr/simulateur-devis/ EXCLU : peut contenir résultats personnalisés.
-// - /en/, /nl/, /es/ EXCLUS comme wildcards (trop large pour future-proof).
-//   Si on veut cacher des sous-routes EN, les lister explicitement.
-// - Couplé avec Vary: Cookie + skip si Set-Cookie sensible (ci-dessous).
-const SEO_PUBLIC_PREFIXES = [
-  '/pt/servicos/', '/pt/cidade/', '/pt/blog/', '/pt/urgencia/',
-  '/pt/perto-de-mim/', '/pt/precos/', '/pt/especialidades/',
-  '/pt/condominio/', '/pt/avaliacoes/',
-  '/fr/services/', '/fr/ville/', '/fr/blog/', '/fr/urgence/',
-  '/fr/pres-de-chez-moi/', '/fr/specialites/', '/fr/copropriete/',
-  '/en/services/', '/en/blog/', '/en/emergency-home-repair-porto/',
-] as const
-
-function isSeoPublicRoute(pathname: string): boolean {
-  return SEO_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-}
+// ── SEO public routes — Cache-Control public (1h + SWR 24h) et cache HTML du Worker (worker/).
+// Ces préfixes correspondent au contenu programmatique SEO quasi-statique (services, villes, blog, urgence,
+// perto-de-mim). La liste est partagée avec le Worker Cloudflare : lib/seo/routes-publiques.ts.
+// Couplé avec Vary: Cookie + skip si Set-Cookie sensible (ci-dessous).
 
 // Cookies considérés comme contenant de la session sensible (Supabase auth).
 // Si un de ces cookies est posé en Set-Cookie sur la réponse, on REFUSE
@@ -73,6 +64,15 @@ function responseHasSensitiveCookie(response: NextResponse): boolean {
     return SENSITIVE_COOKIE_PREFIXES.some((prefix) => lower.startsWith(prefix.toLowerCase()))
   })
 }
+
+// Pages qu'aucun cache partagé ne doit garder, comme quand tout le site était rendu à la demande :
+// - chemins needsAuth (accueils /{locale}/, connexion, tableaux de bord…) : la réponse dépend de la session
+//   (redirection d'un utilisateur connecté vers son espace, jeton rafraîchi) ;
+// - pages hors préfixes SEO (EN, NL, ES, simulateur FR, pages éditoriales…) : politique de la review #138 ci-dessus.
+// Pré-rendues depuis les layouts statiques par langue, ces pages recevraient de Next `s-maxage=31536000`. Le service
+// depuis le cache des pages pré-rendues (x-nextjs-cache: HIT) ne dépend pas de cet en-tête. Il prime sur celui de Next :
+// next start ne remplace pas un Cache-Control existant, et OpenNext donne la priorité aux en-têtes du middleware.
+const CACHE_CONTROL_PRIVE = 'private, no-cache, no-store, max-age=0, must-revalidate'
 
 function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
@@ -98,6 +98,19 @@ function detectPreferredLocale(request: NextRequest): string {
   return DEFAULT_LOCALE
 }
 
+// Cookie de langue (1 an), posé sur une navigation de document seulement, jamais sur les fetch() du routeur Next, dont
+// le préchargement d'un <Link> entré à l'écran ou survolé : ce n'est pas une visite. Sinon un lien d'une autre langue
+// seulement vu à l'écran (liens /pt/ de l'en-tête et du pied des pages EN, NL et ES) changeait la langue retenue, donc
+// la redirection de « / » et l'ouverture de la PWA (start_url « / »).
+// Next retire ses propres en-têtes (RSC, Next-Router-Prefetch…) avant d'appeler le middleware (FLIGHT_HEADERS,
+// next/dist/server/web/adapter.js) : seul Sec-Fetch-Dest, posé par le navigateur, distingue un document (« document »)
+// d'un fetch (« empty »). Sans cet en-tête (robots, anciens navigateurs) : posé, comme avant.
+function poserCookieLangue(request: NextRequest, response: NextResponse, locale: string) {
+  const destination = request.headers.get('sec-fetch-dest')
+  if (destination !== null && destination !== 'document') return
+  response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+}
+
 // ── Pages supprimées sans équivalent (phase 1 SEO PT, point 1.2) ──
 // Anciens articles du blog PT : 410 Gone plutôt qu'une redirection vers l'index /pt/blog/ (soft 404
 // pour Google) ou un 404 (Google réessaie plus longtemps). Liste à ne jamais réduire sans décision.
@@ -109,6 +122,88 @@ const CHEMINS_SUPPRIMES_PT = new Set([
   '/pt/blog/como-escolher-tinta',
   '/pt/blog/preparar-paredes-pintura',
 ])
+
+// ── Espaces privés (succursale Administrateur Judiciaire, espace AJ Signalement) : outils métier, jamais indexables ──
+// next.config.ts headers() pose X-Robots-Tag sur leurs pages rendues, mais OpenNext renvoie les réponses 3xx du middleware
+// sans y ajouter les en-têtes de la config (@opennextjs/aws core/routingHandler.js). Les redirections qui en partent le
+// portent donc ici (page de connexion de l'espace AJ Signalement comprise). Même critère que le contrôle d'accès plus bas
+// (chemin sans préfixe de langue) ; l'espace AJ Signalement est comparé au segment exact (jamais la page publique
+// /signalement/<jeton>/). Les chemins d'un cabinet client (pages publiques et espace du cabinet, PR 2) sont traités avant
+// la langue et portent l'en-tête eux-mêmes (enTetesEspacePrive) ; ils sont nommés ici aussi, par prudence.
+const X_ROBOTS_ESPACE_PRIVE = 'noindex, nofollow, noarchive'
+
+function viseEspacePrive(cheminSansLangue: string): boolean {
+  return cheminSansLangue.startsWith('/administrateur-judiciaire') || viseEspaceQr(cheminSansLangue)
+    || cheminPublicCabinetQr(cheminSansLangue) !== null || cheminEspaceCabinetQr(cheminSansLangue) !== null
+}
+
+/** En-têtes d'une réponse d'un espace privé servie ou redirigée par le middleware : CSP, cache privé, jamais indexée. */
+function enTetesEspacePrive(reponse: NextResponse): NextResponse {
+  reponse.headers.set('Content-Security-Policy', POLITIQUE_CSP)
+  reponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
+  reponse.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
+  return reponse
+}
+
+/**
+ * Client Supabase du middleware (patron officiel @supabase/ssr) : cookies lus sur la requête, cookies rafraîchis écrits
+ * UNIQUEMENT sur la réponse donnée. L'appelant appelle getUser() juste après, sans aucun code entre les deux.
+ */
+function clientSupabaseMiddleware(request: NextRequest, reponse: NextResponse) {
+  return createServerClient(
+    // Fallback placeholder (cohérent avec lib/supabase.ts + lib/supabase-server-component.ts) :
+    // sans env (ex. CI E2E où le secret est absent), createServerClient throw « URL and Key
+    // required » à CHAQUE requête → tout le SSR casse. En prod l'env est défini → aucun effet.
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-for-build',
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          // ✅ Pattern officiel Supabase : écrire UNIQUEMENT sur la réponse existante
+          // ❌ NE PAS recréer NextResponse.next() ici (détruit les cookies précédents)
+          // ❌ NE PAS écrire sur request.cookies (cause des bugs avec Next.js)
+          cookiesToSet.forEach(({ name, value, options }) => {
+            reponse.cookies.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+}
+
+/**
+ * Compte de la session pour l'espace d'un cabinet (getUser : jeton vérifié et rafraîchi) ; Supabase injoignable : traité
+ * comme sans session (la page de connexion du cabinet est servie, rien n'est ouvert), avec un avertissement sans donnée.
+ * Le journal du serveur (lib/logger) n'est pas importé ici : il charge Sentry, absent du bundle edge du middleware.
+ */
+async function compteDeLaSessionQr(supabase: ReturnType<typeof clientSupabaseMiddleware>) {
+  try {
+    const { data } = await supabase.auth.getUser()
+    return data.user
+  } catch (erreur) {
+    console.warn('[middleware] AJ Signalement : session non vérifiée (Supabase injoignable)', erreur instanceof Error ? erreur.name : 'erreur inconnue')
+    return null
+  }
+}
+
+/**
+ * Redirection temporaire (307) vers une adresse SANS préfixe de langue (espace d'un cabinet, aiguillage d'un
+ * gestionnaire) : requête d'origine vidée, cookies de session rafraîchis recopiés avec leurs options, en-têtes d'un
+ * espace privé (OpenNext n'ajoute pas les headers() de next.config.ts aux 3xx du middleware).
+ */
+/** Tableaux de bord des comptes (chemins sans langue) : un compte « secretariat » y est renvoyé vers le CRM. */
+const TABLEAUX_DE_BORD = ['/client/dashboard', '/pro/dashboard', '/pro/mobile', '/artisan/dashboard', '/syndic/dashboard', '/coproprietaire/dashboard']
+
+function redirectionSansLangue(request: NextRequest, chemin: string, reponseSupabase: NextResponse | null): NextResponse {
+  const reponse = NextResponse.redirect(new URL(chemin, request.url), 307)
+  reponseSupabase?.cookies.getAll().forEach((cookie) => {
+    reponse.cookies.set(cookie)
+  })
+  return enTetesEspacePrive(reponse)
+}
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -135,15 +230,53 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
+  // /<identifiant>/confirmation-adresse/, /<identifiant>/invitation/ depuis la PR 2, et /<identifiant>/desinscription/
+  // depuis la PR 3 : publique SANS session, même si l'espace du cabinet est sous session ; choix de Hugo du 10/11/2026).
+  // Reconnu AVANT la langue (sinon 302 vers
+  // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/aj-signalement/chemin-cabinet.ts) ; la
+  // réécriture de next.config.ts mène ensuite à la page interne, qui vérifie que le jeton appartient au cabinet du chemin.
+  // Ni Supabase, ni cookie de langue, ni redirection ; jamais indexé ni mis en cache partagé.
+  if (cheminPublicCabinetQr(pathname)) {
+    const entetesCabinet = new Headers(request.headers)
+    entetesCabinet.set('x-locale', DEFAULT_LOCALE)
+    return enTetesEspacePrive(NextResponse.next({ request: { headers: entetesCabinet } }))
+  }
+
+  // ── AJ Signalement : espace d'un cabinet client (vitfix.io/<identifiant>/, /connexion/, /suivi/ ; PR 2, lot 4) ──
+  // Reconnu AVANT la langue, seulement pour un identifiant valable (jamais un nom réservé : /aj-signalement/connexion/ et
+  // les pages du site suivent leur parcours). Adresses sans langue, espace en français (x-locale: fr).
+  // - /<identifiant>/ : 307 vers /<identifiant>/suivi/, sans Supabase ;
+  // - connexion et suivi : session lue (patron officiel, rien entre createServerClient et getUser), puis décision pure
+  //   (redirectionEspaceCabinetQr, plan § 1.5) ; chaque réponse, servie ou redirigée, recopie les cookies rafraîchis et
+  //   porte noindex, CSP et cache privé. Ni cookie de langue ni requête reprise. Le middleware aiguille seulement : chaque
+  //   route /api/aj-signalement/* relit la fiche du gestionnaire.
+  const espaceCabinet = cheminEspaceCabinetQr(pathname)
+  if (espaceCabinet) {
+    if (espaceCabinet.page === 'accueil') return redirectionSansLangue(request, cheminSuiviCabinetQr(espaceCabinet.identifiant), null)
+    const entetesEspace = new Headers(request.headers)
+    entetesEspace.set('x-locale', DEFAULT_LOCALE)
+    const reponseEspace = NextResponse.next({ request: { headers: entetesEspace } })
+    const compte = await compteDeLaSessionQr(clientSupabaseMiddleware(request, reponseEspace))
+    const decision = redirectionEspaceCabinetQr(espaceCabinet, compte)
+    if (decision) return redirectionSansLangue(request, decision, reponseEspace)
+    return enTetesEspacePrive(reponseEspace)
+  }
+
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
   const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')
 
   // ── CSRF Protection : vérifier Origin pour les requêtes mutantes sur /api/ ──
-  if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
+  // Seule exception (AJ Signalement, PR 3, décision F3) : le POST « un clic » de désinscription (RFC 8058), envoyé par la
+  // messagerie de la personne, qui peut porter un Origin étranger ou « null ». Effet borné par le jeton signé (une
+  // opposition, idempotente), signature vérifiée par la route avant tout (lib/aj-signalement/chemin-desinscription.ts).
+  if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)
+    && !estPostUnClicDesinscriptionQr(request.method, pathname)) {
     const origin = request.headers.get('origin')
     const allowedOrigins = [
       process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       'https://vitfix.io',
+      'https://www.vitfix.io',     // le Worker sert aussi www.vitfix.io (wrangler.toml, [[routes]])
       'capacitor://localhost',     // iOS Capacitor
       'https://localhost',         // F13: Android Capacitor (androidScheme: https)
     ]
@@ -192,8 +325,9 @@ export async function middleware(request: NextRequest) {
       url.pathname = `/${locale}${pathname}`
       const response = NextResponse.redirect(url, 302)
       response.headers.set('Vary', 'Accept-Language')
-      response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, response, locale)
       response.headers.set('Content-Security-Policy', cspHeader)
+      if (viseEspacePrive(pathname)) response.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
       return response
     }
 
@@ -232,6 +366,7 @@ export async function middleware(request: NextRequest) {
     strippedPathname.startsWith('/pro/espace-pro') ||
     strippedPathname.startsWith('/syndic/') ||
     strippedPathname.startsWith('/administrateur-judiciaire') ||
+    viseEspaceQr(strippedPathname) ||
     strippedPathname.startsWith('/admin/') ||
     strippedPathname.startsWith('/coproprietaire/')
   )
@@ -242,7 +377,7 @@ export async function middleware(request: NextRequest) {
       // et permet au CDN de cacher sans Vary obligatoire).
       const existingLocaleCookie = request.cookies.get('locale')?.value
       if (existingLocaleCookie !== locale) {
-        supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+        poserCookieLangue(request, supabaseResponse, locale)
       }
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
@@ -259,33 +394,15 @@ export async function middleware(request: NextRequest) {
     if ((request.method === 'GET' || request.method === 'HEAD') && isSeoPublicRoute(pathname) && !responseHasSensitiveCookie(supabaseResponse)) {
       supabaseResponse.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
       supabaseResponse.headers.set('Vary', 'Cookie, Accept-Language')
+    } else if (!isInternalRoute) {
+      // Autres pages : `private, no-store` (voir CACHE_CONTROL_PRIVE). Les routes internes (/api/, /_next/) gardent le leur.
+      supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     }
     return supabaseResponse
   }
 
-  // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll) ──
-  const supabase = createServerClient(
-    // Fallback placeholder (cohérent avec lib/supabase.ts + lib/supabase-server-component.ts) :
-    // sans env (ex. CI E2E où le secret est absent), createServerClient throw « URL and Key
-    // required » à CHAQUE requête → tout le SSR casse. En prod l'env est défini → aucun effet.
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-for-build',
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          // ✅ Pattern officiel Supabase : écrire UNIQUEMENT sur la réponse existante
-          // ❌ NE PAS recréer NextResponse.next() ici (détruit les cookies précédents)
-          // ❌ NE PAS écrire sur request.cookies (cause des bugs avec Next.js)
-          cookiesToSet.forEach(({ name, value, options }) => {
-            supabaseResponse.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
+  // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll, clientSupabaseMiddleware) ──
+  const supabase = clientSupabaseMiddleware(request, supabaseResponse)
 
   // IMPORTANT: DO NOT remove this line — it refreshes the auth token
   // DO NOT add any code between createServerClient and getUser()
@@ -305,35 +422,68 @@ export async function middleware(request: NextRequest) {
   const role = user?.app_metadata?.role as string | undefined
 
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
-  const localeRedirect = (path: string) => {
+  // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
+  // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
+  // Requête de la redirection, dans cet ordre : celle écrite dans le chemin (« /pro/dashboard/?p=pointage ») si elle
+  // y est — elle prime, `viderRequete` compris, car l'appelant l'a écrite exprès ; sinon aucune si `viderRequete` ;
+  // sinon celle de l'adresse visitée, gardée telle quelle (`viderRequete` sert à l'espace AJ Signalement, qui ne
+  // reprend pas la requête d'origine). Aucun appelant ne combine les deux aujourd'hui : l'ordre
+  // est écrit ici pour que le prochain n'ait pas à le deviner.
+  const localeRedirect = (path: string, viderRequete = false) => {
     const url = request.nextUrl.clone()
-    url.pathname = isInternalRoute ? path : `/${locale}${path}`
+    const separateur = path.indexOf('?')
+    const chemin = separateur === -1 ? path : path.slice(0, separateur)
+    const requete = separateur === -1 ? null : path.slice(separateur + 1)
+    const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
+    url.pathname = isInternalRoute ? chemin : `/${langueCible}${chemin}`
+    if (requete !== null) url.search = requete
+    else if (viderRequete) url.search = ''
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
-      resp.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, resp, locale)
     }
     // Propager les cookies Supabase rafraîchis vers le browser
     supabaseResponse.cookies.getAll().forEach(cookie => {
       resp.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
     })
     resp.headers.set('Content-Security-Policy', cspHeader)
+    if (viseEspacePrive(strippedPathname)) resp.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
     return resp
   }
+
+  // AJ Signalement (PR 2, lot 4) : un gestionnaire d'un cabinet client n'a qu'un espace, celui de SON cabinet (repère de
+  // routage app_metadata.aj_signalement_cabinet, posé par le serveur à l'acceptation, sans aucun droit). Il y est aiguillé
+  // depuis l'accueil, la connexion générale, les tableaux de bord et l'espace global (connexion comprise), AVANT la
+  // décision de l'espace global, la sortie du super admin et les redirections par rôle ; adresse sans langue (jamais
+  // /pt/<identifiant>/). Sans repère : accueil et connexion générale → connexion de l'espace global (message neutre).
+  const versEspaceCabinet = aiguillageGestionnaireQr(strippedPathname, user?.app_metadata)
+  if (versEspaceCabinet) return redirectionSansLangue(request, versEspaceCabinet, supabaseResponse)
+
+  // Espace AJ Signalement : la fonction pure (lib/aj-signalement/acces-espace.ts) est seule juge, avant la sortie du
+  // super_admin ci-dessous, pour que la « vue en tant que » (_original_role) suive la même règle que l'API et le client.
+  // Sans compte ou sans accès → page de connexion professionnelle de l'espace (message neutre pour un compte sans accès ;
+  // elle-même servie, jamais redirigée vers elle-même) ; compte admis sur cette page → l'espace ; depuis /en/, /nl/ ou
+  // /es/ (aucune page dans ces langues) → même destination sous /pt/. Requête d'origine vidée.
+  const versEspaceQr = redirectionEspaceQr(strippedPathname, locale, user)
+  if (versEspaceQr) return localeRedirect(versEspaceQr, true)
 
   // Super admin : accès libre à toutes les routes (pas de redirection forcée)
   if (role === 'super_admin') {
     // Routes internes (/admin/) : pas de langue dans l'URL, on ne réécrit pas le cookie avec la langue par défaut.
     if (!isInternalRoute) {
-      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, supabaseResponse, locale)
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     return supabaseResponse
   }
 
   // Authenticated user on landing/login pages → redirect to their dashboard
   const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login'
   if (user && isLandingOrLogin) {
+    // CRM du secrétariat : route interne sans langue (lib/crm/types.ts), comme destinationApresConnexion.
+    if (role === ROLE_SECRETARIAT) return redirectionSansLangue(request, CHEMIN_CRM, supabaseResponse)
     if (role === 'artisan') return localeRedirect('/artisan/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
@@ -373,6 +523,11 @@ export async function middleware(request: NextRequest) {
 
   // Role-based access control
   if (user) {
+    // CRM du secrétariat : le compte « secretariat » n'a aucun autre espace ; tout tableau de bord le ramène au CRM.
+    if (role === ROLE_SECRETARIAT && TABLEAUX_DE_BORD.some((prefixe) => strippedPathname.startsWith(prefixe))) {
+      return redirectionSansLangue(request, CHEMIN_CRM, supabaseResponse)
+    }
+
     // Syndic users: redirect away from non-syndic dashboards
     if (isSyndicRole(role)) {
       if (
@@ -404,6 +559,20 @@ export async function middleware(request: NextRequest) {
       if (strippedPathname.startsWith('/artisan/dashboard')) {
         return localeRedirect('/pro/dashboard')
       }
+      // /pro/mobile : espace mobile des seuls artisans (règle n° 1 artisan / BTP). Une société BTP a aussi une fiche
+      // profiles_artisan, la seule chose que la page vérifie : elle y verrait et modifierait l'espace artisan.
+      // C'est aussi le départ de l'appli Vitfix Pro (capacitor.config.ts, appStartPath) : à chaque ouverture, un compte
+      // de société BTP passe donc ici. Un salarié de terrain part sur le pointage, son poste de travail (23/11/2026) ;
+      // le gérant et les postes de bureau sur le tableau de bord, comme avant. Décision partagée avec la connexion
+      // (lib/auth/destination-par-role), pour que les deux chemins d'entrée dans l'appli ouvrent le même écran.
+      // Le middleware ne peut PAS distinguer l'appli d'un navigateur (estAppMobile ne vit que côté navigateur) : la
+      // règle vaut pour toute visite de /pro/mobile, d'où qu'elle vienne. Hors de l'appli rien n'y mène, aucun écran
+      // du site ne porte ce lien ; et un salarié qui s'identifie dans un navigateur ordinaire garde, lui, le tableau
+      // de bord (destinationApresConnexion sans appMobile).
+      if (strippedPathname.startsWith('/pro/mobile')) {
+        const vers = role === 'pro_societe' ? pageAppliSocieteBtp(user?.app_metadata?.pro_team_role) : '/pro/dashboard'
+        return localeRedirect(vers)
+      }
     }
 
     // Coproprietaire / Locataire: redirect away from pro and syndic dashboards
@@ -429,13 +598,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Set locale cookie on all responses
+  // Set locale cookie on all responses (navigations de document seulement, voir poserCookieLangue)
   if (!isInternalRoute) {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    poserCookieLangue(request, supabaseResponse, locale)
   }
 
   supabaseResponse.headers.set('X-API-Version', '1.0.0')
   supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+  supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
 
   return supabaseResponse
 }

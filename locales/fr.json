@@ -436,6 +436,11 @@
     "verifyingLink": "Vérification du lien...",
     "invalidLinkHint": "Si la page ne charge pas, le lien a peut-être expiré.",
     "requestNewLink": "Demander un nouveau lien",
+    "linkExpired": "Ce lien a expiré ou est invalide",
+    "requestNewLinkDesc": "Demandez un nouveau lien de réinitialisation pour modifier votre mot de passe.",
+    "samePasswordLogin": "Ce mot de passe est déjà celui de votre compte : connectez-vous avec lui.",
+    "passwordRejected": "Ce mot de passe a été refusé (trop faible ou trop courant). Demandez un nouveau lien, puis choisissez-en un autre.",
+    "tooManyAttempts": "Trop de tentatives. Réessayez dans quelques minutes.",
     "chooseSpace": "Choisissez votre espace pour vous connecter",
     "espaceParticulier": "Particulier",
     "espaceParticulierDesc": "Trouvez et réservez un artisan",
@@ -1730,8 +1735,8 @@
       "title": "Mon Équipe",
       "membersInCabinet": "membre(s) dans votre cabinet",
       "inviteMember": "Inviter un membre",
-      "inviteCreated": "Invitation créée ! Partagez ce lien :",
-      "linkCopied": "Lien copié !",
+      "inviteSent": "Invitation envoyée par e-mail.",
+      "inviteEmailFailed": "Invitation créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse, supprimez l'invitation puis invitez à nouveau.",
       "inviteNewMember": "Inviter un nouveau membre",
       "fullName": "Prénom et Nom",
       "role": "Rôle",
@@ -1743,7 +1748,6 @@
       "active": "Actif",
       "pending": "En attente",
       "suspended": "Suspendu",
-      "copyLink": "Copier lien",
       "suspend": "Suspendre",
       "reactivate": "Réactiver",
       "confirmDelete": "Supprimer ce membre ?",
@@ -2559,7 +2563,7 @@
       "creerPremierDevis": "Créez votre premier devis conforme aux normes françaises",
       "creerDevis": "+ Créer un devis",
       "supprimerDevisConfirm": "Supprimer le devis",
-      "rechercher": "Rechercher…",
+      "rechercher": "Rechercher : client, chantier, rue, n°, ligne…",
       "nonRenseigne": "Non renseigné",
       "ref": "Réf",
       "client": "Client",
@@ -2608,7 +2612,7 @@
       "creerFacture": "+ Créer une facture",
       "supprimerFactureConfirm": "Supprimer la facture",
       "subtitleV5": "Situations, acomptes, solde",
-      "rechercher": "Rechercher…",
+      "rechercher": "Rechercher : client, chantier, rue, n°, ligne…",
       "nouvelle": "+ Nouvelle facture",
       "emise": "Émise",
       "payee": "Payée",
@@ -2641,6 +2645,64 @@
       "emailSalutation": "Bonjour",
       "emailCorps": "Veuillez trouver ci-joint votre facture N°{docNumber} d'un montant de {montant} € HT.",
       "emailFormule": "Cordialement"
+    },
+    "documentsListe": {
+      "toutTelecharger": "Tout télécharger",
+      "telechargerSelection": "Télécharger la sélection",
+      "titreToutTelecharger": "Télécharger les documents affichés, en un seul fichier (ZIP) s'il y en a plusieurs",
+      "titreSelection": "Télécharger les documents cochés, en un seul fichier (ZIP) s'il y en a plusieurs",
+      "deselectionner": "Désélectionner",
+      "preparation": "Préparation des PDF…",
+      "toutSelectionner": "Tout sélectionner",
+      "selectionner": "Sélectionner",
+      "telecharges": "documents téléchargés",
+      "unTelecharge": "Document téléchargé",
+      "echecsPartiels": "Impossible de produire :",
+      "aucunPdf": "Aucun PDF n'a pu être produit",
+      "reessayez": "Réessayez.",
+      "etUnAutre": "et 1 autre",
+      "etAutres": "et {n} autres",
+      "annuler": "Annuler le téléchargement",
+      "annulationEnCours": "Annulation…",
+      "annule": "Téléchargement annulé",
+      "erreurArchive": "Le téléchargement a échoué. Réessayez.",
+      "archiveDevis": "Devis",
+      "archiveFactures": "Factures",
+      "filtresDevis": {
+        "tous": "Tous",
+        "horsBrouillons": "Hors brouillons",
+        "brouillons": "Brouillons",
+        "envoyes": "Envoyés",
+        "acceptes": "Acceptés",
+        "refuses": "Refusés"
+      },
+      "filtresFactures": {
+        "toutes": "Toutes",
+        "horsBrouillons": "Hors brouillons",
+        "emises": "Émises",
+        "payees": "Payées",
+        "brouillons": "Brouillons"
+      },
+      "filtresTypeFactures": {
+        "tous": "Tous",
+        "factures": "Factures",
+        "acomptes": "Acomptes",
+        "avoirs": "Avoirs"
+      },
+      "champs": {
+        "numero": "N°",
+        "client": "Client",
+        "intitule": "Objet",
+        "chantier": "Chantier",
+        "adresseClient": "Adresse du client",
+        "contact": "Contact",
+        "maitreOuvrage": "Maître d'ouvrage",
+        "documentLie": "Document lié",
+        "lignes": "Ligne",
+        "notes": "Notes",
+        "date": "Date",
+        "montant": "Montant"
+      }
     },
     "settings": {
       "title": "Paramètres",
@@ -2863,9 +2925,9 @@
       "confirme": "Confirmé",
       "annuleStat": "Annulé",
       "enAttente": "En attente",
-      "exempleProLieux": "Ex: \"Parc Corot\" -> 5 allée des Chênes, \"La Sauvagère\" -> 12 bd Victor Hugo...",
+      "exempleProLieux": "Ex: \"Résidence Les Tilleuls\" -> 5 allée des Chênes, \"Le Clos des Pins\" -> 12 bd Victor Hugo...",
       "exemplePartLieux": "Ex: \"Maison de vacances\" -> 3 rue de la Mer, 06400 Cannes",
-      "exempleProLabel": "Ex: Parc Corot",
+      "exempleProLabel": "Ex: Résidence Les Tilleuls",
       "exemplePartLabel": "Ex: Maison vacances",
       "adresseComplete": "Adresse complète...",
       "rechercher": "Rechercher…",
@@ -5092,11 +5154,11 @@
     },
     "protection": {
       "title": "Protection des données",
-      "p1": "Vitfix met en œuvre des mesures techniques et organisationnelles appropriées pour protéger vos données personnelles contre tout accès non autorisé, altération, divulgation ou destruction. Nos serveurs sont hébergés chez Vercel (certifié SOC 2) et nos bases de données chez Supabase avec chiffrement au repos.",
+      "p1": "Vitfix met en œuvre des mesures techniques et organisationnelles appropriées pour protéger vos données personnelles contre tout accès non autorisé, altération, divulgation ou destruction. Nos serveurs sont hébergés chez Cloudflare (certifié SOC 2) et nos bases de données chez Supabase avec chiffrement au repos.",
       "subProcessorsTitle": "Sous-traitants et services tiers",
       "subProcessorsIntro": "Vos données peuvent être traitées par les sous-traitants suivants, dans le cadre du fonctionnement de la plateforme :",
-      "subProcessorVercel": "Vercel (hébergement et déploiement, États-Unis)",
-      "subProcessorSupabase": "Supabase (base de données et authentification, États-Unis)",
+      "subProcessorCloudflare": "Cloudflare (hébergement et diffusion du site, États-Unis)",
+      "subProcessorSupabase": "Supabase (base de données et authentification, Francfort, Union européenne ; son support peut y accéder depuis les États-Unis et Singapour)",
       "subProcessorStripe": "Stripe (traitement des paiements, Irlande)",
       "subProcessorSentry": "Sentry (surveillance des erreurs, États-Unis)",
       "subProcessorResend": "Resend (envoi d'emails transactionnels, États-Unis)",
@@ -5130,7 +5192,7 @@
         "label": "Droit d'opposition :",
         "desc": "vous opposer au traitement de vos données pour des motifs légitimes."
       },
-      "contactInfo": "Pour exercer vos droits, contactez notre DPO :"
+      "contactInfo": "Pour exercer vos droits, écrivez à notre contact pour les données personnelles :"
     },
     "cookies": {
       "title": "Cookies",
@@ -5142,7 +5204,7 @@
     },
     "contact": {
       "title": "Contact",
-      "p1": "Pour toute question relative à la protection de vos données personnelles, vous pouvez contacter notre Délégué à la Protection des Données :"
+      "p1": "Pour toute question relative à la protection de vos données personnelles, vous pouvez écrire à notre contact pour les données personnelles :"
     }
   },
   "cookies": {

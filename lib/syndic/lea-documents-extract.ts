@@ -1,8 +1,9 @@
 // P2 Léa Documents — OCR + extraction métadonnées
 // PDFs : unpdf (déjà utilisé pour extract-pdf, Cloudflare Workers compat).
 // Images : OCR différé en P2.1 (Tesseract trop lourd pour Workers, Workers AI vision = follow-up).
-// Métadonnées : Groq llama-3.3-70b-versatile avec JSON mode strict.
+// Métadonnées : Claude (lib/claude.ts), secours Groq (GROQ_MODEL_PRIMARY), JSON mode strict.
 import { callClaudeWithRetry } from '@/lib/claude'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { logger } from '@/lib/logger'
 
 const MAX_TEXT_FOR_LLM = 8000
@@ -31,7 +32,9 @@ export async function extractPdfText(buffer: ArrayBuffer): Promise<{ text: strin
   }
   const { extractText } = await import('unpdf')
   const res = await extractText(u8, { mergePages: true })
-  const text = Array.isArray(res.text) ? res.text.join('\n\n') : (res.text || '')
+  const merged = Array.isArray(res.text) ? res.text.join('\n\n') : (res.text || '')
+  // unpdf ≥ 1.7 conserve les sauts de ligne : on garde le format d'unpdf 1.4 (une seule ligne, blancs normalisés).
+  const text = merged.replace(/\s+/g, ' ')
   return { text, pages: res.totalPages || 0 }
 }
 
@@ -100,7 +103,7 @@ export async function extractMetadataFromText(
 
   try {
     const completion = await callClaudeWithRetry({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL_PRIMARY, // modèle du secours Groq
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: truncated },

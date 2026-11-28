@@ -6,23 +6,30 @@
  *  - BTP pro (orgRole === 'pro_societe' → useBtpDesign: true) → generateDevisPdfV3 (design BTP)
  *
  * Reconstruit les paramètres attendus par chaque générateur à partir du document en localStorage.
+ *
+ * `produireFichierDocument` rend le même fichier sans le télécharger : le téléchargement groupé des listes
+ * Devis et Factures (lib/pdf/telechargement-groupe.ts) les rassemble dans une archive ZIP.
  */
 
 import type { Locale } from '@/lib/i18n/config'
-import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, CustomTable, FraisAnnexeItem } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
-import { buildV2Input } from '@/lib/pdf/build-v2-input'
-import { sumMoney, round2 } from '@/lib/money'
-import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
+import { sumMoney, round2, mulMoney } from '@/lib/money'
+import { resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { assuranceDocumentBtp, codeStatutJuridiqueBtp, mediateurDocumentBtp, statutJuridiqueDocumentBtp } from '@/lib/statut-juridique-btp'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { aUneRemiseDeLigne, appliquerRemiseGlobale, libelleRemiseGlobale, lireRemise } from '@/lib/remise-commerciale'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
+import { renduComplet } from '@/lib/version-rendu'
+import { lignesDocumentArtisan, ventilationTvaDocumentArtisan } from '@/lib/totaux-artisan'
 
-interface SavedDevis {
+export interface SavedDevis {
   id?: string
   docType?: 'devis' | 'facture'
   docNumber?: string
@@ -102,6 +109,12 @@ interface SavedDevis {
   recoveryFee?: string
   escompte?: string
   discount?: string
+  /** Document artisan enregistré depuis la correction de l'escompte : le PDF l'imprime. */
+  escompteSurPdf?: boolean
+  /** Remise commerciale sur le total (lib/remise-commerciale.ts). */
+  remiseGlobale?: unknown
+  /** Version du rendu d'un document artisan (lib/version-rendu.ts) : 2 = PDF identique à celui du formulaire. */
+  versionRendu?: number
   iban?: string
   bic?: string
   lines?: ProductLine[]
@@ -112,12 +125,18 @@ interface SavedDevis {
   notes?: string
 }
 
-interface DownloadContext {
+export interface DownloadContext {
   locale: Locale
   t: (k: string) => string
   artisan: { id?: string; company_name?: string | null; logo_url?: string | null; rm?: string | null; rc_pro?: string | null } | null
   /** Force le rendu BTP (V3). Par défaut, utilise V2 (design Vitfix Pro compact, identique à l'Aperçu). */
   useBtpDesign?: boolean
+}
+
+/** PDF d'un document enregistré, tel que le bouton « Télécharger » de la liste le produit. */
+export interface FichierDocument {
+  nom: string
+  octets: Uint8Array
 }
 
 // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (3e copie identique
@@ -173,12 +192,35 @@ async function fetchFreshArtisanData(
 }
 
 // ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
-async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+// `enregistrerBrut` : présent quand l'habillage PDF/A-3 a échoué ; le bouton de la ligne enregistre alors le PDF
+// brut par jsPDF (pdf.save), comme avant le téléchargement groupé.
+async function produireFichierV2(
+  doc: SavedDevis,
+  ctx: DownloadContext,
+): Promise<FichierDocument & { enregistrerBrut?: () => void }> {
   const { artisan } = ctx
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
   const laborLines = (doc.laborLines as ProductLine[]) || []
   const mergedLines = lines.length > 0 ? lines : [...laborLines, ...materialLines]
+  // Legacy sans flag : inférence franchise 293 B depuis companyStatus
+  // (EI/auto FR, ENI PT) — cf. resolveTvaEnabledV2 (audit 2026-06-10).
+  const tvaEnabled = resolveTvaEnabledV2(doc)
+  // Document au rendu complet (lib/version-rendu.ts) : mêmes lignes et même TVA que le formulaire
+  // (prestations, matériaux, frais annexes, tables personnalisées, détail de la TVA). L'échéance reste
+  // calculée ici depuis la date d'émission du PDF et la condition de paiement, comme avant : la date
+  // enregistrée peut être celle du document d'origine (acompte émis en un clic) ou d'un autre jour
+  // (brouillon de facture). Document d'avant la correction : paramètres d'origine, PDF identique.
+  const parametresComplets = renduComplet(doc)
+    ? (() => {
+        const lignes = lignesDocumentArtisan(doc as unknown as Record<string, unknown>)
+        return {
+          ...lignes,
+          tvaBreakdown: tvaEnabled ? ventilationTvaDocumentArtisan(doc as unknown as Record<string, unknown>, true) : undefined,
+          versionRendu: doc.versionRendu,
+        }
+      })()
+    : null
 
   const fresh = await fetchFreshArtisanData(artisan?.id, doc, artisan?.logo_url ?? null)
 
@@ -186,6 +228,42 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     || (doc.executionDelayDays && doc.executionDelayDays > 0
       ? `${doc.executionDelayDays} ${doc.executionDelayType === 'calendaires' ? 'jours calendaires' : 'jours ouvrés'}`
       : 'À convenir')
+
+  // Document qui porte une remise commerciale (enregistré depuis la remise, donc jamais un document
+  // antérieur) : mêmes données que le formulaire artisan (matériaux, frais annexes, tableaux
+  // personnalisés, détail de TVA remisé), pour que la remise porte sur tout le document et que le PDF
+  // téléchargé depuis la liste soit celui du formulaire. Les autres documents gardent leur PDF d'origine.
+  // Lectures protégées (stockage local parfois incomplet) : un document sans remise ne doit jamais
+  // échouer ici, puisqu'il ne lisait pas ces champs avant. Un document au rendu complet (marqué
+  // `versionRendu`) prend `parametresComplets` ci-dessus, qui couvrent aussi sa remise : ce bloc ne sert
+  // qu'aux documents remisés enregistrés entre la remise et cette marque.
+  const docBrut = doc as Record<string, unknown>
+  const tablesDoc = (Array.isArray(docBrut.customTables) ? docBrut.customTables as unknown[] : [])
+    .filter((t): t is CustomTable => !!t && typeof t === 'object' && Array.isArray((t as CustomTable).lines))
+  const fraisDoc = (Array.isArray(docBrut.fraisAnnexes) ? docBrut.fraisAnnexes as unknown[] : [])
+    .filter((f): f is FraisAnnexeItem => !!f && typeof f === 'object')
+  const materiauxDoc = lines.length > 0 && Array.isArray(materialLines) ? materialLines : []
+  const avecRemise = lireRemise(doc.remiseGlobale) !== null
+    || aUneRemiseDeLigne([...mergedLines, ...materiauxDoc, ...tablesDoc.flatMap((t) => t.lines)])
+  let donneesRemise: Pick<BuildV2InputParams, 'materialLines' | 'fraisAnnexes' | 'customTables' | 'tvaBreakdown'> = {}
+  if (avecRemise && !parametresComplets) {
+    const calcul = appliquerRemiseGlobale([
+      ...[...mergedLines, ...materiauxDoc, ...tablesDoc.flatMap((t) => t.lines)]
+        .filter(Boolean)
+        .map((l) => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+      ...fraisDoc.map((f) => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
+    ], doc.remiseGlobale)
+    donneesRemise = {
+      materialLines: materiauxDoc,
+      fraisAnnexes: fraisDoc,
+      customTables: tablesDoc,
+      tvaBreakdown: resolveTvaEnabledV2(doc)
+        ? calcul.bases
+          .map((b) => ({ rate: b.taux, base: b.base, amount: mulMoney(b.base, b.taux / 100) }))
+          .sort((a, b) => b.rate - a.rate)
+        : undefined,
+    }
+  }
 
   const input = buildV2Input({
     // Artisan
@@ -202,9 +280,7 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     insuranceNumber: fresh.insuranceNumber,
     insuranceCoverage: fresh.insuranceCoverage,
     insuranceType: fresh.insuranceType,
-    // Legacy sans flag : inférence franchise 293 B depuis companyStatus
-    // (EI/auto FR, ENI PT) — cf. resolveTvaEnabledV2 (audit 2026-06-10).
-    tvaEnabled: resolveTvaEnabledV2(doc),
+    tvaEnabled,
     paymentMode: doc.paymentMode || 'Virement bancaire',
     paymentCondition: doc.paymentCondition || doc.escompte || '',
 
@@ -254,7 +330,22 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     avoirMotif: doc.avoirMotif,
 
     // Lines
-    lines: mergedLines,
+    // Document au rendu complet : paramètres du formulaire (ils couvrent aussi sa remise). Sinon,
+    // document remisé enregistré depuis la remise : données de la remise (`donneesRemise`), inchangées.
+    // Sinon : paramètres d'origine.
+    lines: parametresComplets ? parametresComplets.lines : mergedLines,
+    ...(parametresComplets ? {
+      materialLines: parametresComplets.materialLines,
+      fraisAnnexes: parametresComplets.fraisAnnexes,
+      customTables: parametresComplets.customTables,
+      tvaBreakdown: parametresComplets.tvaBreakdown,
+      versionRendu: parametresComplets.versionRendu,
+    } : donneesRemise),
+    // Remise commerciale (lib/remise-commerciale.ts) et escompte saisi : l'escompte n'est imprimé
+    // que pour un document enregistré depuis la correction (escompteSurPdf), les autres gardent
+    // la mention « Aucun escompte accordé » de leur PDF d'origine.
+    remiseGlobale: doc.remiseGlobale,
+    escompte: doc.escompteSurPdf === true ? (doc.discount || '') : undefined,
 
     // Acomptes
     acomptesEnabled: doc.acomptesEnabled || false,
@@ -271,6 +362,7 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
   const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
   const pdf = await generateDevisPdfV2(input)
+  const nom = `${doc.docNumber || 'devis'}.pdf`
 
   // FR-V2 : wrap as PDF/A-3B for archivage probant (arrêté 22 mars 2017).
   // Sans ça, l'archive numérique peut être requalifiée en non-probante par
@@ -288,26 +380,45 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
       title: docTitle.trim(),
       author: input.artisan.nom,
     })
-    // Trigger download via Blob (jsPDF.save équivalent)
-    const blob = new Blob([new Uint8Array(wrapped).buffer as ArrayBuffer], { type: 'application/pdf' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${doc.docNumber || 'devis'}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    return { nom, octets: wrapped }
   } catch (e) {
     // Fallback : si le wrapping échoue, on garde au moins le PDF non-PDF/A
     // pour que le user ait son téléchargement.
     console.warn('[download-saved-devis] PDF/A-3 wrap failed, falling back to plain PDF:', e)
-    pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+    return {
+      nom,
+      octets: new Uint8Array(pdf.output('arraybuffer') as ArrayBuffer),
+      enregistrerBrut: () => { pdf.save(nom) },
+    }
   }
 }
 
+async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+  const { nom, octets, enregistrerBrut } = await produireFichierV2(doc, ctx)
+  if (enregistrerBrut) {
+    enregistrerBrut()
+    return
+  }
+  // Trigger download via Blob (jsPDF.save équivalent)
+  const blob = new Blob([new Uint8Array(octets).buffer as ArrayBuffer], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nom
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
-async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+// `action` : 'download' (bouton de la liste) ou 'fichier' (téléchargement groupé : rien n'est téléchargé ici,
+// le fichier final — Factur-X compris — est rendu à l'appelant).
+async function genererAvecV3(
+  doc: SavedDevis,
+  ctx: DownloadContext,
+  action: 'download' | 'fichier',
+): Promise<Awaited<ReturnType<typeof generateDevisPdfV3>>> {
   const { locale, t, artisan } = ctx
   // Pas de re-construction locale des collections sommées : la source
   // unique de vérité est `buildDocumentLines` (lib/devis-totals.ts). Elle
@@ -343,13 +454,17 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     regime: effectiveRegime,
     lines: sourceLines
       .filter(l => (l.description || '').trim())
-      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0, horsRemise: l.horsRemise === true })),
     locale: locale === 'pt' ? 'pt' : 'fr',
+    // Remise commerciale (lib/remise-commerciale.ts) : absente → totaux inchangés.
+    remiseGlobale: (doc as Record<string, unknown>).remiseGlobale,
   })
   const tvaBreakdown = tva.breakdown
   const totalTTC = tva.totalTTC
-
-  const statusCode = mapLegalFormToCode(doc.companyStatus || '')
+  const langueLibelle = locale === 'pt' ? 'pt' : 'fr'
+  const remiseGlobaleV3 = tva.remiseHT !== 0
+    ? { montantHT: tva.remiseHT, libelle: libelleRemiseGlobale((doc as Record<string, unknown>).remiseGlobale, langueLibelle), base: tva.baseRemiseHT }
+    : undefined
 
   // Délai, titre par défaut, type de client et rétractation : mêmes règles que
   // le formulaire BTP (lib/devis-btp-libelles.ts)
@@ -370,13 +485,16 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   let artisanTypeActivite: string | null = null
   // Identité légale de la société (Mon profil) : reprise quand le document
   // enregistré a le champ vide, comme le fait le formulaire BTP à l'ouverture.
+  // Assurance et médiateur de la fiche : société portugaise seulement (assuranceDocumentBtp, mediateurDocumentBtp).
   let fiche: { siret?: string | null; company_address?: string | null; rcs_number?: string | null
-    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null } = {}
+    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null; legal_form?: string | null
+    insurance_name?: string | null; insurance_number?: string | null; insurance_type?: string | null
+    insurance_coverage?: string | null; mediator_name?: string | null; mediator_url?: string | null } = {}
   if (artisan?.id) {
     try {
       const { data } = await supabase
         .from('profiles_artisan')
-        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code')
+        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code, legal_form, insurance_name, insurance_number, insurance_type, insurance_coverage, mediator_name, mediator_url')
         .eq('id', artisan.id)
         .single()
       if (data) fiche = data as typeof fiche
@@ -395,8 +513,16 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     }
   }
 
-  await generateDevisPdfV3({
-    action: 'download',
+  // Forme portugaise (« Sociedade por Quotas (Lda.) »…) reconnue ; les libellés français donnent le même code qu'avant.
+  // Société portugaise : l'EI de ses premiers documents devient sa forme du profil, comme dans le formulaire.
+  const statusCode = codeStatutJuridiqueBtp(statutJuridiqueDocumentBtp(doc.companyStatus, fiche.legal_form))
+  // Société française : l'assurance du document, comme avant. Société portugaise : celle que le formulaire affiche à
+  // l'ouverture (assureur de la fiche pour un document enregistré sans assureur, couverture portugaise).
+  const assurance = assuranceDocumentBtp(doc, fiche)
+  const mediateur = mediateurDocumentBtp(doc, fiche)
+
+  return generateDevisPdfV3({
+    action,
     locale,
     localeFormats: {
       currencyFormat: (n: number) => currencyFormat(n, locale),
@@ -447,13 +573,15 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     tvaEnabled,
     tvaNumber: doc.tvaNumber || fiche.tva_intra || '',
     companyAPE: doc.companyAPE || fiche.ape_code || '',
-    insuranceName: doc.insuranceName || '',
-    insuranceNumber: doc.insuranceNumber || '',
-    insuranceCoverage: doc.insuranceCoverage || '',
-    insuranceType: doc.insuranceType || 'rc_pro',
+    insuranceName: assurance.insuranceName,
+    insuranceNumber: assurance.insuranceNumber,
+    // Société portugaise : jamais « France métropolitaine » (défaut de la fiche recopié), sinon le modèle V3 sur /fr
+    // imprimerait son défaut français
+    insuranceCoverage: assurance.insuranceCoverage,
+    insuranceType: assurance.insuranceType,
     decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
-    mediatorName: doc.mediatorName || '',
-    mediatorUrl: doc.mediatorUrl || '',
+    mediatorName: mediateur.mediatorName,
+    mediatorUrl: mediateur.mediatorUrl,
     isHorsEtablissement: champs.isHorsEtablissement,
     clientName: doc.clientName || '',
     clientEmail: doc.clientEmail || '',
@@ -487,8 +615,11 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     materialLinesEnabled: ((doc as Record<string, unknown>).materialLinesEnabled as boolean) ?? undefined,
     fraisLinesEnabled: ((doc as Record<string, unknown>).fraisLinesEnabled as boolean) ?? undefined,
     customTables: customTables.length > 0 ? customTables : undefined,
-    subtotalHT,
+    // Document remisé : HT net (base de la TVA) + HT brut et remise pour le bloc des totaux.
+    // Sans remise : sous-total d'origine, inchangé.
+    subtotalHT: remiseGlobaleV3 ? tva.totalHT : subtotalHT,
     totalTTC,
+    ...(remiseGlobaleV3 ? { totalHTBrut: tva.totalHTBrut, remiseGlobale: remiseGlobaleV3 } : {}),
     // Breakdown vide en franchise/autoliquidation (computeTva force []),
     // donc undefined dans le PDF (pas de ligne TVA détail).
     tvaBreakdown: tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
@@ -515,7 +646,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
       rm: (artisan.rm as string | undefined) || doc.companyRCS || undefined,
       rc_pro: (artisan.rc_pro as string | undefined) || doc.insuranceNumber || undefined,
     } : null,
-    // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+    // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
     modele: modeleDocumentSociete(artisan?.id),
     ptFiscalData: null,
     svgToImageDataUrl,
@@ -533,7 +664,18 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
 export async function downloadSavedDevis(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   if (ctx.useBtpDesign) {
-    return downloadWithV3(doc, ctx)
+    await genererAvecV3(doc, ctx, 'download')
+    return
   }
   return downloadWithV2(doc, ctx)
+}
+
+/** Même PDF que `downloadSavedDevis`, rendu à l'appelant au lieu d'être téléchargé. */
+export async function produireFichierDocument(doc: SavedDevis, ctx: DownloadContext): Promise<FichierDocument> {
+  if (ctx.useBtpDesign) {
+    const { filename, fichier } = await genererAvecV3(doc, ctx, 'fichier')
+    return { nom: filename, octets: fichier }
+  }
+  const { nom, octets } = await produireFichierV2(doc, ctx)
+  return { nom, octets }
 }

@@ -30,10 +30,10 @@ export async function generateMetadata(): Promise<Metadata> {
       canonical: 'https://vitfix.io/pt/avaliacoes/',
     },
   } : {
-    title: 'Avis clients | Vitfix',
+    title: 'Avis clients',
     description: 'Réservez un artisan vérifié VITFIX et partagez votre expérience après l\'intervention. Intégration Trustpilot bientôt.',
     openGraph: {
-      title: 'Avis clients | Vitfix',
+      title: 'Avis clients',
       description: 'Réservez un artisan vérifié et partagez votre expérience après l\'intervention.',
       siteName: 'Vitfix',
       locale: 'fr_FR',

@@ -9,19 +9,24 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-  pull-requests: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : le job
+# déclare le strict nécessaire.
+permissions: {}
 
 jobs:
   check-translations:
     name: "Vérifier les traductions manquantes"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write  # rapport posté en commentaire de PR
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Comparer les clés FR vs PT
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

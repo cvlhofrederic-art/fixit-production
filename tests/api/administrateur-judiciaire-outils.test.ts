@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
     }),
   ),
   limite: vi.fn(async () => true),
+  traceAgent: vi.fn((_params: Record<string, unknown>, fn: () => Promise<unknown>) => fn()),
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn(), withScope: vi.fn() }))
@@ -38,7 +39,7 @@ vi.mock('@/lib/claude', async (orig) => ({
   callClaudeWithRetry: h.claude,
   hasAnthropicKey: vi.fn(async () => !!(await h.getSecret('ANTHROPIC_API_KEY'))),
 }))
-vi.mock('@/lib/langfuse', () => ({ traceAgent: (_p: unknown, fn: () => Promise<unknown>) => fn() }))
+vi.mock('@/lib/langfuse', () => ({ traceAgent: h.traceAgent }))
 
 const { POST } = await import('@/app/api/administrateur-judiciaire/outils/route')
 
@@ -85,7 +86,63 @@ describe('/api/administrateur-judiciaire/outils', () => {
     h.utilisateur = { id: 'u-aj', email: 'admin@exemple.fr', app_metadata: { role: 'super_admin' } }
     h.claude.mockClear()
     h.limite.mockClear()
+    h.traceAgent.mockClear()
     h.getSecret.mockImplementation(async (cle: string) => (cle === 'ANTHROPIC_API_KEY' ? 'cle-factice' : ''))
+  })
+
+  describe('trace Langfuse sans contenu (seulement des métadonnées)', () => {
+    const tracee = () => {
+      expect(h.traceAgent).toHaveBeenCalledTimes(1)
+      return h.traceAgent.mock.calls[0][0]
+    }
+
+    it('analyse de devis : ni le texte collé ni la réponse, seulement sa longueur', async () => {
+      expect((await POST(requete({ tache: 'analyse-devis', texte: DEVIS }))).status).toBe(200)
+      const params = tracee()
+      expect(params).toEqual({
+        agent_id: 'aj-analyse-devis',
+        user_id: 'u-aj',
+        metadonneesSeules: true,
+        metadata: { succursale: 'administrateur-judiciaire', tache: 'analyse-devis', longueurTexte: DEVIS.length },
+      })
+      expect(JSON.stringify(params)).not.toMatch(/Toitures|06 12|toitures-nord|11 400|Verdict/)
+    })
+
+    it('projet de PV : ni la copropriété, ni les résolutions, ni le mandat, seulement des nombres', async () => {
+      const resolutions = ['Vote des travaux de toiture', 'Approbation des comptes 2025']
+      await POST(requete({ tache: 'redaction-pv', copropriete: 'Le Clos des Vignes', resolutions, contexte: CONTEXTE_PV }))
+      const params = tracee()
+      expect(params).toEqual({
+        agent_id: 'aj-redaction-pv',
+        user_id: 'u-aj',
+        metadonneesSeules: true,
+        metadata: {
+          succursale: 'administrateur-judiciaire',
+          tache: 'redaction-pv',
+          resolutions: 2,
+          tailleContexte: JSON.stringify(CONTEXTE_PV).length,
+        },
+      })
+      expect(JSON.stringify(params)).not.toMatch(/Clos des Vignes|Vendanges|25\/01234|toiture|TJ Lyon/)
+    })
+
+    it('lecture de facture : ni le fichier, ni son nom, ni les copropriétés, seulement type, taille et nombre', async () => {
+      h.claude.mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify({ fournisseur: 'Plomberie Centrale', montant_ttc: 1100 }) } }], model: 'claude-sonnet-5-5' })
+      await POST(requete({
+        tache: 'saisie-facture',
+        fichier: PNG,
+        nomFichier: 'facture-durand.png',
+        coproprietes: [{ nom: 'Le Clos des Vignes', adresse: '8 rue des Vendanges, 69000 Lyon' }],
+      }))
+      const params = tracee()
+      expect(params).toEqual({
+        agent_id: 'aj-saisie-facture',
+        user_id: 'u-aj',
+        metadonneesSeules: true,
+        metadata: { succursale: 'administrateur-judiciaire', tache: 'saisie-facture', typeFichier: 'image/png', octets: 15, coproprietes: 1 },
+      })
+      expect(JSON.stringify(params)).not.toMatch(/durand|Clos des Vignes|Vendanges|Plomberie|base64/)
+    })
   })
 
   describe('garde et validation', () => {

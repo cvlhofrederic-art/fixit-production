@@ -1,0 +1,818 @@
+import { describe, expect, it } from 'vitest'
+import {
+  AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE,
+  AVERTISSEMENT_DELAI_DECLARATION,
+  controlerCourriersDeclaration,
+  controlerDelaiDeclaration,
+  courriersDeDeclaration,
+  estModeleDeclarationSinistre,
+  ficheAvecDateDeclaration,
+  GABARITS_DECLARATION_SINISTRE,
+  proposerDateDeclaration,
+  type CourrierDeSinistre,
+  type SinistreIdentifie,
+} from '@/lib/administrateur-judiciaire/domain/declaration-sinistre'
+import { ajouterJours, estJourOuvrable, jourSemaine } from '@/lib/administrateur-judiciaire/domain/dates'
+import { creerRattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
+import { modeleCourrierDepuisGabarit } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
+import {
+  creerSinistre,
+  etapeSuiviSinistre,
+  PHASES_APRES_DECLARATION,
+  type SaisieSinistre,
+} from '@/lib/administrateur-judiciaire/domain/sinistres'
+import { depuisSinistres } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { PHASE_SINISTRE } from '@/lib/data/referentiels-gesteam-judiciaire'
+import { enTeteDuModule } from './en-tete-module'
+
+/**
+ * Point 58 du bilan 2 : date de déclaration d'un sinistre tirée du courrier de déclaration rattaché, sans écraser une date
+ * saisie, et contrôle du délai de déclaration (signal, jamais une déchéance).
+ * - Gestéam T42 : un courrier « DÉCLARATION » (archivé) existe sur la fiche, la date Déclaration du suivi reste vide.
+ * - T43 § 22 : la famille Sinistre contient « déclaration », « déclaration sinistre DO (AR) », mais aussi « accusé
+ *   déclaration copro » et « relance dossier », qui ne sont pas des déclarations à l'assureur.
+ * - Repères : C. assur. art. L. 113-2, 4° (5 jours ouvrés, 2 pour le vol, ou le délai du contrat s'il est plus long),
+ *   art. L. 125-2 (catastrophe naturelle : 30 jours après la publication de l'arrêté).
+ */
+
+const saisie = (surcharge: Partial<SaisieSinistre> = {}): SaisieSinistre => ({
+  coproprieteId: 'copro-1',
+  type: 'Dégât des eaux',
+  phase: null,
+  dateSurvenance: '2026-10-27',
+  dateConnaissance: null,
+  dateDeclaration: null,
+  dateExpertise: null,
+  dateRapport: null,
+  dateReglement: null,
+  dateCloture: null,
+  partiesCommunesLesees: true,
+  partiesCommunesResponsables: false,
+  origine: 'Fuite sur colonne',
+  lieu: 'Cage B',
+  dommages: 'Plafond du palier',
+  assurance: { compagnie: null, courtier: null, contrat: null, numeroSinistre: null },
+  indemniteImmediateCentimes: 0,
+  indemniteImmediateReglee: false,
+  indemniteDiffereeCentimes: 0,
+  indemniteDiffereeReglee: false,
+  causesSupprimees: false,
+  reparationsFaites: false,
+  ...surcharge,
+})
+
+const sinistre = (surcharge: Partial<SaisieSinistre> = {}, id = 'sin-1'): SinistreIdentifie => ({
+  id,
+  fiche: creerSinistre(saisie(surcharge)),
+})
+
+const courrier = (surcharge: Partial<CourrierDeSinistre> = {}): CourrierDeSinistre => ({
+  id: 'c-1',
+  modele: { famille: 'Sinistre', libelle: 'déclaration' },
+  rattachements: [creerRattachement('Copropriété', 'copro-1'), creerRattachement('Sinistre', 'sin-1')],
+  formeEnvoi: 'AR',
+  dateDepot: '2026-10-28',
+  datePremierePresentation: '2026-10-29',
+  dateAccuseReception: null,
+  ...surcharge,
+})
+
+/** Date du jour, obligatoire : postérieure à tous les dépôts des courriers de ces tests, sauf mention contraire. */
+const JOUR = { aujourdhui: '2026-11-20' }
+
+describe('point 58 — reconnaître le courrier de déclaration par son modèle', () => {
+  it('les deux gabarits de déclaration du registre', () => {
+    expect(GABARITS_DECLARATION_SINISTRE).toEqual(['declaration_sinistre', 'declaration_sinistre_do'])
+  })
+
+  it('libellé Gestéam, objet VitFix, variante DO, sans égard à la casse ni aux accents', () => {
+    for (const libelle of ['déclaration', 'DÉCLARATION', 'Déclaration de sinistre', 'déclaration sinistre DO (AR)'])
+      expect(estModeleDeclarationSinistre({ famille: 'Sinistre', libelle })).toBe(true)
+    expect(estModeleDeclarationSinistre(modeleCourrierDepuisGabarit('declaration_sinistre'))).toBe(true)
+    expect(estModeleDeclarationSinistre(modeleCourrierDepuisGabarit('declaration_sinistre_do'))).toBe(true)
+  })
+
+  it('exclut l’accusé au copropriétaire, la relance, la contestation et les autres familles', () => {
+    for (const libelle of ['accusé déclaration copro', 'relance dossier', 'contestation expertise (AR)', 'courrier simple'])
+      expect(estModeleDeclarationSinistre({ famille: 'Sinistre', libelle })).toBe(false)
+    expect(estModeleDeclarationSinistre({ famille: 'Gestion', libelle: 'déclaration' })).toBe(false)
+    expect(estModeleDeclarationSinistre(modeleCourrierDepuisGabarit('contestation_expertise'))).toBe(false)
+  })
+})
+
+describe('point 58 — courriers de déclaration d’un sinistre', () => {
+  it('seuls les courriers rattachés à CE sinistre comptent (ni un autre sinistre, ni la seule copropriété)', () => {
+    const retenus = courriersDeDeclaration('sin-1', [
+      courrier({ id: 'a' }),
+      courrier({ id: 'b', rattachements: [creerRattachement('Sinistre', 'sin-2')] }),
+      courrier({ id: 'c', rattachements: [creerRattachement('Copropriété', 'copro-1')] }),
+      courrier({ id: 'd', modele: { famille: 'Sinistre', libelle: 'relance dossier' } }),
+    ])
+    expect(retenus.map((c) => c.id)).toEqual(['a'])
+  })
+
+  it('ignore un courrier non déposé ou mal daté ; retient un courrier archivé (T42)', () => {
+    const retenus = courriersDeDeclaration('sin-1', [
+      courrier({ id: 'prepare', dateDepot: null, datePremierePresentation: null }),
+      courrier({ id: 'faux', dateDepot: '2026-02-30' }),
+      courrier({ id: 'archive', statut: 'Archivé' }),
+    ])
+    expect(retenus.map((c) => c.id)).toEqual(['archive'])
+  })
+
+  it('trie par dépôt croissant, puis par identifiant', () => {
+    const retenus = courriersDeDeclaration('sin-1', [
+      courrier({ id: 'z', dateDepot: '2026-10-30' }),
+      courrier({ id: 'b', dateDepot: '2026-10-28' }),
+      courrier({ id: 'a', dateDepot: '2026-10-28' }),
+    ])
+    expect(retenus.map((c) => c.id)).toEqual(['a', 'b', 'z'])
+  })
+})
+
+describe('point 58 — proposition de date de déclaration', () => {
+  it('aucun courrier de déclaration déposé', () => {
+    expect(proposerDateDeclaration(sinistre(), [], JOUR)).toEqual({ nature: 'aucun_courrier', sinistreId: 'sin-1' })
+  })
+
+  it('date vide : propose le DÉPÔT du premier courrier, avec sa forme et sa première présentation', () => {
+    expect(proposerDateDeclaration(sinistre(), [courrier({ id: 'c-2', dateDepot: '2026-10-30' }), courrier()], JOUR)).toEqual({
+      nature: 'a_reporter',
+      sinistreId: 'sin-1',
+      date: '2026-10-28',
+      courrierId: 'c-1',
+      formeEnvoi: 'AR',
+      datePremierePresentation: '2026-10-29',
+    })
+  })
+
+  it('date saisie égale au dépôt : conforme', () => {
+    expect(proposerDateDeclaration(sinistre({ dateDeclaration: '2026-10-28' }), [courrier()], JOUR)).toEqual({
+      nature: 'conforme',
+      sinistreId: 'sin-1',
+      date: '2026-10-28',
+      courrierId: 'c-1',
+    })
+  })
+
+  it('date saisie différente : écart signalé, la date saisie n’est jamais remplacée', () => {
+    const proposition = proposerDateDeclaration(sinistre({ dateDeclaration: '2026-10-29' }), [courrier()], JOUR)
+    expect(proposition).toMatchObject({ nature: 'ecart', dateSaisie: '2026-10-29', dateCourrier: '2026-10-28', courrierId: 'c-1' })
+    expect(proposition.nature === 'ecart' && proposition.message).toMatch(/29\/10\/2026.*28\/10\/2026/)
+  })
+
+  it('avec la date du jour, ne propose pas un dépôt daté après aujourd’hui', () => {
+    const futur = [courrier({ dateDepot: '2026-11-02', datePremierePresentation: null })]
+    expect(proposerDateDeclaration(sinistre(), futur, { aujourdhui: '2026-10-29' })).toEqual({ nature: 'aucun_courrier', sinistreId: 'sin-1' })
+    expect(proposerDateDeclaration(sinistre(), futur, { aujourdhui: '2026-11-02' })).toMatchObject({ nature: 'a_reporter', date: '2026-11-02' })
+    expect(() => proposerDateDeclaration(sinistre(), futur, { aujourdhui: '02/11/2026' })).toThrow(/jour/i)
+  })
+
+  it('la date du jour est obligatoire : sans elle, ni proposition ni contrôle des courriers (constats 9 et 10)', () => {
+    const s = sinistre()
+    const futur = [courrier({ dateDepot: '2026-11-02', datePremierePresentation: null })]
+    // @ts-expect-error — la date du jour est obligatoire
+    expect(() => proposerDateDeclaration(s, futur)).toThrow()
+    expect(() => proposerDateDeclaration(s, futur, {} as never)).toThrow(/date du jour/i)
+    // @ts-expect-error — la date du jour est obligatoire
+    expect(() => controlerCourriersDeclaration(s, futur)).toThrow()
+    expect(() => controlerCourriersDeclaration(s, futur, {} as never)).toThrow(/date du jour/i)
+  })
+
+  it('constat 10 : un dépôt daté après aujourd’hui n’est jamais reporté, l’alerte « à déclarer » demeure', () => {
+    const s = sinistre()
+    const futur = [courrier({ dateDepot: '2026-11-02', datePremierePresentation: null })]
+    const options = { aujourdhui: '2026-10-29' }
+    expect(controlerDelaiDeclaration(s, futur, options).etat).toBe('a_declarer')
+    const fiche = ficheAvecDateDeclaration(s, proposerDateDeclaration(s, futur, options))
+    expect(fiche).toBe(s.fiche)
+    expect(fiche.dateDeclaration).toBeNull()
+    expect(controlerDelaiDeclaration({ id: s.id, fiche }, futur, options).etat).toBe('a_declarer')
+    expect(depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche }]).map((e) => e.nature)).toContain('a_declarer')
+  })
+
+  it('écarte un courrier déposé avant la survenance ou la connaissance (mal rattaché)', () => {
+    const fiche = sinistre({ dateConnaissance: '2026-10-29' })
+    expect(proposerDateDeclaration(fiche, [courrier({ dateDepot: '2026-10-28', datePremierePresentation: null })], JOUR).nature).toBe('aucun_courrier')
+    const avantEtApres = [
+      courrier({ id: 'avant', dateDepot: '2026-10-20', datePremierePresentation: null }),
+      courrier({ id: 'apres', dateDepot: '2026-10-30', datePremierePresentation: null }),
+    ]
+    expect(proposerDateDeclaration(fiche, avantEtApres, JOUR)).toMatchObject({ nature: 'a_reporter', courrierId: 'apres', date: '2026-10-30' })
+  })
+})
+
+/** Libellé « à déclarer » du suivi (J67, R49) pour le repère du 03/11/2026. */
+const REPERE_SUIVI = 'à déclarer au plus tard le 03/11/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)'
+
+describe('point 58 — report sur la fiche', () => {
+  it('remplit une date vide depuis la proposition, sans modifier la fiche reçue', () => {
+    const s = sinistre()
+    const fiche = ficheAvecDateDeclaration(s, proposerDateDeclaration(s, [courrier()], JOUR))
+    expect(fiche.dateDeclaration).toBe('2026-10-28')
+    expect(s.fiche.dateDeclaration).toBeNull()
+  })
+
+  it('ne touche jamais une date saisie (écart, conforme) ni une fiche sans courrier', () => {
+    const saisi = sinistre({ dateDeclaration: '2026-10-29' })
+    expect(ficheAvecDateDeclaration(saisi, proposerDateDeclaration(saisi, [courrier()], JOUR))).toBe(saisi.fiche)
+    const conforme = sinistre({ dateDeclaration: '2026-10-28' })
+    expect(ficheAvecDateDeclaration(conforme, proposerDateDeclaration(conforme, [courrier()], JOUR))).toBe(conforme.fiche)
+    const vide = sinistre()
+    expect(ficheAvecDateDeclaration(vide, proposerDateDeclaration(vide, [], JOUR)).dateDeclaration).toBeNull()
+  })
+
+  it('n’écrase pas une date saisie entre la proposition et son report', () => {
+    const proposition = proposerDateDeclaration(sinistre(), [courrier()], JOUR)
+    const saisieEntreTemps = sinistre({ dateDeclaration: '2026-10-29' })
+    expect(ficheAvecDateDeclaration(saisieEntreTemps, proposition).dateDeclaration).toBe('2026-10-29')
+  })
+
+  it('refuse la proposition d’un autre sinistre', () => {
+    const proposition = proposerDateDeclaration(sinistre(), [courrier()], JOUR)
+    expect(() => ficheAvecDateDeclaration(sinistre({}, 'sin-2'), proposition)).toThrow(/autre sinistre/i)
+  })
+})
+
+describe('point 58 — anomalies des courriers de déclaration', () => {
+  it('aucune anomalie sur une déclaration AR présentée, adressée à la compagnie, sans date saisie', () => {
+    expect(controlerCourriersDeclaration(sinistre(), [courrier({ typeDestinataire: "Compagnie d'assurance" })], JOUR)).toEqual([])
+  })
+
+  it('chronologie : courrier déposé avant la connaissance, écarté de la proposition', () => {
+    const anomalies = controlerCourriersDeclaration(sinistre({ dateConnaissance: '2026-10-29' }), [courrier()], JOUR)
+    expect(anomalies).toEqual([
+      expect.objectContaining({ code: 'chronologie', gravite: 'avertissement', courrierId: 'c-1', message: expect.stringMatching(/28\/10\/2026/) }),
+    ])
+  })
+
+  it('chronologie du report : une étape du suivi déjà datée avant le dépôt est signalée, la date reste proposée', () => {
+    const s = sinistre({ dateExpertise: '2026-10-28' })
+    const courriers = [courrier({ dateDepot: '2026-10-29', datePremierePresentation: '2026-10-30' })]
+    expect(controlerCourriersDeclaration(s, courriers, JOUR)).toEqual([
+      expect.objectContaining({ code: 'chronologie', gravite: 'avertissement', courrierId: 'c-1', message: expect.stringMatching(/29\/10\/2026.*Expertise datée/) }),
+    ])
+    expect(proposerDateDeclaration(s, courriers, JOUR)).toMatchObject({ nature: 'a_reporter', date: '2026-10-29' })
+  })
+
+  it('chronologie du report : une incohérence déjà présente sur la fiche n’est pas imputée au courrier', () => {
+    const s = sinistre({ dateExpertise: '2026-10-30', dateRapport: '2026-10-29' })
+    expect(controlerCourriersDeclaration(s, [courrier()], JOUR)).toEqual([])
+  })
+
+  it('plusieurs courriers : le premier est retenu, les suivants sont signalés pour information', () => {
+    const anomalies = controlerCourriersDeclaration(sinistre(), [courrier(), courrier({ id: 'c-2', dateDepot: '2026-10-30', datePremierePresentation: '2026-10-31' })], JOUR)
+    expect(anomalies).toEqual([expect.objectContaining({ code: 'plusieurs_courriers', gravite: 'information', courrierId: 'c-2' })])
+  })
+
+  it('sans preuve de réception : envoi simple, ou AR dont la première présentation n’est pas connue', () => {
+    expect(controlerCourriersDeclaration(sinistre(), [courrier({ formeEnvoi: 'Normal', datePremierePresentation: null })], JOUR)).toEqual([
+      expect.objectContaining({ code: 'sans_preuve_reception', gravite: 'information', courrierId: 'c-1' }),
+    ])
+    expect(controlerCourriersDeclaration(sinistre(), [courrier({ datePremierePresentation: null })], JOUR).map((a) => a.code)).toEqual(['sans_preuve_reception'])
+  })
+
+  it('écart avec la date saisie', () => {
+    expect(controlerCourriersDeclaration(sinistre({ dateDeclaration: '2026-10-29' }), [courrier()], JOUR)).toEqual([
+      expect.objectContaining({ code: 'ecart_date_saisie', gravite: 'avertissement', courrierId: 'c-1' }),
+    ])
+  })
+
+  it('destinataire : un courtier (signal conservé, J67, R51) ou un tiers qui n’est pas une compagnie', () => {
+    const [courtier] = controlerCourriersDeclaration(sinistre(), [courrier({ typeDestinataire: 'Courtier' })], JOUR)
+    expect(courtier).toMatchObject({ code: 'destinataire_non_assureur', gravite: 'avertissement' })
+    expect(courtier.message).toMatch(/courtier/i)
+    expect(controlerCourriersDeclaration(sinistre(), [courrier({ typeDestinataire: "Expert d'assurance" })], JOUR).map((a) => a.code)).toEqual([
+      'destinataire_non_assureur',
+    ])
+  })
+
+  it('dépôt daté après aujourd’hui : écarté et signalé ; date du jour contrôlée', () => {
+    const anomalies = controlerCourriersDeclaration(sinistre(), [courrier({ dateDepot: '2026-11-05', datePremierePresentation: null, formeEnvoi: 'Email' })], {
+      aujourdhui: '2026-10-29',
+    })
+    expect(anomalies.map((a) => a.code)).toEqual(['depot_improbable'])
+    expect(anomalies[0].message).toMatch(/05\/11\/2026, après aujourd'hui.*écarté/i)
+    expect(() => controlerCourriersDeclaration(sinistre(), [], { aujourdhui: '29/10/2026' })).toThrow(/jour/i)
+  })
+
+  it('chronologie du report : une nouvelle incohérence est signalée même si le champ est déjà en anomalie', () => {
+    // Clôture (24/10) déjà avant le rapport (25/10) ; le report au 28/10 la met aussi avant la déclaration.
+    const cloture = sinistre({ dateSurvenance: '2026-10-20', dateRapport: '2026-10-25', dateCloture: '2026-10-24' })
+    const courriers = [courrier({ typeDestinataire: "Compagnie d'assurance" })]
+    expect(proposerDateDeclaration(cloture, courriers, JOUR)).toMatchObject({ nature: 'a_reporter', date: '2026-10-28' })
+    expect(controlerCourriersDeclaration(cloture, courriers, JOUR)).toEqual([
+      expect.objectContaining({ code: 'chronologie', courrierId: 'c-1', message: expect.stringMatching(/28\/10\/2026.*Clôture datée du 24\/10\/2026/) }),
+    ])
+    // Règlement (19/10) déjà avant la survenance (20/10), et désormais avant la déclaration.
+    const reglement = sinistre({ dateSurvenance: '2026-10-20', dateReglement: '2026-10-19' })
+    expect(controlerCourriersDeclaration(reglement, courriers, JOUR).map((a) => a.message)).toEqual([expect.stringMatching(/Règlement daté du 19\/10\/2026/)])
+  })
+
+  it('sans preuve de réception et date saisie différente : le message ne prétend pas retenir le dépôt', () => {
+    const anomalies = controlerCourriersDeclaration(sinistre({ dateDeclaration: '2026-10-29' }), [courrier({ formeEnvoi: 'Normal', datePremierePresentation: null })], JOUR)
+    expect(anomalies.map((a) => a.code)).toEqual(['sans_preuve_reception', 'ecart_date_saisie'])
+    expect(anomalies[0].message).not.toMatch(/date retenue/i)
+    expect(anomalies[1].message).toMatch(/date saisie est conservée/i)
+    // Sans date saisie, le dépôt est bien la date retenue.
+    expect(controlerCourriersDeclaration(sinistre(), [courrier({ formeEnvoi: 'Normal', datePremierePresentation: null })], JOUR)[0].message).toMatch(
+      /date retenue est celle du dépôt/,
+    )
+  })
+
+  it('catastrophe naturelle, courtier : avis « à l’assureur ou à son représentant local » (L. 125-2, D. 125-6), pas L. 113-2', () => {
+    const [catnat] = controlerCourriersDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [courrier({ typeDestinataire: 'Courtier' })], JOUR)
+    expect(catnat.message).toMatch(/représentant local/)
+    expect(catnat.message).toMatch(/L\. 125-2/)
+    expect(catnat.message).toMatch(/D\. 125-6/)
+    expect(catnat.message).not.toMatch(/L\. 113-2/)
+    const [droitCommun] = controlerCourriersDeclaration(sinistre(), [courrier({ typeDestinataire: 'Courtier' })], JOUR)
+    expect(droitCommun.message).toMatch(/L\. 113-2, 4°/)
+  })
+})
+
+describe('point 58 — contrôle du délai de déclaration', () => {
+  const aujourdhui = '2026-11-20'
+
+  it('déclaré par courrier dans le délai (5 jours ouvrés depuis la connaissance)', () => {
+    expect(controlerDelaiDeclaration(sinistre(), [courrier({ dateDepot: '2026-11-03', datePremierePresentation: null })], { aujourdhui })).toMatchObject({
+      etat: 'dans_le_delai',
+      declarationAuPlusTard: '2026-11-03',
+      delai: { jours: 5, unite: 'jours_ouvres' },
+      dateRetenue: '2026-11-03',
+      source: 'courrier',
+      courrierId: 'c-1',
+      retardJours: 0,
+      fondements: ['C. assur. art. L. 113-2, 4°'],
+      aConfirmer: true,
+    })
+  })
+
+  it('le 11 novembre ne compte pas ; un jour de plus est postérieur au repère', () => {
+    const s = sinistre({ dateSurvenance: '2026-11-06' })
+    expect(controlerDelaiDeclaration(s, [courrier({ dateDepot: '2026-11-16', datePremierePresentation: null })], { aujourdhui }).etat).toBe('dans_le_delai')
+    expect(controlerDelaiDeclaration(s, [courrier({ dateDepot: '2026-11-17', datePremierePresentation: null })], { aujourdhui })).toMatchObject({
+      etat: 'tardive',
+      retardJours: 1,
+    })
+  })
+
+  it('la date saisie prime sur le courrier', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-05' }), [courrier({ dateDepot: '2026-11-02', datePremierePresentation: '2026-11-03' })], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'tardive', dateRetenue: '2026-11-05', source: 'saisie', courrierId: null, retardJours: 2 })
+    expect(resultat.message).toMatch(/repère/i)
+  })
+
+  it('à vérifier : déposé dans le délai, présenté après le repère (décision du 20/11/2026, F53 : choix par défaut gardé)', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), [courrier({ dateDepot: '2026-11-03', datePremierePresentation: '2026-11-04' })], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-03', retardJours: 0 })
+    expect(resultat.message).toMatch(/envoi.*réception/i)
+  })
+
+  it('à vérifier aussi quand seul l’accusé de réception est connu', () => {
+    expect(
+      controlerDelaiDeclaration(sinistre(), [courrier({ dateDepot: '2026-11-03', datePremierePresentation: null, dateAccuseReception: '2026-11-05' })], { aujourdhui })
+        .etat,
+    ).toBe('a_verifier')
+  })
+
+  it('vol : 2 jours ouvrés', () => {
+    expect(controlerDelaiDeclaration(sinistre({ type: 'Vol' }), [courrier({ dateDepot: '2026-10-30', datePremierePresentation: null })], { aujourdhui })).toMatchObject({
+      etat: 'tardive',
+      declarationAuPlusTard: '2026-10-29',
+      delai: { jours: 2, unite: 'jours_ouvres' },
+      retardJours: 1,
+    })
+  })
+
+  it('délai du contrat plus long ; un délai invalide est refusé', () => {
+    const courriers = [courrier({ dateDepot: '2026-11-05', datePremierePresentation: null })]
+    expect(controlerDelaiDeclaration(sinistre(), courriers, { aujourdhui, delaiContratJoursOuvres: 10 })).toMatchObject({
+      etat: 'dans_le_delai',
+      delai: { jours: 10, unite: 'jours_ouvres' },
+    })
+    expect(() => controlerDelaiDeclaration(sinistre(), courriers, { aujourdhui, delaiContratJoursOuvres: 2.5 })).toThrow(/délai du contrat/i)
+  })
+
+  it('non déclaré : à déclarer jusqu’au repère, repère dépassé ensuite', () => {
+    expect(controlerDelaiDeclaration(sinistre(), [], { aujourdhui: '2026-11-03' })).toMatchObject({
+      etat: 'a_declarer',
+      dateRetenue: null,
+      source: null,
+      retardJours: 0,
+    })
+    expect(controlerDelaiDeclaration(sinistre(), [], { aujourdhui: '2026-11-05' })).toMatchObject({ etat: 'delai_depasse', retardJours: 2 })
+  })
+
+  it('dommages-ouvrage : pas de repère (gabarit « pas de délai de déclaration propre »)', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ type: 'Dommages Ouvrage' }), [], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null, delai: null, retardJours: 0 })
+    expect(resultat.message).toMatch(/pas de délai de déclaration propre/i)
+    expect(resultat.fondements).toEqual(['C. assur. annexe II à l’art. A. 243-1 (durée de la garantie)', 'C. assur. art. L. 114-1'])
+    expect(resultat.fondements).toContain('C. assur. art. L. 114-1')
+  })
+
+  it('catastrophe naturelle : 30 jours après la publication de l’arrêté, sans repère si elle n’est pas connue', () => {
+    const catnat = sinistre({ type: 'Catastrophes naturelles' })
+    expect(controlerDelaiDeclaration(catnat, [], { aujourdhui })).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null })
+    expect(
+      controlerDelaiDeclaration(catnat, [courrier({ dateDepot: '2026-11-25', datePremierePresentation: null })], {
+        aujourdhui: '2026-11-30',
+        datePublicationArrete: '2026-11-02',
+      }),
+    ).toMatchObject({
+      etat: 'dans_le_delai',
+      declarationAuPlusTard: '2026-12-02',
+      delai: { jours: 30, unite: 'jours' },
+      fondements: ['C. assur. art. L. 125-2', 'C. assur. art. D. 125-6'],
+    })
+    expect(() => controlerDelaiDeclaration(catnat, [], { aujourdhui, datePublicationArrete: '02/11/2026' })).toThrow(/arrêté/i)
+  })
+
+  it('signal, jamais une déchéance ; date du jour contrôlée', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-05' }), [], { aujourdhui })
+    expect(resultat.avertissement).toContain(AVERTISSEMENT_DELAI_DECLARATION)
+    expect(resultat.avertissement).toMatch(/préjudice/i)
+    expect(resultat.avertissement).toMatch(/force majeure/i)
+    expect(() => controlerDelaiDeclaration(sinistre(), [], { aujourdhui: '2026-13-01' })).toThrow(/jour/i)
+  })
+
+  it('catastrophe naturelle à vérifier : le message cite le texte du délai appliqué (L. 125-2), pas L. 113-2', () => {
+    const resultat = controlerDelaiDeclaration(
+      sinistre({ type: 'Catastrophes naturelles' }),
+      [courrier({ dateDepot: '2026-12-01', datePremierePresentation: '2026-12-03' })],
+      { aujourdhui: '2026-12-10', datePublicationArrete: '2026-11-02' },
+    )
+    expect(resultat).toMatchObject({ etat: 'a_verifier', declarationAuPlusTard: '2026-12-02' })
+    expect(resultat.message).toMatch(/envoi.*réception/i)
+    expect(resultat.message).toMatch(/L\. 125-2/)
+    expect(resultat.message).not.toMatch(/L\. 113-2/)
+  })
+
+  it('J67, R54 : catastrophe naturelle : signal, jamais une déchéance ; aucune sanction propre, règle générale de L. 113-2, sans décret « attendu »', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], { aujourdhui, datePublicationArrete: '2026-11-02' })
+    expect(resultat.avertissement).toBe(AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE)
+    expect(AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE).toBe(
+      "Signal indicatif, jamais une déchéance : ni L. 125-2 ni D. 125-6 ne fixent de sanction du retard ; règle générale de L. 113-2 : déchéance seulement si le contrat la prévoit et si l'assureur prouve un préjudice, jamais en cas fortuit ou de force majeure. Vérifier le contrat et le dossier.",
+    )
+    expect(resultat.avertissement).not.toMatch(/décret/)
+  })
+
+  it('J67, R50 : jours ouvrés depuis le lendemain ; l’avertissement rappelle de déclarer dès la connaissance (droit commun seulement)', () => {
+    const rappel = 'Déclarer dès la connaissance du sinistre ; le repère est le minimum légal du délai prévu au contrat (C. assur. art. L. 113-2, 4°)'
+    for (const type of ['Dégât des eaux', 'Vol'] as const) expect(controlerDelaiDeclaration(sinistre({ type }), [], { aujourdhui }).avertissement).toContain(rappel)
+    // Dommages-ouvrage (aucun repère) et catastrophe naturelle (autre délai) : pas de minimum légal à rappeler.
+    expect(controlerDelaiDeclaration(sinistre({ type: 'Dommages Ouvrage' }), [], { aujourdhui }).avertissement).toBe(AVERTISSEMENT_DELAI_DECLARATION)
+    expect(controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], { aujourdhui }).avertissement).not.toContain(rappel)
+  })
+
+  it('J67, R53 : « Tempête, Grêles, Neiges » : repère de droit commun, avertissement de prudence pour la grêle (L. 123-1)', () => {
+    const tempete = controlerDelaiDeclaration(sinistre({ type: 'Tempête, Grêles, Neiges' }), [], { aujourdhui: '2026-11-03' })
+    expect(tempete).toMatchObject({ etat: 'a_declarer', declarationAuPlusTard: '2026-11-03', delai: { jours: 5, unite: 'jours_ouvres' } })
+    expect(tempete.avertissement).toContain(
+      'En cas de grêle, par prudence, envoyer la déclaration dans les quatre jours de la survenance (C. assur. L. 123-1 ; application à la multirisque à vérifier sur la police).',
+    )
+    expect(controlerDelaiDeclaration(sinistre(), [], { aujourdhui }).avertissement).not.toMatch(/grêle/)
+  })
+
+  it('J67, R55 : catastrophe naturelle, 30e jour un samedi : date reportée donnée pour information ; l’alerte suit la date sans report', () => {
+    const catnat = sinistre({ type: 'Catastrophes naturelles' })
+    const samedi = controlerDelaiDeclaration(catnat, [], { aujourdhui: '2026-12-06', datePublicationArrete: '2026-11-05' })
+    expect(samedi).toMatchObject({ etat: 'delai_depasse', declarationAuPlusTard: '2026-12-05', declarationAuPlusTardReportee: '2026-12-07', retardJours: 1 })
+    expect(samedi.message).toContain('Premier jour ouvrable suivant : 07/12/2026 ; report non prévu par le texte : déclarer au plus tard le 05/12/2026.')
+    // 30e jour ouvrable, ou droit commun : rien de reporté.
+    const mercredi = controlerDelaiDeclaration(catnat, [], { aujourdhui: '2026-11-20', datePublicationArrete: '2026-11-02' })
+    expect(mercredi).toMatchObject({ declarationAuPlusTard: '2026-12-02', declarationAuPlusTardReportee: null })
+    expect(mercredi.message).not.toMatch(/report/)
+    expect(controlerDelaiDeclaration(sinistre(), [], { aujourdhui }).declarationAuPlusTardReportee).toBeNull()
+  })
+
+  it('suivi plus avancé sans date de déclaration : ni « à déclarer » ni « déclarer sans attendre »', () => {
+    const close = sinistre({ phase: 'Indemnités', dateExpertise: '2026-11-10', dateReglement: '2026-12-01', dateCloture: '2026-12-15' })
+    const resultat = controlerDelaiDeclaration(close, [], { aujourdhui: '2026-12-20' })
+    expect(resultat).toMatchObject({ etat: 'declaration_non_datee', retardJours: 0, dateRetenue: null, declarationAuPlusTard: '2026-11-03' })
+    expect(resultat.message).toMatch(/Clôture datée du 15\/12\/2026/)
+    expect(resultat.message).not.toMatch(/sans attendre/i)
+    for (const etape of [{ dateExpertise: '2026-11-10' }, { dateRapport: '2026-11-12' }, { dateReglement: '2026-12-01' }]) {
+      const s = sinistre(etape)
+      expect(controlerDelaiDeclaration(s, [], { aujourdhui: '2026-12-20' }).etat).toBe('declaration_non_datee')
+      // Même lecture que le suivi à faire : pas d'élément « à déclarer ».
+      expect(depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche: s.fiche }]).map((e) => e.nature)).not.toContain('a_declarer')
+    }
+  })
+
+  it('phase saisie qui suit la déclaration, aucune date de suivi (T42, T43 § 5) : « déclaration non datée », jamais « déclarer sans attendre »', () => {
+    for (const phase of PHASES_APRES_DECLARATION) {
+      const s = sinistre({ phase })
+      expect(etapeSuiviSinistre(s.fiche)).toBe('a_declarer')
+      const resultat = controlerDelaiDeclaration(s, [], { aujourdhui: '2026-12-20' })
+      expect(resultat).toMatchObject({ etat: 'declaration_non_datee', retardJours: 0, dateRetenue: null, source: null, declarationAuPlusTard: '2026-11-03' })
+      expect(resultat.message).toContain(`phase saisie est « ${phase} »`)
+      expect(resultat.message).toMatch(/vérifier que le sinistre est déclaré/)
+      expect(resultat.message).toMatch(/repère indicatif au 03\/11\/2026/)
+      expect(resultat.message).not.toMatch(/sans attendre/i)
+      // Suivi à faire : l'élément du critère « À déclarer » demeure, mais à vérifier, sans injonction.
+      const elements = depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche: s.fiche }]).filter((e) => e.nature === 'a_declarer')
+      expect(elements.map((e) => e.libelle)).toEqual([`DDE — ${REPERE_SUIVI} — déclaration non datée (phase « ${phase} ») : à vérifier`])
+    }
+    expect(PHASES_APRES_DECLARATION).toEqual(['Accusé réception', "Mission d'expertise", 'Relances', 'Complément de document', 'Indemnités'])
+  })
+
+  it('phase initiale, étape « Déclaration » ou régime « Dommages Ouvrages » (🔴) : le sinistre reste à déclarer', () => {
+    const neutres = [null, 'Général', 'Déclaration', 'Dommages Ouvrages'] as const
+    expect([...neutres.filter((p) => p !== null), ...PHASES_APRES_DECLARATION].sort()).toEqual([...PHASE_SINISTRE].sort())
+    for (const phase of neutres) {
+      const s = sinistre({ phase })
+      expect(controlerDelaiDeclaration(s, [], { aujourdhui: '2026-12-20' })).toMatchObject({ etat: 'delai_depasse', message: expect.stringMatching(/sans attendre/) })
+      expect(depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche: s.fiche }]).find((e) => e.nature === 'a_declarer')?.libelle).toBe(`DDE — ${REPERE_SUIVI}`)
+    }
+  })
+
+  it('la phase ne masque ni une date de déclaration ni un courrier : le délai est contrôlé', () => {
+    expect(controlerDelaiDeclaration(sinistre({ phase: 'Indemnités', dateDeclaration: '2026-11-05' }), [], { aujourdhui })).toMatchObject({ etat: 'tardive', retardJours: 2 })
+    expect(
+      controlerDelaiDeclaration(sinistre({ phase: 'Relances' }), [courrier({ dateDepot: '2026-11-05', datePremierePresentation: null })], { aujourdhui }),
+    ).toMatchObject({ etat: 'tardive', source: 'courrier', retardJours: 2 })
+  })
+
+  it('dépôt daté après aujourd’hui : écarté, le sinistre reste à déclarer (ou en retard)', () => {
+    const futur = [courrier({ dateDepot: '2026-11-02', datePremierePresentation: null })]
+    const resultat = controlerDelaiDeclaration(sinistre(), futur, { aujourdhui: '2026-10-28' })
+    expect(resultat).toMatchObject({ etat: 'a_declarer', dateRetenue: null, source: null, courrierId: null })
+    expect(resultat.message).toMatch(/02\/11\/2026, après aujourd'hui.*écarté/i)
+    expect(controlerDelaiDeclaration(sinistre(), [courrier({ dateDepot: '2026-11-20', datePremierePresentation: null })], { aujourdhui: '2026-11-10' })).toMatchObject({
+      etat: 'delai_depasse',
+      retardJours: 7,
+    })
+    // Un courrier déjà déposé reste retenu ; le suivant, daté après aujourd'hui, est ignoré.
+    expect(
+      controlerDelaiDeclaration(sinistre(), [courrier({ id: 'c-0', dateDepot: '2026-10-28' }), ...futur], { aujourdhui: '2026-10-30' }),
+    ).toMatchObject({ etat: 'dans_le_delai', courrierId: 'c-0', dateRetenue: '2026-10-28' })
+  })
+
+  it('date saisie après aujourd’hui : jamais remplacée, mais pas de conclusion sur le délai', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-02' }), [], { aujourdhui: '2026-10-29' })
+    expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-02', source: 'saisie', retardJours: 0 })
+    expect(resultat.message).toMatch(/02\/11\/2026, après aujourd'hui/)
+  })
+
+  it('décompte de L. 113-2, 4° (J67, R50) : jours ouvrés depuis le lendemain de la connaissance, le repère tombe toujours un jour ouvré', () => {
+    let jour = '2026-01-01'
+    for (let i = 0; i < 365; i++, jour = ajouterJours(jour, 1))
+      for (const type of ['Dégât des eaux', 'Vol'] as const) {
+        const repere = controlerDelaiDeclaration(sinistre({ type, dateSurvenance: jour }), [], { aujourdhui: '2027-12-31' }).declarationAuPlusTard
+        expect(repere !== null && estJourOuvrable(repere)).toBe(true)
+      }
+    // Connaissance le lundi 02/11 : mardi 03, mercredi 04, jeudi 05, vendredi 06, lundi 09.
+    expect(controlerDelaiDeclaration(sinistre({ dateSurvenance: '2026-11-02' }), [], { aujourdhui }).declarationAuPlusTard).toBe('2026-11-09')
+  })
+
+  it('décompte de la catastrophe naturelle (J67, R55) : trente jours calendaires, un dernier jour samedi n’est pas reporté', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], { aujourdhui, datePublicationArrete: '2026-11-05' })
+    expect(resultat.declarationAuPlusTard).toBe('2026-12-05')
+    expect(jourSemaine('2026-12-05')).toBe(6)
+  })
+})
+
+/**
+ * J67, R51 (décision de Hugo du 17/11/2026) : en principe, le courtier est le mandataire de l'assuré (Cass. 1re civ.,
+ * 22/10/1996, n° 94-15.613). La date de transmission à la compagnie, si elle est connue, se compare au repère ; un mandat
+ * de l'assureur vu fait retenir la date du courrier au courtier ; sinon l'état reste « à vérifier ».
+ */
+describe('J67, R51 — déclaration adressée au courtier', () => {
+  const aujourdhui = '2026-11-20'
+  const auCourtier = (dateDepot = '2026-11-02') => [courrier({ typeDestinataire: 'Courtier', dateDepot, datePremierePresentation: null })]
+
+  it('sans mandat vu ni transmission datée : « à vérifier : mandat du courtier et date de transmission à la compagnie » ; signal conservé', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-02', source: 'courrier', courrierId: 'c-1', retardJours: 0 })
+    expect(resultat.message).toBe(
+      'Déclaration adressée au courtier le 02/11/2026, dans le repère indicatif du 03/11/2026 : à vérifier : mandat du courtier et date de transmission à la compagnie.',
+    )
+    expect(controlerCourriersDeclaration(sinistre(), auCourtier(), JOUR).map((a) => a.code)).toContain('destinataire_non_assureur')
+  })
+
+  it('« transmis à la compagnie le » : cette date se compare au repère ; le message la nomme, le courrier au courtier reste désigné', () => {
+    const dansLeDelai = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-03' })
+    expect(dansLeDelai).toMatchObject({ etat: 'dans_le_delai', dateRetenue: '2026-11-03', source: 'transmission', courrierId: 'c-1' })
+    expect(dansLeDelai.message).toBe(
+      'Transmission à la compagnie du 03/11/2026 (courrier au courtier du 02/11/2026), dans le repère indicatif du 03/11/2026.',
+    )
+    const tardive = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-05' })
+    expect(tardive).toMatchObject({ etat: 'tardive', retardJours: 2, source: 'transmission', courrierId: 'c-1' })
+    expect(tardive.message).toBe(
+      'Transmission à la compagnie du 05/11/2026 (courrier au courtier du 02/11/2026), postérieure au repère indicatif du 03/11/2026.',
+    )
+    const future = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-25' })
+    expect(future).toMatchObject({ etat: 'a_verifier', retardJours: 0 })
+    expect(future.message).toMatch(/^Transmission à la compagnie saisie au 25\/11\/2026, après aujourd'hui/)
+    expect(() => controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '05/11/2026' })).toThrow(/transmission/i)
+  })
+
+  it('transmission datée avant le courrier au courtier (ou avant la survenance) : « à vérifier », la date du courrier est gardée', () => {
+    for (const [transmisCompagnieLe, saisie] of [
+      ['2026-10-28', '28/10/2026'],
+      ['2020-01-01', '01/01/2020'],
+    ]) {
+      const resultat = controlerDelaiDeclaration(sinistre(), auCourtier('2026-11-05'), { aujourdhui, transmisCompagnieLe })
+      expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-05', source: 'courrier', courrierId: 'c-1', retardJours: 0 })
+      expect(resultat.message).toBe(
+        `Transmission à la compagnie saisie au ${saisie}, avant le courrier au courtier du 05/11/2026 : date de transmission à vérifier ; délai non contrôlé (repère indicatif du 03/11/2026).`,
+      )
+    }
+  })
+
+  it('les deux champs se lisent aussi sur la fiche (assurance du sinistre) ; l’option de l’appelant prime', () => {
+    const assurance = { compagnie: null, courtier: 'Courtier Démo', contrat: null, numeroSinistre: null }
+    const transmise = sinistre({ assurance: { ...assurance, transmisCompagnieLe: '2026-11-05' } })
+    expect(controlerDelaiDeclaration(transmise, auCourtier(), { aujourdhui })).toMatchObject({ etat: 'tardive', source: 'transmission', dateRetenue: '2026-11-05' })
+    expect(controlerDelaiDeclaration(transmise, auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-03' })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-03',
+    })
+    const mandate = sinistre({ assurance: { ...assurance, courtierMandateParAssureur: true } })
+    expect(controlerDelaiDeclaration(mandate, auCourtier(), { aujourdhui })).toMatchObject({ etat: 'dans_le_delai', source: 'courrier', dateRetenue: '2026-11-02' })
+    expect(controlerDelaiDeclaration(mandate, auCourtier(), { aujourdhui, courtierMandateParAssureur: false }).etat).toBe('a_verifier')
+  })
+
+  it('courrier au courtier, puis courrier direct à la compagnie dans le repère : ce dernier fait la date ; après le repère, « à vérifier » reste', () => {
+    const puisCompagnie = (dateDepot: string) => [
+      ...auCourtier(),
+      courrier({ id: 'c-2', typeDestinataire: "Compagnie d'assurance", dateDepot, datePremierePresentation: null }),
+    ]
+    expect(controlerDelaiDeclaration(sinistre(), puisCompagnie('2026-11-03'), { aujourdhui })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-03',
+      source: 'courrier',
+      courrierId: 'c-2',
+    })
+    expect(controlerDelaiDeclaration(sinistre(), puisCompagnie('2026-11-05'), { aujourdhui })).toMatchObject({
+      etat: 'a_verifier',
+      dateRetenue: '2026-11-02',
+      courrierId: 'c-1',
+    })
+    // Transmission connue, mais après l'avis direct : le premier avis reçu par la compagnie compte.
+    expect(controlerDelaiDeclaration(sinistre(), puisCompagnie('2026-11-03'), { aujourdhui, transmisCompagnieLe: '2026-11-05' })).toMatchObject({
+      etat: 'dans_le_delai',
+      courrierId: 'c-2',
+    })
+  })
+
+  it('courtier mandaté par l’assureur (mandat vu) : la date du courrier au courtier est retenue', () => {
+    expect(
+      controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, courtierMandateParAssureur: true, transmisCompagnieLe: '2026-11-05' }),
+    ).toMatchObject({ etat: 'dans_le_delai', dateRetenue: '2026-11-02', source: 'courrier', courrierId: 'c-1' })
+  })
+
+  it('courrier au courtier déjà postérieur au repère : tardive ; déclaration à la compagnie : les deux champs sont sans effet', () => {
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier('2026-11-05'), { aujourdhui })).toMatchObject({ etat: 'tardive', retardJours: 2 })
+    const aLaCompagnie = [courrier({ typeDestinataire: "Compagnie d'assurance", dateDepot: '2026-11-02', datePremierePresentation: null })]
+    expect(controlerDelaiDeclaration(sinistre(), aLaCompagnie, { aujourdhui, transmisCompagnieLe: '2026-11-05' })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-02',
+      source: 'courrier',
+    })
+  })
+})
+
+/**
+ * Décision du 20/11/2026 (partie C, F53) : le dépôt reste la date proposée et « à vérifier » reste l'état quand la
+ * réception connue suit le repère. Police « reçue » ou « parvenue » (réglage par contrat) : la réception (première
+ * présentation, à défaut accusé de réception) se compare au repère (repère du droit commun ici : 03/11/2026).
+ */
+describe('F53 — date comparée au repère : dépôt par défaut, réception si la police le dit', () => {
+  const aujourdhui = '2026-11-20'
+  const recue = { aujourdhui, receptionSelonPolice: true }
+  const pli = (dateDepot: string, datePremierePresentation: string | null, dateAccuseReception: string | null = null) => [
+    courrier({ dateDepot, datePremierePresentation, dateAccuseReception }),
+  ]
+
+  it('par défaut, ou réglage à faux : rien ne change (dépôt proposé, « à vérifier » si la réception suit le repère)', () => {
+    for (const options of [{ aujourdhui }, { aujourdhui, receptionSelonPolice: false }])
+      expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-03', '2026-11-04'), options)).toMatchObject({
+        etat: 'a_verifier',
+        dateRetenue: '2026-11-03',
+        source: 'courrier',
+        retardJours: 0,
+      })
+  })
+
+  it('police « reçue » : présenté après le repère → postérieure au repère, comptée de la réception ; le dépôt reste la date proposée', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), pli('2026-11-03', '2026-11-04'), recue)
+    expect(resultat).toMatchObject({ etat: 'tardive', dateRetenue: '2026-11-03', source: 'courrier', courrierId: 'c-1', retardJours: 1 })
+    expect(resultat.message).toBe(
+      'Déclaration déposée le 03/11/2026, reçue le 04/11/2026, postérieure au repère indicatif du 03/11/2026 : la police compte la réception (« reçue » ou « parvenue »).',
+    )
+    expect(resultat.avertissement).toContain(AVERTISSEMENT_DELAI_DECLARATION)
+  })
+
+  it('police « reçue » : reçue dans le repère → dans le délai', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), pli('2026-11-02', '2026-11-03'), recue)
+    expect(resultat).toMatchObject({ etat: 'dans_le_delai', dateRetenue: '2026-11-02', retardJours: 0 })
+    expect(resultat.message).toBe('Déclaration déposée le 02/11/2026, reçue le 03/11/2026, dans le repère indicatif du 03/11/2026 (la police compte la réception).')
+  })
+
+  it('police « reçue » : à défaut de première présentation, l’accusé de réception', () => {
+    expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-02', null, '2026-11-05'), recue)).toMatchObject({ etat: 'tardive', retardJours: 2 })
+    expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-02', '2026-11-03', '2026-11-05'), recue).etat).toBe('dans_le_delai')
+  })
+
+  it('police « reçue », réception non saisie : à vérifier ; dépôt déjà après le repère : postérieure au repère', () => {
+    const inconnue = controlerDelaiDeclaration(sinistre(), pli('2026-11-02', null), recue)
+    expect(inconnue).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-02', retardJours: 0 })
+    expect(inconnue.message).toMatch(/réception non saisie/)
+    expect(inconnue.message).toMatch(/première présentation, à défaut l'accusé de réception/)
+    expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-05', null), recue)).toMatchObject({ etat: 'tardive', retardJours: 2 })
+  })
+
+  it('le réglage ne joue ni pour une date saisie sans courrier, ni pour une transmission du courtier, ni pour un courrier au courtier à vérifier', () => {
+    expect(controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-02' }), [], recue)).toMatchObject({ etat: 'dans_le_delai', source: 'saisie' })
+    const auCourtier = [courrier({ typeDestinataire: 'Courtier', dateDepot: '2026-11-02', datePremierePresentation: '2026-11-04' })]
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier, { ...recue, transmisCompagnieLe: '2026-11-03' })).toMatchObject({
+      etat: 'dans_le_delai',
+      source: 'transmission',
+    })
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier, recue).message).toMatch(/mandat du courtier et date de transmission/)
+  })
+
+  it('date saisie égale au dépôt du courrier : la réception de ce courrier compte', () => {
+    expect(controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-03' }), pli('2026-11-03', '2026-11-04'), recue)).toMatchObject({
+      etat: 'tardive',
+      source: 'saisie',
+      courrierId: 'c-1',
+      retardJours: 1,
+    })
+  })
+
+  it('réglage mal formé : erreur', () => {
+    expect(() => controlerDelaiDeclaration(sinistre(), [], { aujourdhui, receptionSelonPolice: 'oui' as never })).toThrow(/réception/i)
+  })
+})
+
+describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55 fermées', () => {
+  const { texte } = enTeteDuModule('declaration-sinistre')
+  const questions = texte.slice(texte.indexOf('🔴 Questions'))
+
+  it('questions tranchées retirées ; questions encore ouvertes gardées', () => {
+    expect(questions).not.toMatch(/vaut-elle avis « à l'assureur »/)
+    expect(questions).not.toMatch(/Dommages-ouvrage : faut-il un contrôle de délai/)
+    expect(questions).not.toMatch(/quelles conséquences d'une déclaration tardive/)
+    expect(questions).not.toMatch(/Le cabinet le reporte-t-il au premier jour ouvré suivant/)
+    expect(questions).not.toMatch(/Le délai de quatre jours de l'art\. L\. 123-1/)
+    expect(questions).not.toMatch(/Décompte de L\. 113-2, 4°/)
+    // Question tranchée par la décision du 20/11/2026 (partie C, F53).
+    expect(questions).not.toMatch(/quelle date le cabinet retient-il comme date de déclaration/)
+    expect(questions).toMatch(/la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre/)
+    // Depuis la relecture de J67, R49 (suivi-a-faire.ts), la date de cinq jours ouvrés est marquée « à confirmer ».
+    expect(questions).toMatch(
+      /suivi-a-faire\.ts applique encore à ce type cinq jours ouvrés depuis la connaissance, date marquée « à confirmer » avec sa raison \(sinistres\.REGIMES_A_CONFIRMER/,
+    )
+    expect(questions).toMatch(/Phase saisie sans date de déclaration/)
+  })
+
+  it('décisions J67 citées avec leurs textes ; le décret de L. 125-2 vise l’emploi de l’indemnité', () => {
+    for (const r of ['R50', 'R51', 'R52', 'R53', 'R54', 'R55']) expect(texte).toContain(`J67, ${r}`)
+    expect(texte).toMatch(/Cass\. 1re civ\., 22\/10\/1996, n° 94-15\.613/)
+    expect(texte).toMatch(/R\. 125-6-1 \(décret n° 2024-82 du 05\/02\/2024, en vigueur depuis le 07\/02\/2024\)/)
+    expect(texte).not.toMatch(/un décret en Conseil d'État en précise les modalités, les dérogations et les conséquences de sa méconnaissance par l'assuré\. Art\. D\. 125-6/)
+    expect(texte).toMatch(/C\. assur\. art\. L\. 123-1/)
+  })
+
+  it('décision du 20/11/2026 (partie C, F53) citée avant les questions, avec ses textes et le réglage par contrat', () => {
+    const decision = texte.slice(texte.indexOf('Décision du 20/11/2026 (partie C, F53)'), texte.indexOf('🔴 Questions'))
+    expect(decision).toMatch(/^Décision du 20\/11\/2026 \(partie C, F53\) : garder le dépôt comme date proposée/)
+    expect(decision).toMatch(/« reçue » ou « parvenue »/)
+    expect(decision).toMatch(/receptionSelonPolice/)
+    expect(decision).toMatch(/première présentation, à défaut accusé de réception/)
+    expect(decision).toMatch(/L\. 123-1/)
+    expect(decision).toMatch(/L\. 113-12/)
+    expect(decision).toMatch(/enregistrement à brancher/)
+  })
+})
+
+describe('contrôle du délai de déclaration : aucun repère depuis une année improbable (faute de frappe)', () => {
+  const aujourdhui = '2026-11-20'
+
+  it('survenance en 9998 : « sans repère », au lieu de lever « Date ISO invalide » (repère en l’an 10000)', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateSurvenance: '9998-03-01' }), [], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null, delai: null, retardJours: 0, aConfirmer: true })
+    expect(resultat.message).toBe('Survenance datée du 01/03/9998 : année improbable (faute de frappe ?). Pas de repère : corriger la date.')
+  })
+
+  it('connaissance en 9999 : « sans repère », la date fautive est citée', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateConnaissance: '9999-12-30' }), [], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null })
+    expect(resultat.message).toBe('Connaissance datée du 30/12/9999 : année improbable (faute de frappe ?). Pas de repère : corriger la date.')
+  })
+
+  it('catastrophe naturelle, arrêté publié en 9999 : « sans repère », au lieu de lever (publication + 30 jours en l’an 10000)', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], {
+      aujourdhui,
+      datePublicationArrete: '9999-12-15',
+    })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null, declarationAuPlusTardReportee: null, delai: null })
+    expect(resultat.message).toBe(
+      "Publication de l'arrêté datée du 15/12/9999 : année improbable (faute de frappe ?). Pas de repère : corriger la date.",
+    )
+  })
+})

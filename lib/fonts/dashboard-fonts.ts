@@ -1,7 +1,7 @@
 import './polices-tableaux-de-bord.css'
 
 // Fonts partagées par les dashboards privés (syndic + coproprietaire).
-// Chargées uniquement sur ces routes — pas dans app/layout.tsx global —
+// Chargées uniquement sur ces routes — pas dans la coquille racine globale (components/common/CoquilleRacine.tsx) —
 // pour ne pas alourdir les pages publiques SEO (perf 2026).
 //
 // Playfair Display utilisé pour KPI numbers, modal titles, doc empty states

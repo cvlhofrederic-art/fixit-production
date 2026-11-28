@@ -212,10 +212,11 @@ export async function POST(request: NextRequest) {
     ]
 
     // ── 4. Appel LLM — Claude Sonnet 5.5 en premier (lib/claude.ts), puis la
-    // chaîne historique Cerebras primary (60K TPM), Groq fallback (6K TPM) ──
-    // Groq free tier llama-3.3-70b = 6K TPM : le prompt strict de Max (~8K tokens
-    // prompt+completion) dépasse systématiquement cette limite → 429 sur chaque
-    // requête. Cerebras Inference a le même modèle avec 60K TPM, largement suffisant.
+    // chaîne historique Cerebras primary (60K TPM), Groq fallback ──
+    // L'offre gratuite de Groq refuse une requête plus grosse que sa limite par
+    // minute (8K jetons pour gpt-oss) : le prompt strict de Max (~8K tokens
+    // prompt+completion) la dépasse. Cerebras sert le même modèle (gpt-oss-120b,
+    // lib/constants.ts) avec une limite bien plus large.
     const CEREBRAS_API_KEY = await getSecret('CEREBRAS_API_KEY')
     let llmData: GroqResponse | null = null
     let providerUsed: 'claude' | 'cerebras' | 'groq' = 'claude'

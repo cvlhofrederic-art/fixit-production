@@ -13,16 +13,61 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
+import { getDocSeq, dedupeDocsByIdentity, stableDocId, optionsFusionPourRole, numeroPorteParUnAutreDocument } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill, formaterMontantCents } from '@/lib/acompte-par-taux'
-import { acomptesDejaFacturesPourDevis, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
+import { acomptesDejaFacturesPourDevis, aNumeroDefinitif, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
+import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
+import { fichePortugaise } from '@/lib/numerotation-prefixes'
+import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
+import type { ChampRecherche } from '@/lib/documents/recherche-documents'
+import {
+  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, FiltreStatut, IndiceResultat,
+  cleDocumentBtp, useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
+} from '@/components/dashboard/documents/OutilsListeDocuments'
+
+// Colonnes de la liste V5 des devis : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
+const CHAMPS_VISIBLES_DEVIS: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client', 'intitule', 'date', 'montant'])
+
+// Filtre par statut de la liste V5 des devis (« Tout télécharger » suit le filtre, ex. seulement les acceptés).
+type FiltreStatutDevis = 'tous' | 'horsBrouillons' | 'brouillons' | 'envoyes' | 'acceptes' | 'refuses'
+const FILTRES_STATUT_DEVIS: readonly FiltreStatutDevis[] = ['tous', 'horsBrouillons', 'brouillons', 'envoyes', 'acceptes', 'refuses']
+
+/** Statut d'un devis pour ce filtre, aligné sur son badge (statuts FR du navigateur et EN de la base). */
+function filtreDuDevis(status: string | undefined): Exclude<FiltreStatutDevis, 'tous' | 'horsBrouillons'> {
+  if (status === 'accepte' || status === 'accepted' || status === 'signe' || status === 'signed') return 'acceptes'
+  if (status === 'refuse' || status === 'rejected') return 'refuses'
+  if (status === 'envoye' || status === 'sent') return 'envoyes'
+  return 'brouillons'
+}
+
+/**
+ * Le devis entre-t-il dans le filtre ? « Hors brouillons » = tout devis émis (envoyé, accepté ou refusé) avec un
+ * numéro définitif : un brouillon passé « envoyé » depuis la liste, sans numéro, n'en fait pas partie.
+ */
+function devisDansFiltre(doc: { status?: string; docNumber?: string }, filtre: FiltreStatutDevis): boolean {
+  if (filtre === 'tous') return true
+  const statut = filtreDuDevis(doc.status)
+  if (filtre === 'horsBrouillons') return statut !== 'brouillons' && aNumeroDefinitif(doc)
+  return statut === filtre
+}
+
+/**
+ * Société BTP : refus d'une action que le serveur rattache au seul numéro du devis (annulation, « Accepté » ou
+ * « Refusé ») quand un autre devis de la liste porte ce numéro : c'est l'autre devis qui serait modifié en base
+ * (relecture adverse du lot numérotation, 16/11/2026).
+ */
+const messageNumeroDevisEnDouble = (numero: string, action: 'annulation' | 'statut'): string =>
+  action === 'annulation'
+    ? `Deux devis portent le numéro ${numero} : l'annulation est bloquée tant que ce numéro est en double, pour ne pas annuler le mauvais.`
+    : `Deux devis portent le numéro ${numero} : son statut ne peut pas changer tant que ce numéro est en double, pour ne pas modifier le mauvais.`
 
 interface DevisLine {
   totalHT?: number
@@ -99,8 +144,9 @@ export default function DevisSection({
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
     // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
     // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
-    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
-    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity). Société BTP :
+    // deux devis distincts au même numéro restent tous les deux (optionsFusionPourRole).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts], optionsFusionPourRole(orgRole)))
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
@@ -111,6 +157,8 @@ export default function DevisSection({
       docType: 'devis',
       isSameDoc,
       setSavedDocuments,
+      // Salarié invité : la suppression en base passe par le serveur (la RLS filtrerait sans erreur).
+      sousCompte: estSousCompteSociete(artisan),
       // Pré-validé : le modal stylé en amont fait office de confirm() humain.
       confirmDraftDelete: () => true,
     })
@@ -120,6 +168,11 @@ export default function DevisSection({
   const handleRemoveDoc = (doc: DevisDocument) => {
     if (isDocDraftStatus(doc.status, 'devis')) {
       setPendingDraftDelete(doc)
+      return
+    }
+    // BTP : annulation refusée tant qu'un autre devis porte le même numéro (le serveur annule par numéro).
+    if (orgRole === 'pro_societe' && doc.docNumber && numeroPorteParUnAutreDocument(doc, savedDocuments)) {
+      toast.error(messageNumeroDevisEnDouble(doc.docNumber, 'annulation'))
       return
     }
     _handleRemoveDocRaw(doc)
@@ -318,7 +371,9 @@ export default function DevisSection({
                                 locale: locale as 'fr' | 'pt' | 'en',
                                 t,
                                 artisan: artisan ? {
-                                  id: artisan.id,
+                                  // Fiche de la SOCIÉTÉ pour un salarié invité : elle porte le gabarit, le logo
+                                  // et l'identité légale du document (lib/documents/identite-documents.ts).
+                                  id: idFicheDocuments(artisan),
                                   company_name: artisan.company_name,
                                   logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                   rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -359,7 +414,7 @@ export default function DevisSection({
                             <button onClick={() => {
                               const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                               const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHT.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
-                              window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
+                              window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
@@ -453,6 +508,7 @@ function DevisSectionV5({
   const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
+  const [filtreStatut, setFiltreStatut] = useState<FiltreStatutDevis>('tous')
   // « Facturer » (méthode pro 2026, BTP) : choix Facture totale (conversion
   // directe existante) ou Facture d'acompte (échéancier du devis / % choisi →
   // émission directe d'une facture d'acompte reliée au devis).
@@ -485,13 +541,19 @@ function DevisSectionV5({
     emissionEnCours.current = true
     const tid = toast.loading(isPt ? 'A emitir a fatura…' : 'Émission de la facture…')
     try {
-      // RIB du profil au jour de l'émission (comme le formulaire), pas celui figé dans le devis.
+      // RIB et forme juridique du profil au jour de l'émission (comme le formulaire), pas ceux figés dans le devis.
       const rib = await chargerRibProfil()
       const emitted = await emitDocument({
-        payload: appliquerRibCourant(resultat.payload, rib),
+        payload: appliquerFormeProfil(appliquerRibCourant(resultat.payload, rib), (artisan as { legal_form?: string } | null)?.legal_form),
         artisanId: artisan.id,
-        getNumber: () => fetchNextDocNumber('facture', artisan.id),
+        // `artisanId` reste SON compte (clés de son navigateur) ; la base, elle, enregistre le document sous la
+        // fiche de la société pour un salarié invité.
+        ficheId: idFicheDocuments(artisan),
+        // Numéro du serveur seulement, place du navigateur vérifiée avant de le tirer (lib/emission-hors-serveur.ts).
+        // `uidSerie` : la série est celle de la société, jamais une seconde série ouverte par le salarié.
+        getNumber: () => fetchNextDocNumber('facture', artisan.id, { repliLocal: false, uidSerie: artisan.user_id }),
         sync: syncDocumentSafe,
+        verifierPlaceAvantNumero: true,
       })
       setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
       const deduits = resultat.acomptesDeduits.length
@@ -507,7 +569,9 @@ function DevisSectionV5({
       )
     } catch (err) {
       console.warn('[DevisFactureEmit] émission échouée', err)
-      toast.error(isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.', { id: tid })
+      // Numéro introuvable sur le serveur ou stockage plein : message en français ; le texte portugais reste inchangé.
+      const message = isPt ? null : messageEmissionArretee(err, 'facture', 'emission')
+      toast.error(message ?? (isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.'), { id: tid })
     } finally {
       emissionEnCours.current = false
     }
@@ -520,17 +584,22 @@ function DevisSectionV5({
       .map(a => Number((a as { acompteOrdre?: number }).acompteOrdre))
       .filter(n => Number.isFinite(n))
 
-  const filtered = devisDocs
-    .filter(d => {
-      if (!search) return true
-      const q = search.toLowerCase()
-      return (
-        d.docNumber?.toLowerCase().includes(q) ||
-        d.clientName?.toLowerCase().includes(q) ||
-        d.docTitle?.toLowerCase().includes(q)
-      )
-    })
+  // Recherche dans tout ce qui est relié au devis : client, objet, chantier, adresses, lignes, notes, date, montant HT…
+  const recherche = useRechercheDocuments(devisDocs, search, locale, CHAMPS_VISIBLES_DEVIS, computeDevisTotalHT)
+  const filtered = recherche.documents
+    .filter(d => devisDansFiltre(d, filtreStatut))
     .sort((a, b) => getDocSeq(b) - getDocSeq(a))
+  // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP. Société BTP : une case par devis, même
+  // quand deux devis portent le même numéro (cleDocumentBtp).
+  const selection = useSelectionDocuments(filtered, orgRole === 'pro_societe' ? cleDocumentBtp : undefined)
+  const devisCoches = selection.selectionnes(devisDocs)
+  const { progression, telecharger, annuler } = useTelechargementGroupe({
+    artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveDevis'),
+  })
+  const telechargerListe = async () => {
+    const coches = devisCoches.length > 0
+    if (await telecharger(coches ? devisCoches : filtered) && coches) selection.vider()
+  }
 
   const getV5Badge = (doc: DevisDocument) => {
     if (doc.status === 'cancelled' || doc.status === 'annule') return { cls: 'v5-badge v5-badge-red', label: locale === 'pt' ? 'Anulado' : 'Annulé' }
@@ -545,6 +614,11 @@ function DevisSectionV5({
   // Met à jour localStorage + DB. L'audit log est généré par le trigger 080.
   const updateDevisStatus = async (doc: DevisDocument, newStatus: 'accepted' | 'rejected') => {
     if (!doc.docNumber) return
+    // BTP : le statut est envoyé au serveur avec le seul numéro ; refus tant qu'un autre devis porte ce numéro.
+    if (orgRole === 'pro_societe' && numeroPorteParUnAutreDocument(doc, devisDocs)) {
+      toast.error(messageNumeroDevisEnDouble(doc.docNumber, 'statut'))
+      return
+    }
     const isPt = locale === 'pt'
     const labelAccept = isPt ? 'Aceite' : 'Accepté'
     const labelReject = isPt ? 'Recusado' : 'Refusé'
@@ -604,17 +678,39 @@ function DevisSectionV5({
           placeholder={t('proDash.devis.rechercher')}
           value={search}
           onChange={e => setSearch(e.target.value)}
+          aria-label={t('proDash.devis.rechercher')}
+        />
+        <BoutonsTelechargementGroupe
+          nbAffiches={filtered.length}
+          nbSelectionnes={devisCoches.length}
+          progression={progression}
+          onTelecharger={() => { void telechargerListe() }}
+          onVider={selection.vider}
+          onAnnuler={annuler}
+          t={t}
         />
         <button className="v5-btn v5-btn-p" onClick={() => openDevisForm()}>
           + {t('proDash.devis.creerDevisV5')}
         </button>
       </div>
 
+      {/* Filtre par statut : Tous / Hors brouillons / Brouillons / Envoyés / Acceptés / Refusés. */}
+      <FiltreStatut
+        options={FILTRES_STATUT_DEVIS.map(cle => ({
+          cle,
+          libelle: t(`proDash.documentsListe.filtresDevis.${cle}`),
+          nombre: devisDocs.filter(d => devisDansFiltre(d, cle)).length,
+        }))}
+        actif={filtreStatut}
+        onChoisir={setFiltreStatut}
+      />
+
       {/* Table */}
       <div className="v5-card" style={{ overflowX: 'auto' }}>
         <table className="v5-dt">
           <thead>
             <tr>
+              <EnteteSelection etat={selection.etatEntete} onBasculer={selection.basculerTout} t={t} />
               <th>N°</th>
               <th>{t('proDash.devis.date')}</th>
               <th>{t('proDash.devis.client')}</th>
@@ -633,9 +729,17 @@ function DevisSectionV5({
                 : (doc.savedAt ? new Date(doc.savedAt).toLocaleDateString(dateLocale) : '-')
               return (
                 <tr key={`v5-dev-${i}`}>
+                  <CelluleSelection
+                    coche={selection.estSelectionne(doc)}
+                    onBasculer={plage => selection.basculer(doc, plage)}
+                    libelle={`${t('proDash.documentsListe.selectionner')} ${doc.docNumber || doc.clientName || ''}`.trim()}
+                  />
                   <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
                   <td>{dateStr}</td>
-                  <td>{doc.clientName || t('proDash.devis.nonRenseigne')}</td>
+                  <td>
+                    {doc.clientName || t('proDash.devis.nonRenseigne')}
+                    <IndiceResultat indice={recherche.indiceDe(doc)} t={t} />
+                  </td>
                   <td>{doc.docTitle || '-'}</td>
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{totalHT.toLocaleString('fr-FR')} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
@@ -655,7 +759,7 @@ function DevisSectionV5({
                             const subject = encodeURIComponent(`${t('proDash.devis.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                             const totalHTMail = computeDevisTotalHT(doc)
                             const body = encodeURIComponent(`${t('proDash.devis.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.devis.emailCorps')} ${doc.docNumber} ${t('proDash.devis.emailMontant')} ${totalHTMail.toFixed(2)} € ${t('proDash.devis.montantHT')}.\n\n${t('proDash.devis.emailCordialement')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
-                            window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
+                            window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
                             const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                             const now = new Date().toISOString()
@@ -695,7 +799,7 @@ function DevisSectionV5({
                               locale: locale as 'fr' | 'pt' | 'en',
                               t,
                               artisan: artisan ? {
-                                id: artisan.id,
+                                id: idFicheDocuments(artisan),
                                 company_name: artisan.company_name,
                                 logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -766,8 +870,8 @@ function DevisSectionV5({
               )
             }) : (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
-                  {search ? t('proDash.devis.aucunDevisTrouve') : t('proDash.devis.aucunDevisCreer')}
+                <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
+                  {search || filtreStatut !== 'tous' ? t('proDash.devis.aucunDevisTrouve') : t('proDash.devis.aucunDevisCreer')}
                 </td>
               </tr>
             )}
@@ -853,13 +957,17 @@ function DevisSectionV5({
               // (acomptes déjà facturés pris en compte). Artisan : lignes du devis au pourcentage, inchangé.
               const parentDoc = parent as unknown as Record<string, unknown>
               const prefilled = estBtp
-                ? appliquerRibCourant(
-                    buildAcompteParTauxPrefill(parentDoc, params, {
-                      locale: isPt ? 'pt' : 'fr',
-                      dejaFacture: acomptesDejaFacturesPourDevis(parentDoc, factures as unknown as Record<string, unknown>[]),
-                    }),
-                    // RIB du profil au jour de l'émission, pas celui figé dans le devis.
-                    await chargerRibProfil(),
+                ? appliquerFormeProfil(
+                    appliquerRibCourant(
+                      buildAcompteParTauxPrefill(parentDoc, params, {
+                        locale: isPt ? 'pt' : 'fr',
+                        dejaFacture: acomptesDejaFacturesPourDevis(parentDoc, factures as unknown as Record<string, unknown>[]),
+                      }),
+                      // RIB du profil au jour de l'émission, pas celui figé dans le devis.
+                      await chargerRibProfil(),
+                    ),
+                    // Forme juridique du profil, de même (le champ du formulaire BTP est verrouillé).
+                    (artisan as { legal_form?: string } | null)?.legal_form,
                   )
                 : buildAcomptePrefill(parentDoc, params)
               if (estBtp && (prefilled.lines as unknown[]).length === 0) {
@@ -869,8 +977,14 @@ function DevisSectionV5({
               const emitted = await emitDocument({
                 payload: prefilled,
                 artisanId: artisan.id,
-                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                ficheId: idFicheDocuments(artisan),
+                // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
+                // (lib/emission-hors-serveur.ts). Artisan : repli local d'origine, préfixes selon la langue de sa fiche.
+                getNumber: estBtp
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false, uidSerie: artisan.user_id })
+                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: fichePortugaise(artisan) }),
                 sync: syncDocumentSafe,
+                ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })
               setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
               toast.success(
@@ -881,7 +995,10 @@ function DevisSectionV5({
               )
             } catch (err) {
               console.warn('[DevisAcompteEmit] émission échouée', err)
-              toast.error(isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+              // BTP en français : numéro introuvable sur le serveur ou stockage plein, dit clairement. Artisan et texte
+              // portugais : inchangés.
+              const message = estBtp && !isPt ? messageEmissionArretee(err, 'acompte', 'emission') : null
+              toast.error(message ?? (isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.'), { id: tid })
             } finally {
               if (estBtp) emissionEnCours.current = false
             }

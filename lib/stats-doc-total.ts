@@ -21,5 +21,12 @@ export function docRevenueHT(doc: object | null | undefined): number {
   const fromLines = computeDocumentTotalHT(doc as unknown as Parameters<typeof computeDocumentTotalHT>[0])
   if (fromLines) return fromLines
   const cents = (doc as { total_ht_cents?: number } | null | undefined)?.total_ht_cents
-  return (cents ?? 0) / 100
+  if (cents != null) return cents / 100
+  // Dernier repli : le total DÉJÀ calculé que porte la forme sommaire de `fetchDocumentsFromSupabase`. Quand la
+  // colonne `raw_data` est absente ou nulle, celle-ci rend `{ …, totalHT: total_ht_cents / 100 }` SANS conserver
+  // `total_ht_cents` : ni les lignes ni les centimes n'étaient donc lisibles, et le document pesait 0 € alors
+  // qu'il portait son total. Portée réelle modeste — `buildPayload` ne persiste jamais `total_ht_cents`, seul le
+  // seed de démonstration le pose — mais lire un total présent plutôt que de rendre 0 n'a aucun inconvénient.
+  const total = (doc as { totalHT?: unknown } | null | undefined)?.totalHT
+  return typeof total === 'number' && Number.isFinite(total) ? total : 0
 }

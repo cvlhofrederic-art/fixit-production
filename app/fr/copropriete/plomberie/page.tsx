@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Plomberie Copropriété Marseille : Colonnes Montantes, Urgence Immeuble | VITFIX',
+  title: 'Plomberie Copropriété Marseille : Colonnes Montantes, Urgence Immeuble',
   description: 'Plomberie de copropriété à Marseille : maintenance colonnes montantes, réparation fuites parties communes, chaudière collective, urgence 24h. Contrat syndic.',
   alternates: { canonical: 'https://vitfix.io/fr/copropriete/plomberie/' },
 }

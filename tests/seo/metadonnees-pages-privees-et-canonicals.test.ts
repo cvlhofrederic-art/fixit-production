@@ -15,6 +15,8 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (nom: string) => (nom === 'locale' && cookieLocale.valeur ? { name: 'locale', value: cookieLocale.valeur } : undefined),
   }),
+  // Sans x-locale (langue du chemin), la langue vient du cookie, seul varié ici.
+  headers: async () => new Headers(),
 }))
 vi.mock('@/app/fr/recherche/page', () => ({ default: () => null }))
 vi.mock('@/app/fr/marches/gerer/GererMarcheClient', () => ({ default: () => null }))
@@ -37,8 +39,8 @@ describe('pages légales FR servies par réécriture : canonical sur /fr/…', (
   // /confidentialite/ et /cookies/ répondent 302 géolocalisé (vers /pt/privacidade/, /pt/politica-cookies/ au Portugal).
   // Fusion Next clé par clé ({ ...layout, ...page }) : un alternates déclaré par la page annulerait la canonical du layout.
   it('/fr/confidentialite/', async () => {
-    const layout = await metadataDe(import('@/app/confidentialite/layout'))
-    const page = await metadataDe(import('@/app/confidentialite/page'))
+    const layout = await metadataDe(import('@/app/(commun)/confidentialite/layout'))
+    const page = await metadataDe(import('@/app/(commun)/confidentialite/page'))
     expect(layout.alternates?.canonical).toBe('https://vitfix.io/fr/confidentialite/')
     const fusion: Metadata = { ...layout, ...page }
     expect(fusion.alternates?.canonical).toBe('https://vitfix.io/fr/confidentialite/')
@@ -47,8 +49,8 @@ describe('pages légales FR servies par réécriture : canonical sur /fr/…', (
   })
 
   it('/fr/cookies/', async () => {
-    const layout = await metadataDe(import('@/app/cookies/layout'))
-    const page = await metadataDe(import('@/app/cookies/page'))
+    const layout = await metadataDe(import('@/app/(commun)/cookies/layout'))
+    const page = await metadataDe(import('@/app/(commun)/cookies/page'))
     expect(layout.alternates?.canonical).toBe('https://vitfix.io/fr/cookies/')
     const fusion: Metadata = { ...layout, ...page }
     expect(fusion.alternates?.canonical).toBe('https://vitfix.io/fr/cookies/')
@@ -58,7 +60,7 @@ describe('pages légales FR servies par réécriture : canonical sur /fr/…', (
 
 describe('/pro/tarifs/ : canonical par locale', () => {
   it('FR : https://vitfix.io/fr/pro/tarifs/ (et non /pro/tarifs/, en 302 géolocalisé)', async () => {
-    const { generateMetadata } = await import('@/app/pro/tarifs/page')
+    const { generateMetadata } = await import('@/app/(commun)/pro/tarifs/page')
     cookieLocale.valeur = 'fr'
     expect((await generateMetadata()).alternates?.canonical).toBe('https://vitfix.io/fr/pro/tarifs/')
     cookieLocale.valeur = undefined
@@ -66,19 +68,20 @@ describe('/pro/tarifs/ : canonical par locale', () => {
   })
 
   it('PT : inchangé', async () => {
-    const { generateMetadata } = await import('@/app/pro/tarifs/page')
+    const { generateMetadata } = await import('@/app/(commun)/pro/tarifs/page')
     cookieLocale.valeur = 'pt'
     expect((await generateMetadata()).alternates?.canonical).toBe('https://vitfix.io/pt/pro/tarifs/')
   })
 })
 
 describe('pages privées : noindex, nofollow', () => {
-  // Pages 'use client' sans métadonnées : sans layout, elles héritent de robots index, follow du layout racine.
+  // Pages sans métadonnées propres (pages client, ou page qui rend seule un composant client) : sans layout, elles
+  // héritent de robots index, follow du layout racine.
   it.each([
     ['/pt/privacidade/meus-dados/ (espace RGPD du compte)', () => import('@/app/pt/privacidade/meus-dados/layout')],
     ['/en/privacy/my-data/ (espace RGPD du compte)', () => import('@/app/en/privacy/my-data/layout')],
-    ['/fr|pt/tracking/<jeton>/ (position de l’artisan, adresse de la mission)', () => import('@/app/tracking/[token]/layout')],
-    ['/fr|pt/confirmation/ (confirmation de réservation)', () => import('@/app/confirmation/layout')],
+    ['/fr|pt/tracking/<jeton>/ (position de l’artisan, adresse de la mission)', () => import('@/app/(commun)/tracking/[token]/layout')],
+    ['/fr|pt/confirmation/ (confirmation de réservation)', () => import('@/app/(commun)/confirmation/layout')],
   ])('%s', async (_page, charger) => {
     const segment = await charger()
     const metadata = await metadataDe(Promise.resolve(segment))
@@ -95,6 +98,64 @@ describe('pages privées : noindex, nofollow', () => {
     const fr = await metadataDe(import('@/app/fr/marches/gerer/page'))
     expect(fr.robots).toEqual(NOINDEX)
     expect(pt.robots).toEqual(NOINDEX)
+  })
+
+  it('/fr|pt/aj-signalement/ (espace du super admin) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Cas à part : l'espace a son propre titre d'onglet (« AJ Signalement »), contrairement aux layouts ci-dessus.
+    const segment = await import('@/app/(commun)/aj-signalement/layout')
+    const metadata = await metadataDe(Promise.resolve(segment))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('AJ Signalement')
+  })
+
+  it('/fr|pt/aj-signalement/connexion/ (connexion professionnelle de l’espace) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Robots redits par la page (sous le layout de l'espace) : un changement du layout ne la rendrait pas indexable.
+    const metadata = await metadataDe(import('@/app/(commun)/aj-signalement/connexion/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — AJ Signalement')
+  })
+
+  it('/<identifiant>/… (chemin public d’un cabinet client, AJ Signalement) : noindex, nofollow, noarchive', async () => {
+    const segment = await import('@/app/(commun)/cabinet/[identifiant]/layout')
+    const metadata = await metadataDe(Promise.resolve(segment))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+  })
+
+  it('/<identifiant>/confirmation-adresse/ : noindex et aucun Referer (le jeton du lien est dans l’ancre)', async () => {
+    vi.doMock('@/components/aj-signalement/ConfirmationAdresseQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/confirmation-adresse/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+  })
+
+  it('/<identifiant>/invitation/ (ouverture de l’accès d’un gestionnaire) : noindex, aucun Referer, titre propre', async () => {
+    vi.doMock('@/components/aj-signalement/InvitationAccesQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/invitation/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+    expect(metadata.title).toBe('AJ Signalement — Ouverture de votre accès')
+  })
+
+  // Espace du cabinet (PR 2, lot 4) : connexion professionnelle du cabinet et suivi du gestionnaire.
+  it('/<identifiant>/connexion/ (connexion professionnelle du cabinet) : noindex, nofollow, noarchive, titre au nom du cabinet', async () => {
+    vi.doMock('@/components/aj-signalement/espace/ChargeurConnexionEspaceQr', () => ({ default: () => null }))
+    vi.doMock('@/lib/aj-signalement/serveur', () => ({
+      lireCabinetDuCheminQr: async (identifiant: string) => ({ ok: true, cabinet: { identifiant, nom: 'Cabinet Exemple' } }),
+    }))
+    const { generateMetadata } = await import('@/app/(commun)/cabinet/[identifiant]/connexion/page')
+    const metadata = await generateMetadata({ params: Promise.resolve({ identifiant: 'cabinet-exemple' }) })
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — Cabinet Exemple')
+  })
+
+  it('/<identifiant>/suivi/ (espace du gestionnaire) : noindex, nofollow, noarchive, titre de l’espace', async () => {
+    vi.doMock('@/components/aj-signalement/espace/ChargeurEspaceQr', () => ({ default: () => null }))
+    vi.doMock('@/lib/aj-signalement/serveur', () => ({
+      lireCabinetDuCheminQr: async (identifiant: string) => ({ ok: true, cabinet: { identifiant, nom: 'Cabinet Exemple' } }),
+    }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/suivi/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('AJ Signalement')
   })
 })
 

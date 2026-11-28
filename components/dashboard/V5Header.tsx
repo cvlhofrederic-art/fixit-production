@@ -123,7 +123,7 @@ export default function V5Header({
     if (mins < 60) return `${mins}min`
     const hours = Math.floor(mins / 60)
     if (hours < 24) return `${hours}h`
-    return `${Math.floor(hours / 24)}j`
+    return `${Math.floor(hours / 24)}${isPt ? 'd' : 'j'}`
   }
 
   return (
@@ -141,7 +141,7 @@ export default function V5Header({
       {/* Notifications */}
       <div className="v5-notif-wrap">
         <button className="v5-notif-btn" onClick={() => setShowNotifDropdown(!showNotifDropdown)} aria-label={unreadNotifCount > 0 ? (isPt ? `Notificações (${unreadNotifCount} não lidas)` : `Notifications (${unreadNotifCount} non lues)`) : (isPt ? 'Notificações' : 'Notifications')}>
-          Notifications
+          {isPt ? 'Notificações' : 'Notifications'}
           {unreadNotifCount > 0 && (
             <span style={{ background: '#fff', color: '#F57C00', borderRadius: 8, padding: '0 5px', fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
               {unreadNotifCount > 99 ? '99+' : unreadNotifCount}

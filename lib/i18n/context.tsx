@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useContext, useCallback, useMemo, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import type { Locale } from './config'
 import { DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_LS_KEY } from './config'
 import { translateUrl } from './url-translator'
@@ -49,10 +48,8 @@ export function LanguageProvider({
   initialLocale?: Locale
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale)
-  const router = useRouter()
 
   const setLocale = useCallback((newLocale: Locale) => {
-    setLocaleState(newLocale)
     // Persist to cookie (1 year)
     document.cookie = `${LOCALE_COOKIE}=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax;Secure`
     // Persist to localStorage
@@ -62,11 +59,17 @@ export function LanguageProvider({
     // séparés. Si la page actuelle n'a PAS d'équivalent dans la locale
     // cible, on ne navigue pas (le drapeau aurait dû être caché côté UI
     // par le LanguageSwitcher). Cf. lib/i18n/url-translator.ts.
+    // La page équivalente est dans un autre dossier de langue, donc sous un autre layout racine : Next ferait de toute
+    // façon une navigation complète, après avoir rendu puis jeté sa charge RSC. On y va directement, barre finale
+    // comprise (trailingSlash : sinon une redirection 308 de plus), sans traduire d'abord la page qu'on quitte : le
+    // nouveau document arrive dans la bonne langue.
     const newPath = translateUrl(window.location.pathname, newLocale)
     if (newPath) {
-      router.replace(newPath)
+      window.location.replace(newPath.endsWith('/') ? newPath : `${newPath}/`)
+      return
     }
-  }, [router])
+    setLocaleState(newLocale)
+  }, [])
 
   const t = useCallback((key: string, fallback?: string): string => {
     return resolveKey(dictionaries[locale], key, fallback)

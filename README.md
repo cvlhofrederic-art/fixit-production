@@ -63,10 +63,10 @@ npm run test:e2e         # Tests E2E (Playwright)
 npm run test:e2e:ui      # Tests E2E avec interface visuelle
 
 # Mobile (Capacitor)
-npm run mobile:build     # Build iOS + Android
-npm run mobile:ios       # Build iOS uniquement
-npm run mobile:android   # Build Android uniquement
-npm run mobile:sync      # Synchroniser les assets web vers les projets natifs
+npm run mobile:build     # cap sync iOS + Android (l'appli affiche le site : pas d'export web)
+npm run mobile:ios       # cap sync iOS uniquement
+npm run mobile:android   # cap sync Android uniquement (APK de test : workflow mobile-android.yml)
+npm run mobile:sync      # Synchroniser config, plugins et page hors connexion vers les projets natifs
 npm run mobile:open:ios  # Ouvrir Xcode
 npm run mobile:open:android  # Ouvrir Android Studio
 ```
@@ -227,7 +227,7 @@ app/api/
 
 - Imports Capacitor toujours dynamiques : `await import('@capacitor/local-notifications')` — obligatoire pour éviter crash SSR
 - Guard mobile : `window.innerWidth <= 900 || 'ontouchstart' in window || Capacitor.isNativePlatform()`
-- Voir `capacitor.config.ts` pour la configuration (appId: `com.fixit.artisan`)
+- Voir `capacitor.config.ts` pour la configuration (appli Vitfix Pro, appId: `io.vitfix.pro`, qui affiche l'espace mobile du site) et `MOBILE_GUIDE.md`
 
 ### Bugs connus (ne pas réintroduire)
 

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { ID_MODULE_DICTIONNAIRE, MODULES_SELON_LE_PAYS, dictionnaireDisponible } from '@/lib/dictionnaire-materiaux/disponibilite'
 
 export type ModuleConfig = { id: string; enabled: boolean; order: number }
 export type ModuleDef = { id: string; icon: string; label: string; description: string; category: string; locked?: boolean }
@@ -17,20 +18,35 @@ const CATEGORIES_DEFAULT: CategoryDef[] = [
   { id: 'vitrine', label: 'Vitrine', icon: '🖼️', order: 8 },
 ]
 
+/** Dictionnaire matériaux : son contenu dépend du pays, il n'existe que dans les langues dont le pays a un dictionnaire. */
+function modulesDictionnaire(isPt: boolean): ModuleDef[] {
+  const pays = isPt ? 'PT' : 'FR'
+  if (!dictionnaireDisponible(pays)) return []
+  return [{
+    id: ID_MODULE_DICTIONNAIRE,
+    icon: '📖',
+    label: isPt ? 'Dicionário de materiais' : 'Dictionnaire matériaux',
+    description: isPt ? 'Os materiais a usar em cada situação' : 'Les matériaux à utiliser selon la situation',
+    category: 'chantiers',
+  }]
+}
+
 export function useModulesConfig(artisanId: string | undefined, t: (key: string, fallback?: string) => string, isPt = false) {
   // ── ALL_MODULES — matches V5 BTP Pro sidebar order exactly ──
   const ALL_MODULES: ModuleDef[] = useMemo(() => [
     // ── Pilotage ──
     { id: 'home', icon: '📊', label: isPt ? 'Painel' : 'Tableau de bord', description: isPt ? 'Visão geral da atividade' : 'Vue d\'ensemble de l\'activité', category: 'pilotage', locked: true },
-    { id: 'gestion_comptes', icon: '👥', label: isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs', description: isPt ? 'Gerentes, encarregados, chefes de obra' : 'Gérants, conducteurs, chefs de chantier', category: 'pilotage' },
+    { id: 'gestion_comptes', icon: '👥', label: isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs', description: isPt ? 'Gerentes, diretores de obra, encarregados' : 'Gérants, conducteurs, chefs de chantier', category: 'pilotage' },
     { id: 'stats', icon: '📈', label: isPt ? 'Estatísticas' : 'Statistiques', description: isPt ? 'Análise de desempenho' : 'Analyse de performance', category: 'pilotage' },
     { id: 'revenus', icon: '💰', label: isPt ? 'Receitas' : 'Revenus', description: isPt ? 'Acompanhamento do volume de negócios' : 'Suivi du chiffre d\'affaires', category: 'pilotage' },
     // ── Chantiers ──
     { id: 'chantiers', icon: '🏗️', label: isPt ? 'Obras' : 'Chantiers', description: isPt ? 'Gestão das obras em curso' : 'Gestion des chantiers en cours', category: 'chantiers' },
     { id: 'gantt', icon: '📊', label: isPt ? 'Planeamento Gantt' : 'Planification Gantt', description: isPt ? 'Planeamento visual das obras' : 'Planning visuel des chantiers', category: 'chantiers' },
     { id: 'equipes', icon: '👷', label: isPt ? 'Equipas' : 'Équipes', description: isPt ? 'Gestão das equipas no terreno' : 'Gestion des équipes terrain', category: 'chantiers' },
-    { id: 'pointage', icon: '⏱️', label: isPt ? 'Marcação de horas' : 'Pointage équipes', description: isPt ? 'Marcação GPS em tempo real' : 'Pointage GPS temps réel', category: 'chantiers' },
-    { id: 'estimation_materiaux', icon: '📐', label: isPt ? 'Estimativa de materiais' : 'Estimation matériaux', description: isPt ? 'Quantitativos DTU e perdas calculadas' : 'Quantitatifs DTU et pertes calculées', category: 'chantiers' },
+    { id: 'pointage', icon: '⏱️', label: isPt ? 'Registo de horas' : 'Pointage équipes', description: isPt ? 'Registo de ponto por GPS em tempo real' : 'Pointage GPS temps réel', category: 'chantiers' },
+    { id: 'outillage', icon: '🧰', label: isPt ? 'Ferramentas e viaturas' : 'Outillage et véhicules', description: isPt ? 'Inventário da empresa, verificado à sexta-feira em cada obra' : 'Inventaire de la société, vérifié le vendredi sur chaque chantier', category: 'chantiers' },
+    { id: 'estimation_materiaux', icon: '📐', label: isPt ? 'Estimativa de materiais' : 'Estimation matériaux', description: isPt ? 'Quantidades de materiais e perdas calculadas' : 'Quantitatifs DTU et pertes calculées', category: 'chantiers' },
+    ...modulesDictionnaire(isPt),
     { id: 'calendar', icon: '📅', label: isPt ? 'Agenda' : 'Agenda / Planning', description: isPt ? 'Marcações e planeamento' : 'Rendez-vous et planning', category: 'chantiers' },
     { id: 'meteo', icon: '🌤️', label: isPt ? 'Meteorologia' : 'Météo chantiers', description: isPt ? 'Previsão meteorológica por obra' : 'Prévisions météo par chantier', category: 'chantiers' },
     { id: 'photos_chantier', icon: '📸', label: isPt ? 'Fotos de obra' : 'Photos Chantier', description: isPt ? 'Acompanhamento fotográfico das obras' : 'Suivi photo des chantiers', category: 'chantiers' },
@@ -38,18 +54,18 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     // ── Commercial ──
     { id: 'pipeline', icon: '📊', label: 'Pipeline', description: isPt ? 'Acompanhamento comercial dos orçamentos' : 'Suivi commercial des devis', category: 'commercial' },
     { id: 'devis', icon: '📄', label: isPt ? 'Orçamentos' : 'Devis', description: isPt ? 'Criação e envio de orçamentos' : 'Création et envoi de devis', category: 'commercial' },
-    { id: 'dpgf', icon: '📁', label: isPt ? 'Concursos / DPGF' : 'Appels d\'offres / DPGF', description: isPt ? 'Resposta a concursos públicos' : 'Réponse aux appels d\'offres', category: 'commercial' },
-    { id: 'marches', icon: '📢', label: isPt ? 'Bolsa de Mercados' : 'Bourse aux Marchés', description: isPt ? 'Concursos e candidaturas' : 'Appels d\'offres et candidatures', category: 'commercial' },
+    { id: 'dpgf', icon: '📁', label: isPt ? 'Concursos / Mapas de quantidades' : 'Appels d\'offres / DPGF', description: isPt ? 'Resposta a concursos públicos' : 'Réponse aux appels d\'offres', category: 'commercial' },
+    { id: 'marches', icon: '📢', label: isPt ? 'Bolsa de oportunidades' : 'Bourse aux Marchés', description: isPt ? 'Concursos e candidaturas' : 'Appels d\'offres et candidatures', category: 'commercial' },
     // ── Facturation ──
     { id: 'factures', icon: '💳', label: isPt ? 'Faturas' : 'Factures', description: isPt ? 'Faturação e acompanhamento de pagamentos' : 'Facturation et suivi paiements', category: 'facturation' },
-    { id: 'situations', icon: '📈', label: isPt ? 'Situações de obra' : 'Situations de travaux', description: isPt ? 'Avanço e faturação progressiva' : 'Avancement et facturation progressive', category: 'facturation' },
-    { id: 'garanties', icon: '🔒', label: isPt ? 'Retenções de garantia' : 'Retenues de garantie', description: isPt ? 'Acompanhamento das retenções 5%' : 'Suivi des retenues 5%', category: 'facturation' },
+    { id: 'situations', icon: '📈', label: isPt ? 'Autos de medição' : 'Situations de travaux', description: isPt ? 'Avanço e faturação progressiva' : 'Avancement et facturation progressive', category: 'facturation' },
+    { id: 'garanties', icon: '🔒', label: isPt ? 'Retenções para garantia' : 'Retenues de garantie', description: isPt ? 'Acompanhamento das retenções de 5% (caução)' : 'Suivi des retenues 5%', category: 'facturation' },
     // ── Sous-traitance & Achats ──
-    { id: 'sous_traitance', icon: '🤝', label: isPt ? 'Subempreitada DC4' : 'Sous-traitance DC4', description: isPt ? 'Formulários DC4 regulamentares' : 'Formulaires DC4 réglementaires', category: 'sous_traitance' },
+    { id: 'sous_traitance', icon: '🤝', label: isPt ? 'Subempreitadas' : 'Sous-traitance DC4', description: isPt ? 'Contratos de subempreitada' : 'Formulaires DC4 réglementaires', category: 'sous_traitance' },
     { id: 'sous_traitance_offres', icon: '🔍', label: isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants', description: isPt ? 'Pesquisa de subempreiteiros' : 'Recherche de sous-traitants', category: 'sous_traitance' },
-    { id: 'rfq_btp', icon: '📋', label: isPt ? 'Orçamentos Fornecedores' : 'Devis Fournisseurs', description: isPt ? 'Pedidos de preço a fornecedores' : 'Demandes de prix fournisseurs', category: 'sous_traitance' },
+    { id: 'rfq_btp', icon: '📋', label: isPt ? 'Orçamentos de fornecedores' : 'Devis Fournisseurs', description: isPt ? 'Pedidos de cotação a fornecedores' : 'Demandes de prix fournisseurs', category: 'sous_traitance' },
     { id: 'materiaux', icon: '🧱', label: isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro', description: isPt ? 'Aprovisionamento e preços' : 'Approvisionnement et prix', category: 'sous_traitance' },
-    { id: 'marketplace_btp', icon: '🏪', label: 'Marketplace BTP', description: isPt ? 'Compras entre profissionais' : 'Achats entre professionnels', category: 'sous_traitance' },
+    { id: 'marketplace_btp', icon: '🏪', label: isPt ? 'Marketplace da construção' : 'Marketplace BTP', description: isPt ? 'Compras entre profissionais' : 'Achats entre professionnels', category: 'sous_traitance' },
     // ── Finances ──
     { id: 'compta_btp', icon: '🧠', label: isPt ? 'Contabilidade IA' : 'Compta Intelligente', description: isPt ? 'Contabilidade assistida por IA' : 'Comptabilité assistée par IA', category: 'finances' },
     { id: 'rentabilite', icon: '💰', label: isPt ? 'Rentabilidade' : 'Rentabilité Chantier', description: isPt ? 'Orçamento previsto vs realizado' : 'Budget prévu vs réalisé', category: 'finances' },
@@ -61,12 +77,12 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     // ── Administration ──
     { id: 'wallet', icon: '📁', label: isPt ? 'Conformidade' : 'Conformité', description: isPt ? 'Documentos regulamentares' : 'Documents réglementaires', category: 'administration' },
     { id: 'contrats', icon: '📑', label: isPt ? 'Contratos' : 'Contrats', description: isPt ? 'Gestão de contratos' : 'Gestion des contrats', category: 'administration' },
-    { id: 'bibliotheque', icon: '📚', label: isPt ? 'Biblioteca' : 'Bibliothèque', description: isPt ? 'Obras, materiais e mão de obra' : 'Ouvrages, matériaux et main-d\'œuvre', category: 'administration' },
-    { id: 'motifs', icon: '🗂️', label: isPt ? 'Prestações' : 'Prestations', description: isPt ? 'Tipos de prestações' : 'Types de prestations', category: 'administration' },
+    { id: 'bibliotheque', icon: '📚', label: isPt ? 'Biblioteca' : 'Bibliothèque', description: isPt ? 'Trabalhos, materiais e mão de obra' : 'Ouvrages, matériaux et main-d\'œuvre', category: 'administration' },
+    { id: 'motifs', icon: '🗂️', label: isPt ? 'Serviços' : 'Prestations', description: isPt ? 'Catálogo dos seus serviços' : 'Types de prestations', category: 'administration' },
     { id: 'horaires', icon: '⏱️', label: isPt ? 'Horários de obra' : 'Horaires chantier', description: isPt ? 'Horários por dia' : 'Plages horaires par jour', category: 'administration' },
     // ── Vitrine ──
     { id: 'portfolio', icon: '🖼️', label: isPt ? 'Referências de obra' : 'Références chantiers', description: isPt ? 'Galeria de realizações' : 'Galerie de réalisations', category: 'vitrine' },
-    { id: 'parrainage', icon: '🎁', label: isPt ? 'Apadrinhamento' : 'Parrainage', description: isPt ? 'Apadrinhe artesãos, ganhe meses grátis' : 'Parrainez des artisans, gagnez des mois gratuits', category: 'vitrine' },
+    { id: 'parrainage', icon: '🎁', label: isPt ? 'Programa de recomendação' : 'Parrainage', description: isPt ? 'Recomende profissionais e ganhe meses grátis' : 'Parrainez des artisans, gagnez des mois gratuits', category: 'vitrine' },
     // ── Compte (locked) ──
     { id: 'settings', icon: '⚙️', label: isPt ? 'O meu perfil' : 'Mon profil', description: isPt ? 'Definições da conta' : 'Paramètres du compte', category: 'compte', locked: true },
   ], [isPt])
@@ -76,12 +92,18 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
 
   const [modulesConfig, setModulesConfig] = useState<ModuleConfig[]>([])
   const [categoriesOrder, setCategoriesOrder] = useState<CategoryDef[]>(CATEGORIES_DEFAULT)
+  // Réglages enregistrés d'un module qui n'existe pas dans cette langue (le dictionnaire hors portugais) : gardés
+  // tels quels à chaque enregistrement, pour le retrouver éteint ou à sa place dans la langue où il existe.
+  const reglagesHorsLangue = useRef<ModuleConfig[]>([])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     // Load modules config
     try {
       const saved = JSON.parse(localStorage.getItem(MODULES_STORAGE_KEY) || '[]')
+      reglagesHorsLangue.current = Array.isArray(saved)
+        ? saved.filter((x: ModuleConfig) => MODULES_SELON_LE_PAYS.has(x?.id) && !ALL_MODULES.some(m => m.id === x.id))
+        : []
       if (saved.length > 0) {
         const merged = ALL_MODULES.map(m => {
           const s = saved.find((x: ModuleConfig) => x.id === m.id)
@@ -113,7 +135,12 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
 
   const saveModulesConfig = useCallback((config: ModuleConfig[]) => {
     setModulesConfig(config)
-    try { localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify(config)) } catch {}
+    const horsLangue = reglagesHorsLangue.current.filter(r => !config.some(c => c.id === r.id))
+    try {
+      localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify([...config, ...horsLangue]))
+    } catch (e) {
+      console.warn('[storage] modules config', e)
+    }
   }, [MODULES_STORAGE_KEY])
 
   const saveCategoriesOrder = useCallback((cats: CategoryDef[]) => {

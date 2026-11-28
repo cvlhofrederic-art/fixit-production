@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { RedactionAutomatiqueJuge } from '@/components/administrateur-judiciaire/modules/mandat/composants/RedactionAutomatiqueJuge'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -23,7 +22,7 @@ import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/
 import { LIBELLES_REGIMES, regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatDateOuPoint } from '@/lib/administrateur-judiciaire/domain/format'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
-import { codeCoproSelectionne, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Document composé pour le juge : rapport au tribunal ou aide-mémoire d'audience. */
 export type DocumentDossierJuge = 'rapport' | 'memo'
@@ -43,9 +42,8 @@ const dateOuNull = (valeur: Date | string): Date | null => (valeur instanceof Da
  */
 export function DossierJugeModule() {
   const { push } = useToast(),
-    { code, choisirCopro } = useSelectionDossier(),
-    [codeLocal, setCodeLocal] = useState(() => codeCoproSelectionne('TL')),
-    codeCopro = codeLocal || code,
+    choisirCopro = useSelectionDossier((etat) => etat.choisirCopro),
+    codeCopro = useCodeCoproCourant('TL'),
     { loading, erreur, fiche } = useFiche360Copropriete(codeCopro),
     { impayes } = useDonneesLocales(),
     regime = fiche ? regimeDepuisFondement(fiche.vue.fondement) : null,
@@ -91,13 +89,7 @@ export function DossierJugeModule() {
         lede="Rapport au juge et aide-mémoire d'audience composés depuis les données réelles du mandat. Ce que la base ne sait pas est dit absent, jamais inventé."
         actions={
           <>
-            <SelecteurCopropriete
-              value={codeCopro ?? ''}
-              onChange={(codeChoisi) => {
-                setCodeLocal(codeChoisi)
-                choisirCopro(codeChoisi)
-              }}
-            />
+            <SelecteurCopropriete value={codeCopro} onChange={choisirCopro} />
             <button className="btn" onClick={() => ouvrirDocument('memo')} disabled={!fiche}>
               <Icon name="clipboard" />
               {"Aide-mémoire d'audience"}

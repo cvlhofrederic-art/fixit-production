@@ -7,6 +7,8 @@ import { Toaster } from 'sonner'
 import { hydrateStorageFromServer, installStorageSync, pushAllLocalToServer } from '@/lib/storage-sync'
 import { importLocalStorageDocsToSupabase } from '@/lib/document-sync'
 import { supabase } from '@/lib/supabase'
+import { installerRetourGoogleAppMobile } from '@/lib/auth/google-app-mobile'
+import type { Session } from '@supabase/supabase-js'
 
 interface ProvidersProps {
   children: ReactNode
@@ -35,12 +37,14 @@ function useStorageSync() {
     // sauvegarde cloud. On utilise désormais le client partagé (cookies SSR).
     installStorageSync()
 
-    async function bootstrap() {
-      if (cancelled) return
-      try {
-        const { data } = await supabase.auth.getSession()
-        if (cancelled || !data.session) return
+    // La session vient de l'événement d'auth : plus aucun getSession() ici (chaque getSession prend le verrou
+    // d'auth partagé entre onglets, lot 1 Sentry du 28/10/2026). Un seul bootstrap à la fois.
+    let bootstrapEnCours = false
 
+    async function bootstrap(session: Session | null) {
+      if (cancelled || !session || bootstrapEnCours) return
+      bootstrapEnCours = true
+      try {
         // 1. Hydrate le localStorage depuis la DB (avant d'installer le
         //    patch sinon cycle de re-mirroir des ecritures d'hydratation).
         const hydrated = await hydrateStorageFromServer()
@@ -49,7 +53,12 @@ function useStorageSync() {
         //    a des entrees (1re connexion apres deploy), on push tout. On
         //    ne pose le flag QUE si le push a effectivement reussi (count > 0)
         //    sinon retry au prochain mount/login.
-        if (hydrated.count === 0) {
+        //    Seulement si le serveur a REPONDU qu'il ne détient rien : une restauration en échec (réseau, 429, 500)
+        //    renvoyait aussi 0, et l'appareil remplaçait alors la sauvegarde du serveur par son propre contenu.
+        //    Et jamais sur un navigateur qui a servi à un autre compte : ce qu'il contient n'est peut-être pas à
+        //    celui-ci (audit des fondations du 11/11/2026). pushAllLocalToServer revérifie lui-même que le serveur
+        //    a répondu « rien » et ne recopie que les clés du compte (relecture du 14/11/2026).
+        if (hydrated.ok && hydrated.vide && !hydrated.autreCompte) {
           const flagKey = 'fixit_user_storage_migrated_v1'
           try {
             if (!localStorage.getItem(flagKey)) {
@@ -67,7 +76,7 @@ function useStorageSync() {
         //    documents accumules en localStorage vers Supabase via le nouvel
         //    endpoint /api/devis/sync. Idempotent : flag par artisan_id.
         try {
-          const userId = data.session.user?.id
+          const userId = session.user?.id
           if (userId) {
             const flagKey = `fixit_devis_synced_v1_${userId}`
             if (!localStorage.getItem(flagKey)) {
@@ -83,18 +92,18 @@ function useStorageSync() {
           }
         } catch { /* tolerant : retry au prochain bootstrap */ }
       } catch { /* tolerant : le localStorage reste fonctionnel */ }
+      finally { bootstrapEnCours = false }
     }
 
-    // Bootstrap immediat (cas : deja connecte en arrivant sur la page).
-    bootstrap()
-
-    // Bootstrap sur INITIAL_SESSION / SIGNED_IN / TOKEN_REFRESHED. INITIAL_SESSION
-    // est crucial : avec @supabase/ssr la session est restaurée depuis les cookies
-    // et émise via cet event (getSession() peut renvoyer null au tout premier tick).
-    // SIGNED_IN couvre le passage par /auth/login (Providers ne se remount pas).
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    // Bootstrap sur INITIAL_SESSION / SIGNED_IN / TOKEN_REFRESHED. INITIAL_SESSION est émis à chaque abonné
+    // après l'initialisation du client (session restaurée depuis les cookies) : il couvre aussi le cas « déjà
+    // connecté en arrivant sur la page », qui déclenchait auparavant un second bootstrap immédiat (GET
+    // /api/user-storage en double). SIGNED_IN couvre le passage par /auth/login (Providers ne se remount pas).
+    // Callback synchrone, travail différé : jamais d'appel Supabase attendu dans un callback onAuthStateChange
+    // (interblocage documenté par Supabase).
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        bootstrap()
+        setTimeout(() => { void bootstrap(session) }, 0)
       }
     })
 
@@ -110,10 +119,40 @@ function StorageSyncBoot() {
   return null
 }
 
+// Retour de « Continuer avec Google » dans l'appli Vitfix Pro (lib/auth/google-app-mobile.ts). Monté sur
+// tout le site par CoquilleRacine : hors de l'appli, l'installation sort aussitôt et ne charge aucun plugin
+// Capacitor. Ici plutôt que sur la page de connexion, pour que le lien profond retrouve un écouteur même si
+// la WebView a changé de page pendant que l'utilisateur s'identifiait chez Google.
+function RetourGoogleAppMobile({ locale }: { locale: Locale }) {
+  useEffect(() => {
+    let annule = false
+    let desinstaller: (() => void) | undefined
+
+    void installerRetourGoogleAppMobile(locale, (chemin) => { window.location.href = chemin })
+      .then((retrait) => {
+        if (annule) retrait()
+        else desinstaller = retrait
+      })
+      .catch((erreur) => {
+        // Plugin injoignable (chunk non chargé) : « Continuer avec Google » redevient une impasse dans
+        // l'appli, sans que rien ne le dise. La connexion par e-mail et mot de passe, elle, reste entière.
+        console.warn('[Providers] retour Google de l’appli non installé :', erreur)
+      })
+
+    return () => {
+      annule = true
+      desinstaller?.()
+    }
+  }, [locale])
+
+  return null
+}
+
 export default function Providers({ children, locale }: ProvidersProps) {
   return (
     <LanguageProvider initialLocale={locale}>
       <StorageSyncBoot />
+      <RetourGoogleAppMobile locale={locale} />
       {children}
       <Toaster position="top-right" richColors closeButton duration={5000} />
     </LanguageProvider>

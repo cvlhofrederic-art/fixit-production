@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
+import { titreAvecMarque } from '@/lib/seo/titre-avec-marque'
 
 export const metadata: Metadata = {
-  title: 'Spécialités VITFIX Marseille : Élagage palmier, débarras succession, fuite urgence',
+  title: titreAvecMarque('Spécialités VITFIX Marseille : Élagage palmier, débarras succession, fuite urgence'),
   description: 'Pages spécialistes VITFIX : élagage palmier PACA, débroussaillage obligation légale, débarras succession, remplacement chauffe-eau, fuite urgence, rénovation salle de bain Marseille.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/',

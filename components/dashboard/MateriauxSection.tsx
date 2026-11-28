@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import { supabase } from '@/lib/supabase'
 import { useThemeVars } from './useThemeVars'
 
@@ -34,12 +35,23 @@ const JOB_PRESETS_SOCIETE_FR = [
   { label: '💧 Réseau plomberie', q: 'Réseau alimentation + évacuation PVC cuivre immeuble neuf 20 appartements' },
 ]
 const JOB_PRESETS_PT = [
-  { label: '🚿 Aquecedor', q: 'Substituição esquentador termostático 200L' },
-  { label: '🪟 Azulejo 20m²', q: 'Colocação azulejo pavimento 20m² formato 60x60' },
-  { label: '⚡ Quadro elétrico', q: 'Substituição quadro elétrico 8 circuitos' },
-  { label: '🚪 Casa de banho', q: 'Renovação casa de banho completa 6m²' },
-  { label: '🔩 Torneiras', q: 'Substituição torneiras cozinha e casa de banho' },
-  { label: '🧱 Isolamento sótão', q: 'Isolamento sótão 50m² lã de vidro' },
+  { label: '🚿 Termoacumulador', q: 'Substituição de termoacumulador termodinâmico 200 L' },
+  { label: '🪟 Mosaico 20 m²', q: 'Colocação de pavimento cerâmico 20 m² formato 60x60' },
+  { label: '⚡ Quadro elétrico', q: 'Substituição de quadro elétrico com 8 circuitos' },
+  { label: '🚪 Casa de banho', q: 'Renovação completa de casa de banho 6 m²' },
+  { label: '🔩 Torneiras', q: 'Substituição de torneiras de cozinha e casa de banho' },
+  { label: '🧱 Isolamento do sótão', q: 'Isolamento de sótão 50 m² com lã de vidro' },
+]
+// Équivalent portugais de JOB_PRESETS_SOCIETE_FR, réservé à la société BTP (orgRole « pro_societe »).
+const JOB_PRESETS_SOCIETE_PT = [
+  { label: '🏗️ Betão estrutural', q: 'Betão armado para fundações + laje de piso 200 m², obra nova' },
+  { label: '🪵 Estrutura de madeira', q: 'Estrutura tradicional de cobertura em madeira 150 m² + telhado em telha' },
+  { label: '🔩 Estrutura metálica', q: 'Estrutura metálica IPE/HEA + revestimento de fachada 500 m², pavilhão industrial' },
+  { label: '🧱 Estrutura e alvenaria', q: 'Blocos de betão + argamassa + lintéis, edifício R/C + 3 andares 200 m²' },
+  { label: '🌿 Capoto / ETICS', q:'Isolamento térmico pelo exterior (ETICS) em poliestireno 300 m², edifício' },
+  { label: '🚧 Arruamentos e redes', q: 'Pavimento betuminoso + lancis de betão, arruamento 1000 m², loteamento' },
+  { label: '🔌 Instalação elétrica', q: 'Cablagem de correntes fortes + quadro geral de baixa tensão, edifício com 20 frações' },
+  { label: '💧 Rede de águas e esgotos', q: 'Rede de abastecimento + drenagem em PVC e cobre, edifício novo com 20 apartamentos' },
 ]
 
 const STORE_COLORS: Record<string, string> = {
@@ -126,12 +138,12 @@ const PRODUCT_PRESETS_FR = [
   { label: '🔨 Visseuse', q: 'visseuse à chocs 18V' },
 ]
 const PRODUCT_PRESETS_PT = [
-  { label: '🔧 Rebarbadora', q: 'rebarbadora 125mm' },
-  { label: '🔩 Berbequim', q: 'berbequim aparafusadora sem fio 18V' },
+  { label: '🔧 Rebarbadora', q: 'rebarbadora 125 mm' },
+  { label: '🔩 Berbequim', q: 'berbequim aparafusador sem fios 18 V' },
   { label: '💨 Karcher', q: 'lavadora de alta pressão karcher' },
-  { label: '🪜 Andaime', q: 'andaime rolante alumínio' },
-  { label: '📐 Laser', q: 'nível laser cruzado verde' },
-  { label: '🔨 Aparafusadora', q: 'aparafusadora de impacto 18V' },
+  { label: '🪜 Andaime', q: 'andaime rolante em alumínio' },
+  { label: '📐 Laser', q: 'nível laser de linhas cruzadas verde' },
+  { label: '🔨 Aparafusadora', q: 'aparafusadora de impacto 18 V' },
 ]
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -329,6 +341,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
   const TVA_REVENTE = 10
   const TVA_ACHAT = 10
+  // En portugais, aucun statut ni taux d'IVA n'est affiché : la détection ci-dessus ne connaît que des formes juridiques
+  // françaises (une « Lda » y serait une EI en franchise) et 10 % est le taux français de la rénovation. Les calculs et
+  // l'export vers l'orçamento restent ceux d'avant (devis : sujet à part, à la décision de Frédéric).
+  const afficherStatutIva = locale !== 'pt'
 
   const getPrixAchatHT = (prixTTC: number) => {
     if (isAssujetti) return prixTTC / (1 + TVA_ACHAT / 100)
@@ -342,6 +358,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
   const margeMinRecommandee = isAutoEntrepreneur ? 30 : 25
   const margeIsRentable = globalMarkup >= margeMinRecommandee
+
+  // Raccourcis « travaux » : en portugais, la société BTP a ses lots de construction, l'artisan ses interventions
+  // courantes (en français, rien ne change : les deux voient les lots BTP).
+  const jobPresets = locale === 'pt'
+    ? (orgRole === 'pro_societe' ? JOB_PRESETS_SOCIETE_PT : JOB_PRESETS_PT)
+    : (isSociete ? JOB_PRESETS_SOCIETE_FR : JOB_PRESETS_FR)
 
   const handleExportDevis = () => {
     if (!currentResults) return
@@ -361,7 +383,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
     onExportDevis(exportLines)
   }
 
-  const formatMsg = (text: string) => safeMarkdownToHTML(text)
+  const formatMsg = (text: string) => assainirHtml(safeMarkdownToHTML(text))
 
   // Totaux avec logique fiscale correcte
   const totalBestPrice = currentResults?.reduce((sum, m) => sum + (m.bestPrice?.price || m.avgPrice || 0), 0) || 0
@@ -408,14 +430,14 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <h1>{locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}</h1>
                 <p>
                   {locale === 'pt'
-                    ? 'Compare os preços dos materiais nas lojas em redor e encontre a melhor tarifa para o seu estaleiro.'
+                    ? 'Compare os preços dos materiais nas lojas em redor e encontre o melhor preço para a sua obra.'
                     : 'Comparez les prix des matériaux dans les magasins autour de vous et trouvez le meilleur tarif pour votre chantier.'}
                 </p>
               </>
             ) : (
               <>
-                <h1>Mat&eacute;riaux &amp; Appro</h1>
-                <p>Stock, commandes, comparatif fournisseurs</p>
+                <h1>{locale === 'pt' ? 'Materiais e aprovisionamento' : <>Mat&eacute;riaux &amp; Appro</>}</h1>
+                <p>{locale === 'pt' ? 'Stock, encomendas e comparação de fornecedores' : 'Stock, commandes, comparatif fournisseurs'}</p>
               </>
             )}
           </div>
@@ -447,12 +469,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
           <div style={{ flex: 1 }}>
             <div className="v22-page-title">
               {isSociete
-                ? (locale === 'pt' ? '🧱 Materiais & Aprovisionamento BTP' : '🧱 Matériaux & Approvisionnement BTP')
+                ? (locale === 'pt' ? '🧱 Materiais & Aprovisionamento de obra' : '🧱 Matériaux & Approvisionnement BTP')
                 : `🛒 ${locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}`}
             </div>
             <div className="v22-page-sub">
               {isSociete
-                ? (locale === 'pt' ? 'Compare preços de materiais para os seus estaleiros e situações de obra' : 'Comparez les prix matériaux pour vos chantiers et situations de travaux')
+                ? (locale === 'pt' ? 'Compare preços de materiais para as suas obras e autos de medição' : 'Comparez les prix matériaux pour vos chantiers et situations de travaux')
                 : (locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne')}
             </div>
           </div>
@@ -503,12 +525,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               <button
                 onClick={() => { setSearchMode('project'); setProductResults(null); setProductRecommendations('') }}
                 className={isV5 ? `v5-tab-b${searchMode === 'project' ? ' active' : ''}` : `v22-tab ${searchMode === 'project' ? 'active' : ''}`}>
-                {locale === 'pt' ? '🏗️ Materiais obra' : '🏗️ Matériaux chantier'}
+                {locale === 'pt' ? '🏗️ Materiais de obra' : '🏗️ Matériaux chantier'}
               </button>
               <button
                 onClick={() => { setSearchMode('product'); setCurrentResults(null); setCurrentEstimate(null) }}
                 className={isV5 ? `v5-tab-b${searchMode === 'product' ? ' active' : ''}` : `v22-tab ${searchMode === 'product' ? 'active' : ''}`}>
-                {locale === 'pt' ? '🛍️ Pesquisa produto' : '🛍️ Recherche produit'}
+                {locale === 'pt' ? '🛍️ Pesquisa de produto' : '🛍️ Recherche produit'}
               </button>
             </div>
           </div>
@@ -520,13 +542,17 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '24px' }}>
                   <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛒</div>
                   <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>
-                    {isSociete ? 'Agent Approvisionnement BTP' : locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}
+                    {locale === 'pt'
+                      ? (orgRole === 'pro_societe' ? 'Agente de aprovisionamento de obra' : 'Agente de materiais IA')
+                      : isSociete ? 'Agent Approvisionnement BTP' : 'Agent Matériaux IA'}
                   </div>
                   <p style={{ fontSize: '12px', color: tv.textMid, lineHeight: 1.6 }}>
-                    {isSociete
-                      ? <>Décrivez votre lot ou chantier — l&apos;agent génère la liste des matériaux avec comparatif de prix fournisseurs <strong>(Point P, Brico Dépôt, Leroy Merlin Pro…)</strong></>
-                      : locale === 'pt'
-                        ? <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
+                    {locale === 'pt'
+                      ? (orgRole === 'pro_societe'
+                        ? <>Descreva o seu lote ou a sua obra: o agente gera a lista de materiais com a comparação de preços dos fornecedores <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
+                        : <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>)
+                      : isSociete
+                        ? <>Décrivez votre lot ou chantier — l&apos;agent génère la liste des matériaux avec comparatif de prix fournisseurs <strong>(Point P, Brico Dépôt, Leroy Merlin Pro…)</strong></>
                         : <>Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong></>
                     }
                   </p>
@@ -541,10 +567,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               {/* Quick presets */}
               <div style={{ marginBottom: '16px' }}>
                 <div className="v22-form-label" style={{ marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {isSociete ? 'Lots de travaux fréquents' : locale === 'pt' ? 'Intervenções comuns' : 'Interventions courantes'}
+                  {locale === 'pt'
+                    ? (orgRole === 'pro_societe' ? 'Trabalhos de obra frequentes' : 'Intervenções comuns')
+                    : isSociete ? 'Lots de travaux fréquents' : 'Interventions courantes'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px' }}>
-                  {(isSociete ? JOB_PRESETS_SOCIETE_FR : locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR).map((p, i) => (
+                  {jobPresets.map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className={btnCls} style={{ textAlign: 'left', padding: '10px 12px' }}>
                       {p.label}
@@ -708,7 +736,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           })()
                         ) : (
                           <div className="v22-card-body">
-                            <span className="v22-ref" style={{ fontStyle: 'italic' }}>{locale === 'pt' ? 'Preços não encontrados — verifique manualmente' : 'Prix non trouvés — vérifiez manuellement'}</span>
+                            <span className="v22-ref" style={{ fontStyle: 'italic' }}>{locale === 'pt' ? 'Preços não encontrados: verifique manualmente' : 'Prix non trouvés — vérifiez manuellement'}</span>
                           </div>
                         )}
 
@@ -844,24 +872,28 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                         {isV5 ? (
                           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px' }}>
                             {locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}
+                            {afficherStatutIva && (
                             <span className={`v5-badge ${isAssujetti ? 'v5-badge-gray' : 'v5-badge-yellow'}`} style={{ marginLeft: 8 }}>
                               {isAssujetti
                                 ? `${(artisan as unknown as { legal_form?: string })?.legal_form || 'Société'} — TVA ${TVA_REVENTE}%`
                                 : `${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise TVA`
                               }
                             </span>
+                            )}
                           </div>
                         ) : (
                         <>
                         <div className="v22-card-head">
                           <div className="v22-card-title">{locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}</div>
                           <div className="v22-card-meta">
+                            {afficherStatutIva && (
                             <span className={`v22-tag ${isAssujetti ? 'v22-tag-gray' : 'v22-tag-amber'}`}>
                               {isAssujetti
                                 ? `📋 ${(artisan as unknown as { legal_form?: string })?.legal_form || 'Société'} — TVA ${TVA_REVENTE}%`
                                 : `📋 ${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise TVA (293B CGI)`
                               }
                             </span>
+                            )}
                           </div>
                         </div>
                         </>
@@ -887,7 +919,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           {!margeIsRentable && totalBestPrice > 0 && (
                             <div className={alertCls('red')} style={{ marginBottom: '12px', cursor: 'default' }}>
                               <span>⚠️ <strong>{locale === 'pt' ? 'Margem insuficiente.' : 'Marge insuffisante.'}</strong> {locale === 'pt'
-                                ? <>Norma mínima: <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' para trabalhador independente (cobre IVA compra não recuperável + encargos)' : ' para empresa sujeita a IVA'}</>
+                                ? <>Mínimo recomendado: <strong>{margeMinRecommandee}%</strong></>
                                 : <>Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)' : ' en société assujettie TVA'}</>
                               }.</span>
                             </div>
@@ -895,7 +927,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           {margeIsRentable && totalBestPrice > 0 && (
                             <div className="v22-alert" style={{ marginBottom: '12px', cursor: 'default', borderLeftColor: tv.green, background: tv.greenLight }}>
                               <span style={{ color: tv.green }}>
-                                {locale === 'pt' ? `✅ Margem conforme às normas do setor (${margeMinRecommandee}% mín)` : `✅ Marge conforme aux standards nationaux BTP (${margeMinRecommandee}% min)`}
+                                {locale === 'pt' ? `✅ Margem acima do mínimo recomendado (${margeMinRecommandee}% mín.)` : `✅ Marge conforme aux standards nationaux BTP (${margeMinRecommandee}% min)`}
                               </span>
                             </div>
                           )}
@@ -906,35 +938,35 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                               <tbody>
                                 <tr>
                                   <td style={{ border: 'none', padding: '4px 0', color: tv.textMid, fontSize: '12px' }}>
-                                    {locale === 'pt' ? 'Custo compra materiais (preço loja c/ IVA)' : 'Coût achat matériaux (prix magasin TTC)'}
+                                    {locale === 'pt' ? 'Custo de compra dos materiais (preço de loja c/ IVA)' : 'Coût achat matériaux (prix magasin TTC)'}
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '4px 0' }}>{Math.round(totalBestPrice)} €</td>
                                 </tr>
-                                {isAssujetti && (
+                                {isAssujetti && afficherStatutIva && (
                                   <tr>
                                     <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
-                                      {locale === 'pt' ? `→ IVA compra recuperado (${TVA_ACHAT}%) — crédito de IVA` : `→ TVA achat récupérée (${TVA_ACHAT}%) — crédit de TVA`}
+                                      {`→ TVA achat récupérée (${TVA_ACHAT}%) — crédit de TVA`}
                                     </td>
                                     <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: tv.green }}>−{Math.round(totalBestPrice - totalCoutAchatHT)} €</td>
                                   </tr>
                                 )}
-                                {isAutoEntrepreneur && (
+                                {isAutoEntrepreneur && afficherStatutIva && (
                                   <tr>
                                     <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
-                                      {locale === 'pt' ? '→ IVA compra não recuperável (incluído no seu custo real)' : '→ TVA achat non récupérable (incluse dans votre coût réel)'}
+                                      {'→ TVA achat non récupérable (incluse dans votre coût réel)'}
                                     </td>
                                     <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: tv.primary }}>{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</td>
                                   </tr>
                                 )}
                                 <tr style={{ borderTop: `1px solid ${tv.border}` }}>
                                   <td style={{ border: 'none', padding: '6px 0 4px', color: tv.textMid, fontSize: '12px' }}>
-                                    {locale === 'pt' ? 'Custo real s/ IVA profissional' : 'Coût réel HT artisan'}
+                                    {locale === 'pt' ? 'Custo real s/ IVA do profissional' : 'Coût réel HT artisan'}
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '6px 0 4px' }}>{Math.round(totalCoutAchatHT)} €</td>
                                 </tr>
                                 <tr>
                                   <td style={{ border: 'none', padding: '4px 0', color: tv.primary, fontSize: '12px' }}>
-                                    {locale === 'pt' ? `Margem revenda ${globalMarkup}%` : `Marge revente ${globalMarkup}%`}
+                                    {locale === 'pt' ? `Margem de revenda ${globalMarkup}%` : `Marge revente ${globalMarkup}%`}
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '4px 0', color: tv.primary, fontWeight: 700 }}>+{markupAmount} €</td>
                                 </tr>
@@ -944,20 +976,22 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '6px 0 4px', fontWeight: 700 }}>{totalWithMarkup} €</td>
                                 </tr>
-                                {isAssujetti && (
+                                {isAssujetti && afficherStatutIva && (
                                   <tr>
                                     <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
-                                      {locale === 'pt' ? `+ IVA ${TVA_REVENTE}% cobrado (renovação)` : `+ TVA ${TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)`}
+                                      {`+ TVA ${TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)`}
                                     </td>
                                     <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0' }}>{Math.round(totalRevente * TVA_REVENTE / 100)} €</td>
                                   </tr>
                                 )}
+                                {afficherStatutIva && (
                                 <tr style={{ borderTop: `2px solid ${tv.borderDark}` }}>
                                   <td style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '13px', color: isAssujetti ? tv.green : tv.green }}>
-                                    {locale === 'pt' ? 'Total c/ IVA cliente' : 'Total TTC client'}
+                                    {'Total TTC client'}
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '14px', color: tv.green }}>{Math.round(totalReventeTTC)} €</td>
                                 </tr>
+                                )}
                               </tbody>
                             </table>
                           </div>
@@ -970,18 +1004,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           }}>
                             <span style={{ color: isAssujetti ? tv.green : tv.primary }}>
                               {locale === 'pt' ? (
-                                isAssujetti ? (
-                                  <>
-                                    <strong>📋 Regime IVA normal:</strong> Recupera o IVA nas compras e cobra IVA nas vendas.
-                                    Taxa aplicável: <strong>23% normal</strong>, 13% intermédia, 6% reduzida (renovação habitação).
-                                  </>
-                                ) : (
-                                  <>
-                                    <strong>📋 Regime de isenção IVA:</strong> Não cobra IVA.
-                                    As compras são a seu cargo c/ IVA (não recuperável).
-                                    As faturas devem mencionar <em>&quot;IVA — isento artigo 53.º do CIVA&quot;</em>.
-                                  </>
-                                )
+                                <>
+                                  <strong>📋 IVA:</strong> o regime (normal ou isenção do artigo 53.º do CIVA) depende da sua situação e não é
+                                  deduzido aqui. Taxas em Portugal continental: 23% normal, 13% intermédia, 6% reduzida.
+                                </>
                               ) : (
                                 isAssujetti ? (
                                   <>
@@ -1004,15 +1030,13 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
                           <button onClick={handleExportDevis} className={btnPrimaryCls} style={{ width: '100%', padding: '10px 16px', fontWeight: 700, fontSize: '13px' }}>
                             {locale === 'pt'
-                              ? `📄 Exportar para orçamento (${totalWithMarkup} € s/ IVA${isAssujetti ? ` + IVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € c/ IVA` : ' — IVA isento'})`
+                              ? `📄 Exportar para orçamento (${totalWithMarkup} € s/ IVA)`
                               : `📄 Exporter vers un devis (${totalWithMarkup} € HT${isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})`
                             }
                           </button>
                           <p className="v22-ref" style={{ textAlign: 'center', marginTop: '6px' }}>
                             {locale === 'pt'
-                              ? (isAssujetti
-                                ? `IVA ${TVA_REVENTE}% cobrado na revenda · Preços s/ IVA calculados com margem ${globalMarkup}%`
-                                : `Isento IVA art. 53.º CIVA · Margem ${globalMarkup}% sobre custo c/ IVA`)
+                              ? `Preços s/ IVA calculados com margem de ${globalMarkup}%`
                               : (isAssujetti
                                 ? `TVA ${TVA_REVENTE}% collectée sur revente · Prix HT client calculés avec marge ${globalMarkup}%`
                                 : `Franchise TVA art. 293B CGI · Marge ${globalMarkup}% sur coût TTC artisan`)
@@ -1189,7 +1213,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                     <div className={alertCls('amber')} style={{ cursor: 'default' }}>
                       <span>
                         {locale === 'pt'
-                          ? '⚠️ Preços verificados em tempo real — Os preços podem variar. Verifique o preço final no site do vendedor antes de comprar.'
+                          ? '⚠️ Preços verificados em tempo real. Os preços podem variar: verifique o preço final no site do vendedor antes de comprar.'
                           : '⚠️ Prix constatés en temps réel — Les tarifs peuvent varier. Vérifiez le prix final sur le site du vendeur avant achat.'}
                       </span>
                     </div>
@@ -1205,7 +1229,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               {/* Suggestions rapides */}
               {chatStarted && !isLoading && (
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : (isSociete ? JOB_PRESETS_SOCIETE_FR : locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR)).slice(0, 3).map((p, i) => (
+                  {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : jobPresets).slice(0, 3).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className={btnSmCls} style={{ whiteSpace: 'nowrap' }}>
                       {p.label}
@@ -1233,14 +1257,14 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                   }}
                   placeholder={searchMode === 'product'
                     ? (locale === 'pt'
-                      ? `Pesquise uma ferramenta ou produto...\nEx: "rebarbadora Bosch 125mm" ou "berbequim Makita 18V"`
+                      ? `Pesquise uma ferramenta ou produto...\nEx.: "rebarbadora Bosch 125 mm" ou "berbequim Makita 18 V"`
                       : `Recherchez un outil ou produit...\nEx: "disqueuse Bosch 125mm" ou "perceuse Makita 18V"`)
                     : userCity
                       ? (locale === 'pt'
-                        ? `Descreva a sua intervenção em ${userCity}...\nEx: "Substituição esquentador 150L" ou "Colocação pavimento flutuante 30m²"`
+                        ? `Descreva a sua intervenção em ${userCity}...\nEx.: "Substituição de termoacumulador 150 L" ou "Colocação de pavimento flutuante 30 m²"`
                         : `Décrivez votre intervention à ${userCity}...\nEx: "Remplacement chauffe-eau 150L" ou "Pose parquet flottant 30m²"`)
                       : (locale === 'pt'
-                        ? `Descreva a sua intervenção...\nEx: "Substituição esquentador 150L" ou "Instalação VMC duplo fluxo"`
+                        ? `Descreva a sua intervenção...\nEx.: "Substituição de termoacumulador 150 L" ou "Instalação de VMC de duplo fluxo"`
                         : `Décrivez votre intervention...\nEx: "Remplacement chauffe-eau 150L" ou "Installation VMC double flux"`)
                   }
                   rows={3}
@@ -1286,10 +1310,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           📅 {new Date(s.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                         {s.city && <span className="v22-tag v22-tag-green">📍 {s.city}</span>}
-                        <span className="v22-ref">{s.materials.length} {locale === 'pt' ? 'materiais' : 'matériaux'}</span>
+                        <span className="v22-ref">{s.materials.length} {locale === 'pt' ? (s.materials.length === 1 ? 'material' : 'materiais') : 'matériaux'}</span>
                         {s.totalEstimate && (
                           <span className="v22-tag v22-tag-green" style={{ fontWeight: 700 }}>
-                            ~{s.totalEstimate.min}–{s.totalEstimate.max} €
+                            ~{s.totalEstimate.min}{locale === 'pt' ? ' a ' : '–'}{s.totalEstimate.max} €
                           </span>
                         )}
                       </div>
@@ -1403,10 +1427,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                   {locale === 'pt' ? (
                     <>
                       <li>📍 <strong>Ative o GPS</strong> para resultados orientados à sua região</li>
-                      <li>🎯 <strong>Seja preciso</strong>: &quot;esquentador 150L elétrico&quot; em vez de &quot;esquentador&quot;</li>
-                      <li>📐 <strong>Indique as áreas</strong>: &quot;azulejo 20m²&quot; permite estimar as quantidades</li>
+                      <li>🎯 <strong>Seja preciso</strong>: &quot;termoacumulador elétrico 150 L&quot; em vez de &quot;termoacumulador&quot;</li>
+                      <li>📐 <strong>Indique as áreas</strong>: &quot;azulejo 20 m²&quot; permite estimar as quantidades</li>
                       <li>💰 <strong>Ajuste a margem</strong> conforme o seu contrato e a complexidade da instalação</li>
-                      <li>📄 <strong>Exporte para orçamento</strong> para faturar os materiais com IVA</li>
+                      <li>📄 <strong>Exporte para um orçamento</strong> para incluir os materiais no orçamento</li>
                     </>
                   ) : (
                     <>

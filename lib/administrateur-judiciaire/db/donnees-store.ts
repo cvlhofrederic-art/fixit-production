@@ -17,6 +17,7 @@ import {
   repoTaches,
 } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { DonneesCreation, DonneesModification } from '@/lib/administrateur-judiciaire/db/repository'
+import { COMPTE_BANQUE_NON_RATTACHE, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import {
   ajDb,
   type Contrat,
@@ -70,8 +71,10 @@ export interface SaisieCopropriete {
   source?: { nom: string } | null
 }
 
-/** Champs modifiables d'une copropriété (copropriété et mandat). */
-export type SaisieModificationCopropriete = Pick<SaisieCopropriete, 'nom' | 'adresse' | 'nbLots' | 'rg' | 'fondement'>
+/** Champs modifiables d'une copropriété (copropriété et mandat) ; la fiche détaillée n'est écrite que si elle est fournie. */
+export type SaisieModificationCopropriete = Pick<SaisieCopropriete, 'nom' | 'adresse' | 'nbLots' | 'rg' | 'fondement'> & {
+  fiche?: Copropriete['fiche']
+}
 
 export interface ResultatImportCoproprietaires {
   crees: number
@@ -101,8 +104,11 @@ export interface EtatDonneesStore {
   createCopropriete: (saisie: SaisieCopropriete) => Promise<CoproprieteVue>
   updateCopropriete: (id: string, saisie: SaisieModificationCopropriete) => Promise<CoproprieteVue>
   createPrestataire: (saisie: DonneesCreation<Prestataire>) => Promise<Prestataire>
-  /** Écritures 512 (renvoyées) et, pour chaque sortie, une écriture 471 « À ventiler ». Dates reçues en ISO. */
-  importerReleve: (coproprieteId: string, lignes: LigneReleve[]) => Promise<Ecriture[]>
+  /**
+   * Écritures 512 (renvoyées) et, pour chaque sortie, une écriture 471 « À ventiler ». Dates reçues en ISO. `compte` :
+   * sous-compte 512 du compte bancaire choisi (db/releves-bancaires.ts) ; absent, « 512 » non rattaché, comme avant.
+   */
+  importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string) => Promise<Ecriture[]>
   imputerEncaissement: (ecritureId: string, coproprietaireId: string, dateIso: string) => Promise<void>
   avancerRecouvrement: (coproprietaireId: string, etape: string, dateIso: string) => Promise<Impaye>
   importerCoproprietaires: (
@@ -285,6 +291,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
         nom: saisie.nom,
         adresse: saisie.adresse,
         nbLots: saisie.nbLots,
+        ...(saisie.fiche ? { fiche: saisie.fiche } : {}),
       }),
       mandat = mandatExistant
         ? await repoMandats.update(mandatExistant.id, {
@@ -305,7 +312,8 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     }))
     return prestataire
   },
-  importerReleve: async (coproprieteId, lignes) => {
+  importerReleve: async (coproprieteId, lignes, compte = COMPTE_BANQUE_NON_RATTACHE) => {
+    if (!estCompteBanque(compte)) throw new Error(`Compte « ${compte} » : sous-compte 512 attendu pour un relevé bancaire.`)
     let journal = get().journaux.find((existant) => existant.coproprieteId === coproprieteId)
     if (!journal) {
       const cree = await repoJournaux.create({
@@ -328,7 +336,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
           ecriture = await repoEcritures.create({
             journalId,
             date: new Date(annee, mois - 1, jour),
-            compte: '512',
+            compte,
             libelle: ligne.libelle,
             montant: Math.abs(ligne.montant),
             sens: ligne.montant >= 0 ? 'debit' : 'credit',
@@ -355,7 +363,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
   imputerEncaissement: async (ecritureId, coproprietaireId, dateIso) => {
     const ecriture = get().ecritures.find((existante) => existante.id === ecritureId),
       coproprietaire = get().coproprietaires.find((existant) => existant.id === coproprietaireId)
-    if (!ecriture || !coproprietaire || ecriture.compte !== '512' || ecriture.sens !== 'debit')
+    if (!ecriture || !coproprietaire || !estCompteBanque(ecriture.compte) || ecriture.sens !== 'debit')
       throw new Error("Écriture ou copropriétaire introuvable, ou ligne qui n'est pas un encaissement.")
     const imputation = await repoEcritures.create({
         journalId: ecriture.journalId,

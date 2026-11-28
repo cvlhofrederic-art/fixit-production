@@ -1,0 +1,1553 @@
+{
+  "domaine": {
+    "id": "fachadas",
+    "nom": "Fachadas e paredes exteriores",
+    "icone": "🧱"
+  },
+  "situations": [
+    {
+      "id": "infiltracao-fachada",
+      "domaine": "fachadas",
+      "titre": "Infiltração em fachada",
+      "motsCles": [
+        "água entra pela parede",
+        "parede a chorar",
+        "chuva atravessa a fachada",
+        "parede molhada quando chove",
+        "fachada a meter água",
+        "humidade na parede virada à chuva",
+        "parede interior molhada do lado da rua",
+        "chuva batida entra em casa",
+        "infiltração na parede exterior"
+      ],
+      "description": "Água da chuva que atravessa a parede exterior e aparece por dentro em manchas, tinta empolada ou bolor, quase sempre depois de chuva com vento. Entra por fissuras, reboco poroso ou degradado e pelas juntas à volta de janelas e peitoris.",
+      "aVerifier": [
+        "Por onde entra a água: fissuras, reboco oco ou poroso, juntas de caixilharia, peitoris, rufos e caleiras por cima da mancha.",
+        "Se a mancha só aparece com chuva (infiltração) ou também em tempo seco (condensação, cano roto, humidade que sobe do chão).",
+        "Acabamento da fachada: reboco pintado, pedra ou tijolo à vista, capoto. Muda o produto de impermeabilização.",
+        "Largura das fissuras, se continuam a abrir, e a altura a que se trabalha (escada ou andaime)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Só se houver verdete, musgo ou manchas negras; deixar atuar e enxaguar",
+              "optionnel": true
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Escovar e lavar a fachada; deixar secar bem antes de reparar"
+            },
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Raspar a tinta solta, abrir as fissuras em V e aplicar a massa"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-fibroelastica-exterior",
+              "note": "Encher as fissuras estabilizadas, já abertas e limpas"
+            },
+            {
+              "id": "massa-exterior-po",
+              "note": "Só se houver buracos ou falhas de reboco a tapar",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Só se as juntas de janelas e peitoris estiverem abertas; pode ser pintado por cima",
+              "optionnel": true
+            },
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Só em juntas largas ou fundas, antes do mástique",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Só para o cola e veda: é espesso e a pistola simples falha",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Na parede seca, antes da tinta membrana"
+            },
+            {
+              "id": "tinta-membrana-elastica-fachadas",
+              "note": "Fachada pintada: cobre microfissuras e trava a chuva; demãos: ver a embalagem"
+            },
+            {
+              "id": "hidrofugante-incolor-fachadas",
+              "note": "Em pedra, tijolo à vista ou reboco sem pintura, em vez da tinta",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "rolo-pelo-longo-fachadas"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Recortes junto a janelas e cantos"
+            },
+            {
+              "id": "pulverizador-pressao-manual",
+              "note": "Aplicar o removedor de musgo e o hidrofugante por igual, sem escorrências",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Para o removedor de musgo e o hidrofugante"
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Tratar primeiro a origem: caleiras e tubos de queda entupidos, rufos soltos, peitoris sem pingadeira, telhado. Pintar por cima sem fechar a entrada de água não dura.",
+        "Fissuras largas, com desnível ou que voltam a abrir podem ser estruturais: pedir diagnóstico a um técnico antes de tapar.",
+        "Trabalho em altura: acima do alcance seguro de uma escada, usar andaime com guarda-corpos ou arnês com ponto de ancoragem.",
+        "Aplicar com tempo seco e parede seca; secagens e número de demãos: ver a embalagem.",
+        "O interior só se repara e pinta depois de a parede secar por completo."
+      ]
+    },
+    {
+      "id": "microfissuras-reboco-fachada",
+      "domaine": "fachadas",
+      "titre": "Microfissuras no reboco da fachada",
+      "motsCles": [
+        "fissuras finas na parede",
+        "rachas tipo cabelo",
+        "teia de aranha no reboco",
+        "fachada toda fissurada",
+        "rachinhas na pintura exterior",
+        "fendas finas na fachada",
+        "reboco estalado",
+        "fissuras de retração",
+        "fissuras em mapa no reboco"
+      ],
+      "description": "Fissuras muito finas, em mapa ou em teia de aranha, à superfície do reboco ou da tinta. Em regra são de retração e não estruturais, mas deixam passar água e sujam a fachada.",
+      "aVerifier": [
+        "Largura: se a ponta de uma lâmina entra na fissura, já não é microfissura e pede enchimento antes de pintar.",
+        "Bater no reboco: zonas que soam a oco têm de ser picadas e refeitas, não pintadas.",
+        "Estado da tinta velha: bem agarrada, a descascar ou a largar pó ao passar a mão.",
+        "Se há manchas de humidade por dentro na mesma parede."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escovao-de-obra",
+              "note": "Lavar e escovar a fachada; deixar secar bem"
+            },
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Só se houver verdete ou manchas negras",
+              "optionnel": true
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar toda a tinta solta ou empolada"
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Proteger caixilharia, peitoris e pedra"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Abrir as fissuras mais marcadas antes de encher"
+            },
+            {
+              "id": "massa-fibroelastica-exterior",
+              "note": "Só nas fissuras mais marcadas; as muito finas ficam cobertas pela tinta membrana",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Uniformiza a absorção antes da tinta membrana"
+            },
+            {
+              "id": "rede-fibra-vidro-armadura-membranas",
+              "note": "Em zonas muito fissuradas, embebida entre demãos da tinta membrana",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-membrana-elastica-fachadas",
+              "note": "Respeitar o número de demãos da embalagem: é a espessura que cobre as fissuras"
+            },
+            {
+              "id": "rolo-pelo-longo-fachadas"
+            },
+            {
+              "id": "cabo-extensivel-rolo"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Recortes e cantos"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao raspar e escovar a tinta velha"
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fissuras em diagonal a partir dos cantos das janelas, em escada ou que voltam a abrir não são microfissuras: pedir diagnóstico antes de pintar.",
+        "A tinta membrana só cobre microfissuras; sobre reboco oco ou tinta mal agarrada descola com o tempo.",
+        "Não pintar com chuva, parede húmida, sol forte ou risco de geada.",
+        "Trabalho em altura: andaime com guarda-corpos acima do alcance seguro de uma escada."
+      ]
+    },
+    {
+      "id": "fissura-larga-ativa-fachada",
+      "domaine": "fachadas",
+      "titre": "Fissura larga ou ativa em fachada",
+      "motsCles": [
+        "racha grande na parede",
+        "fenda na fachada",
+        "fissura que volta a abrir",
+        "racha em escada",
+        "parede rachada de cima a baixo",
+        "água entra pela racha",
+        "racha junto à janela",
+        "fenda entre parede e pilar"
+      ],
+      "description": "Fissura bem aberta, por vezes com desnível entre os dois lados, ou que volta a aparecer depois de reparada. Pode vir de movimentos da estrutura, das fundações ou do encontro entre materiais diferentes.",
+      "aVerifier": [
+        "Se continua a abrir: colocar testemunhos e vigiar ao longo do tempo antes de escolher o produto.",
+        "Traçado: vertical, em diagonal a partir de janelas e portas, em escada pelas juntas da alvenaria, horizontal ao nível da laje.",
+        "Se atravessa a parede, se há desnível entre os dois lados e se há portas ou janelas a prender.",
+        "Se entra água por ela e o acabamento previsto (pintura por cima ou não)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "disco-diamantado",
+              "note": "Abrir a fissura com a rebarbadora para o produto ter corpo e bordos sãos"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar o pó e o material solto de dentro da fissura"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Fissura ativa: regula a profundidade e impede o mástique de colar ao fundo",
+              "optionnel": true
+            },
+            {
+              "id": "mastique-juntas-fachada",
+              "note": "Fissura ativa: tratar como junta; confirmar na embalagem se pode ser pintado",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-reforcada"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Calcar o mástique contra os dois bordos antes de formar pele"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-fibroelastica-exterior",
+              "note": "Fissura estabilizada: encher por camadas depois de aberta e limpa",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm"
+            },
+            {
+              "id": "rede-fibra-vidro-armadura-membranas",
+              "note": "Só na fissura estabilizada e cheia: ponte embebida entre demãos da tinta membrana",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores"
+            },
+            {
+              "id": "tinta-membrana-elastica-fachadas",
+              "note": "Acompanha pequenos movimentos; demãos: ver a embalagem"
+            },
+            {
+              "id": "rolo-pelo-longo-fachadas",
+              "note": "Carregar bem a tinta sobre a rede e junto aos bordos da fissura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "O corte projeta fragmentos"
+            },
+            {
+              "id": "mascara-ffp3",
+              "note": "Cortar reboco e alvenaria a seco faz muito pó fino"
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "tampoes-auriculares",
+              "note": "A rebarbadora faz muito ruído"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fissura larga, com desnível, em escada ou que continua a abrir pode ser estrutural: pedir diagnóstico a um engenheiro antes de fechar. A massa só a disfarça.",
+        "Nunca fechar uma fissura ativa com massa rígida ou argamassa: volta a abrir ao lado.",
+        "O mástique tem de ficar colado só aos dois lados, com a profundidade indicada na embalagem.",
+        "Corte com rebarbadora: poeira, projeções e ruído; afastar pessoas e proteger caixilharia e vidros.",
+        "Trabalho em altura: andaime com guarda-corpos ou arnês com ponto de ancoragem."
+      ]
+    },
+    {
+      "id": "reboco-exterior-degradado",
+      "domaine": "fachadas",
+      "titre": "Reboco exterior oco ou a cair",
+      "motsCles": [
+        "reboco a cair",
+        "reboco oco",
+        "parede soa a oco",
+        "reboco solto na fachada",
+        "reboco a esfarelar",
+        "reboco a descascar",
+        "bocados de parede a cair",
+        "refazer reboco exterior",
+        "reboco empolado"
+      ],
+      "description": "Reboco que descola do suporte, soa a oco à pancada, esfarela ou cai aos bocados. Vem quase sempre de água que entrou, de sais ou de um reboco mal agarrado.",
+      "aVerifier": [
+        "Bater em toda a zona para marcar até onde o reboco soa a oco: é tudo para picar.",
+        "Suporte por baixo: tijolo, bloco, betão liso, ou parede antiga de pedra ou taipa (pede argamassa de cal).",
+        "A causa: infiltração por cima, salitre, humidade a subir da base, ferros oxidados no betão.",
+        "Espessura e acabamento do reboco existente (areado, liso), para igualar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar todo o reboco oco até à zona firme, com bordos direitos"
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar o suporte de pó e restos soltos antes de rebocar"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "aditivo-latex-aderencia",
+              "note": "Calda de aderência em suporte liso ou pouco absorvente (betão); rebocar com ela fresca",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Suporte humedecido, por camadas; espessura por camada: ver o saco"
+            },
+            {
+              "id": "argamassa-cal-reabilitacao",
+              "note": "Em paredes antigas de pedra ou taipa, em vez do reboco de cimento",
+              "optionnel": true
+            },
+            {
+              "id": "rede-fibra-vidro-reboco",
+              "note": "Na emenda entre reboco novo e velho e nas mudanças de material, bem sobreposta"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Desempenar pelo reboco antigo dos dois lados"
+            },
+            {
+              "id": "talocha-plastico",
+              "note": "Apertar e regularizar o reboco"
+            },
+            {
+              "id": "talocha-esponja",
+              "note": "Acabamento areado igual ao existente; esponja húmida e bem espremida"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Só depois de o reboco novo curar: ver a embalagem"
+            },
+            {
+              "id": "tinta-fachadas-acrilica-lisa"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "capacete-obra",
+              "note": "Reboco solto por cima pode cair durante o trabalho"
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O cimento fresco queima a pele"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar saltam lascas"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó do reboco picado e do cimento ao amassar"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Resolver primeiro a entrada de água ou a humidade que fez descolar o reboco, senão o novo descola também.",
+        "Se aparecerem ferros oxidados ou betão a desfazer-se, é outra reparação (argamassa de reparação de betão) e pode pedir um técnico.",
+        "Reboco a cair sobre passeio ou zona de passagem: balizar por baixo e usar capacete.",
+        "Não rebocar com sol forte, vento seco, chuva ou risco de geada; reboco que seca depressa fissura.",
+        "Trabalho em altura: andaime com guarda-corpos acima do alcance seguro de uma escada."
+      ]
+    },
+    {
+      "id": "salitre-parede-exterior",
+      "domaine": "fachadas",
+      "titre": "Salitre em parede exterior",
+      "motsCles": [
+        "pó branco na parede",
+        "manchas brancas na fachada",
+        "eflorescências",
+        "parede a deitar sal",
+        "cristais brancos no reboco",
+        "tinta empolada com pó branco",
+        "reboco a esfarelar em baixo",
+        "salitre no muro da casa"
+      ],
+      "description": "Depósitos brancos de sais que a humidade traz para a superfície ao evaporar. Empolam a tinta, esfarelam o reboco e voltam enquanto houver água a atravessar a parede.",
+      "aVerifier": [
+        "De onde vem a água: do terreno (faixa junto à base), de infiltração por cima ou de terra encostada do outro lado.",
+        "Se o reboco por baixo está são ou esfarela e soa a oco.",
+        "Se é reboco novo (eflorescências de cura, que tendem a parar) ou parede antiga.",
+        "Tipo de tinta existente: uma película impermeável sobre parede húmida empola sempre."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar toda a tinta empolada ou solta"
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Escovar os sais e a tinta solta a seco; lavar com água volta a metê-los na parede"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Só se o reboco estiver oco ou a esfarelar: picar até ao são",
+              "optionnel": true
+            },
+            {
+              "id": "maceta",
+              "note": "Só se for preciso picar reboco",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-cal-reabilitacao",
+              "note": "Refazer o reboco picado; deixa a parede secar melhor do que o reboco de cimento",
+              "optionnel": true
+            },
+            {
+              "id": "colher-pedreiro",
+              "note": "Só se houver reboco a refazer",
+              "optionnel": true
+            },
+            {
+              "id": "talocha-esponja",
+              "note": "Só se houver reboco a refazer",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-anti-salitre",
+              "note": "Só por baixo da tinta acrílica, na parede seca e escovada; não trata a origem"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-fachadas-acrilica-lisa",
+              "note": "Só com a parede seca e a causa tratada; parede antiga e húmida: caiar em vez de pintar"
+            },
+            {
+              "id": "cal-preparada-caiar",
+              "note": "Parede antiga ou que continua húmida: a caiação deixa sair o vapor; sem primário por baixo",
+              "optionnel": true
+            },
+            {
+              "id": "fixador-cal",
+              "note": "Juntar à cal, para a caiação não largar pó",
+              "optionnel": true
+            },
+            {
+              "id": "rolo-pelo-longo-fachadas",
+              "note": "Serve para a tinta ou para a cal"
+            },
+            {
+              "id": "trincha-plana-sintetica"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Escovar a seco levanta pó de sais e de tinta"
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "O salitre é um sintoma: sem tratar a origem da humidade (drenagem, corte de capilaridade, infiltração por cima), volta sempre.",
+        "Humidade que sobe do terreno pede soluções próprias (barreira contra a capilaridade, reboco de saneamento) e muitas vezes um especialista.",
+        "Não aplicar tinta membrana ou outra película impermeável sobre parede com humidade por trás: empola e descasca.",
+        "Em reboco novo, as eflorescências iniciais saem a escovar a seco; esperar que parem antes de pintar."
+      ]
+    },
+    {
+      "id": "musgo-verdete-fachada",
+      "domaine": "fachadas",
+      "titre": "Musgo e verdete na fachada",
+      "motsCles": [
+        "fachada verde",
+        "parede preta de humidade",
+        "manchas negras na fachada",
+        "limpar verdete da parede",
+        "líquenes na pedra",
+        "fungos na parede exterior",
+        "fachada suja a norte",
+        "lavar a fachada",
+        "algas na parede"
+      ],
+      "description": "Manchas verdes, negras ou avermelhadas de algas, fungos, musgo e líquenes, sobretudo em fachadas a norte, à sombra ou onde a água escorre. Sujam a fachada e mantêm o suporte húmido.",
+      "aVerifier": [
+        "Suporte: reboco pintado, pedra, tijolo à vista ou capoto. Reboco fraco, tinta velha e capoto não aguentam lavagem agressiva.",
+        "Estado da pintura: sã (basta limpar e tratar) ou gasta e a descascar (repintar depois).",
+        "O que mantém a parede húmida: caleira a pingar, peitoril sem pingadeira, vegetação encostada, rega.",
+        "Plantas, relvado, tanques ou linhas de água por baixo da zona a tratar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Tapar plantas, caixilharia e o pavimento por baixo"
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar a seco as placas grossas de musgo, sem arrancar a tinta sã"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Tempo seco e sem chuva prevista; diluição e tempo de atuação: ver a embalagem"
+            },
+            {
+              "id": "pulverizador-pressao-manual",
+              "note": "Aplicar o produto por igual, de baixo para cima, sem escorrências"
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Só para carregar à mão nas zonas mais atacadas",
+              "optionnel": true
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Escovar e enxaguar depois de o produto atuar, se a embalagem o indicar"
+            },
+            {
+              "id": "maquina-lavar-alta-pressao",
+              "note": "Só para enxaguar, se a embalagem o pedir: de longe e em leque; nunca em reboco fraco ou capoto",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "hidrofugante-incolor-fachadas",
+              "note": "Em pedra, tijolo ou reboco sem pintura, com a parede seca: atrasa o regresso do verdete",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Só se a fachada for repintada",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-fachadas-acrilica-lisa",
+              "note": "Só se a pintura estiver gasta, depois de a parede tratada secar",
+              "optionnel": true
+            },
+            {
+              "id": "aditivo-antifungos-tinta",
+              "note": "Se repintar: juntar à tinta na dose da embalagem",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas"
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "O produto escorre e salpica ao aplicar acima da cabeça"
+            },
+            {
+              "id": "fato-macaco-descartavel",
+              "note": "Protege a pele e a roupa dos salpicos"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao pulverizar acima da cabeça, contra a névoa do produto"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Evitar escorrências para plantas, relvados, tanques e linhas de água; não aplicar com vento nem com chuva prevista.",
+        "Não misturar o removedor com lixívia nem com outros produtos de limpeza.",
+        "Lavagem a alta pressão de perto arranca tinta, abre juntas e estraga reboco fraco e capoto: manter distância e pressão moderada.",
+        "O verdete volta se a parede continuar húmida: corrigir caleiras, pingadeiras e vegetação encostada.",
+        "Trabalho em altura sobre piso molhado e escorregadio: andaime ou plataforma, não escada encostada."
+      ]
+    },
+    {
+      "id": "pintar-fachada",
+      "domaine": "fachadas",
+      "titre": "Pintar fachada",
+      "motsCles": [
+        "pintura exterior",
+        "repintar a casa por fora",
+        "tinta da fachada desbotada",
+        "tinta a descascar na fachada",
+        "pintar parede exterior",
+        "que primário usar na fachada",
+        "tinta a largar pó",
+        "renovar a fachada",
+        "pintar reboco novo"
+      ],
+      "description": "Preparação e pintura de uma fachada rebocada, nova ou a renovar. O resultado depende sobretudo da preparação: lavar, tratar fungos, raspar, reparar e dar o primário certo.",
+      "aVerifier": [
+        "Tinta velha: passar a mão (larga pó?), ver se descasca e se está bem agarrada.",
+        "Fissuras, reboco oco e infiltrações: reparam-se antes de pintar.",
+        "Fungos, verdete e salitre: tratam-se antes, cada um com o seu produto.",
+        "Reboco novo ou antigo, acabamento liso ou texturado, altura e acessos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escovao-de-obra",
+              "note": "Lavar e escovar toda a fachada; deixar secar bem"
+            },
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Só se houver verdete, fungos ou manchas negras",
+              "optionnel": true
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar toda a tinta solta ou empolada"
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Proteger caixilharia, peitoris e pedra; respeitar o prazo de permanência do rolo"
+            },
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Tapar pavimento, plantas e o que está por baixo dos salpicos do rolo"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-exterior-po",
+              "note": "Só se houver buracos e falhas a tapar; pintar só depois de seca",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Fachada sã, com a tinta velha bem agarrada"
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Reboco novo, reboco poroso ou tinta velha a largar pó: em vez do primário aquoso",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-fachadas-acrilica-lisa",
+              "note": "Demãos e intervalo entre elas: ver a embalagem"
+            },
+            {
+              "id": "tinta-membrana-elastica-fachadas",
+              "note": "Em vez da tinta lisa, se a fachada tiver microfissuras",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "rolo-pelo-longo-fachadas",
+              "note": "Chega ao fundo do areado"
+            },
+            {
+              "id": "cabo-extensivel-rolo"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Recortes, cantos e contorno das janelas"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao raspar e escovar a tinta velha"
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não pintar com chuva, parede húmida, sol forte direto ou risco de geada.",
+        "Reboco novo tem de curar antes do primário: ver a embalagem.",
+        "Infiltrações, fissuras abertas e reboco oco resolvem-se antes: a tinta não os trata.",
+        "Trabalho em altura: andaime com guarda-corpos acima do alcance seguro de uma escada; nunca esticar o corpo para fora da escada."
+      ]
+    },
+    {
+      "id": "junta-dilatacao-fachada",
+      "domaine": "fachadas",
+      "titre": "Junta de dilatação de fachada degradada",
+      "motsCles": [
+        "junta aberta na fachada",
+        "mástique da junta seco e rachado",
+        "junta entre prédios a meter água",
+        "refazer junta de dilatação",
+        "mástique da junta descolado dos bordos",
+        "borracha da junta a sair",
+        "água entra pela junta de movimento",
+        "vedante da junta estalado"
+      ],
+      "description": "Junta de movimento da fachada com o mástique velho ressequido, fissurado ou descolado dos bordos, por onde passa a entrar água. Refaz-se com fundo de junta e mástique elástico de fachada.",
+      "aVerifier": [
+        "Largura e profundidade da junta: definem o diâmetro do fundo de junta e se o mástique a admite (ver a embalagem).",
+        "Material e estado dos bordos: reboco, betão, pedra ou alumínio; bordos partidos reparam-se antes.",
+        "Se a junta vai ser pintada com a fachada (confirmar na embalagem se o mástique é pintável).",
+        "Se existe perfil ou tapa-juntas metálico por cima, a desmontar e a repor."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o mástique velho rente aos dois bordos e arrancá-lo com o fundo antigo"
+            },
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Raspar os restos agarrados aos bordos"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar os bordos até ao material são e sem pó"
+            },
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Só se os bordos estiverem partidos: refazê-los e deixar curar antes de vedar",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Ao longo dos dois bordos; tirar antes de o mástique formar pele"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Diâmetro acima da largura da junta; regula a profundidade do mástique"
+            },
+            {
+              "id": "mastique-juntas-fachada",
+              "note": "Colado só aos dois lados, nunca ao fundo; profundidade: ver a embalagem"
+            },
+            {
+              "id": "pistola-silicone-reforcada"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Calcar o mástique contra os bordos e alisar antes de formar pele"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Nunca encher uma junta de dilatação com argamassa, massa rígida ou espuma: tem de poder mexer.",
+        "Bordos húmidos, com pó ou com restos do mástique antigo fazem o novo descolar.",
+        "Alguns mástiques pedem primário nos suportes porosos: ver a embalagem.",
+        "Juntas com função corta-fogo ou entre edifícios seguem um sistema próprio: não trocar por um mástique corrente.",
+        "Trabalho em altura: andaime com guarda-corpos ou arnês com ponto de ancoragem."
+      ]
+    },
+    {
+      "id": "capoto-danificado",
+      "domaine": "fachadas",
+      "titre": "Capoto danificado por impacto ou furo",
+      "motsCles": [
+        "buraco no capoto",
+        "capoto furado",
+        "ETICS amolgado",
+        "pancada no isolamento da fachada",
+        "esferovite à vista na parede",
+        "furo de pássaro no capoto",
+        "reparar capoto",
+        "capoto rachado",
+        "isolamento exterior partido"
+      ],
+      "description": "Dano pontual no isolamento térmico pelo exterior: mossa, buraco ou furo que parte o barramento armado e deixa o isolamento à vista. Sem reparação, a água entra para trás do sistema.",
+      "aVerifier": [
+        "Profundidade do dano: só o acabamento e o barramento, ou também o isolamento.",
+        "Tipo e espessura do isolamento (EPS, XPS, lã mineral, cortiça), para repor igual.",
+        "Se entrou água e o isolamento à volta está molhado.",
+        "Textura e cor do acabamento existente, para aproximar o remendo."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar a zona danificada em quadrado, com arestas direitas"
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar o acabamento numa faixa à volta, até à rede antiga, para sobrepor a nova"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "placa-eps",
+              "note": "Remendo da mesma espessura do isolamento existente; outro material se o capoto não for de EPS"
+            },
+            {
+              "id": "argamassa-colagem-barramento-etics",
+              "note": "Cola o remendo e faz o barramento com a rede embebida"
+            },
+            {
+              "id": "espuma-poliuretano-manual",
+              "note": "Só para fechar frestas entre o remendo e o isolamento; cortar o excesso à face",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-isolamento",
+              "note": "Em remendos grandes, depois de a cola prender",
+              "optionnel": true
+            },
+            {
+              "id": "rede-fibra-vidro-reboco",
+              "note": "Antialcalina, sobreposta à rede antiga; confirmar a gramagem pedida pelo sistema"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "talocha-aco-lisa-licosa",
+              "note": "Barrar e embeber a rede a meio da espessura"
+            },
+            {
+              "id": "espatula-pintor-larga-75-125mm",
+              "note": "Carregar a talocha e acertar os bordos do remendo"
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouca argamassa de cada vez"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Com o barramento seco: ver a embalagem"
+            },
+            {
+              "id": "tinta-fachadas-texturada",
+              "note": "Aproximar a textura do acabamento existente; testar a cor numa zona pequena"
+            },
+            {
+              "id": "rolo-tintas-texturadas"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "A argamassa é cimentícia e queima a pele"
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Nada com solventes em contacto com o EPS ou o XPS: derrete o isolamento.",
+        "Isolamento molhado tem de sair todo antes de fechar; procurar por onde a água entrou.",
+        "O capoto é um sistema: usar de preferência os produtos do mesmo fabricante; o remendo nota-se quase sempre na cor e na textura.",
+        "Fixar toldos, estendais ou candeeiros no capoto pede fixações próprias e vedação do furo.",
+        "Se o isolamento for lã mineral, usar luvas, máscara e óculos ao cortar."
+      ]
+    },
+    {
+      "id": "muro-exterior-humidade-tinta",
+      "domaine": "fachadas",
+      "titre": "Muro com humidade e tinta a descascar",
+      "motsCles": [
+        "muro a descascar",
+        "tinta do muro empolada",
+        "muro sempre húmido",
+        "muro de vedação com salitre",
+        "muro do jardim verde",
+        "muro de suporte molhado",
+        "pintar muro com humidade",
+        "bolhas na tinta do muro"
+      ],
+      "description": "Muro de vedação ou de suporte com tinta empolada ou a descascar, manchas, salitre e verdete. A água entra pelo topo, sobe da base ou vem da terra encostada do outro lado.",
+      "aVerifier": [
+        "Se tem terra encostada do outro lado (muro de suporte): a água vem por trás.",
+        "Topo do muro: tem capeamento com pingadeira ou a água entra por cima?",
+        "Base: humidade a subir do terreno, salpicos de rega ou de chuva.",
+        "Estado do reboco (são, oco, a esfarelar) e se existem saídas de drenagem desentupidas."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar toda a tinta empolada ou solta, até à tinta bem agarrada"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Sais e restos de tinta agarrados"
+            },
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Só se houver verdete ou musgo",
+              "optionnel": true
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Escovar o muro todo e deixar secar bem"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Só para refazer zonas de reboco oco ou esfarelado, depois de picadas",
+              "optionnel": true
+            },
+            {
+              "id": "colher-pedreiro",
+              "note": "Só se houver reboco a refazer",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "argamassa-impermeabilizante-flexivel-monocomponente",
+              "note": "Topo do muro sem capeamento, por onde a água entra de cima",
+              "optionnel": true
+            },
+            {
+              "id": "emulsao-betuminosa-primario",
+              "note": "Muro de suporte, face do lado da terra, só se der para escavar",
+              "optionnel": true
+            },
+            {
+              "id": "lamina-drenante-pitonada",
+              "note": "Do lado da terra, por cima da impermeabilização, antes de voltar a aterrar",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-anti-salitre",
+              "note": "Com o muro seco e escovado; atrasa o salitre, não trata a origem"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-fachadas-acrilica-lisa",
+              "note": "Só com o muro seco; se a água vier por trás, volta a empolar"
+            },
+            {
+              "id": "rolo-pelo-longo-fachadas"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Topo, cantos e encontros com o pavimento"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Raspar e escovar a seco levanta pó de tinta e de sais"
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Muro com terra encostada: pintar a face visível não resolve. A solução é drenar e impermeabilizar do lado da terra.",
+        "Nunca tapar as saídas de drenagem do muro (barbacãs): a água acumulada empurra o muro.",
+        "Muro de suporte com barriga, inclinado ou com fissuras largas: parar e chamar um técnico.",
+        "Enquanto o muro estiver húmido por dentro, qualquer tinta que faça película acaba por descascar."
+      ]
+    },
+    {
+      "id": "azulejo-fachada-solto",
+      "domaine": "fachadas",
+      "titre": "Azulejo de fachada solto ou em falta",
+      "motsCles": [
+        "azulejos a cair da fachada",
+        "azulejo descolado na parede exterior",
+        "fachada de azulejo com falhas",
+        "azulejo a soar oco",
+        "colar azulejo na fachada",
+        "azulejo antigo solto",
+        "pastilha a cair do prédio",
+        "juntas abertas na fachada de azulejo"
+      ],
+      "description": "Azulejos de fachada que soam a oco, estão descolados, partidos ou já caíram. A água que entra pelas juntas abertas e os movimentos da parede acabam por soltar a cola ou o reboco.",
+      "aVerifier": [
+        "Bater com o cabo de uma ferramenta para marcar todos os azulejos que soam a oco à volta.",
+        "Se há azulejos iguais para repor: guardar os que se soltam inteiros.",
+        "Estado do reboco por baixo: firme, oco ou a esfarelar.",
+        "A causa: juntas abertas, água por cima, falta de juntas de dilatação, ferros oxidados."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-juntas",
+              "note": "Abrir as juntas à volta para soltar a peça sem lascar as vizinhas"
+            },
+            {
+              "id": "escopro",
+              "note": "Tirar a cola velha e o reboco solto por baixo"
+            },
+            {
+              "id": "maceta"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Só se o reboco por baixo tiver saído: regularizar e deixar curar antes de colar",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Próprio para exterior; cola no suporte e no tardoz do azulejo"
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouco cimento-cola de cada vez"
+            },
+            {
+              "id": "talocha-dentada-6mm",
+              "note": "Formatos pequenos; barrar também o tardoz; dente: confirmar na saca do cimento-cola"
+            },
+            {
+              "id": "cruzetas-azulejo",
+              "note": "Manter a junta igual à existente; retirar antes de betumar"
+            },
+            {
+              "id": "maco-de-borracha",
+              "note": "Assentar a peça ao nível das vizinhas"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Confirmar no saco a largura de junta e o uso em exterior"
+            },
+            {
+              "id": "talocha-borracha-betumar-juntas"
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Bem espremida, para não lavar o betume da junta"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "mastique-juntas-fachada",
+              "note": "Nas juntas de dilatação e nos encontros com caixilharia, em vez de betume",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "capacete-obra",
+              "note": "Os azulejos soltos por cima podem cair durante o trabalho"
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O cimento-cola fresco queima a pele"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Azulejos a cair sobre passeio ou entrada: balizar por baixo e avisar o proprietário ou o condomínio antes de mais nada.",
+        "Fachadas de azulejo antigo: a remoção e a substituição estão sujeitas a regras legais e camarárias. Confirmar antes de retirar.",
+        "Grandes áreas a soar a oco não são reparação pontual: é preciso avaliar a fachada toda.",
+        "Trabalho em altura: andaime com guarda-corpos e rodapé, não escada."
+      ]
+    },
+    {
+      "id": "betao-ferro-a-vista-fachada",
+      "domaine": "fachadas",
+      "titre": "Varanda ou cornija com betão a cair",
+      "motsCles": [
+        "ferro à vista na varanda",
+        "betão a cair da pala",
+        "ferrugem a sair da parede",
+        "betão rebentado",
+        "armadura enferrujada",
+        "cornija a desfazer-se",
+        "manchas de ferrugem na fachada",
+        "lasca de betão caiu"
+      ],
+      "description": "Betão de palas, cornijas, varandas, vigas ou pilares que estala e cai, deixando a armadura enferrujada à vista. A ferrugem incha o ferro e rebenta o betão que o cobre.",
+      "aVerifier": [
+        "Extensão: um ponto isolado ou vários ao longo do mesmo elemento.",
+        "Que elemento é: pala, cornija, varanda, viga ou pilar (os estruturais pedem um técnico).",
+        "Quanto do ferro está comido pela ferrugem: se perdeu espessura, não é reparação corrente.",
+        "Por onde entra a água e se a casa está perto do mar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar todo o betão solto até ao são e libertar o ferro a toda a volta"
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar a ferrugem do ferro até ao metal firme, a toda a volta"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "pincel-redondo",
+              "note": "Aplicar o primário a toda a volta do ferro, também por trás, sem sujar o betão"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "aditivo-latex-aderencia",
+              "note": "Calda de aderência no betão antigo, se o saco da argamassa a pedir",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Escolher uma que também passive o ferro (ver a embalagem) e aplicá-la logo sobre o ferro limpo."
+            },
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "talocha-plastico",
+              "note": "Apertar e acertar pela forma original da peça"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-exteriores",
+              "note": "Depois de a argamassa curar: ver a embalagem"
+            },
+            {
+              "id": "tinta-fachadas-acrilica-lisa",
+              "note": "Protege o betão reparado da água da chuva"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "capacete-obra",
+              "note": "Trabalha-se por baixo de betão que pode soltar-se"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar saltam lascas"
+            },
+            {
+              "id": "mascara-ffp3",
+              "note": "Picar betão faz pó fino"
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "A argamassa fresca queima a pele"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Varandas, vigas, pilares e palas são elementos estruturais: com ferro muito comido ou danos extensos, pedir avaliação a um engenheiro antes de reparar.",
+        "Risco de queda de fragmentos: balizar a zona por baixo até a reparação estar feita.",
+        "Sem fechar a entrada de água, a corrosão continua ao lado da zona reparada.",
+        "Não tapar o ferro com reboco ou massa corrente: usar argamassa de reparação de betão.",
+        "Não pintar o ferro com conversor de ferrugem nem com esmalte antes da argamassa: prejudicam a aderência.",
+        "Trabalho em altura: andaime com guarda-corpos ou arnês com ponto de ancoragem."
+      ]
+    },
+    {
+      "id": "infiltracao-contorno-janela",
+      "domaine": "fachadas",
+      "titre": "Infiltração à volta da janela",
+      "motsCles": [
+        "água entra pela janela quando chove",
+        "mancha por baixo da janela",
+        "humidade no canto da janela",
+        "junta da janela aberta",
+        "peitoril a meter água",
+        "silicone da janela estragado",
+        "parede molhada debaixo do parapeito",
+        "caixilho a deixar entrar água"
+      ],
+      "description": "Água da chuva que entra pelo encontro entre o caixilho e a fachada ou pelo peitoril, e aparece por dentro nos cantos e por baixo da janela. A vedação antiga está ressequida, descolada ou em falta.",
+      "aVerifier": [
+        "Onde entra: junta entre caixilho e parede, peitoril fissurado ou sem pendente, furos de drenagem do caixilho entupidos, caixa de estore.",
+        "Material do caixilho (alumínio lacado, PVC, madeira) e do peitoril (pedra natural pede silicone próprio).",
+        "Se a junta vai ser pintada com a fachada ou fica à vista na cor do caixilho.",
+        "Fissuras em diagonal nos cantos do vão."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o cordão antigo dos dois lados"
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Arrancar o cordão sem riscar o lacado do caixilho"
+            },
+            {
+              "id": "removedor-silicone",
+              "note": "Nos resíduos que ficam: o vedante novo não adere sobre restos do antigo"
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar caixilho e peitoril antes de vedar"
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Dos dois lados da junta; tirar antes de o silicone formar pele"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-fibroelastica-exterior",
+              "note": "Só se houver fissuras nos cantos do vão, depois de abertas e limpas",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Só em juntas largas ou fundas, antes do vedante",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Junta entre caixilho e parede que fica à vista; escolher a cor do caixilho"
+            },
+            {
+              "id": "silicone-neutro-pedra-natural",
+              "note": "Em peitoril ou ombreira de pedra natural, em vez do de caixilharia",
+              "optionnel": true
+            },
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Em vez do silicone, onde a junta vai ser pintada com a fachada",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-reforcada"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar logo, com a espátula humedecida em água e sabão"
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "hidrofugante-incolor-fachadas",
+              "note": "Só em peitoril de pedra porosa ou reboco sem pintura à volta, com o suporte seco",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "Para o removedor e o silicone fresco"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não tapar os furos de drenagem do caixilho: a água que entra nas calhas tem de sair por eles.",
+        "Se a água entra pela caixa de estore, pela verga ou por um rufo por cima, vedar o contorno não resolve.",
+        "Peitoril sem pendente para fora ou sem pingadeira precisa de obra, não só de silicone.",
+        "Em andares altos não trabalhar debruçado da janela: usar andaime ou recorrer a quem trabalhe com acesso por corda."
+      ]
+    }
+  ]
+}

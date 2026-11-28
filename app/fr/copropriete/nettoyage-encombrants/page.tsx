@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Nettoyage Copropriété Marseille : Encombrants, Parties Communes | VITFIX',
+  title: 'Nettoyage Copropriété Marseille : Encombrants, Parties Communes',
   description: 'Nettoyage de copropriété à Marseille : parties communes, enlèvement encombrants, dépôts sauvages. Contrat syndic, facturation copropriété. Devis gratuit.',
   alternates: { canonical: 'https://vitfix.io/fr/copropriete/nettoyage-encombrants/' },
 }

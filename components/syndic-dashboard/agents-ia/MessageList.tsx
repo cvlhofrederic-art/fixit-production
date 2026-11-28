@@ -3,6 +3,7 @@
 
 import { useEffect, useRef } from 'react'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import type { Message, AgentId } from '@/lib/syndic/agent-types'
 
 interface Props {
@@ -81,8 +82,8 @@ export default function MessageList({
                 fontSize: 14,
                 lineHeight: 1.55,
               }}
-              // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- contenu sanitizé via safeMarkdownToHTML (lib/sanitize.ts) avant injection
-              dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(m.content) }}
+              // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- contenu échappé par safeMarkdownToHTML (lib/sanitize.ts) puis assaini par DOMPurify (assainirHtml) avant injection
+              dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(m.content)) }}
             />
             {m.role === 'assistant' && crossAgentReferrals.length > 0 && onSendToAgent && (
               <div
@@ -139,8 +140,8 @@ export default function MessageList({
               fontSize: 14,
               lineHeight: 1.55,
             }}
-            // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- contenu sanitizé via safeMarkdownToHTML (lib/sanitize.ts) avant injection
-            dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(streamingPartial) }}
+            // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- contenu échappé par safeMarkdownToHTML (lib/sanitize.ts) puis assaini par DOMPurify (assainirHtml) avant injection
+            dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(streamingPartial)) }}
           />
         </div>
       )}

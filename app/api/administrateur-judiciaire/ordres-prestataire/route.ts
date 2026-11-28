@@ -183,7 +183,8 @@ export async function GET(request: NextRequest) {
       for (const c of (convData || []) as ConversationLigne[]) artisanParConversation.set(c.id, c.artisan_id)
 
       if (artisanParConversation.size > 0) {
-        const datesCreation = missions.map((m) => m.created_at).filter((d): d is string => !!d).sort()
+        // Dates ISO : ordre des caractères, identique au tri par défaut (comparateur explicite, SonarCloud S2871).
+        const datesCreation = missions.map((m) => m.created_at).filter((d): d is string => !!d).sort((a, b) => { if (a === b) return 0; return a < b ? -1 : 1 })
         let requete = supabaseAdmin.from('conversation_messages').select(COLONNES_MESSAGE).in('conversation_id', [...artisanParConversation.keys()])
         if (datesCreation[0]) requete = requete.gte('created_at', datesCreation[0])
         const { data: msgData, error: msgErr } = await requete.order('created_at', { ascending: false }).limit(MESSAGES_MAX)

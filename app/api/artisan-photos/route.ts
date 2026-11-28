@@ -1,10 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import type { User } from '@supabase/supabase-js'
+import { getAuthUser, getUserRole, verifyArtisanOwnership } from '@/lib/auth-helpers'
+import { ficheSocieteDuSousCompte } from '@/lib/btp/fiche-societe'
+import { niveauSur } from '@/lib/btp/perimetre-compte'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { validateBody, artisanPhotosPatchSchema } from '@/lib/validation'
+import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
+import { DUREE_LIEN_7_JOURS_S, signerValeurs } from '@/lib/storage/liens-stockage'
+
+// Photos des sociétés BTP (rôle pro_societe, lu dans app_metadata, non modifiable par le client) : la ligne garde le
+// chemin du fichier et chaque lecture rend un lien frais de 7 jours (la durée d'avant, pour les photos reprises dans
+// un devis ou un rapport). Un lien signé enregistré cessait de s'afficher au bout de 7 jours. Côté artisan, la ligne
+// garde le lien signé comme avant ; un chemin enregistré, qui ne vient que d'une société, est toujours signé.
+const SEAU_PHOTOS = 'artisan-photos'
+const estSocieteBtp = (user: { app_metadata?: Record<string, unknown> }) => user.app_metadata?.role === 'pro_societe'
+const estCheminNu = (valeur: unknown) => typeof valeur === 'string' && !/^[a-z][a-z0-9+.-]*:/i.test(valeur)
+
+async function avecLiensFrais<T extends { url?: unknown }>(
+  photos: T[],
+  ficheId: string,
+  relireLesAnciensLiens: boolean,
+): Promise<T[]> {
+  const aSigner = photos.map((p) => relireLesAnciensLiens || estCheminNu(p.url))
+  if (!aSigner.some(Boolean)) return photos
+  const liens = await signerValeurs(SEAU_PHOTOS, photos.map((p, i) => (aSigner[i] ? p.url : null)), {
+    dossiers: [`${ficheId}/`],
+    dureeS: DUREE_LIEN_7_JOURS_S,
+    origine: '[ARTISAN_PHOTOS]',
+  })
+  // Lien impossible à créer (stockage indisponible, valeur d'un autre site) : la valeur enregistrée, comme avant.
+  return photos.map((p, i) => (liens[i] ? { ...p, url: liens[i] } : p))
+}
+
+/**
+ * Compte invité dans une société BTP (sans fiche à lui) : la fiche visée est-elle celle de SA société, avec le niveau
+ * voulu sur le module photos_chantier (lecture : READ ou FULL ; écriture : FULL) ? Toujours faux pour un autre compte,
+ * qui garde le contrôle de propriétaire d'origine. Les photos de la société sont rangées sous sa fiche : le dossier du
+ * seau et les liens signés suivent, sans autre changement.
+ */
+async function ficheDeLaSocieteAutorisee(user: User, ficheId: string, ecriture: boolean): Promise<boolean> {
+  if (getUserRole(user) !== 'pro_societe') return false
+  const fiche = await ficheSocieteDuSousCompte(user, supabaseAdmin, (perimetre) => {
+    const niveau = niveauSur(perimetre, 'photos_chantier')
+    return ecriture ? niveau === 'FULL' : niveau !== 'NONE'
+  })
+  return !!fiche?.ok && fiche.ficheId === ficheId
+}
 
 const artisanPhotosFormSchema = z.object({
   artisan_id: z.string().uuid(),
@@ -19,6 +63,7 @@ const artisanPhotosFormSchema = z.object({
 /**
  * GET /api/artisan-photos?artisan_id=X&booking_id=Y
  * Liste les photos d'un artisan (optionnellement filtrées par booking)
+ * Réservé au propriétaire de la fiche, comme l'ajout, la modification et la suppression.
  */
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
@@ -35,6 +80,12 @@ export async function GET(request: NextRequest) {
 
   if (!artisanId) {
     return NextResponse.json({ error: 'artisan_id requis' }, { status: 400 })
+  }
+
+  // Les photos portent la date, le libellé et la position des chantiers : la fiche demandée doit être
+  // celle du compte connecté.
+  if (!(await verifyArtisanOwnership(user.id, artisanId, supabaseAdmin)) && !(await ficheDeLaSocieteAutorisee(user, artisanId, false))) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
   let query = supabaseAdmin
@@ -57,7 +108,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur récupération photos' }, { status: 500 })
   }
 
-  const response = NextResponse.json({ data })
+  let photos = data ?? []
+  try {
+    photos = await avecLiensFrais(photos, artisanId, estSocieteBtp(user))
+  } catch (e) {
+    logger.warn('[ARTISAN_PHOTOS] liens frais non créés', { raison: e instanceof Error ? e.message : String(e) })
+  }
+
+  const response = NextResponse.json({ data: photos })
   response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=300, stale-while-revalidate=600')
   return response
 }
@@ -106,10 +164,10 @@ export async function POST(request: NextRequest) {
     // Vérifier ownership artisan
     const { data: artisanProfile } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('user_id')
+      .select('id, user_id')
       .eq('id', artisanId)
       .single()
-    if (!artisanProfile || artisanProfile.user_id !== user.id) {
+    if (!artisanProfile || (artisanProfile.user_id !== user.id && !(await ficheDeLaSocieteAutorisee(user, artisanId, true)))) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
@@ -138,18 +196,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Format image invalide (JPEG, PNG, GIF, WebP acceptés)' }, { status: 400 })
     }
 
-    // F11: whitelist d'extensions au lieu du nom fourni par le client
-    const ALLOWED_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
-    const ext = ALLOWED_EXT[file.type] || 'jpg'
-    const timestamp = Date.now()
-    const randomSuffix = Math.random().toString(36).substring(2, 8)
-    const filename = `${artisanId}/${timestamp}_${randomSuffix}.${ext}`
+    // F11: type et extension déduits des octets reconnus (liste blanche), jamais du nom ni du type
+    // annoncés par le client ; nom généré côté serveur ; dossier = fiche artisan vérifiée (user_id de
+    // la session), segments vérifiés par buildStoragePath.
+    let typeImage = { mime: 'image/webp', ext: 'webp' }
+    if (isJPEG) typeImage = { mime: 'image/jpeg', ext: 'jpg' }
+    else if (isPNG) typeImage = { mime: 'image/png', ext: 'png' }
+    else if (isGIF) typeImage = { mime: 'image/gif', ext: 'gif' }
+    const filename = buildStoragePath(artisanProfile.id, `${crypto.randomUUID()}.${typeImage.ext}`)
 
     const { data: uploadData, error: uploadError } = await supabaseAdmin
       .storage
       .from('artisan-photos')
       .upload(filename, buffer, {
-        contentType: file.type,
+        contentType: typeImage.mime,
         upsert: false,
       })
 
@@ -158,12 +218,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur lors de l\'upload du fichier' }, { status: 500 })
     }
 
-    // Utiliser signed URL (7 jours) au lieu de public URL pour la sécurité
-    // Les photos artisan portfolio sont accessibles via signed URLs renouvelables
-    const { data: signedData, error: signError } = await supabaseAdmin.storage
-      .from('artisan-photos')
-      .createSignedUrl(uploadData.path, 60 * 60 * 24 * 7) // 7 jours
-    const publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from('artisan-photos').getPublicUrl(uploadData.path).data.publicUrl
+    // Chemin renvoyé par Storage revérifié (défense en profondeur) avant l'URL signée.
+    const cheminDepose = assertStoragePath(uploadData.path, artisanProfile.id)
+    const societeBtp = estSocieteBtp(user)
+    let publicUrl = cheminDepose // société BTP : le chemin, signé à chaque lecture
+    if (!societeBtp) {
+      // Utiliser signed URL (7 jours) au lieu de public URL pour la sécurité
+      // Les photos artisan portfolio sont accessibles via signed URLs renouvelables
+      const { data: signedData, error: signError } = await supabaseAdmin.storage
+        .from('artisan-photos')
+        .createSignedUrl(cheminDepose, 60 * 60 * 24 * 7) // 7 jours
+      if (signError) {
+        // Bucket privé : l'URL publique de repli ne sera pas lisible, l'échec doit se voir dans les journaux.
+        logger.warn('[ARTISAN_PHOTOS] URL signée en échec, repli sur l’URL publique', { message: signError.message })
+      }
+      publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from('artisan-photos').getPublicUrl(cheminDepose).data.publicUrl
+    }
 
     // Insérer dans la table
     const { data: photo, error: insertError } = await supabaseAdmin
@@ -186,8 +256,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur enregistrement' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, data: photo })
+    // Réponse : un lien affichable, comme avant, même quand la ligne garde le chemin.
+    let photoRendue = photo
+    if (societeBtp) {
+      try {
+        ;[photoRendue] = await avecLiensFrais([photo], artisanProfile.id, false)
+      } catch (e) {
+        logger.warn('[ARTISAN_PHOTOS] lien frais non créé', { raison: e instanceof Error ? e.message : String(e) })
+      }
+    }
+    return NextResponse.json({ success: true, data: photoRendue })
   } catch (e: unknown) {
+    if (e instanceof StoragePathError) {
+      logger.warn('[ARTISAN_PHOTOS] chemin de stockage refusé')
+      return NextResponse.json({ error: 'Requête invalide' }, { status: 400 })
+    }
     logger.error('[ARTISAN_PHOTOS] Server error:', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
@@ -226,7 +309,7 @@ export async function PATCH(request: NextRequest) {
       .select('user_id')
       .eq('id', photo.artisan_id)
       .single()
-    if (!artisanProfile || artisanProfile.user_id !== user.id) {
+    if (!artisanProfile || (artisanProfile.user_id !== user.id && !(await ficheDeLaSocieteAutorisee(user, photo.artisan_id, true)))) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
@@ -246,7 +329,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, data })
+    // Ligne d'une société BTP : son chemin rendu en lien affichable, comme les autres réponses.
+    let photoRendue = data
+    if (data && estCheminNu(data.url)) {
+      try {
+        ;[photoRendue] = await avecLiensFrais([data], photo.artisan_id, false)
+      } catch (e) {
+        logger.warn('[ARTISAN_PHOTOS] lien frais non créé', { raison: e instanceof Error ? e.message : String(e) })
+      }
+    }
+    return NextResponse.json({ success: true, data: photoRendue })
   } catch (e: unknown) {
     logger.error('[ARTISAN_PHOTOS] Server error:', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
@@ -285,18 +377,25 @@ export async function DELETE(request: NextRequest) {
     .select('user_id')
     .eq('id', photo.artisan_id)
     .single()
-  if (!artisanProfile || artisanProfile.user_id !== user.id) {
+  if (!artisanProfile || (artisanProfile.user_id !== user.id && !(await ficheDeLaSocieteAutorisee(user, photo.artisan_id, true)))) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
-  // Supprimer le fichier storage si possible
+  // Supprimer le fichier storage si possible (best-effort : la ligne reste la source de vérité).
+  // Chemin enregistré tel quel (photos des sociétés BTP) ou extrait de l'URL enregistrée, puis vérifié : traversée
+  // bloquée, dossier de la fiche imposé. Chemin refusé ou URL illisible : objet laissé, ligne supprimée (comme un
+  // échec de remove).
   try {
-    const urlPath = new URL(photo.url).pathname
-    const storagePath = urlPath.split('/artisan-photos/')[1]
+    const storagePath = estCheminNu(photo.url) ? photo.url : new URL(photo.url).pathname.split('/artisan-photos/')[1]
     if (storagePath) {
-      await supabaseAdmin.storage.from('artisan-photos').remove([storagePath])
+      const { error: storageError } = await supabaseAdmin.storage
+        .from('artisan-photos')
+        .remove([assertStoragePath(storagePath, photo.artisan_id)])
+      if (storageError) logger.warn('[ARTISAN_PHOTOS] fichier non supprimé', { photo: id, message: storageError.message })
     }
-  } catch { /* ignore storage delete errors */ }
+  } catch (e) {
+    logger.warn('[ARTISAN_PHOTOS] fichier non supprimé', { photo: id, raison: e instanceof Error ? e.name : 'inconnue' })
+  }
 
   const { error } = await supabaseAdmin
     .from('artisan_photos')

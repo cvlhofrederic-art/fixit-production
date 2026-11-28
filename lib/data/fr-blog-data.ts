@@ -25,7 +25,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'choisir-artisan',
     title: 'Comment bien choisir son artisan ?',
-    metaTitle: 'Comment bien choisir son artisan ? | Guide Vitfix 2026',
+    metaTitle: 'Comment bien choisir son artisan ? Guide 2026',
     metaDesc: 'SIRET, assurance RC Pro, avis clients... Découvrez les 5 critères indispensables pour choisir un artisan fiable et éviter les arnaques.',
     category: 'Conseils',
     icon: '🔍',
@@ -61,7 +61,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'urgence-plomberie',
     title: 'Fuite d\'eau : que faire en urgence ?',
-    metaTitle: 'Fuite d\'eau urgente : que faire ? Guide pas-à-pas | Vitfix',
+    metaTitle: 'Fuite d\'eau urgente : que faire ? Guide pas-à-pas',
     metaDesc: 'Coupez l\'eau, identifiez la source, contactez un plombier. Notre guide pas-à-pas pour limiter les dégâts en cas de fuite d\'eau.',
     category: 'Urgence',
     icon: '🔧',
@@ -97,7 +97,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'renovation-appartement',
     title: 'Rénover son appartement : par où commencer ?',
-    metaTitle: 'Rénover son appartement : guide complet 2026 | Vitfix',
+    metaTitle: 'Rénover son appartement : guide complet 2026',
     metaDesc: 'Avant d\'appeler les artisans, établissez un plan de travaux cohérent. Nos experts vous guident étape par étape pour votre rénovation.',
     category: 'Rénovation',
     icon: '🏠',
@@ -133,7 +133,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'isolation-thermique',
     title: 'Isolation thermique : les aides disponibles en 2026',
-    metaTitle: 'Aides isolation thermique 2026 : MaPrimeRénov\', éco-PTZ | Vitfix',
+    metaTitle: 'Aides isolation thermique 2026 : MaPrimeRénov\', éco-PTZ',
     metaDesc: 'MaPrimeRénov\', éco-PTZ, TVA à 5,5 %... Tout ce qu\'il faut savoir sur les aides financières pour vos travaux d\'isolation en 2026.',
     category: 'Financement',
     icon: '❄️',
@@ -169,7 +169,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'electricite-normes',
     title: 'Mise aux normes électriques : ce que dit la loi',
-    metaTitle: 'Normes électriques 2026 : NF C 15-100, obligations | Vitfix',
+    metaTitle: 'Normes électriques 2026 : NF C 15-100, obligations',
     metaDesc: 'Norme NF C 15-100, diagnostics obligatoires, travaux exigés lors de la vente... Tout savoir sur la mise aux normes électriques en 2026.',
     category: 'Réglementation',
     icon: '⚡',
@@ -205,7 +205,7 @@ export const FR_BLOG_ARTICLES: FrBlogArticle[] = [
   {
     slug: 'devis-travaux',
     title: 'Comment lire un devis de travaux ?',
-    metaTitle: 'Comment lire un devis de travaux ? Guide complet | Vitfix',
+    metaTitle: 'Comment lire un devis de travaux ? Guide complet',
     metaDesc: 'Prix HT/TTC, TVA applicable, délai d\'exécution, garanties... Ne signez plus sans comprendre chaque ligne de votre devis de travaux.',
     category: 'Conseils',
     icon: '📄',

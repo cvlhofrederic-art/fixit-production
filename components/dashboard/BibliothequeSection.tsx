@@ -55,6 +55,21 @@ const INITIAL_SOCIETE: BiblioItem[] = [
 ]
 
 const UNITE_OPTIONS = ['forfait', 'm²', 'm³', 'ml', 'unité', 'heure', 'jour', 'lot', 'kg', 'sac', 't']
+// Unités enregistrées en français (valeurs des options et des lignes) : seul leur libellé suit le portugais.
+const UNITE_LABELS_PT: Record<string, string> = {
+  forfait: 'valor global', 'unité': 'unidade', heure: 'hora', jour: 'dia', lot: 'lote', sac: 'saco',
+}
+// Corps de métier des lignes d'exemple, enregistrés en français : affichés avec le libellé portugais de la même clé.
+const CORPS_CLES: Record<string, string> = {
+  'VRD / Gros œuvre': 'proDash.bibliotheque.corpsVrd',
+  'Gros œuvre': 'proDash.bibliotheque.corpsGrosOeuvre',
+  'Second œuvre': 'proDash.bibliotheque.corpsSecondOeuvre',
+  'Charpente / Couverture': 'proDash.bibliotheque.corpsCharpente',
+  'Équipe': 'proDash.bibliotheque.corpsEquipe',
+  'Sous-traitance': 'proDash.bibliotheque.corpsSousTraitance',
+  'Matériel': 'proDash.bibliotheque.corpsMateriel',
+  'Autre': 'proDash.bibliotheque.corpsAutre',
+}
 
 function prixClient(rev: number, marge: number) {
   return rev * (1 + marge / 100)
@@ -80,6 +95,9 @@ const EMPTY_FORM = (isSociete: boolean, defaultCorps?: string): Omit<BiblioItem,
 
 export default function BibliothequeSection({ artisan, orgRole = 'artisan', navigateTo }: BibliothequeSectionProps) {
   const { t } = useTranslation()
+  const isPt = useLocale() === 'pt'
+  const libelleUnite = (u: string) => (isPt ? UNITE_LABELS_PT[u] ?? u : u)
+  const libelleCorps = (c: string) => (isPt && CORPS_CLES[c] ? t(CORPS_CLES[c]) : c)
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
@@ -198,7 +216,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       <div className="v5-fade">
         <div className="v5-pg-t">
           <h1>{t('proDash.bibliotheque.title')}</h1>
-          <p>{t('proDash.bibliotheque.subtitleBdd')} &mdash; {items.length} {t('proDash.bibliotheque.poste')}{items.length > 1 ? 's' : ''}</p>
+          <p>{t('proDash.bibliotheque.subtitleBdd')}{isPt ? ' · ' : ' — '}{items.length} {t('proDash.bibliotheque.poste')}{items.length > 1 ? 's' : ''}</p>
         </div>
 
         {/* Search + new */}
@@ -234,7 +252,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                 onClick={() => setCorpsFilter(c)}
                 className={`v5-btn v5-btn-sm${corpsFilter === c ? ' v5-btn-p' : ''}`}
               >
-                {c === 'all' ? t('proDash.bibliotheque.tousLesCorps') : c}
+                {c === 'all' ? t('proDash.bibliotheque.tousLesCorps') : libelleCorps(c)}
               </button>
             ))}
           </div>
@@ -268,7 +286,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   <td style={{ fontWeight: 600 }}>{item.nom}</td>
                   <td>
                     {item.corps && (
-                      <span className="v5-badge v5-badge-blue">{item.corps}</span>
+                      <span className="v5-badge v5-badge-blue">{libelleCorps(item.corps)}</span>
                     )}
                   </td>
                   <td>
@@ -276,7 +294,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                       {TYPE_LABELS[item.type]}
                     </span>
                   </td>
-                  <td>{item.unite}</td>
+                  <td>{libelleUnite(item.unite)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11 }}>{fmt(item.rev)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11 }}>{item.marge}%</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>{fmt(prixClient(item.rev, item.marge))}</td>
@@ -292,7 +310,9 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
         <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
           {filtered.length} {t('proDash.bibliotheque.elementsAffiches')}
-          {filtered.length > 0 && ` — ${t('proDash.bibliotheque.coutTotal')} : ${fmt(totalRevient)}`}
+          {filtered.length > 0 && (isPt
+            ? ` · ${t('proDash.bibliotheque.coutTotal')}: ${fmt(totalRevient)}`
+            : ` — ${t('proDash.bibliotheque.coutTotal')} : ${fmt(totalRevient)}`)}
         </div>
 
         {/* Modal */}
@@ -325,7 +345,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   <div className="v22-form-group">
                     <label className="v22-form-label">{t('proDash.bibliotheque.unite')}</label>
                     <select value={form.unite} onChange={e => setForm(f => ({ ...f, unite: e.target.value }))} className="v22-form-input">
-                      {UNITE_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                      {UNITE_OPTIONS.map(u => <option key={u} value={u}>{libelleUnite(u)}</option>)}
                     </select>
                   </div>
                 </div>
@@ -368,7 +388,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
           </h2>
           <p className="text-sm" style={{ color: tv.textSecondary }}>
             {isSociete
-              ? `${items.length} ${t('proDash.bibliotheque.poste')}${items.length > 1 ? 's' : ''} — ${t('proDash.bibliotheque.subtitleSociete')}`
+              ? `${items.length} ${t('proDash.bibliotheque.poste')}${items.length > 1 ? 's' : ''}${isPt ? ': ' : ' — '}${t('proDash.bibliotheque.subtitleSociete')}`
               : t('proDash.bibliotheque.subtitleArtisan')}
           </p>
         </div>
@@ -424,7 +444,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                 fontWeight: corpsFilter === c ? 600 : 400,
               }}
             >
-              {c === 'all' ? t('proDash.bibliotheque.tousLesCorps') : c}
+              {c === 'all' ? t('proDash.bibliotheque.tousLesCorps') : libelleCorps(c)}
             </button>
           ))}
         </div>
@@ -464,13 +484,13 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   <td className="px-3 py-2">
                     {item.corps && (
                       <span className="text-xs px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">
-                        {item.corps}
+                        {libelleCorps(item.corps)}
                       </span>
                     )}
                   </td>
                 )}
                 <td className="px-3 py-2">{typeTag(item.type, TYPE_LABELS)}</td>
-                <td className="px-3 py-2" style={{ color: tv.textSecondary }}>{item.unite}</td>
+                <td className="px-3 py-2" style={{ color: tv.textSecondary }}>{libelleUnite(item.unite)}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: tv.text }}>{fmt(item.rev)}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: tv.text }}>{item.marge}%</td>
                 <td className="px-3 py-2 text-right font-mono text-xs font-semibold" style={{ color: tv.text }}>{fmt(prixClient(item.rev, item.marge))}</td>
@@ -486,7 +506,9 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
       <p className="text-xs" style={{ color: tv.textSecondary }}>
         {filtered.length} {t('proDash.bibliotheque.elementsAffiches')}
-        {filtered.length > 0 && ` — ${t('proDash.bibliotheque.coutTotal')} : ${fmt(totalRevient)}`}
+        {filtered.length > 0 && (isPt
+          ? ` · ${t('proDash.bibliotheque.coutTotal')}: ${fmt(totalRevient)}`
+          : ` — ${t('proDash.bibliotheque.coutTotal')} : ${fmt(totalRevient)}`)}
       </p>
 
       {/* Modal */}
@@ -542,7 +564,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                     onChange={e => setForm(f => ({ ...f, unite: e.target.value }))}
                     className="v22-form-input"
                   >
-                    {UNITE_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                    {UNITE_OPTIONS.map(u => <option key={u} value={u}>{libelleUnite(u)}</option>)}
                   </select>
                 </div>
               </div>

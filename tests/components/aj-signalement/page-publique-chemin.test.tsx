@@ -1,0 +1,195 @@
+// tests/components/aj-signalement/page-publique-chemin.test.tsx
+//
+// Chemin par cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/, choix de Hugo du 10/11/2026), côté pages :
+// - page interne app/(commun)/cabinet/[identifiant]/signalement/[jeton] (servie par réécriture) : identifiant ou jeton
+//   mal formé → 404 SANS lecture ; copropriété inconnue, désactivée, sans cabinet ou d'un AUTRE cabinet → le même 404 ;
+//   sinon la page publique, dans la langue du cabinet (attribut lang et textes) ;
+// - ancienne page /fr|pt/signalement/<jeton>/ (QR codes déjà imprimés) : copropriété rattachée → redirection
+//   permanente (308) vers le chemin de son cabinet ; sans cabinet → servie comme aujourd'hui (langue du chemin).
+// - PR 3, lot 7 (cahier § 6, HF3) : la page du chemin client lit l'information à la collecte (politique du cabinet,
+//   diffusion possible) et la passe au formulaire ; aucune information → formulaire inchangé ; l'ancienne page
+//   (copropriété sans cabinet) ne la lit jamais.
+// - bâtiments saisis par le cabinet (demande du 17/11/2026) : les deux pages passent au formulaire la liste
+//   nettoyée (ordre saisi, doublons et vides écartés) ; de la copropriété, le formulaire ne reçoit que son nom, son
+//   adresse et ces noms de bâtiments (minimisation) ; sans bâtiment : liste vide, texte libre.
+// La lecture (serveur) est simulée : seules les décisions des pages sont testées.
+
+import React from 'react'
+import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const simul = vi.hoisted(() => ({
+  lire: vi.fn(),
+  information: vi.fn(),
+  locale: 'fr' as string | null,
+}))
+
+vi.mock('@/lib/aj-signalement/serveur', () => ({ lireCoproprieteEtCabinetParJetonQr: simul.lire }))
+vi.mock('@/lib/aj-signalement/serveur-information', () => ({ informationFormulaireQr: simul.information }))
+// Logo du cabinet (13/11/2026) : aucun ici (cabinet sans logo), la page rend ce qu'elle rendait avant ; le logo est testé
+// dans tests/components/aj-signalement/logo-page-publique.test.tsx.
+vi.mock('@/lib/aj-signalement/serveur-logo', () => ({ lireLogoPageCabinetQr: async () => null }))
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(simul.locale ? { 'x-locale': simul.locale } : {}),
+}))
+vi.mock('next/navigation', () => ({
+  notFound: () => { throw new Error('NEXT_NOT_FOUND') },
+  permanentRedirect: (url: string) => { throw new Error(`NEXT_REDIRECT_308:${url}`) },
+}))
+vi.mock('@/components/aj-signalement/AppSignalementQr', () => ({
+  default: ({ jeton, copropriete, langue, information }: {
+    jeton: string; copropriete: { nom: string; adresse: string; batiments?: readonly string[] }; langue: string; information?: unknown
+  }) => (
+    <p
+      data-testid="app" data-jeton={jeton} data-langue={langue} data-information={JSON.stringify(information ?? null)}
+      data-copropriete={JSON.stringify(copropriete)}
+    >
+      {copropriete.nom} — {copropriete.adresse}
+    </p>
+  ),
+}))
+
+const { default: PageCabinet } = await import('@/app/(commun)/cabinet/[identifiant]/signalement/[jeton]/page')
+const { default: PageAncienne } = await import('@/app/(commun)/signalement/[jeton]/page')
+
+const JETON = '0123456789abcdef0123456789abcdef'
+const copro = { id: 'c1', nom: 'Résidence Exemple', adresse: '1 rue Exemple', jeton: JETON, emails_destinataires: [], actif: true, created_at: null, cabinet_id: 'k1' }
+const cabinet = (identifiant: string, langue: 'fr' | 'pt' = 'fr') => ({ id: 'k1', nom: 'Cabinet Exemple', identifiant, langue })
+
+const ouvrirCabinet = (identifiant: string, jeton = JETON) => PageCabinet({ params: Promise.resolve({ identifiant, jeton }) })
+const ouvrirAncienne = (jeton = JETON) => PageAncienne({ params: Promise.resolve({ jeton }) })
+
+beforeEach(() => {
+  simul.lire.mockReset()
+  simul.information.mockReset()
+  simul.information.mockResolvedValue(null)
+  simul.locale = 'fr'
+})
+
+describe('page interne du chemin client (/<identifiant>/signalement/<jeton>/)', () => {
+  it('même cabinet : la page publique, dans la langue du cabinet', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple', 'pt') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    const app = screen.getByTestId('app')
+    expect(app).toHaveAttribute('data-langue', 'pt')
+    expect(app).toHaveAttribute('data-jeton', JETON)
+    expect(app).toHaveTextContent('Résidence Exemple — 1 rue Exemple')
+    expect(app.closest('[lang]')).toHaveAttribute('lang', 'pt')
+    expect(simul.lire).toHaveBeenCalledWith(JETON)
+  })
+
+  it('cabinet en français par défaut', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(screen.getByTestId('app')).toHaveAttribute('data-langue', 'fr')
+  })
+
+  it('le jeton appartient à un AUTRE cabinet que celui du chemin : 404 neutre', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('autre-cabinet') })
+    await expect(ouvrirCabinet('cabinet-exemple')).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it.each([
+    ['copropriété inconnue ou désactivée', { ok: true, copropriete: null, cabinet: null }],
+    ['copropriété sans cabinet (ancienne adresse seulement)', { ok: true, copropriete: { ...copro, cabinet_id: null }, cabinet: null }],
+    ['lecture impossible', { ok: false, code: 'serveur' }],
+    ['migration absente', { ok: false, code: 'base_absente' }],
+  ])('%s : le même 404', async (_cas, lecture) => {
+    simul.lire.mockResolvedValue(lecture)
+    await expect(ouvrirCabinet('cabinet-exemple')).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it.each([
+    ['identifiant trop court', 'ab', JETON],
+    ['identifiant en majuscules', 'Cabinet-Exemple', JETON],
+    ['identifiant hors format', 'cabinet--exemple', JETON],
+    ['jeton trop court', 'cabinet-exemple', JETON.slice(1)],
+    ['jeton en majuscules', 'cabinet-exemple', JETON.toUpperCase()],
+  ])('%s : 404 sans aucune lecture', async (_cas, identifiant, jeton) => {
+    await expect(ouvrirCabinet(identifiant, jeton)).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(simul.lire).not.toHaveBeenCalled()
+  })
+})
+
+describe('ancienne page /fr|pt/signalement/<jeton>/ (QR codes déjà imprimés)', () => {
+  it('copropriété rattachée à un cabinet : redirection permanente vers le chemin du cabinet', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple') })
+    await expect(ouvrirAncienne()).rejects.toThrow(`NEXT_REDIRECT_308:/cabinet-exemple/signalement/${JETON}/`)
+  })
+
+  it('copropriété sans cabinet : servie comme aujourd’hui, langue du chemin', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...copro, cabinet_id: null }, cabinet: null })
+    render(await ouvrirAncienne())
+    expect(screen.getByTestId('app')).toHaveAttribute('data-langue', 'fr')
+    simul.locale = 'pt'
+    render(await ouvrirAncienne())
+    expect(screen.getAllByTestId('app')[1]).toHaveAttribute('data-langue', 'pt')
+  })
+
+  it('jeton mal formé : 404 sans lecture ; inconnu ou erreur : 404', async () => {
+    await expect(ouvrirAncienne('pas-un-jeton')).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(simul.lire).not.toHaveBeenCalled()
+    simul.lire.mockResolvedValue({ ok: true, copropriete: null, cabinet: null })
+    await expect(ouvrirAncienne()).rejects.toThrow('NEXT_NOT_FOUND')
+    simul.lire.mockResolvedValue({ ok: false, code: 'serveur' })
+    await expect(ouvrirAncienne()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+describe('information à la collecte sur le formulaire (PR 3, lot 7 ; cahier § 6, HF3)', () => {
+  const INFORMATION = { cabinet: 'Cabinet Exemple', politiqueUrl: 'https://cabinet-exemple.test/confidentialite', diffusion: true }
+
+  it('page du chemin client : information lue pour CETTE copropriété et CE cabinet, passée au formulaire', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple') })
+    simul.information.mockResolvedValue(INFORMATION)
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(simul.information).toHaveBeenCalledWith('c1', 'k1')
+    expect(JSON.parse(screen.getByTestId('app').getAttribute('data-information') ?? 'null')).toEqual(INFORMATION)
+  })
+
+  it('aucune information (cabinet sans politique, migration absente) : formulaire inchangé', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(screen.getByTestId('app')).toHaveAttribute('data-information', 'null')
+  })
+
+  it('page refusée (404) ou ancienne page sans cabinet : l’information n’est jamais lue', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('autre-cabinet') })
+    await expect(ouvrirCabinet('cabinet-exemple')).rejects.toThrow('NEXT_NOT_FOUND')
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...copro, cabinet_id: null }, cabinet: null })
+    render(await ouvrirAncienne())
+    expect(screen.getByTestId('app')).toHaveAttribute('data-information', 'null')
+    expect(simul.information).not.toHaveBeenCalled()
+  })
+})
+
+describe('bâtiments saisis par le cabinet (demande du 17/11/2026)', () => {
+  const coproprieteRecue = () => JSON.parse(screen.getByTestId('app').getAttribute('data-copropriete') ?? 'null') as Record<string, unknown>
+  const BATIMENTS_ATTENDUS = ['Bâtiment A', 'Bâtiment B', 'Les Pins', 'commerces']
+  const AVEC_BATIMENTS = {
+    ...copro, batiments: [' Bâtiment A ', 'Bâtiment B', '', 'bâtiment a', 'Les Pins', 'commerces'],
+    emails_destinataires: ['cabinet@exemple.test'], immatriculation: 'AB1234567', reference_cabinet: 'REF-1',
+  }
+
+  it('page du chemin client : la liste nettoyée, dans l’ordre saisi, et rien d’autre de la copropriété', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: AVEC_BATIMENTS, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(coproprieteRecue()).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', batiments: BATIMENTS_ATTENDUS })
+  })
+
+  it('ancienne page (copropriété sans cabinet) : la même liste, rien d’autre', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...AVEC_BATIMENTS, cabinet_id: null }, cabinet: null })
+    render(await ouvrirAncienne())
+    expect(coproprieteRecue()).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', batiments: BATIMENTS_ATTENDUS })
+  })
+
+  it.each([
+    ['aucun bâtiment saisi', []],
+    ['colonne absente (migration du 11/11/2026 non appliquée)', undefined],
+    ['colonne vide', null],
+  ])('%s : liste vide (texte libre)', async (_cas, batiments) => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...copro, batiments }, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(coproprieteRecue()).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', batiments: [] })
+  })
+})

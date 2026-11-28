@@ -1,166 +1,18 @@
 'use client'
 
-import { useState, useEffect, RefObject } from 'react'
+import { RefObject } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
+import { COMPLIANCE_TYPES, getComplianceStatus, type ComplianceDoc, type InterventionProof } from '@/components/pro-mobile/conformite'
+import RapportIABandeau from '@/components/pro-mobile/RapportIABandeau'
+import { localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
 
-// API base : '' en web (Workers SSR), 'https://vitfix.io' au build mobile
-// Capacitor (export statique) via NEXT_PUBLIC_API_URL. Le runtime
-// capacitor://localhost ne peut pas résoudre les paths /api/ relatifs.
+// API base : '' en web (Workers SSR) comme dans l'appli Vitfix Pro, qui affiche le site
+// (capacitor.config.ts) : fetch relatif. NEXT_PUBLIC_API_URL ne servait qu'à l'ancien
+// export statique Capacitor (abandonné le 12/11/2026).
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
-
-// ─── Compliance Wallet Types ──────────────────────────────────────────────────
-const COMPLIANCE_TYPES = [
-  { key: 'decennale',      label: 'RC Décennale',         labelKey: 'proDash.wallet.assuranceDecennale', icon: '🛡️', renewYears: 1 },
-  { key: 'kbis',           label: 'Extrait KBIS',         labelKey: 'proDash.wallet.kbis',              icon: '📋', renewYears: 0 },
-  { key: 'urssaf',         label: 'Attestation URSSAF',   labelKey: 'proDash.wallet.urssaf',            icon: '🏛️', renewYears: 0 },
-  { key: 'rge',            label: 'Certificat RGE',       labelKey: 'proDash.wallet.rge',               icon: '♻️', renewYears: 4 },
-  { key: 'carte_pro',      label: 'Carte Pro BTP',        labelKey: 'proDash.wallet.carteProBtp',       icon: '🪪', renewYears: 5 },
-  { key: 'passeport_prev', label: 'Passeport Prévention', labelKey: 'proDash.wallet.passeportPrevention', icon: '🎓', renewYears: 0 },
-  { key: 'assurance_pro',  label: 'Assurance Pro (RC)',   labelKey: 'proDash.wallet.rcPro',             icon: '🔒', renewYears: 1 },
-  { key: 'autre',          label: 'Autre document',       labelKey: 'mob.compliance.other',             icon: '📄', renewYears: 0 },
-] as const
-type ComplianceType = typeof COMPLIANCE_TYPES[number]['key']
-
-interface ComplianceDoc {
-  id: string
-  type: ComplianceType
-  dateExpiration: string | null
-  notes: string
-  addedAt: string
-  ocrData?: {
-    rawText?: string
-    assureur?: string
-    numPolice?: string
-    montantGarantie?: string
-    activiteCouverte?: string
-    detectedType?: ComplianceType
-    confidence?: number
-    scannedAt?: string
-  }
-  photoDataUrl?: string
-  verificationStatus?: 'pending' | 'verified' | 'rejected'
-  passeportPrevention?: string
-}
-
-function getComplianceStatus(doc: ComplianceDoc): 'valid' | 'expiring' | 'expired' | 'nodoc' {
-  if (!doc.dateExpiration) return 'nodoc'
-  const days = Math.ceil((new Date(doc.dateExpiration).getTime() - Date.now()) / 86400000)
-  if (days < 0)   return 'expired'
-  if (days <= 30) return 'expiring'
-  return 'valid'
-}
-
-// ─── Proof types (mirrored from parent) ───────────────────────────────────────
-interface ProofPhoto {
-  dataUrl: string
-  timestamp: string
-  lat?: number
-  lng?: number
-  label: string
-}
-
-interface InterventionProof {
-  bookingId: string
-  step: 'before' | 'during' | 'after' | 'signature'
-  beforePhotos: ProofPhoto[]
-  duringPhotos: ProofPhoto[]
-  afterPhotos: ProofPhoto[]
-  description: string
-  signature?: string
-  startedAt?: string
-  completedAt?: string
-  gpsLat?: number
-  gpsLng?: number
-}
-
-// ─── RapportIABandeau (inline component) ──────────────────────────────────────
-function RapportIABandeau({ bookingId }: { bookingId: string }) {
-  const [contenu, setContenu] = useState<{ introduction?: string; travaux_realises?: string; observations?: string; conclusion?: string; source?: string } | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [editData, setEditData] = useState({ introduction: '', travaux_realises: '', observations: '', conclusion: '' })
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!bookingId) return
-    supabase.from('bookings').select('rapport_ia_texte_brut, rapport_ia_source').eq('id', bookingId).maybeSingle()
-      .then(({ data }) => {
-        if (data?.rapport_ia_texte_brut) {
-          try {
-            const parsed = JSON.parse(data.rapport_ia_texte_brut)
-            setContenu(parsed)
-            setEditData({
-              introduction: parsed.introduction || '',
-              travaux_realises: parsed.travaux_realises || '',
-              observations: parsed.observations || '',
-              conclusion: parsed.conclusion || '',
-            })
-          } catch { /* invalid JSON */ }
-        }
-      })
-  }, [bookingId])
-
-  if (!contenu?.introduction) return null
-
-  const handleSave = async () => {
-    setSaving(true)
-    const updated = { ...contenu, ...editData }
-    await supabase.from('bookings').update({
-      rapport_ia_texte_brut: JSON.stringify(updated),
-      rapport_ia_source: 'manuel',
-    }).eq('id', bookingId)
-    setContenu(updated)
-    setEditing(false)
-    setSaving(false)
-  }
-
-  return (
-    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-bold text-emerald-700">
-          ✨ Texte rédigé automatiquement
-        </span>
-        <button
-          onClick={() => setEditing(!editing)}
-          className="text-xs font-semibold text-emerald-600 underline"
-        >
-          {editing ? 'Fermer' : 'Modifier'}
-        </button>
-      </div>
-      <p className="text-[11px] text-emerald-600 mb-1">
-        Généré depuis les données du chantier. Modifiable avant envoi.
-      </p>
-      {editing && (
-        <div className="space-y-2 mt-2">
-          {(['introduction', 'travaux_realises', 'observations', 'conclusion'] as const).map(field => (
-            <div key={field}>
-              <label className="text-[10px] font-bold text-gray-500 uppercase">{
-                field === 'travaux_realises' ? 'Travaux réalisés' :
-                field.charAt(0).toUpperCase() + field.slice(1)
-              }</label>
-              <textarea
-                value={editData[field]}
-                onChange={e => setEditData(prev => ({ ...prev, [field]: e.target.value }))}
-                rows={2}
-                className="w-full text-xs border border-gray-200 rounded-lg p-2 mt-0.5 resize-none focus:ring-1 focus:ring-emerald-300 focus:border-emerald-300"
-              />
-            </div>
-          ))}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-emerald-600 text-white text-xs font-bold py-2 rounded-xl active:scale-95 transition"
-            style={{ opacity: saving ? 0.5 : 1 }}
-          >
-            {saving ? '⏳ Enregistrement...' : '💾 Sauvegarder les modifications'}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface MobileDocumentsSectionProps {
@@ -452,7 +304,7 @@ export default function MobileDocumentsSection({
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm font-bold text-gray-700">📝 Devis rapide</div>
             <button
-              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
+              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: String(tauxTvaParDefaut(localeTva(locale))), validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
               className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1.5 rounded-xl"
             >
               + Créer
@@ -462,7 +314,7 @@ export default function MobileDocumentsSection({
             <div className="text-sm font-semibold text-amber-800 mb-1">📋 Générez un devis en 30 secondes</div>
             <div className="text-xs text-amber-700 mb-3">Renseignez le client, le service et le montant. Le devis formaté est prêt à envoyer par SMS ou email.</div>
             <button
-              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
+              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: String(tauxTvaParDefaut(localeTva(locale))), validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
               className="w-full bg-[#FFC107] text-gray-900 font-bold py-2.5 rounded-xl text-sm active:scale-95 transition"
             >
               📝 Nouveau devis

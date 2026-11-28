@@ -8,28 +8,38 @@ import {
   type CourrielAlfredo,
 } from '@/components/administrateur-judiciaire/data/courriels-alfredo'
 import { AVATARS_AGENTS } from '@/components/administrateur-judiciaire/ui/avatars'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useAgentIA } from '@/components/administrateur-judiciaire/modules/agents-ia/useAgentIA'
+import { useCoproprietesAffichees } from '@/lib/administrateur-judiciaire/db/hooks'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant } from '@/lib/administrateur-judiciaire/selection'
 
 /**
  * Alfredo — Courriers (démo) : boîte e-mail connectée du cabinet, messages reçus (sélectionner un message le marque
  * lu), fil de l'échange et brouillon de réponse proposé. « Régénérer » demande un nouveau brouillon à l'agent IA
- * (Claude) ; envoi et modification restent simulés.
+ * (Claude) ; envoi et modification restent simulés. Seuls les courriels de la copropriété choisie en haut de page sont
+ * affichés (toute la boîte sans copropriété choisie) ; la boîte entière reste dans l'état (lus, brouillons).
  */
 export function AlfredoCourriersModule() {
   const { push } = useToast()
   const [courriels, setCourriels] = useState<CourrielAlfredo[]>(DEMO_COURRIELS_ALFREDO)
   const [idSelectionne, setIdSelectionne] = useState('e1')
-  const courriel = courriels.find((candidat) => candidat.id === idSelectionne) || courriels[0]
+  const code = useCodeCoproCourant()
+  const copros = useCoproprietesAffichees()
+  const visibles = filtrerParCopro(courriels, code, (element) => codeDeNomCopro(element.copro, copros))
+  // Message ouvert : le message choisi s'il est affiché, sinon le premier de la copropriété (aucun si elle n'en a pas).
+  const courriel: CourrielAlfredo | undefined =
+    visibles.find((candidat) => candidat.id === idSelectionne) || visibles[0]
   const appelerAgent = useAgentIA()
   const [regeneration, setRegeneration] = useState(false)
 
   /** Nouveau brouillon rédigé par l'agent IA à partir du fil ; en cas d'échec, le brouillon actuel est conservé. */
   const regenerer = async () => {
-    if (regeneration) return
+    if (regeneration || !courriel) return
     const cible = courriel
     setRegeneration(true)
     push({ kind: 'info', title: 'Nouveau brouillon', desc: 'Alfredo rédige une nouvelle proposition…' })
@@ -65,9 +75,9 @@ export function AlfredoCourriersModule() {
     )
   }
 
-  const nbNonLus = courriels.filter((element) => element.unread).length
+  const nbNonLus = visibles.filter((element) => element.unread).length
 
-  return (
+  const entete = (
     <>
       <PageHead
         eyebrow="Agents IA · Courriers"
@@ -139,14 +149,32 @@ export function AlfredoCourriersModule() {
           {' non lus'}
         </Pill>
       </div>
+    </>
+  )
+
+  if (!courriel)
+    return (
+      <>
+        {entete}
+        <EmptyState
+          icon="mail"
+          title={`Aucun courriel pour ${copros.find((copro) => copro.code === code)?.nom || code || 'cette copropriété'}`}
+          desc="La boîte connectée du cabinet ne contient aucun message de cette copropriété."
+        />
+      </>
+    )
+
+  return (
+    <>
+      {entete}
       <div className="alf-grid">
         <div className="alf-list" role="list" aria-label="Messages reçus">
-          {courriels.map((element) => (
+          {visibles.map((element) => (
             <button
               type="button"
-              className={`alf-item ${idSelectionne === element.id ? 'active' : ''}`}
+              className={`alf-item ${courriel.id === element.id ? 'active' : ''}`}
               onClick={() => selectionner(element.id)}
-              aria-current={idSelectionne === element.id ? 'true' : undefined}
+              aria-current={courriel.id === element.id ? 'true' : undefined}
               key={element.id}
             >
               <div

@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { createSousTraitanceOffreSchema, validateBody } from '@/lib/validation'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isProGerant, isProSocieteRole, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 
 /**
  * Déduit le pays (FR/PT) depuis le format du code postal.
@@ -67,6 +69,13 @@ export async function GET(request: NextRequest) {
   const artisanUserId = url.searchParams.get('artisan_user_id')
   const offerId = url.searchParams.get('offer_id')
 
+  // ── Modes personnels : réservés au compte concerné (même règle que GET /api/marches) ──
+  // Les offres d'une entreprise, tous statuts confondus, et les distances calculées depuis l'adresse d'un compte
+  // ne sont rendues qu'à ce compte : l'identifiant passé dans l'URL ne prouve rien, seul le jeton le fait.
+  const appelant = btpCompanyId || artisanUserId ? await getAuthUser(request) : null
+  if ((btpCompanyId || artisanUserId) && !appelant) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (artisanUserId && appelant && artisanUserId !== appelant.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+
   // ── Mode: candidatures for one offer (BTP company view) ──────────────────
   if (offerId && btpCompanyId) {
     const user = await getAuthUser(request)
@@ -83,9 +92,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    // Colonnes réelles de marches_candidatures (relevé de production du 11/11/2026) : une colonne absente fait
+    // échouer toute la lecture. Disponibilités, années d'expérience et téléphone n'y sont pas enregistrés.
     const { data: candidatures, error } = await supabaseAdmin
       .from('marches_candidatures')
-      .select('id, artisan_id, artisan_user_id, price, timeline, description, disponibilites, experience_years, artisan_company_name, artisan_rating, artisan_phone, materials_included, guarantee, status, created_at')
+      .select('id, artisan_id, artisan_user_id, price, timeline, description, artisan_company_name, artisan_rating, materials_included, guarantee, status, created_at')
       .eq('marche_id', offerId)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -95,28 +106,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    // Enrich with artisan profile
+    // Fiche de chaque candidat. Colonnes réelles de profiles_artisan (relevé de production du 31/10/2026) : la photo est
+    // profile_photo_url et la ville company_city, rendues sous les noms que lit l'écran (photo_url, city) ; une colonne
+    // absente faisait échouer la lecture, et l'écran n'affichait jamais photo, ville ni pastilles d'assurance.
     const enriched = await Promise.all(
       (candidatures || []).map(async (c: { artisan_id: string; [key: string]: unknown }) => {
-        const { data: profile } = await supabaseAdmin
+        const { data: profile, error: profileError } = await supabaseAdmin
           .from('profiles_artisan')
-          .select('company_name, rating_avg, photo_url, city, services_offered, rc_pro_valid, decennale_valid, qualibat_valid')
+          .select('company_name, rating_avg, photo_url:profile_photo_url, city:company_city, rc_pro_valid, decennale_valid, qualibat_valid')
           .eq('id', c.artisan_id)
-          .single()
+          .maybeSingle()
+        // Le candidat reste listé sans sa fiche ; l'échec de la lecture est journalisé.
+        if (profileError) logger.error('[st] GET candidatures : fiche du candidat illisible', { error: profileError.message })
         return { ...c, profile: profile || null }
       })
     )
 
-    return NextResponse.json({ candidatures: enriched })
+    // Prix et textes des candidats, réservés au publieur de l'offre : jamais gardés par un cache.
+    return NextResponse.json({ candidatures: enriched }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Mode: list offers published by a BTP company ──────────────────────────
-  if (btpCompanyId) {
+  if (btpCompanyId && appelant) {
+    // Seulement les offres publiées par le compte appelant (publisher_user_id est posé par le POST ci-dessous,
+    // qui exige déjà qu'il soit celui du jeton).
     const { data: offers, error } = await supabaseAdmin
       .from('marches')
       .select('id, title, description, category, mission_type, location_city, location_postal, budget_min, budget_max, start_date, duration_text, deadline, urgency, candidatures_count, max_candidatures, status, require_rc_pro, require_decennale, require_qualibat, nb_intervenants_souhaite, created_at')
       .eq('source_type', 'btp_sous_traitance')
       .eq('btp_company_id', btpCompanyId)
+      .eq('publisher_user_id', appelant.id)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -124,7 +143,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    return NextResponse.json({ offers: offers || [] })
+    return NextResponse.json({ offers: offers || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Mode: browse all open BTP offers (artisan side) ───────────────────────
@@ -173,8 +192,29 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ offers })
-  response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
+  // Avec artisan_user_id, la réponse porte des distances propres à un compte : jamais dans un cache partagé.
+  response.headers.set('Cache-Control', artisanUserId ? CACHE_PERSONNEL : 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
   return response
+}
+
+/**
+ * Compte titulaire de la fiche au nom de laquelle une offre est publiée : le compte lui-même pour le gérant (et le super
+ * admin), celui de sa société pour un sous-compte, relu dans pro_team_members à chaque publication. Une panne de cette
+ * lecture est rendue comme telle : resolveCompanyId la confond avec l'absence de rattachement. Sans un rattachement
+ * actif unique, le compte reste son propre titulaire, comme avec resolveCompanyId.
+ */
+async function titulaireDeLaFiche(user: User): Promise<{ compte: string } | { panne: string }> {
+  // Un co-gérant (gérant invité, société d'un autre compte) publie au nom de SA société, comme un sous-compte.
+  if (getUserRole(user) !== 'pro_societe' || (isProGerant(user) && !societeDunAutreCompte(user))) return { compte: user.id }
+  const { data, error } = await supabaseAdmin
+    .from('pro_team_members')
+    .select('company_id')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .limit(2)
+  if (error) return { panne: error.message }
+  const rattachements = (data || []) as { company_id: string | null }[]
+  return { compte: (rattachements.length === 1 && rattachements[0].company_id) || user.id }
 }
 
 // ── POST /api/marches/sous-traitance — BTP company publishes an offer ────────
@@ -184,6 +224,10 @@ export async function POST(request: NextRequest) {
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  // Seule une société BTP publie une offre de sous-traitance (l'écran « Recruter sous-traitants » est le sien).
+  if (!isProSocieteRole(user)) {
+    return NextResponse.json({ error: 'Publication réservée aux sociétés BTP' }, { status: 403 })
+  }
 
   let body: unknown
   try {
@@ -203,13 +247,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
   }
 
+  // L'offre est publiée au nom de la fiche société du compte connecté, relue en base : la sienne pour le gérant, celle
+  // de sa société pour un sous-compte (titulaireDeLaFiche). Le nom envoyé par le navigateur ne prouve rien ; sans fiche
+  // de société, l'offre porte le nom générique « Entreprise BTP ».
+  // L'identifiant envoyé n'est accepté que s'il désigne cette fiche ou le compte lui-même : un compte sans fiche à lui
+  // (un sous-compte, par exemple) est identifié par son propre identifiant dans le tableau de bord, et c'est par cet
+  // identifiant que l'écran retrouve ensuite ses offres (GET ?btp_company_id=…, filtré aussi sur publisher_user_id).
+  const titulaire = await titulaireDeLaFiche(user)
+  if ('panne' in titulaire) {
+    // Une panne n'est pas une absence de société : rien n'est publié sous le nom générique.
+    logger.error('[st] POST : rattachement du sous-compte à sa société illisible', { error: titulaire.panne })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  }
+  const { data: fiche, error: ficheError } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('id, company_name')
+    .eq('user_id', titulaire.compte)
+    .maybeSingle()
+  if (ficheError) {
+    // Une panne n'est pas un refus : la société n'est pas accusée de viser la fiche d'une autre.
+    logger.error('[st] POST : contrôle de la fiche société impossible', { error: ficheError.message })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  }
+  if (v.btp_company_id !== fiche?.id && v.btp_company_id !== user.id) {
+    return NextResponse.json({ error: 'Cette fiche société n\'est pas celle de votre compte' }, { status: 403 })
+  }
+  const nomSociete = (fiche?.company_name as string | null | undefined) || 'Entreprise BTP'
+
   const access_token = crypto.randomUUID()
 
   const { data, error } = await supabaseAdmin
     .from('marches')
     .insert({
       // Publisher
-      publisher_name: v.publisher_name,
+      publisher_name: nomSociete,
       publisher_email: v.publisher_email,
       publisher_phone: v.publisher_phone || null,
       publisher_type: 'entreprise',
@@ -217,7 +288,7 @@ export async function POST(request: NextRequest) {
       // BTP fields
       source_type: 'btp_sous_traitance',
       btp_company_id: v.btp_company_id,
-      btp_company_name: v.btp_company_name,
+      btp_company_name: nomSociete,
       mission_type: v.mission_type,
       start_date: v.start_date || null,
       duration_text: v.duration_text || null,
@@ -286,7 +357,7 @@ export async function POST(request: NextRequest) {
             artisan_id: a.id,
             type: 'marche_new',
             title: `Offre sous-traitance : ${v.title}`,
-            body: `L'entreprise "${v.btp_company_name}" recherche un(e) ${v.category} à ${v.location_city}.`,
+            body: `L'entreprise "${nomSociete}" recherche un(e) ${v.category} à ${v.location_city}.`,
             read: false,
           }))
           await supabaseAdmin.from('artisan_notifications').insert(notifications)

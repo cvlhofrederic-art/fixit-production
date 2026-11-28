@@ -1,20 +1,26 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 import { validateBody, comptableAiRequestSchema } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { lirePerimetreBtp, niveauSur } from '@/lib/btp/perimetre-compte'
+import { societeNonResolue } from '@/lib/btp/titulaire-documents'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
+import {
+  RETENCAO_CAT_B_PT, eurPt, faixasIrsPt, iasPt, isencaoIvaPt, limiteDispensaRetencaoPt, limiteIrsJovemPt,
+  limiteIsencaoSsAcumulacaoPt, minimoExistenciaPt, percentPt, tauxIrc,
+} from '@/lib/fiscalite-pt'
 
 export const maxDuration = 30
 
-// Agent Comptable Léa — Powered by Groq (Llama 3.3-70B)
+// Agent Comptable Léa — Groq (modèle de lib/constants.ts), Workers AI en relais si Groq échoue (lib/ai/relais.ts)
 // Expert-comptable senior BTP & artisanat — tous statuts juridiques — législation française 2026
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v)
+
 
 // ── Server-side enrichment: fetch BTP data directly from Supabase ──────────
 // Each fetch is wrapped in try/catch so a single failure doesn't break the agent.
@@ -333,6 +339,12 @@ Total factures HT : ${fmt(totalFacturesHT)} (${factures.length} factures)`)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
 function buildSystemPrompt(ctx: Record<string, any>): string {
   const currentYear = new Date().getFullYear()
+  // Année de la législation : celle de l'année en cours pour le Portugal ; le prompt français ne change pas.
+  const legislacaoPt = `portugaise ${currentYear}`
+  const legislacaoPtAJour = `legislação portuguesa ${currentYear}`
+  // IRC portugais de l'année (taux PME et taux général) : même source que la Contabilidade (lib/fiscalite-pt.ts).
+  const ircPt = tauxIrc(currentYear)
+  const ircPtTexte = `${Math.round(ircPt.reduit * 100)}% jusqu'à 50 000 € (PME), ${Math.round(ircPt.general * 100)}% au-delà (${currentYear})`
 
   // ── Détection pays (must be before booking serialization) ──
   const country: 'FR' | 'PT' = (ctx.country === 'PT' || ctx.locale === 'pt') ? 'PT' : 'FR'
@@ -431,8 +443,8 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
     }
 
     const tauxChargesSalaries = country === 'PT' ? 0.2375 : 0.45
-    const tauxIS15 = country === 'PT' ? 0.17 : 0.15 // PT: IRC 17% PME / FR: IS 15%
-    const tauxIS25 = country === 'PT' ? 0.21 : 0.25 // PT: IRC 21% / FR: IS 25%
+    const tauxIS15 = country === 'PT' ? ircPt.reduit : 0.15 // PT: IRC PME de l'année / FR: IS 15%
+    const tauxIS25 = country === 'PT' ? ircPt.general : 0.25 // PT: IRC général de l'année / FR: IS 25%
     const seuilIS = country === 'PT' ? 50000 : 42500
 
     const resultatAvantIS = annualHT - totalExpenses
@@ -483,10 +495,10 @@ TVA : collectée sur toutes les factures`
 
     fiscalReferentiel = country === 'PT' ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ REFERENCIAL FISCAL EMPRESA BTP 2026 (PT)
+🏗️ REFERENCIAL FISCAL EMPRESA BTP ${currentYear} (PT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **ESTATUTO : ${formeLabel}**
-**IRC 2026 :** 17% sobre primeiros 50 000€ (PME), 21% acima
+**IRC ${currentYear} :** ${Math.round(ircPt.reduit * 100)}% sobre os primeiros 50 000€ (PME), ${Math.round(ircPt.general * 100)}% acima
 **IVA :** Obrigatório, regime normal (mensal ou trimestral)
   - IVA construção/renovação: 23% (taxa normal)
   - IVA Açores: 16% / Madeira: 22%
@@ -538,19 +550,19 @@ ${!isSARL && !isEURL && !isSAS && !isSASU && !isEI ? '  - Gérant TNS : ~45% SSI
     const segSocial = rendRelevante * 0.214
     const coefSimplificado = 0.75
     const baseIRS = annualHT * coefSimplificado
-    const irsEstimado = baseIRS * 0.25 // retenção na fonte art.º 101.º CIRS
+    // Taux de retenção na fonte des activités de la table de l'art. 151.º (art. 101.º du CIRS : 23 % depuis 2025).
+    const taxaRetencao = RETENCAO_CAT_B_PT.tabela151
+    const irsEstimado = baseIRS * taxaRetencao
     const net = annualHT - segSocial - irsEstimado - totalExpenses
     const limiteRS = 200000
-    const limiteIVA = 14500
     const pctRS = annualHT > 0 ? ((annualHT / limiteRS) * 100).toFixed(1) : '0'
-    const ivaStatus = annualHT > limiteIVA
-      ? `⚠️ ACIMA do limite isenção IVA (${fmt(limiteIVA)}) — IVA OBRIGATÓRIO`
-      : `✅ Abaixo do limite isenção IVA art.53.º CIVA (${fmt(limiteIVA)}) — isento`
+    const ivaStatus = isencaoIvaPt(annualHT).texto
 
     const quarterLines = (ctx.quarterData || [0, 0, 0, 0])
       .map((ca: number, q: number) => {
         const ssQ = ca * 0.70 * 0.214
-        const prazoSS = ['Janeiro', 'Abril', 'Julho', 'Outubro'][q]
+        // Declaração trimestral SS do trimestre q : até ao fim do mês seguinte (abril, julho, outubro, janeiro N+1)
+        const prazoSS = ['Abril', 'Julho', 'Outubro', 'Janeiro (N+1)'][q]
         return `  T${q + 1} : Faturação s/IVA ${fmt(ca)} → SS estimada ${fmt(ssQ)} | Declaração SS: ${prazoSS}`
       })
       .join('\n')
@@ -564,10 +576,10 @@ Faturação anual s/IVA        : ${fmt(annualHT)}
 Despesas totais              : ${fmt(totalExpenses)}
 Rendimento relevante (70%)   : ${fmt(rendRelevante)}
 Seg. Social (21,4%)          : ${fmt(segSocial)}
-IRS retido na fonte (~25%)   : ${fmt(irsEstimado)}
+IRS retido na fonte (~${percentPt(taxaRetencao)}, hipótese tabela 151.º): ${fmt(irsEstimado)}
 Resultado líquido estimado   : ${fmt(net)}
 Regime Simplificado          : ${pctRS}% / 200 000 €
-Coeficiente serviços         : ${coefSimplificado} (75% tributado)
+Coeficiente (hipótese tabela 151.º): ${coefSimplificado} (75% tributado)
 Isenção IVA (art.53.º)      : ${ivaStatus}
 ${annualHT > 170000 ? '🚨 ALERTA: Próximo do limite Regime Simplificado (200 000 €) — antecipar contabilidade organizada!' : ''}
 
@@ -576,16 +588,16 @@ ${quarterLines}`
 
     fiscalReferentiel = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ REFERENCIAL TÉCNICO CONSTRUÇÃO PT 2026 (Independente)
+🏗️ REFERENCIAL TÉCNICO CONSTRUÇÃO PT ${currentYear} (Independente)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **Seg. Social trabalhador independente:** 21,4% sobre rendimento relevante (70% serviços)
 **Pagamento SS mensal:** até dia 20 do mês seguinte
 **Declaração trimestral SS:** janeiro, abril, julho, outubro (Portal Seg. Social Direta)
 **Isenção SS 1.º ano:** primeiros 12 meses de atividade (art.º 169.º CRCSPSS)
-**IRS Regime Simplificado — coeficiente serviços:** 0,75 (só 75% é tributado)
-**Retenção na fonte (cat. B, art.º 101.º CIRS):** 25%. Isenção se < 12 500 €/ano
+**IRS Regime Simplificado, coeficientes (art.º 31.º CIRS):** 0,75 (atividades da tabela do art.º 151.º), 0,35 (outras prestações de serviços), 0,15 (vendas de mercadorias e produtos)
+**Retenção na fonte (cat. B, art.º 101.º CIRS):** ${percentPt(RETENCAO_CAT_B_PT.tabela151)} (atividades da tabela do art.º 151.º) ou ${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} (outras prestações de serviços), feita pelo cliente que tem ou deve ter contabilidade organizada. Dispensa (art.º 101.º-B) se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior
 **Limite Regime Simplificado:** 200 000 € faturação anual
-**Isenção IVA art.53.º CIVA:** ≤ 14 500 € faturação anual
+**Isenção IVA art.53.º CIVA:** ≤ 15 000 € de faturação no ano anterior; entre 15 000 € e 18 750 € no ano, mantém-se até 31 de dezembro; acima de 18 750 €, cessa de imediato
 **IVA construção/remodelação:** 23% (taxa normal)
 **IVA reabilitação urbana (>2 anos, habitação permanente):** 6%
 **IVA eficiência energética:** 6%
@@ -675,17 +687,17 @@ au Portugal.
 
 FORMES JURIDIQUES PORTUGAISES :
   • ENI (Empresário em Nome Individual) — équivalent micro-entreprise PT
-    └ Regime Simplificado : CA < 200 000 € → coef 0,75 serviços / 0,35 vendas pour base IRS
-    └ Contribuição Segurança Social : 21,4% base contributiva (21,4% TI 2026)
-    └ IVA : isenção art.53.º CIVA se CA < 14 500 € (2025/2026)
+    └ Regime Simplificado : CA < 200 000 € → base IRS = coef 0,75 (activités de la tabela do art.º 151.º), 0,35 (autres prestações de serviços) ou 0,15 (vendas)
+    └ Contribuição Segurança Social : 21,4% base contributiva (21,4% TI)
+    └ IVA : isenção art.53.º CIVA si CA de l'année précédente ≤ 15 000 € ; entre 15 000 € et 18 750 € dans l'année, maintenue jusqu'au 31/12 ; au-delà de 18 750 €, fin immédiate
   • Sociedade Unipessoal por Quotas (Lda) — équivalent EURL
-    └ IRC 21% sur bénéfice + derrama municipal 0-1,5% selon commune
+    └ IRC ${ircPtTexte} sur bénéfice + derrama municipal 0-1,5% selon commune
     └ Tributação autónoma (véhicules, frais représentation)
-    └ IVA régime normal 23% ou isenção si CA < 14 500 €
+    └ IVA régime normal 23% ou isenção si CA ≤ 15 000 €
   • Sociedade por Quotas (Lda) — équivalent SARL
-    └ IRC 21% + derrama + pagamento especial por conta (PEC)
+    └ IRC ${ircPtTexte} + derrama + pagamentos por conta (le pagamento especial por conta, PEC, est supprimé depuis 2022 : Lei n.º 12/2022)
   • Sociedade Anónima (SA) — équivalent SA FR
-    └ IRC 21% + derrama + derrama estadual progressive (3-9%)
+    └ IRC ${ircPtTexte} + derrama + derrama estadual progressive (3-9%)
 
 VERROU LINGUISTIQUE : réponds en português europeu (pt-PT), PAS en pt-BR.
 Canalizador (pas plombier), obras (pas chantier), telemóvel (pas portable),
@@ -727,7 +739,7 @@ VERROU LINGUISTIQUE : réponds en français.
 
 📅 Aujourd'hui : ${today}
 ${countryLock}
-Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation ${country === 'PT' ? 'portugaise' : 'française'} 2026**.
+Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation ${country === 'PT' ? legislacaoPt : 'française 2026'}**.
 ${isEntreprise ? '\n⚠️ IMPORTANT : Ce professionnel est une ENTREPRISE (société), PAS un travailleur indépendant simple. Utilise les règles IRC/IS, TVA régime réel, charges sociales régime général ou TNS selon la forme juridique DÉCLARÉE (ci-dessus).\n' : ''}
 ${fiscalBlock}
 
@@ -813,7 +825,7 @@ Quand l'artisan demande une analyse "du X au Y" ou "sur le mois de Z" :
 - **Gras** pour tous les chiffres clés et montants
 - Anticipe les erreurs possibles et propose des solutions concrètes
 - Sois rigoureux, fiable, pédagogique et pratique comme un expert-comptable humain senior
-- Reste **à jour avec la ${country === 'PT' ? 'legislação portuguesa 2026' : 'législation française 2026'}**
+- Reste **à jour avec la ${country === 'PT' ? legislacaoPtAJour : 'législation française 2026'}**
 - Structure tes réponses avec des sections claires (emoji + titre)
 - Fournis TOUJOURS le calcul détaillé quand un montant est demandé
 - Si données insuffisantes : explique précisément ce qu'il faut saisir
@@ -839,14 +851,21 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const body = v.data as Record<string, unknown>
 
-    // Verify artisan ownership if artisan_id provided
+    // Titulaire des données : la société pour un salarié invité, le compte lui-même pour tous les autres.
+    const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+    if (societeNonResolue(user, perimetre)) {
+      return NextResponse.json({ error: messageRefusFr('societe_non_resolue'), code: 'societe_non_resolue' }, { status: 409 })
+    }
+
+    // Appartenance de la fiche annoncée. Comparée au TITULAIRE, pas au compte connecté : la fiche de la société
+    // d'un salarié invité appartient au gérant, et la comparer à son propre identifiant lui rendait un 403.
     if ((body.financialContext as Record<string, unknown>)?.artisan_id) {
-      const { data: artisan } = await (await import('@/lib/supabase-server')).supabaseAdmin
+      const { data: artisan } = await supabaseAdmin
         .from('profiles_artisan')
         .select('user_id')
         .eq('id', (body.financialContext as Record<string, unknown>).artisan_id as string)
         .single()
-      if (artisan && artisan.user_id !== user.id) {
+      if (artisan && artisan.user_id !== perimetre.societeId) {
         return NextResponse.json({ error: 'Accès non autorisé à ces données' }, { status: 403 })
       }
     }
@@ -868,16 +887,20 @@ export async function POST(request: NextRequest) {
         ...(directMessages as Array<{ role: string; content: string }>).slice(-20).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       ]
 
-      if (!GROQ_API_KEY) {
-        return NextResponse.json({ reply: '⚠️ Clé API Groq non configurée. Contactez l\'administrateur.' })
+      if (!(await iaTexteDisponible())) {
+        return NextResponse.json({
+          reply: locale === 'pt'
+            ? '⚠️ O serviço de IA está indisponível de momento. Tente mais tarde.'
+            : '⚠️ Le service IA est indisponible pour le moment. Réessayez plus tard.',
+        })
       }
 
       try {
-        const groqData = await callGroqWithRetry({ messages, temperature: 0.15, max_tokens: 3500 })
+        const groqData = await appelerIA({ messages, temperature: 0.15, max_tokens: 3500 }, { contexte: 'comptable-ai' })
         const reply = groqData.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer de réponse.'
         return NextResponse.json({ reply })
       } catch (err) {
-        logger.error('[comptable-ai] Groq API error (direct mode):', err)
+        logger.error('[comptable-ai] AI error (direct mode)', { module: 'comptable-ai' }, err)
         return NextResponse.json({ reply: 'Erreur IA temporaire. Réessayez dans quelques instants.' }, { status: 500 })
       }
     }
@@ -887,14 +910,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message requis' }, { status: 400 })
     }
 
+    // Le contexte financier de l'entreprise est tout sauf anodin : marges, charges fixes, rentabilité par
+    // chantier, et `membres_btp` en entier — donc les salaires et les coûts horaires.
+    //
+    // FULL exigé, pas « différent de NONE ». Une vue en lecture seule n'existe pas ici : les listes « membres » et
+    // « equipes » n'ont aucune projection restreinte (lib/btp/perimetre-compte.ts le dit, il faut FULL pour les
+    // voir), et l'agent rend du texte, qu'aucune projection ne filtre après coup. Un rôle à READ — ce qu'une
+    // dérogation du gérant peut poser sur n'importe quel rôle — obtiendrait sinon par Léa ce que /api/btp refuse.
+    if (niveauSur(perimetre, 'comptabilite') !== 'FULL' && niveauSur(perimetre, 'compta_btp') !== 'FULL') {
+      return NextResponse.json(
+        // Code dédié : `aucun_droit` parle des devis et des factures, et le navigateur afficherait le mauvais
+        // motif. Le texte français accompagne le code, c'est l'écran qui choisit la langue.
+        { error: messageRefusFr('aucun_droit_comptabilite'), code: 'aucun_droit_comptabilite' },
+        { status: 403 },
+      )
+    }
+
     const rawCtx = financialContext || {}
-    const ctx = await enrichCtxFromSupabase(user.id, rawCtx)
+    const ctx = await enrichCtxFromSupabase(perimetre.societeId, rawCtx)
     let systemPrompt = buildSystemPrompt(ctx)
 
     if (locale === 'pt') {
       const currentYear = new Date().getFullYear()
+      // IRC de l'année : même source que la Contabilidade (lib/fiscalite-pt.ts).
+      const ircPt = tauxIrc(currentYear)
       const fmtPt = (v: number) =>
         new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(v)
+      // Références datées et taux vérifiés le 17/11/2026 (lib/fiscalite-pt.ts) : chaque valeur annuelle porte son année.
+      const ias = iasPt(currentYear)
+      const minimoExistencia = minimoExistenciaPt(currentYear)
+      const irsJovem = limiteIrsJovemPt(currentYear)
+      const isencaoSs = limiteIsencaoSsAcumulacaoPt(currentYear)
+      const escaloesIrs = faixasIrsPt(currentYear)
+      const linhaEscaloesIrs = escaloesIrs.valor.map(e => e.faixa + ': **' + e.taxa + '**').join(' | ')
+      const retTabela = percentPt(RETENCAO_CAT_B_PT.tabela151)
+      const retOutros = percentPt(RETENCAO_CAT_B_PT.outrosServicos)
+      const dispensaRetencao = eurPt(limiteDispensaRetencaoPt())
 
       // ── Sérialisation interventions PT
       interface BookingRecord { status: string; clientName?: string; serviceName?: string; price_ht?: number; price_ttc?: number; booking_date: string; duration_minutes?: number; address?: string }
@@ -925,25 +976,27 @@ export async function POST(request: NextRequest) {
       // Seg. Social: 21,4% sobre rendimento relevante = 70% dos serviços
       const rendRelevante = ht * 0.70
       const segSocial = rendRelevante * 0.214
-      // IRS estimado: retenção na fonte 25% (art.º 101.º CIRS — regra geral cat. B)
-      const irsRetido = ht * 0.25
+      // IRS estimé : retenção na fonte des activités de la table de l'art. 151.º (art. 101.º du CIRS : 23 % depuis 2025)
+      const irsRetido = ht * RETENCAO_CAT_B_PT.tabela151
       const resultado = ht - segSocial - irsRetido - totalDep
       // Limite Regime Simplificado: 200 000 €
       const limiteRS = 200000
       const pctRS = ht > 0 ? ((ht / limiteRS) * 100).toFixed(1) : '0'
-      const ivaStatus = ht > 14500
-        ? `⚠️ ACIMA do limite isenção IVA (14 500 €) — IVA OBRIGATÓRIO`
-        : `✅ Abaixo do limite isenção IVA art.53.º CIVA (${fmtPt(14500)}) — isento`
+      const isencaoIva = isencaoIvaPt(ht)
+      const ivaStatus = isencaoIva.texto
 
       // ── Declarações trimestrais PT
       const quarterLinesPt = (ctx.quarterData as number[] || [0, 0, 0, 0])
         .map((caQ: number, q: number) => {
           const ssQ = caQ * 0.70 * 0.214
-          // IVA declaração periódica trimestral: prazo até dia 15 do 2.º mês seguinte ao trimestre
-          const prazoIVA = ['15 maio', '15 agosto', '15 novembro', '15 fevereiro (N+1)'][q]
+          // IVA declaração periódica trimestral: até dia 20 do 2.º mês seguinte ao trimestre (pagamento até dia 25)
+          const prazoIVA = ['20 maio', '20 agosto', '20 novembro', '20 fevereiro (N+1)'][q]
           // SS declaração trimestral: janeiro, abril, julho, outubro
-          const prazoSS = ['Janeiro', 'Abril', 'Julho', 'Outubro'][q]
-          return `  T${q + 1}: Faturação s/IVA ${fmtPt(caQ)} → SS estimada ${fmtPt(ssQ)} | Declaração IVA: até ${prazoIVA} | Declaração SS: ${prazoSS}`
+          // Declaração trimestral SS do trimestre q : até ao fim do mês seguinte (abril, julho, outubro, janeiro N+1)
+          const prazoSS = ['Abril', 'Julho', 'Outubro', 'Janeiro (N+1)'][q]
+          // Isento do art. 53.º : sem declaração periódica de IVA.
+          const declaracaoIva = isencaoIva.declararIva ? ` | Declaração IVA: até ${prazoIVA}` : ''
+          return `  T${q + 1}: Faturação s/IVA ${fmtPt(caQ)} → SS estimada ${fmtPt(ssQ)}${declaracaoIva} | Declaração SS: ${prazoSS}`
         })
         .join('\n')
 
@@ -953,7 +1006,7 @@ export async function POST(request: NextRequest) {
 
 Comunicas **sempre em português europeu (PT-PT)**. NUNCA uses termos brasileiros nem termos fiscais franceses (URSSAF, TVA, CA HT, micro-entrepreneur, etc.).
 
-Geres e aconselhas integralmente a contabilidade, fiscalidade, acompanhamento financeiro e obrigações legais para **todos os tipos de estatutos: trabalhadores independentes (Recibos Verdes), ENI, Unipessoal Lda, Lda, SA**, de forma prática, clara e conforme à **legislação portuguesa 2026**.
+Geres e aconselhas integralmente a contabilidade, fiscalidade, acompanhamento financeiro e obrigações legais para **todos os tipos de estatutos: trabalhadores independentes (Recibos Verdes), ENI, Unipessoal Lda, Lda, SA**, de forma prática, clara e conforme à **legislação portuguesa ${currentYear}**.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 DADOS FINANCEIROS REAIS DO PROFISSIONAL
@@ -963,7 +1016,7 @@ Faturação anual s/IVA (${currentYear})   : ${fmtPt(ht)}
 Despesas totais dedutíveis       : ${fmtPt(totalDep)}
 Rendimento relevante SS (70%)    : ${fmtPt(rendRelevante)}
 Seg. Social estimada (21,4%)     : ${fmtPt(segSocial)}
-IRS retido na fonte (~25%)        : ${fmtPt(irsRetido)}
+IRS retido na fonte (~${retTabela}, hipótese tabela 151.º): ${fmtPt(irsRetido)}
 Resultado líquido estimado       : ${fmtPt(resultado)}
 Regime Simplificado utilizado    : ${pctRS}% / 200 000 €
 Isenção IVA (art.53.º CIVA)     : ${ivaStatus}
@@ -1000,29 +1053,30 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
   - Taxa normal **23%**, taxa intermédia **13%**, taxa reduzida **6%**.
   - Taxa 6% aplicável a: (a) reabilitação urbana de imóveis com **mais de 2 anos** afetos a **habitação própria permanente** do adquirente (lista I CIVA, verba 2.23); ou imóveis em ARIU/ARU; (b) fornecimento e instalação de equipamentos de eficiência energética (painéis solares, caldeiras biomassa, bombas calor — verba 2.26 lista I CIVA).
   - ⚠️ A taxa 6% NÃO se aplica a: habitações secundárias, remodelações comerciais, imóveis novos, construção nova, nem a simples pinturas/pequenas reparações em imóveis não qualificados.
-  - Isenção art.53.º CIVA: até **14 500 €** faturação anual (limiar 2025/2026, art. 53.º CIVA).
+  - Isenção art.53.º CIVA: até **15 000 €** de faturação no ano anterior (desde 2025). Se a faturação do ano ultrapassar 15 000 € sem passar **18 750 €**, a isenção mantém-se até 31 de dezembro e o regime normal aplica-se a partir de 1 de janeiro; acima de **18 750 €**, cessa de imediato.
   - Declaração periódica trimestral (até 650k€) ou mensal (acima), via Portal e-Fatura/AT.
-  - Prazos: 15 maio (T1), 15 agosto (T2), 15 novembro (T3), 15 fevereiro N+1 (T4).
+  - Prazos (regime trimestral): até 20 de maio (T1), 20 de agosto (T2), 20 de novembro (T3) e 20 de fevereiro N+1 (T4); pagamento até ao dia 25.
   - **Autoliquidação IVA (art.º 2.º n.º 1 alínea j) CIVA):** nas subempreitadas de construção B2B (prestador → empreiteiro geral), o IVA é liquidado pelo adquirente (autoliquidação/reverse charge). O prestador emite fatura sem IVA com a menção "IVA autoliquidado pelo adquirente". Esta regra aplica-se a serviços de construção, instalação elétrica, canalização, carpintaria, pintura, etc., quando prestados a outro sujeito passivo com atividade de construção. O adquirente lança o IVA no campo 3 (entregue) e campo 13 (dedutível) da DP IVA.
 - **Segurança Social (trabalhador independente):**
   - Taxa: **21,4%** sobre o **rendimento relevante** = 70% das prestações de serviços (regime independente).
   - Pagamento **mensal**: até ao dia **20 do mês seguinte** (ex: SS de janeiro → pagar até 20 de fevereiro).
   - **Declaração trimestral** de rendimentos: janeiro (T4 anterior), abril (T1), julho (T2), outubro (T3), via Portal da Segurança Social Direta (segurancasocial.pt).
-  - IAS 2025: **509,26 €/mês** — referência para cálculo do mínimo de contribuição.
-  - Contribuição mínima: calculada sobre 70% dos serviços, com mínimo equivalente a 1 IAS (509,26 €/mês × 21,4% = ~109 €/mês).
+  - IAS ${ias.ano}: **${eurPt(ias.valor)}/mês**, referência da isenção por acumulação com emprego (4 × IAS) e do limite do IRS Jovem (55 × IAS).
+  - Contribuição mínima: **20 €/mês**, mesmo sem rendimentos ou quando a contribuição apurada é inferior a 20 €. Quem, no ano anterior, não teve rendimentos ou só esteve obrigado ao valor mínimo fica isento a partir de janeiro, enquanto essas condições se mantiverem (isenção reconhecida oficiosamente ou a pedido).
   - Isenção 1.º ano: trabalhadores que iniciam atividade pela primeira vez estão **isentos de SS nos primeiros 12 meses** (art.º 169.º CRCSPSS). Posteriormente, tributação escalonada.
-  - **Dispensa de contribuições SS por acumulação com emprego (art.º 157.º CRCSPSS):** o trabalhador independente que **acumule atividade independente com emprego por conta de outrem** pode estar dispensado de pagar contribuições SS como independente, SE o seu rendimento anual como independente não exceder 4 × IAS (≈ 24 444 €/ano em 2025). A entidade patronal já contribui pelo trabalhador; a dispensa evita dupla contributiva. Deve ser requerida junto do ISS/Seg. Social Direta.
+  - **Isenção de contribuições SS por acumulação com emprego (art.º 157.º CRCSPSS):** o trabalhador independente que **acumule atividade independente com emprego por conta de outrem** fica isento de contribuições como independente quando o seu **rendimento relevante médio mensal, apurado trimestralmente, for inferior a 4 × IAS** (${eurPt(isencaoSs.valor)}/mês em ${isencaoSs.ano}), desde que as duas atividades sejam prestadas a entidades distintas, sem relação de domínio ou de grupo, que o emprego o enquadre noutro regime de proteção social que cubra todas as eventualidades e que a remuneração média mensal desse emprego seja de pelo menos 1 IAS. A entidade patronal já contribui pelo trabalhador; a isenção evita a dupla contribuição. No regime geral, a Segurança Social reconhece-a oficiosamente; noutros regimes de proteção social (por exemplo, a Caixa Geral de Aposentações), é pedida com o modelo RC 3001.
   - Se o rendimento como independente exceder 4 × IAS, paga contribuições SS apenas sobre o excedente acima desse limiar.
-- **IRS (trabalhadores independentes) — escalões 2025 (OE 2025, Lei n.º 24-D/2022 atualizada):**
-  - Até 8 059 €: **13%** | 8 059–12 160 €: **16,5%** | 12 160–17 233 €: **22%** | 17 233–22 306 €: **25%** | 22 306–28 400 €: **32%** | 28 400–41 629 €: **35,5%** | 41 629–66 045 €: **43,5%** | acima de 66 045 €: **48%**.
-  - Sobretaxa de solidariedade: 2,5% entre 80 000–250 000 € e 5% acima de 250 000 €.
-  - Retenção na fonte: **25%** (regra geral cat. B, art.º 101.º CIRS). Isenção possível se rendimentos estimados < 12 500 €/ano (declaração escrita ao cliente/entidade pagadora).
+- **IRS (trabalhadores independentes): taxas gerais ${escaloesIrs.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**
+  - ${linhaEscaloesIrs}.
+  - Taxa adicional de solidariedade (art.º 68.º-A CIRS): 2,5% sobre a parte entre 80 000 € e 250 000 € e 5% acima de 250 000 €.
+  - Retenção na fonte (art.º 101.º CIRS), feita pelo cliente que tem ou deve ter contabilidade organizada: **${retTabela}** nas atividades profissionais da tabela do art.º 151.º; **${retOutros}** nas outras prestações de serviços da categoria B.
+  - Dispensa de retenção (art.º 101.º-B CIRS): se previr faturar menos de **${dispensaRetencao}** no ano (limite do art.º 53.º do CIVA) e não tiver atingido esse valor no ano anterior; cessa no mês seguinte àquele em que o limite for ultrapassado. Menção na fatura-recibo: «Sem retenção, nos termos do n.º 1 do artigo 101.º-B do Código do IRS».
   - Declaração Modelo 3 IRS: entre **1 abril e 30 junho** do ano seguinte.
-  - Regime Simplificado: coeficiente **0,75** sobre prestações de serviços (75% do rendimento é tributado). Coef. 0,35 aplica-se apenas a vendas de mercadorias. Limite: 200 000 €/ano.
+  - Regime Simplificado (art.º 31.º CIRS): coeficiente **0,75** nas atividades profissionais da tabela do art.º 151.º, **0,35** nas outras prestações de serviços e **0,15** nas vendas de mercadorias e produtos. Limite: 200 000 €/ano.
   - Deduções específicas cat. B: mínimo 4 104 € ou despesas efetivas comprovadas (art.º 83.º CIRS).
-  - **Mínimo de existência 2025:** 11 480 € — rendimento coletável abaixo deste valor está isento de IRS (art.º 70.º CIRS). Relevante para quem tem rendimentos baixos ou parte do ano como independente.
-  - Pagamentos por conta (IRS): julho, setembro, dezembro — quando a retenção < 2/3 do imposto liquidado no ano anterior.
-- **IRC (sociedades):** taxa 21% (PME: 17% até 50k€ matéria coletável). Derrama municipal até 1,5%.
+  - **Mínimo de existência ${minimoExistencia.ano} (art.º 70.º CIRS):** valor de referência de **${eurPt(minimoExistencia.valor)}**. Não é uma isenção: dá um abatimento que reduz ou anula o IRS de rendimentos baixos, apenas a quem tem rendimentos predominantemente de trabalho dependente, de pensões ou de atividades da tabela do art.º 151.º (exceto o código 15).
+  - Pagamentos por conta (IRS, art.º 102.º CIRS): até ao dia 20 de julho, de setembro e de dezembro, nos valores comunicados pela AT com a liquidação do penúltimo ano; não são devidos se inferiores a 50 €. Deixam de ser obrigatórios quando o contribuinte verifica que as retenções e os pagamentos já feitos no ano cobrem o imposto devido, ou quando deixa de ter rendimentos da categoria B; podem ser reduzidos quando excedem o imposto que ainda falta pagar.
+- **IRC (sociedades):** taxa ${Math.round(ircPt.general * 100)}% em ${currentYear} (PME: ${Math.round(ircPt.reduit * 100)}% até 50 000 € de matéria coletável). Derrama municipal até 1,5%.
 - **SAF-T (PT):** obrigatório apenas para quem usa **software de faturação certificado pela AT** (Portaria 321-A/2007 e Decreto-Lei 28/2019). Quem emite faturas diretamente no **Portal e-Fatura (AT)** não tem obrigação de submeter SAF-T separado — a AT já tem acesso às faturas comunicadas. O SAF-T é exigido quando o contribuinte usa software de faturação externo certificado (ex: PHC, Primavera, Sage, etc.) e serve para exportar o ficheiro mensal de faturação para a AT.
 
 ### 3️⃣ Análise financeira e reporting
@@ -1034,7 +1088,7 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
 ### 4️⃣ Conselho estratégico e otimização
 - Aconselhar sobre a melhor forma jurídica: Recibos Verdes → ENI → Unipessoal Lda → Lda.
 - Otimizar encargos sociais e fiscais: deduções, amortizações (contabilidade organizada).
-- **IRS Jovem (OE 2025, art.º 2.º-B CIRS):** para trabalhadores independentes com idade ≤ 35 anos, nos primeiros 10 anos de atividade, há uma isenção parcial do IRS sobre rendimentos cat. A e B: 100% no 1.º ano, 75% nos 2.º e 3.º anos, 50% nos 4.º e 5.º anos, 25% nos 6.º a 10.º anos. Limite de isenção: 55 x IAS (≈ 28 009 €/ano em 2025). Requer que o contribuinte não tenha ultrapassado 35 anos no início do benefício e não tenha auferido rendimentos nessa categoria nos 5 anos anteriores.
+- **IRS Jovem (art.º 12.º-B CIRS, redação do OE 2025):** isenção dos rendimentos das categorias A e B de quem tem **até 35 anos** e não é dependente, nos **10 primeiros anos de obtenção de rendimentos**: **100%** no 1.º ano, **75%** do 2.º ao 4.º, **50%** do 5.º ao 7.º e **25%** do 8.º ao 10.º ano, com o limite de **55 × IAS** (${eurPt(irsJovem.valor)} em ${irsJovem.ano}). Opção na declaração Modelo 3.
 - Apoios e incentivos: Portugal 2030, IEFP, crédito fiscal SIFIDE, RFAI, Reabilitação Urbana.
 - Seguros profissionais obrigatórios (RC Profissional, RC Obra, Acidentes de Trabalho).
 - Impacto fiscal de contratação (trabalhador independente vs subordinado).
@@ -1047,24 +1101,24 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
 - Conservação de documentos: **10 anos** (art.123.º CIRC / art.52.º CIVA).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ REFERENCIAL TÉCNICO CONSTRUÇÃO PT 2026
+🏗️ REFERENCIAL TÉCNICO CONSTRUÇÃO PT ${currentYear}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **IVA reabilitação urbana (imóveis >30 anos habitação própria permanente ou ARIU):** 6% (art.18.º n.º1 al. a) CIVA lista I)
 **IVA eficiência energética (caldeiras, isolamento, solar):** 6% (lista I CIVA)
 **IVA serviços gerais construção/remodelação:** 23%
-**Isenção IVA art.53.º CIVA:** ≤14 500 € faturação anual (2025/2026)
+**Isenção IVA art.53.º CIVA:** ≤ 15 000 € de faturação no ano anterior (desde 2025); entre 15 000 € e 18 750 € no ano, mantém-se até 31 de dezembro; acima de 18 750 €, cessa de imediato
 **Autoliquidação IVA (art.º 2.º n.º 1 al. j) CIVA):** subempreitadas B2B construção → o adquirente (empreiteiro geral) liquida o IVA; o prestador emite fatura sem IVA com menção "IVA autoliquidado pelo adquirente"
 **Seg. Social trabalhador independente:** 21,4% × 70% rendimento serviços | pagamento mensal até dia 20
 **Isenção SS 1.º ano:** isenção total nos primeiros 12 meses de atividade (art.º 169.º CRCSPSS)
-**Dispensa SS por acumulação (art.º 157.º CRCSPSS):** independente + trabalhador por conta de outrem → dispensa se rendimentos independentes ≤ 4 × IAS (≈ 24 444 €/ano)
-**IRS Regime Simplificado — coeficiente serviços:** 0,75 (75% é tributado). Coef. 0,35 apenas para vendas de mercadorias
-**Retenção na fonte (cat. B, art.º 101.º CIRS):** 25% (regra geral). Isenção se rendimentos estimados < 12 500 €/ano.
-**IRS Jovem (art.º 2.º-B CIRS, OE 2025):** ≤ 35 anos, primeiros 10 anos atividade — isenção 100%/75%/50%/25% escalonada. Limite: 55 × IAS ≈ 28 009 €/ano.
-**Mínimo de existência 2025 (art.º 70.º CIRS):** 11 480 € — rendimentos abaixo isentos de IRS.
-**IAS 2025:** 509,26 €/mês — referência cálculo SS mínimo e IRS Jovem.
+**Isenção SS por acumulação (art.º 157.º CRCSPSS):** independente + trabalhador por conta de outrem → isenção se o rendimento relevante médio mensal for inferior a 4 × IAS (${eurPt(isencaoSs.valor)}/mês em ${isencaoSs.ano}) e o emprego, noutra entidade, pagar pelo menos 1 IAS
+**IRS Regime Simplificado, coeficientes (art.º 31.º CIRS):** 0,75 (atividades da tabela do art.º 151.º), 0,35 (outras prestações de serviços), 0,15 (vendas de mercadorias e produtos)
+**Retenção na fonte (cat. B, art.º 101.º CIRS):** ${retTabela} (atividades da tabela do art.º 151.º) ou ${retOutros} (outras prestações de serviços), feita pelo cliente que tem ou deve ter contabilidade organizada. Dispensa (art.º 101.º-B) se previr faturar menos de ${dispensaRetencao} no ano e não tiver atingido esse valor no ano anterior.
+**IRS Jovem (art.º 12.º-B CIRS):** até 35 anos, 10 primeiros anos de obtenção de rendimentos (categorias A e B): isenção de 100% (1.º ano), 75% (2.º ao 4.º), 50% (5.º ao 7.º) e 25% (8.º ao 10.º). Limite: 55 × IAS = ${eurPt(irsJovem.valor)} em ${irsJovem.ano}.
+**Mínimo de existência ${minimoExistencia.ano} (art.º 70.º CIRS):** ${eurPt(minimoExistencia.valor)}, abatimento para rendimentos baixos predominantemente de trabalho dependente, pensões ou atividades da tabela do art.º 151.º (exceto o código 15).
+**IAS ${ias.ano}:** ${eurPt(ias.valor)}/mês (referência da isenção SS por acumulação e do limite do IRS Jovem).
 **Limite Regime Simplificado:** 200 000 € faturação anual
-**IRC PME — taxa reduzida (até 50k€ lucro):** 17%
-**IRC taxa geral:** 21%
+**IRC PME — taxa reduzida (até 50k€ lucro):** ${Math.round(ircPt.reduit * 100)}% em ${currentYear}
+**IRC taxa geral:** ${Math.round(ircPt.general * 100)}% em ${currentYear}
 **Derrama municipal máxima:** 1,5% do lucro tributável
 **Prazo pagamento inter-empresas:** 30 dias (Lei 62/2013); juros moratórios: taxa BCE + 8%
 **Prazo fatura legal:** 5 dias úteis após prestação de serviço (art.36.º CIVA)
@@ -1089,7 +1143,7 @@ Quando o profissional pede análise "de X a Y" ou "do mês de Z":
 - **Negrito** para todos os valores-chave e montantes
 - Antecipa erros possíveis e propõe soluções concretas
 - Rigoroso, fiável, pedagógico e prático como um TOC sénior humano
-- Mantém-se **atualizado com a legislação portuguesa 2026**
+- Mantém-se **atualizado com a legislação portuguesa ${currentYear}**
 - Estrutura as respostas com secções claras (emoji + título)
 - Fornece SEMPRE o cálculo detalhado quando um montante é pedido
 - Se dados insuficientes: explica precisamente o que é necessário registar
@@ -1109,7 +1163,7 @@ ${buildEnrichedSections(ctx)}`
       { role: 'user', content: message },
     ]
 
-    if (!GROQ_API_KEY) {
+    if (!(await iaTexteDisponible())) {
       return NextResponse.json({
         success: true,
         response: generateFallbackResponse(message, ctx, locale),
@@ -1118,7 +1172,7 @@ ${buildEnrichedSections(ctx)}`
     }
 
     try {
-      const groqData = await callGroqWithRetry({ messages, temperature: 0.2, max_tokens: 3000 })
+      const groqData = await appelerIA({ messages, temperature: 0.2, max_tokens: 3000 }, { contexte: 'comptable-ai' })
       let response = groqData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer une réponse. Réessayez.'
       // Ajouter disclaimer professionnel si conseil fiscal/financier
       const disclaimer = locale === 'pt'
@@ -1126,7 +1180,8 @@ ${buildEnrichedSections(ctx)}`
         : '\n\n---\n*⚠️ Information indicative générée par IA. Consultez un expert-comptable agréé pour toute décision fiscale ou comptable.*'
       response += disclaimer
       return NextResponse.json({ success: true, response })
-    } catch {
+    } catch (err) {
+      logger.warn('[comptable-ai] AI error, réponse de secours sans IA', err)
       return NextResponse.json({
         success: true,
         response: generateFallbackResponse(message, ctx, locale),
@@ -1142,7 +1197,7 @@ ${buildEnrichedSections(ctx)}`
   }
 }
 
-// ─── Fallback sans Groq ───────────────────────────────────────────────────────
+// ─── Réponse de secours sans IA ───────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
 function generateFallbackResponse(message: string, ctx: Record<string, any>, locale: string = 'fr'): string {
   const msgLower = message.toLowerCase()
@@ -1151,33 +1206,38 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
 
   // ─── Portuguese fiscal responses ───────────────────────────────────
   if (locale === 'pt') {
-    const segSocial = ht * 0.70 * 0.214  // Taxa SS trabalhador independente PT 2026 (sobre rendimento relevante 70%)
-    const irs = ht * 0.25                 // IRS retido na fonte 25% (art.º 101.º CIRS, cat. B)
+    const ano = new Date().getFullYear()
+    const ircGeral = Math.round(tauxIrc(ano).general * 100) // IRC de l'année (lib/fiscalite-pt.ts)
+    const segSocial = ht * 0.70 * 0.214  // Taxa SS trabalhador independente PT (sobre rendimento relevante 70%)
+    // IRS estimé : retenção na fonte des activités de la table de l'art. 151.º (art. 101.º du CIRS : 23 % depuis 2025)
+    const taxaRetencao = RETENCAO_CAT_B_PT.tabela151
+    const irs = ht * taxaRetencao
     const net = ht - segSocial - irs - totalExpenses
 
     if (msgLower.includes('segurança social') || msgLower.includes('seg. social') || msgLower.includes('cotização') || msgLower.includes('contribui')) {
-      return `💳 **Contribuições Segurança Social 2026 (Portugal)**\n\nFaturação anual s/IVA: **${fmt(ht)}**\nRendimento relevante (70%): **${fmt(ht * 0.70)}**\nTaxa SS (trabalhador independente): **21,4%**\n\n**Total SS estimado: ${fmt(segSocial)}**\n\n💡 **Atenção:** As contribuições são calculadas sobre o rendimento relevante (70% das prestações de serviços). Pagamento **mensal até ao dia 20** do mês seguinte. Declaração trimestral via Portal da Segurança Social Direta (jan/abr/jul/out).\n\n*⚠️ Valores indicativos. Consulte um TOC/ROC para validação oficial.*`
+      return `💳 **Contribuições Segurança Social ${ano} (Portugal)**\n\nFaturação anual s/IVA: **${fmt(ht)}**\nRendimento relevante (70%): **${fmt(ht * 0.70)}**\nTaxa SS (trabalhador independente): **21,4%**\n\n**Total SS estimado: ${fmt(segSocial)}**\n\n💡 **Atenção:** As contribuições são calculadas sobre o rendimento relevante (70% das prestações de serviços). Pagamento **mensal até ao dia 20** do mês seguinte. Declaração trimestral via Portal da Segurança Social Direta (jan/abr/jul/out).\n\n*⚠️ Valores indicativos. Consulte um TOC/ROC para validação oficial.*`
     }
 
     if (msgLower.includes('irs') || msgLower.includes('retenção') || msgLower.includes('retenç')) {
-      return `📊 **IRS — Trabalhadores Independentes (Portugal 2026)**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **25%**\nIRS estimado retido: **${fmt(irs)}**\n\n💡 **Isenção de retenção:** possível se rendimentos estimados < 12 500 €/ano (declaração escrita ao cliente/entidade pagadora).\n\n**Taxas IRS 2025 (escalões — Regime Simplificado, coef. 0,75 serviços):**\n- Até 8 059 €: 13%\n- 8 059 – 12 160 €: 16,5%\n- 12 160 – 17 233 €: 22%\n- 17 233 – 22 306 €: 25%\n- 22 306 – 28 400 €: 32%\n- 28 400 – 41 629 €: 35,5%\n- 41 629 – 66 045 €: 43,5%\n- Acima de 66 045 €: 48%\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado, 75% do rendimento de serviços é tributado (coeficiente 0,75). O coef. 0,35 aplica-se apenas a vendas de mercadorias.\n\n*⚠️ Consulte um TOC para confirmação.*`
+      const escaloes = faixasIrsPt(ano)
+      const listaEscaloes = escaloes.valor.map(e => '- ' + e.faixa + ': ' + e.taxa).join('\n')
+      return `📊 **IRS — Trabalhadores Independentes (Portugal ${ano})**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **${percentPt(taxaRetencao)}** nas atividades da tabela do art.º 151.º (${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} nas outras prestações de serviços), só quando o cliente tem ou deve ter contabilidade organizada\nIRS estimado retido (${percentPt(taxaRetencao)}, se atividade da tabela do art.º 151.º): **${fmt(irs)}**\n\n💡 **Dispensa de retenção (art.º 101.º-B):** se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior (com menção na fatura-recibo).\n\n**Taxas gerais do IRS ${escaloes.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**\n${listaEscaloes}\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado (art.º 31.º), o coeficiente é 0,75 nas atividades da tabela do art.º 151.º, 0,35 nas outras prestações de serviços e 0,15 nas vendas de mercadorias e produtos.\n\n*⚠️ Consulte um TOC para confirmação.*`
     }
 
     if (msgLower.includes('iva') || msgLower.includes('taxa')) {
-      const limiteIVA = 14500
-      const status = ht > limiteIVA ? `⚠️ **ACIMA do limite** de isenção IVA (${fmt(limiteIVA)}) — deve liquidar IVA` : `✅ Abaixo do limite de isenção IVA (${fmt(limiteIVA)}) — isento art. 53.º CIVA`
-      return `💶 **IVA Portugal 2026**\n\n${status}\n\nTaxas aplicáveis:\n- **23%** taxa normal (maioria dos serviços de construção/remodelação)\n- **13%** taxa intermédia (restauração, alojamento)\n- **6%** taxa reduzida:\n  • Reabilitação de imóveis **> 2 anos** afetos a **habitação própria permanente** (verba 2.23 lista I CIVA)\n  • Imóveis em ARIU/ARU (Área de Reabilitação Urbana)\n  • Equipamentos de eficiência energética (solar, bombas calor, isolamento — verba 2.26)\n  ⚠️ Não se aplica a habitações secundárias, imóveis novos ou obras comerciais\n- **Autoliquidação IVA:** nas subempreitadas B2B (art.º 2.º n.º 1 al. j) CIVA), o empreiteiro geral liquida o IVA\n\n💡 Declaração periódica: trimestral (até 650k€) ou mensal. Submissão via **Portal e-Fatura / AT**.\n\n*⚠️ Consulte o CIVA (art. 53.º e ss.) e um TOC.*`
+      const status = isencaoIvaPt(ht).texto
+      return `💶 **IVA Portugal ${ano}**\n\n${status}\n\nTaxas aplicáveis:\n- **23%** taxa normal (maioria dos serviços de construção/remodelação)\n- **13%** taxa intermédia (restauração, alojamento)\n- **6%** taxa reduzida:\n  • Reabilitação de imóveis **> 2 anos** afetos a **habitação própria permanente** (verba 2.23 lista I CIVA)\n  • Imóveis em ARIU/ARU (Área de Reabilitação Urbana)\n  • Equipamentos de eficiência energética (solar, bombas calor, isolamento — verba 2.26)\n  ⚠️ Não se aplica a habitações secundárias, imóveis novos ou obras comerciais\n- **Autoliquidação IVA:** nas subempreitadas B2B (art.º 2.º n.º 1 al. j) CIVA), o empreiteiro geral liquida o IVA\n\n💡 Declaração periódica: trimestral (até 650k€) ou mensal. Submissão via **Portal e-Fatura / AT**.\n\n*⚠️ Consulte o CIVA (art. 53.º e ss.) e um TOC.*`
     }
 
     if (msgLower.includes('resultado') || msgLower.includes('net') || msgLower.includes('lucro') || msgLower.includes('bénéfice')) {
-      return `📊 **Resultado líquido estimado ${new Date().getFullYear()}**\n\nFaturação líquida (s/IVA): **${fmt(ht)}**\n− Despesas dedutíveis: **${fmt(totalExpenses)}**\n− Seg. Social (~21,4%): **${fmt(segSocial)}**\n− IRS retido (est. 25%): **${fmt(irs)}**\n\n**= Resultado líquido: ${fmt(net)}**\n\n💡 Margem líquida: ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Referência construção PT: 12-22%.\n\n*⚠️ Informação indicativa. Consulte um TOC/ROC.*`
+      return `📊 **Resultado líquido estimado ${ano}**\n\nFaturação líquida (s/IVA): **${fmt(ht)}**\n− Despesas dedutíveis: **${fmt(totalExpenses)}**\n− Seg. Social (~21,4%): **${fmt(segSocial)}**\n− IRS retido (est. ${percentPt(taxaRetencao)}, atividades da tabela do art.º 151.º): **${fmt(irs)}**\n\n**= Resultado líquido: ${fmt(net)}**\n\n💡 Margem líquida: ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Referência construção PT: 12-22%.\n\n*⚠️ Informação indicativa. Consulte um TOC/ROC.*`
     }
 
     if (msgLower.includes('estatuto') || msgLower.includes('estrutura') || msgLower.includes('juridic')) {
-      return `🏢 **Formas jurídicas — Artesãos Portugal**\n\n| Forma | Faturação máx. | Contribuições | Complexidade |\n|---|---|---|---|\n| **Recibos Verdes** | 200 000 € | SS 21,4% + IRS | Simples |\n| **ENI** | Ilimitado | SS + IRS real | Moderada |\n| **Unipessoal Lda** | Ilimitado | SS + IRC 21% | Moderada |\n| **Lda/SA** | Ilimitado | SS + IRC + dists. | Complexa |\n\n💡 **Recomendação:** Recibos verdes até ~80k€. Acima → ENI ou Unipessoal Lda para otimizar IRC vs IRS.\n\n*⚠️ Consulte um advogado/TOC para a sua situação específica.*`
+      return `🏢 **Formas jurídicas — Artesãos Portugal**\n\n| Forma | Faturação máx. | Contribuições | Complexidade |\n|---|---|---|---|\n| **Recibos Verdes** | 200 000 € | SS 21,4% + IRS | Simples |\n| **ENI** | Ilimitado | SS + IRS real | Moderada |\n| **Unipessoal Lda** | Ilimitado | SS + IRC ${ircGeral}% | Moderada |\n| **Lda/SA** | Ilimitado | SS + IRC + dists. | Complexa |\n\n💡 **Recomendação:** Recibos verdes até ~80k€. Acima → ENI ou Unipessoal Lda para otimizar IRC vs IRS.\n\n*⚠️ Consulte um advogado/TOC para a sua situação específica.*`
     }
 
-    return `🤖 **Léa — Contabilista IA BTP Portugal 2026**\n\nPosso ajudá-lo com:\n\n**📊 Cálculos financeiros**\n- Resultado líquido, margens por obra, tesouraria\n- IVA, IRS, Segurança Social por período\n\n**⚖️ Fiscalidade & Declarações**\n- Declaração Mod. 3 IRS, Declaração Periódica IVA\n- Contribuições Segurança Social (trimestral)\n- e-Fatura, SAF-T, ATCUD\n\n**🏢 Conselho estratégico**\n- Escolha de forma jurídica\n- Otimização de encargos\n- Apoios: Portugal 2030, IEFP, Reabilitação Urbana\n\n**📋 Conformidade legal**\n- Menções obrigatórias orçamentos/faturas\n- Checklists mensais/trimestrais\n\nColoque a sua questão!`
+    return `🤖 **Léa — Contabilista IA BTP Portugal ${ano}**\n\nPosso ajudá-lo com:\n\n**📊 Cálculos financeiros**\n- Resultado líquido, margens por obra, tesouraria\n- IVA, IRS, Segurança Social por período\n\n**⚖️ Fiscalidade & Declarações**\n- Declaração Mod. 3 IRS, Declaração Periódica IVA\n- Contribuições Segurança Social (trimestral)\n- e-Fatura, SAF-T, ATCUD\n\n**🏢 Conselho estratégico**\n- Escolha de forma jurídica\n- Otimização de encargos\n- Apoios: Portugal 2030, IEFP, Reabilitação Urbana\n\n**📋 Conformidade legal**\n- Menções obrigatórias orçamentos/faturas\n- Checklists mensais/trimestrais\n\nColoque a sua questão!`
   }
   // ─── End PT branch ───────────────────────────────────────────────────────
 

@@ -75,7 +75,7 @@ export default function ServicosHubPage() {
       {/* ── PAGES DE DISTRICT (gel A0 levé le 20/10/2026 pour trois services) ── */}
       <section className="py-12 md:py-16 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark mb-3">Serviços da equipa VITFIX no distrito do Porto</h2>
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark mb-3">Serviços da equipa VITFIX nos distritos do Porto, Braga e Aveiro</h2>
           <p className="text-text-muted mb-6 max-w-2xl">Trabalhos feitos pela própria equipa VITFIX, a partir de Marco de Canaveses.</p>
           <div className="flex flex-wrap gap-3">
             {SERVICOS_DISTRITO.map(s => (
@@ -85,7 +85,7 @@ export default function ServicosHubPage() {
                 className="inline-flex items-center gap-3 p-4 bg-warm-gray rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
               >
                 <span className="text-lg">{s.icon}</span>
-                <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">{s.titulo}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">{s.tituloSemZona}</span>
               </Link>
             ))}
           </div>

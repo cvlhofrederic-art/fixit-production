@@ -14,6 +14,9 @@ name: Ingest Legal Corpus PT
 on:
   workflow_dispatch: {}
 
+# Aucune permission (lot 6 Aikido, 28/10/2026) : le job n'utilise pas le jeton GitHub.
+permissions: {}
+
 jobs:
   ingest:
     name: Ingest PT legal corpus via admin endpoint
@@ -62,6 +65,10 @@ jobs:
           total=$(echo "$body" | jq -r '.total_chunks // 0')
           with_embed=$(echo "$body" | jq -r '.chunks_with_embedding // 0')
           echo "Audit syndic_legal_corpus_pt"
+          echo "  http_status           : $status"
+          if [ "$status" != "200" ]; then
+            echo "::warning::Audit HTTP $status (attendu 200)"
+          fi
           echo "  total_chunks          : $total"
           echo "  chunks_with_embedding : $with_embed"
           if [ "$total" -lt 30 ]; then

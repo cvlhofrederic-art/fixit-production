@@ -4,6 +4,14 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import type { User } from '@supabase/supabase-js'
 
+// Surligne la recherche sans injecter de HTML : le nom du document reste du texte React (pas de XSS).
+function surlignerRecherche(texte: string, recherche: string) {
+  const motif = new RegExp(`(${recherche.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+  return texte.split(motif).map((morceau, i) =>
+    i % 2 === 1 ? <mark key={i} className="bg-yellow-200 rounded px-0.5">{morceau}</mark> : morceau
+  )
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CategorieDocument =
@@ -585,11 +593,7 @@ export default function GEDCertifieeFRSection({ user, userRole }: { user: User; 
                     <span className="text-lg">{TYPE_FICHIER_ICON[doc.typeFichier]}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-[var(--sd-navy,#0D1B2E)]">
-                        {searchQuery ? (
-                          <span dangerouslySetInnerHTML={{
-                            __html: doc.nom.replace(new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark class="bg-yellow-200 rounded px-0.5">$1</mark>')
-                          }} />
-                        ) : doc.nom}
+                        {searchQuery ? surlignerRecherche(doc.nom, searchQuery) : doc.nom}
                       </div>
                       <div className="text-[10px] text-gray-400">{doc.immeubleNom} — {doc.notes}</div>
                     </div>

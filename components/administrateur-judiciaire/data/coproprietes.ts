@@ -1,3 +1,11 @@
+import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  nouvelleFicheCopropriete,
+  type FicheCopropriete,
+  type MembreEquipe,
+} from '@/lib/administrateur-judiciaire/domain/fiche-copropriete'
+import { MODE_ACTIF, type Mode } from '@/lib/administrateur-judiciaire/mode'
+
 /**
  * Copropriété de démonstration, sous la forme affichable d'une « vue copropriété » (voir fusionnerCoproMandat) :
  * dates « JJ/MM/AAAA », sans mandatId. Montants en euros.
@@ -146,4 +154,90 @@ export const DEMO_REGLES_ACCOMPLIES: Record<string, string[]> = {
     'ancien-syndic-etat-comptes',
   ],
   VM: [],
+}
+
+const d = composerDateIso
+const EQUIPE_DEMO: MembreEquipe[] = [
+  { role: 'Responsable', collaborateur: 'Gestionnaire A' },
+  { role: 'Comptable', collaborateur: 'Comptable B' },
+  { role: 'Assistant(e)', collaborateur: 'Assistant C' },
+]
+const CLE_GENERALE = { code: '001', libelle: 'Charges communes générales', tantiemes: '10 000', principale: true }
+
+/** Fiches de démonstration (données fictives), par code de copropriété. */
+export const FICHES_COPROPRIETES_DEMO: Record<string, FicheCopropriete> = {
+  LM: nouvelleFicheCopropriete({
+    numeroMandat: 'M012',
+    typeMandat: 'Syndic judiciaire (art. 46)',
+    dateEffet: d(2026, 3, 12),
+    immatriculation: 'AC1 234 567',
+    ics: 'FR12ZZZ123456',
+    lots: { habitation: 32, commerce: 4, stationnements: 18, usage: 'Mixte (habitation et commerce)' },
+    equipe: EQUIPE_DEMO,
+    cles: [
+      CLE_GENERALE,
+      { code: '004', libelle: 'Charges parts égales', tantiemes: '36', principale: false },
+      { code: '007', libelle: 'Charges escalier', tantiemes: '1 000', principale: false },
+      { code: 'C00', libelle: 'Compteur eau froide', tantiemes: 'relevés', principale: false },
+    ],
+    exercices: [
+      { annee: 2026, assemblee: null, budgetEuros: 142000, statut: 'Préparé' },
+      { annee: 2025, assemblee: d(2026, 4, 18), budgetEuros: 138000, statut: 'Voté' },
+    ],
+    conseilSyndical: { eluLe: d(2026, 4, 18), dureeMois: 12 },
+    agVisio: true,
+    alerteTresorerieEuros: 10000,
+    forfait: { visites: 4, heuresAgo: 3, heuresCs: 2 },
+    notes: 'Ordonnance notifiée aux copropriétaires.',
+    avertissement: 'Fonds de travaux sur compte séparé obligatoire.',
+  }),
+  CV: nouvelleFicheCopropriete({
+    numeroMandat: 'M007',
+    typeMandat: 'Syndic judiciaire (art. 46)',
+    dateEffet: d(2025, 7, 22),
+    immatriculation: 'AC2 345 678',
+    ics: 'FR34ZZZ234567',
+    lots: { habitation: 48, commerce: 0, stationnements: 30, usage: 'Habitation' },
+    equipe: EQUIPE_DEMO,
+    cles: [CLE_GENERALE, { code: '010', libelle: 'Ascenseur', tantiemes: '1 000', principale: false }],
+    exercices: [
+      { annee: 2026, assemblee: null, budgetEuros: 198000, statut: 'Préparé' },
+      { annee: 2025, assemblee: d(2025, 10, 9), budgetEuros: 192000, statut: 'Voté' },
+      { annee: 2024, assemblee: d(2025, 10, 9), budgetEuros: 185000, statut: 'Approuvé' },
+    ],
+    conseilSyndical: { eluLe: d(2025, 10, 9), dureeMois: 24 },
+    forfait: { visites: 6, heuresAgo: 3, heuresCs: 4 },
+  }),
+  TL: nouvelleFicheCopropriete({
+    numeroMandat: 'M003',
+    typeMandat: 'Administration provisoire (art. 29-1)',
+    dateEffet: d(2024, 11, 5),
+    immatriculation: 'AC3 456 789',
+    employeur: true,
+    lots: { habitation: 22, commerce: 2, stationnements: 8, usage: 'Mixte (habitation et commerce)' },
+    equipe: EQUIPE_DEMO,
+    cles: [CLE_GENERALE],
+    exercices: [{ annee: 2025, assemblee: null, budgetEuros: 96000, statut: 'Préparé' }],
+    soumisArt22: true,
+    alerteTresorerieEuros: 5000,
+    forfait: { visites: 2, heuresAgo: 3, heuresCs: 0 },
+    avertissement: 'Redressement (art. 29-1) : publicité aux créanciers en cours.',
+  }),
+  VM: nouvelleFicheCopropriete({
+    numeroMandat: 'M015',
+    typeMandat: 'Syndic judiciaire (art. 46)',
+    dateEffet: d(2026, 4, 28),
+    lots: { habitation: 12, commerce: 0, stationnements: 6, usage: 'Habitation' },
+    equipe: EQUIPE_DEMO.slice(0, 2),
+    cles: [CLE_GENERALE],
+    forfait: { visites: 2, heuresAgo: 2, heuresCs: 0 },
+    notes: 'Syndicat dépourvu de syndic : première assemblée à convoquer.',
+  }),
+}
+
+/** Copropriété complétée de sa fiche de démonstration, en mode démonstration seulement et si elle n'en a pas. */
+export function completerCoproAvecDemo<T extends { code: string; fiche?: FicheCopropriete }>(copro: T, mode: Mode = MODE_ACTIF): T {
+  if (copro.fiche || mode !== 'demo') return copro
+  const fiche = FICHES_COPROPRIETES_DEMO[copro.code]
+  return fiche ? { ...copro, fiche } : copro
 }

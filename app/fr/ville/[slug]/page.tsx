@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const city = getFrCityBySlug(slug)
   if (!city) return {}
 
-  const title = `Artisans à ${city.name}, Plombier, Électricien, Peintre | VITFIX`
+  const title = `Artisans à ${city.name}, Plombier, Électricien, Peintre`
   const description = `Trouvez un artisan qualifié à ${city.name} (${city.department}) : plombier, électricien, peintre, plaquiste. Devis gratuit, disponibles 7j/7.`
 
   return {

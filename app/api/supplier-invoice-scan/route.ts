@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerVision, dataUrlDocument, MAX_OCTETS_DOCUMENT, visionDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
+import { localeTva, tauxTvaParDefaut, TAUX_TVA_PROPOSES, type TvaLocale } from '@/lib/tva-calculator'
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
-// ── Supplier Invoice / Devis Fournisseur OCR via Groq Vision ────────────────
+// ── Supplier Invoice / Devis Fournisseur OCR (lecture par Workers AI, lib/ai/relais.ts) ──
 // Extracts material lines from a supplier quote/invoice (PDF rendered as image)
 
 export interface SupplierLine {
@@ -27,7 +26,21 @@ export interface SupplierScanResult {
   confidence: 'haute' | 'moyenne' | 'basse'
 }
 
-const SUPPLIER_PROMPT = `Tu es un expert en lecture de devis et factures de fournisseurs matériaux BTP (Point P, Cedeo, Rexel, BigMat, Brossette, Prolians, etc.).
+/** « 20, 10, 5.5 ou 0 » : taux du pays tels que la consigne les cite. */
+const listeTaux = (taux: readonly number[]) => `${taux.slice(0, -1).join(', ')} ou ${taux.at(-1)}`
+
+/**
+ * Consigne de lecture, selon le pays de la société (`pays` du corps : 'pt' sur le formulaire portugais). En France,
+ * texte inchangé ; au Portugal, taux d'IVA portugais (23 % par défaut).
+ */
+const consigneFournisseur = (pays: TvaLocale) => {
+  const defaut = tauxTvaParDefaut(pays)
+  // Total TTC de l'exemple cohérent avec son taux : 125,50 × 1,23 au Portugal, × 1,20 en France
+  const exempleTotalTTC = pays === 'pt' ? '154.37' : '150.60'
+  const tauxApplicable = pays === 'pt'
+    ? `taux d'IVA portugais applicable (${listeTaux(TAUX_TVA_PROPOSES.pt)}). Par défaut ${defaut}`
+    : `taux TVA applicable (${listeTaux(TAUX_TVA_PROPOSES.fr)}). Par défaut ${defaut}`
+  return `Tu es un expert en lecture de devis et factures de fournisseurs matériaux BTP (Point P, Cedeo, Rexel, BigMat, Brossette, Prolians, etc.).
 
 Analyse cette image de devis/facture fournisseur et extrais TOUTES les lignes de matériaux.
 
@@ -42,11 +55,11 @@ Retourne UNIQUEMENT un objet JSON valide, sans markdown :
       "qty": 1,
       "unit": "u",
       "unitPriceHT": 12.50,
-      "tvaRate": 20
+      "tvaRate": ${defaut}
     }
   ],
   "totalHT": 125.50,
-  "totalTTC": 150.60,
+  "totalTTC": ${exempleTotalTTC},
   "confidence": "haute"
 }
 
@@ -55,12 +68,13 @@ Règles :
 - Pour qty, utilise le nombre exact sur le document (défaut: 1)
 - Pour unit, utilise : "u" (unité), "m" (mètre), "ml" (mètre linéaire), "m2" (m²), "m3" (m³), "kg", "l" (litre), "lot", "sac", "rl" (rouleau), "bte" (boîte), "pl" (plaque)
 - unitPriceHT = prix unitaire HT. Si seul le TTC est visible, divise par (1 + tvaRate/100)
-- tvaRate = taux TVA applicable (20, 10, 5.5 ou 0). Par défaut 20
+- tvaRate = ${tauxApplicable}
 - Ignore les lignes de sous-total, frais de port, remises globales, conditions de paiement
 - confidence "haute" = texte net, toutes les colonnes lisibles
 - confidence "moyenne" = partiellement lisible ou colonnes manquantes
 - confidence "basse" = flou, tronqué ou illisible
 - Si tu ne peux pas lire le document, retourne { "supplier": null, "invoiceRef": null, "date": null, "lines": [], "totalHT": null, "totalTTC": null, "confidence": "basse" }`
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,50 +86,49 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { image_base64, mime_type = 'image/jpeg' } = body
+    // Pays des taux : 'pt' envoyé par le formulaire portugais ; absent ou autre : France (comportement antérieur)
+    const pays = localeTva(typeof body?.pays === 'string' ? body.pays : undefined)
 
     if (!image_base64) {
       return NextResponse.json({ error: 'image_base64 requis' }, { status: 400 })
     }
 
-    if (image_base64.length > 14_000_000) {
-      return NextResponse.json({ error: 'Image trop grande (max 10MB)' }, { status: 400 })
+    // Poids maximal d'un document lu par un modèle (lib/ai/relais.ts), en caractères base64 (en-tête compris).
+    if (image_base64.length > Math.ceil(MAX_OCTETS_DOCUMENT / 3) * 4 + 100) {
+      return NextResponse.json({ error: 'Image trop grande (5 Mo maximum)' }, { status: 400 })
     }
 
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: 'Groq API non configurée' }, { status: 500 })
+    if (!(await visionDisponible())) {
+      return NextResponse.json({ error: 'Analyse indisponible pour le moment. Réessayez plus tard.' }, { status: 503 })
     }
 
-    const imageUrl = image_base64.startsWith('data:')
-      ? image_base64
-      : `data:${mime_type};base64,${image_base64}`
+    // Vrai type d'après les premiers octets : une image dont le type déclaré ne correspond pas serait refusée.
+    const imageUrl = dataUrlDocument(image_base64, mime_type)
 
-    let groqData
+    let ocrData
     try {
-      groqData = await callGroqWithRetry({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      ocrData = await appelerVision({
         messages: [
           {
             role: 'user',
             content: [
-              { type: 'text', text: SUPPLIER_PROMPT + '\n\nAnalyse ce devis/facture fournisseur :' },
+              { type: 'text', text: consigneFournisseur(pays) + '\n\nAnalyse ce devis/facture fournisseur :' },
               { type: 'image_url', image_url: { url: imageUrl } },
             ],
           },
         ],
-        temperature: 0.1,
         max_tokens: 4000,
         response_format: { type: 'json_object' },
-      }, { fallbackModel: 'meta-llama/llama-4-scout-17b-16e-instruct' })
-    } catch (groqErr: unknown) {
-      const msg = groqErr instanceof Error ? groqErr.message : 'Unknown error'
-      logger.error('Supplier invoice scan Groq Vision error:', msg)
+      }, { contexte: 'supplier-invoice-scan' })
+    } catch (ocrErr: unknown) {
+      logger.error('Supplier invoice scan vision error', { module: 'supplier-invoice-scan' }, ocrErr)
       return NextResponse.json({
         result: { supplier: null, invoiceRef: null, date: null, lines: [], totalHT: null, totalTTC: null, confidence: 'basse' } satisfies SupplierScanResult,
         error: 'Analyse vision échouée',
       })
     }
 
-    const rawContent = groqData.choices?.[0]?.message?.content || '{}'
+    const rawContent = ocrData.choices?.[0]?.message?.content || '{}'
 
     let result: SupplierScanResult
     try {
@@ -133,7 +146,8 @@ export async function POST(request: NextRequest) {
           qty: Math.max(0.01, Number(l.qty) || 1),
           unit: l.unit || 'u',
           unitPriceHT: Math.max(0, Number(l.unitPriceHT) || 0),
-          tvaRate: [20, 10, 5.5, 0].includes(Number(l.tvaRate)) ? Number(l.tvaRate) : 20,
+          // Taux du pays seulement (23, 13, 6, 0 au Portugal) : un autre taux lu devient le taux normal du pays
+          tvaRate: TAUX_TVA_PROPOSES[pays].includes(Number(l.tvaRate)) ? Number(l.tvaRate) : tauxTvaParDefaut(pays),
         }))
     } else {
       result.lines = []

@@ -1,12 +1,13 @@
 import { FR_SERVICES, FR_CITIES, getAllFrPageCombos } from '@/lib/data/fr-seo-pages-data'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
 import HtmlSitemap, { buildSitemapMetadata, buildSitemapBreadcrumbSchema } from '@/components/seo/HtmlSitemap'
+import { titreAvecMarque } from '@/lib/seo/titre-avec-marque'
 
 export const metadata = buildSitemapMetadata({
   locale: 'fr',
   url: 'https://vitfix.io/fr/plan-du-site/',
   altUrl: 'https://vitfix.io/pt/mapa-do-site/',
-  title: 'Plan du site VITFIX : Toutes nos pages services et villes',
+  title: titreAvecMarque('Plan du site VITFIX : Toutes nos pages services et villes'),
   description: 'Plan du site complet VITFIX : services artisans, villes desservies en PACA, articles de blog, ressources. Navigation rapide vers toutes nos pages.',
   ogTitle: 'Plan du site VITFIX',
   ogDescription: 'Toutes nos pages services et villes en PACA.',

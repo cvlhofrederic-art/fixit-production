@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -37,6 +37,12 @@ export async function POST(request: NextRequest) {
   }
   if (!email) {
     return NextResponse.json({ error: 'email requis' }, { status: 400 })
+  }
+
+  // Compte rattaché à la société d'un autre (co-gérant ou salarié invité) : il n'a pas de société à son nom, et une
+  // ligne GERANT « company_id = lui-même » lui donnerait un second rattachement actif (PGRST116, 409 partout).
+  if (societeDunAutreCompte(user)) {
+    return NextResponse.json({ ok: true, skipped: 'membre_d_une_autre_societe' })
   }
 
   const companyId = user.id // Pour le gérant, company_id = son propre user.id

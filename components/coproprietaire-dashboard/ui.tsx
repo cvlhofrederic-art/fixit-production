@@ -26,7 +26,7 @@ export type NomIcone =
   | 'accueil' | 'demandes' | 'charges' | 'documents' | 'assemblees' | 'annonces' | 'informations' | 'question' | 'plus'
   | 'alerte' | 'check' | 'chevron-bas' | 'chevron-droite' | 'fermer' | 'copier' | 'ouvrir' | 'retour' | 'actualiser'
   | 'deconnexion' | 'menu' | 'envoyer' | 'telephone' | 'mail' | 'adresse' | 'calendrier' | 'outil' | 'immeuble'
-  | 'euro' | 'info' | 'cadenas' | 'utilisateur' | 'horloge'
+  | 'euro' | 'info' | 'cadenas' | 'utilisateur' | 'horloge' | 'qr'
 
 const TRACES: Record<NomIcone, ReactNode> = {
   accueil: <><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
@@ -61,6 +61,7 @@ const TRACES: Record<NomIcone, ReactNode> = {
   cadenas: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   utilisateur: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   horloge: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  qr: <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><path d="M14 14h3v3h-3z" /><path d="M20 14v2M17 20h3M20 18h.01" /></>,
 }
 
 export function Icone({ nom, taille = 20, className = '' }: { nom: NomIcone; taille?: number; className?: string }) {
@@ -106,7 +107,9 @@ export function Carte({
             {titre && <h2 className="text-lg font-bold text-[#0D1B2E] leading-snug">{titre}</h2>}
             {sousTitre && <p className="text-sm text-[#4A5E78] mt-1">{sousTitre}</p>}
           </div>
-          {actions && <div className="flex flex-wrap gap-2 shrink-0">{actions}</div>}
+          {/* max-w-full : une rangée de boutons plus large que la carte passe à la ligne au lieu de sortir de l'écran
+              (shrink-0 la tenait sinon à la largeur de tous ses boutons sur une ligne) ; sans effet tant qu'elle tient. */}
+          {actions && <div className="flex max-w-full flex-wrap gap-2 shrink-0">{actions}</div>}
         </header>
       )}
       <div className={titre || actions ? 'px-5 pb-5' : 'p-5'}>{children}</div>
@@ -323,7 +326,10 @@ export function Modale({ titre, onFermer, children, labelFermer }: { titre: Reac
       <div
         ref={refDialogue}
         role="dialog" aria-modal="true" aria-labelledby={idTitre}
-        className="w-full max-w-lg rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+        // Hauteur bornée à l'écran, défilement DANS la fenêtre : le fond est figé (overflow hidden), une fenêtre plus
+        // haute que l'écran était sinon centrée hors de portée (titre et boutons du bas injoignables). La barre de
+        // défilement appartient à la fenêtre : un clic dessus n'est pas un « clic dehors ».
+        className="max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh_-_2rem)] sm:rounded-2xl sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
           <h2 id={idTitre} ref={refTitre} tabIndex={-1} className="text-xl font-bold text-[#0D1B2E] outline-none">{titre}</h2>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import SimulateurDevisClient from './SimulateurDevisClient'
 
 export const metadata: Metadata = {
-  title: 'Simulateur de devis gratuit : Chiffrez vos travaux en PACA | VITFIX',
+  title: 'Simulateur de devis gratuit : Chiffrez vos travaux en PACA',
   description: 'Chiffrez vos travaux en 2 min : plomberie, électricité, peinture, serrurerie, toiture, jardin... Estimation gratuite et instantanée. Artisans certifiés Marseille, Aubagne, La Ciotat, Aix-en-Provence.',
   keywords: [
     'simulateur devis travaux PACA',

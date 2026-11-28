@@ -1,13 +1,16 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.fixit.artisan"
+    namespace = "io.vitfix.pro"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.fixit.artisan"
+        applicationId "io.vitfix.pro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        // Numéro d'envoi : la Play Console refuse deux dépôts portant le même versionCode. Le workflow
+        // « App Android — envoi Play » y met le numéro du run, qui ne recule jamais ; 1 en local, où rien
+        // n'est envoyé à Google.
+        versionCode Integer.parseInt(System.getenv("ANDROID_VERSION_CODE") ?: "1")
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -16,10 +19,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Clé d'envoi fournie par le workflow « App Android — envoi Play », jamais par le dépôt : le magasin est
+    // décodé depuis un secret dans le dossier temporaire du runner, puis effacé. Sans ces variables, la
+    // configuration reste vide et seule la variante debug est signée — `assembleDebug` continue de marcher.
+    signingConfigs {
+        release {
+            def magasin = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (magasin) {
+                storeFile file(magasin)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Sans clé, le bundle sort non signé : Google Play le refuse, mais la compilation locale passe.
+            if (System.getenv("ANDROID_KEYSTORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

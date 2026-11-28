@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, type ChangeEvent } from 'react'
-import { EXEMPLE_RELEVE_BANCAIRE_CSV } from '@/components/administrateur-judiciaire/data/exemples-import'
+import type { EtatComptes } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ChoixCompteBancaire'
+import { nomDuCompte } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
+import { ComptesBancairesPanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ComptesBancairesPanel'
+import { comptesLisibles, type CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
+import { enFileEcrituresTresorerie, imputerEnFile } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/file-ecritures'
+import { ImportRelevePanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ImportRelevePanel'
+import { RapprochementPanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/RapprochementPanel'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
@@ -12,22 +17,14 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { SelecteurCopropriete } from '@/components/administrateur-judiciaire/ui/SelecteurCopropriete'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { useDonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
 import type { Ecriture, Impaye } from '@/lib/administrateur-judiciaire/db/schema'
+import { banqueDuCompte, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
+import { useComptesBancaires } from '@/lib/administrateur-judiciaire/db/use-comptes-bancaires'
 import { dateIsoVersFr, dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
 import { listerCoproprietairesCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-360'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
-import {
-  dedoublonnerReleve,
-  parserReleveBancaire,
-  proposerImputations,
-  type ConfianceImputation,
-  type LigneReleve,
-  type PropositionImputation,
-  type ResultatReleve,
-} from '@/lib/administrateur-judiciaire/domain/import/releve-bancaire'
 import {
   analyserRecouvrement,
   ETAPES_RECOUVREMENT,
@@ -35,114 +32,71 @@ import {
   type EtapeRecouvrement,
 } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
-import { codeCoproSelectionne, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
-
-/** Pastille de confiance d'un rapprochement proposé (clés = champ confiance de proposerImputations). */
-export const PILL_CONFIANCE_RAPPROCHEMENT: Record<ConfianceImputation, { kind: string; label: string }> = {
-  forte: {
-    kind: 'sage',
-    label: 'Forte',
-  },
-  probable: {
-    kind: 'amber',
-    label: 'Probable',
-  },
-}
-
-/** Copropriétaire proposé à l'imputation d'un encaissement. */
-export interface CoproprietaireImputable {
-  id: string
-  nom: string
-  solde: number
-}
-
-/** Relevé analysé : lecture du CSV, lignes retenues et doublons écartés, rapprochements proposés. */
-export interface AnalyseReleve extends ResultatReleve {
-  retenues: LigneReleve[]
-  doublons: LigneReleve[]
-  rapprochements: PropositionImputation<LigneReleve, CoproprietaireImputable>[]
-}
-
-/** Copropriétaire choisi pour chaque ligne retenue (index de ligne → id, « » = ne pas imputer). */
-export type SelectionsImputation = Record<string, string>
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Libellé d'une étape de recouvrement (toujours trouvée : l'étape vient de analyserRecouvrement). */
 const libelleEtapeRecouvrement = (etape: EtapeRecouvrement): string =>
   (ETAPES_RECOUVREMENT.find((definition) => definition.etape === etape) as DefinitionEtapeRecouvrement).libelle
 
-/** Montant signé d'une écriture du compte 512 : débit (encaissement) positif, crédit (décaissement) négatif. */
+/** Montant signé d'une écriture de banque : débit (encaissement) positif, crédit (décaissement) négatif. */
 const montantSigne = (ecriture: Ecriture): number => (ecriture.sens === 'debit' ? ecriture.montant : -ecriture.montant)
 
-/*
- * Correctifs de défauts hérités de la maquette : écritures concurrentes de l'écran. Aucun changement de rendu (ni
- * attribut disabled, ni select contrôlé) ; seuls les cas de concurrence changent.
- * - Les imputations d'encaissement (manuelles ou de la boucle d'import) et les étapes de recouvrement lisent le solde
- *   ou le dossier dans l'état puis écrivent une valeur absolue : lancées ensemble, la dernière écrasait l'autre
- *   (encaissement absent du solde alors que sa contrepartie 450 existe). Elles passent désormais par une file unique,
- *   chacune démarrant à la fin de la précédente (sans écriture en cours, démarrage immédiat, comme avant).
- * - Une imputation dont l'encaissement a été imputé entre-temps (select changé deux fois de suite, ou ligne imputée à
- *   la main pendant que la boucle d'import allait l'imputer) n'écrit rien : plus de double contrepartie 450.
- * - Étape de recouvrement : un clic pendant l'enregistrement de l'étape du même copropriétaire est ignoré (il créait
- *   un second dossier d'impayé), et le second clic d'un double clic aussi (le bouton, déjà passé à l'étape suivante,
- *   enregistrait l'exigibilité anticipée le jour même de la mise en demeure).
- * La file et les verrous sont au niveau du module : la boucle d'import continue si l'écran est quitté puis rouvert.
+/**
+ * Compte bancaire d'une ligne de relevé : nom du compte de son sous-compte 512, « Non rattaché » pour une ligne importée
+ * avant le choix du compte (« 512 » seul).
  */
-let derniereEcritureTresorerie: Promise<unknown> = Promise.resolve()
-
-/** Exécute l'écriture à la suite des précédentes (qu'elles aient réussi ou échoué). */
-function enFileEcrituresTresorerie<T>(executer: () => Promise<T>): Promise<T> {
-  const execution = derniereEcritureTresorerie.then(executer)
-  derniereEcritureTresorerie = execution.catch(() => {
-    // L'échec est remonté à l'appelant par `execution` ; la file passe à l'écriture suivante.
-  })
-  return execution
+function compteDeLaLigne(ecriture: Ecriture, comptes: readonly CompteAffiche[]): string {
+  const banqueId = banqueDuCompte(ecriture.compte)
+  if (banqueId === null) return 'Non rattaché'
+  const compte = comptes.find((candidat) => candidat.id === banqueId)
+  return compte ? nomDuCompte(compte) : 'Compte inconnu'
 }
 
+/*
+ * Étape de recouvrement : un clic pendant l'enregistrement de l'étape du même copropriétaire est ignoré (il créait un
+ * second dossier d'impayé), et le second clic d'un double clic aussi (le bouton, déjà passé à l'étape suivante,
+ * enregistrait l'exigibilité anticipée le jour même de la mise en demeure). Les étapes passent par la file des écritures
+ * de l'écran (tresorerie/file-ecritures.ts), comme les imputations.
+ */
 /** Copropriétaires dont une étape de recouvrement est en cours d'enregistrement. */
 const recouvrementsEnCours = new Set<string>()
 
-/** Vrai si une contrepartie 450-* du journal cite déjà cette écriture 512 (« … relevé <id> »), dans l'état à jour. */
-const encaissementDejaImpute = (ecritureId: string): boolean =>
-  useDonneesStore
-    .getState()
-    .ecritures.some(
-      (ecriture) =>
-        ecriture.compte.startsWith('450-') && (ecriture.libelle.match(/relevé (\S+)$/) || [])[1] === ecritureId,
-    )
+/** État de lecture des comptes bancaires, pour l'import du relevé. */
+const etatLectureComptes = (lus: { chargement: boolean; erreur: string | null }): EtatComptes => {
+  if (lus.chargement) return 'chargement'
+  return lus.erreur ? 'erreur' : 'lu'
+}
 
 /**
- * Banque et recouvrement (données réelles de la base locale) : import d'un relevé CSV avec dédoublonnage et
- * rapprochement des encaissements, lettrage des lignes 512 et dossiers de recouvrement de l'art. 19-2.
+ * Banque et recouvrement (données réelles de la base locale) : comptes bancaires du mandat, arrêtés de rapprochement,
+ * import d'un relevé sur le compte bancaire choisi (CSV, CFONB 120, camt.053 ; dédoublonnage, imputation des
+ * encaissements aux copropriétaires), lettrage des lignes de banque et dossiers de recouvrement de l'art. 19-2. Les
+ * comptes bancaires sont lus ici et partagés par les panneaux.
  */
 export function TresorerieModule() {
   const { push } = useToast()
-  const { code, choisirCopro, choisirPersonne } = useSelectionDossier()
-  const [codeLocal, setCodeLocal] = useState(() => codeCoproSelectionne('CV'))
-  const codeCopro = codeLocal || code
+  const { choisirCopro, choisirPersonne } = useSelectionDossier()
+  const codeCopro = useCodeCoproCourant('CV')
   const donnees = useDonneesLocales()
-  const [texteReleve, setTexteReleve] = useState('')
-  const [analyse, setAnalyse] = useState<AnalyseReleve | null>(null)
-  const [selections, setSelections] = useState<SelectionsImputation>({})
-  const [importEnCours, setImportEnCours] = useState(false)
 
   const copro = donnees.copros.find((candidate) => candidate.code === codeCopro)
+  const lus = useComptesBancaires(copro?.id ?? null, (message) =>
+    push({ kind: 'warn', title: 'Comptes bancaires illisibles', desc: message }),
+  )
   const personnes = copro ? listerCoproprietairesCopropriete(copro, donnees.lots, donnees.coproprietaires) : []
   const journal = copro ? donnees.journaux.find((candidat) => candidat.coproprieteId === copro.id) : null
   const ecrituresJournal = journal ? donnees.ecritures.filter((ecriture) => ecriture.journalId === journal.id) : []
   const lignesBanque = ecrituresJournal
-    .filter((ecriture) => ecriture.compte === '512')
+    .filter((ecriture) => estCompteBanque(ecriture.compte))
     .sort((a, b) => b.date.getTime() - a.date.getTime())
-  // Ids des écritures 512 déjà imputées, relevés à la fin du libellé des contreparties 450-* (« … relevé <id> »).
+  const comptes = comptesLisibles(lus.comptes, lignesBanque)
+  const etatComptes = etatLectureComptes(lus)
+  // Ids des écritures de banque déjà imputées, relevés à la fin du libellé des contreparties 450-* (« … relevé <id> »).
   const idsImputes = new Set(
     ecrituresJournal
       .filter((ecriture) => ecriture.compte.startsWith('450-'))
       .map((ecriture) => (ecriture.libelle.match(/relevé (\S+)$/) || [])[1]),
   )
-  const lignesExistantes: LigneReleve[] = lignesBanque.map((ecriture) => ({
-    date: dateVersIso(ecriture.date) || '',
-    libelle: ecriture.libelle,
-    montant: montantSigne(ecriture),
-  }))
   const debiteurs = personnes.filter((personne) => personne.solde < 0).sort((a, b) => a.solde - b.solde)
   const dossiersOuverts = new Map(
     donnees.impayes
@@ -155,87 +109,6 @@ export function TresorerieModule() {
   const totalDecaissements = lignesBanque
     .filter((ecriture) => ecriture.sens === 'credit')
     .reduce((total, ecriture) => total + ecriture.montant, 0)
-
-  const analyser = () => {
-    const lecture = parserReleveBancaire(texteReleve),
-      { retenues, doublons } = dedoublonnerReleve(lecture.lignes, lignesExistantes),
-      rapprochements = proposerImputations(
-        retenues,
-        personnes.map((personne) => ({
-          id: personne.id,
-          nom: personne.nom,
-          solde: personne.solde,
-        })),
-      )
-    setAnalyse({
-      ...lecture,
-      retenues,
-      doublons,
-      rapprochements,
-    })
-    setSelections(
-      Object.fromEntries(
-        rapprochements.map((rapprochement, index): [number, string] => [
-          index,
-          rapprochement.candidat ? rapprochement.candidat.id : '',
-        ]),
-      ),
-    )
-  }
-
-  const choisirFichier = (evenement: ChangeEvent<HTMLInputElement>) => {
-    const fichier = evenement.target.files && evenement.target.files[0]
-    if (!fichier) return
-    const lecteur = new FileReader()
-    lecteur.onload = () => {
-      setTexteReleve(String(lecteur.result || ''))
-      setAnalyse(null)
-    }
-    lecteur.readAsText(fichier, 'utf-8')
-  }
-
-  /**
-   * Impute l'encaissement à son tour dans la file des écritures de l'écran. Renvoie false, sans rien écrire, si
-   * l'encaissement a été imputé entre-temps.
-   */
-  const imputerEnFile = (ecritureId: string, coproprietaireId: string): Promise<boolean> =>
-    enFileEcrituresTresorerie(async () => {
-      if (encaissementDejaImpute(ecritureId)) return false
-      await donnees.imputerEncaissement(ecritureId, coproprietaireId, AUJOURDHUI_ISO)
-      return true
-    })
-
-  const importer = async () => {
-    if (!copro || !analyse) return
-    setImportEnCours(true)
-    try {
-      const ecrituresCreees = await donnees.importerReleve(copro.id, analyse.retenues)
-      let imputes = 0
-      for (let index = 0; index < ecrituresCreees.length; index++) {
-        const coproprietaireId = selections[index]
-        if (coproprietaireId && ecrituresCreees[index].sens === 'debit') {
-          // Ligne déjà imputée à la main pendant la boucle : ni seconde imputation, ni décompte.
-          if (await imputerEnFile(ecrituresCreees[index].id, coproprietaireId)) imputes++
-        }
-      }
-      push({
-        kind: 'success',
-        title: 'Relevé importé',
-        desc: `${ecrituresCreees.length} ligne${ecrituresCreees.length > 1 ? 's' : ''} enregistrée${ecrituresCreees.length > 1 ? 's' : ''}, ${imputes} encaissement${imputes > 1 ? 's' : ''} imputé${imputes > 1 ? 's' : ''}${analyse.doublons.length ? `, ${analyse.doublons.length} doublon${analyse.doublons.length > 1 ? 's' : ''} écarté${analyse.doublons.length > 1 ? 's' : ''}` : ''}.`,
-      })
-      setTexteReleve('')
-      setAnalyse(null)
-      setSelections({})
-    } catch (erreur) {
-      push({
-        kind: 'warn',
-        title: 'Import impossible',
-        desc: erreur instanceof Error ? erreur.message : String(erreur),
-      })
-    } finally {
-      setImportEnCours(false)
-    }
-  }
 
   const imputer = async (ecritureId: string, coproprietaireId: string) => {
     if (coproprietaireId)
@@ -288,17 +161,9 @@ export function TresorerieModule() {
       <PageHead
         eyebrow="Comptabilité & finances · chantier 1"
         title="Banque et recouvrement"
-        lede="Import du relevé, rapprochement des encaissements avec les copropriétaires, dossiers de recouvrement de l'art. 19-2. Données persistées dans la base locale."
+        lede="Import du relevé, imputation des encaissements aux copropriétaires, dossiers de recouvrement de l'art. 19-2. Données persistées dans la base locale."
         actions={
-          <SelecteurCopropriete
-            // Toujours une chaîne non vide : codeLocal part de codeCoproSelectionne('CV') et ne reçoit que des codes.
-            value={codeCopro as string}
-            onChange={(codeChoisi) => {
-              setCodeLocal(codeChoisi)
-              choisirCopro(codeChoisi)
-              setAnalyse(null)
-            }}
-          />
+          <SelecteurCopropriete value={codeCopro} onChange={choisirCopro} />
         }
       />
       {donnees.erreur && (
@@ -339,197 +204,15 @@ export function TresorerieModule() {
           },
         ]}
       />
-      <Panel
-        title="Importer un relevé"
-        sub="CSV exporté de la banque : date, libellé, montant (ou débit et crédit). Coller le texte ou choisir un fichier."
-        icon="upload"
-      >
-        <div
-          style={{
-            display: 'flex',
-            gap: 10,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            marginBottom: 10,
-          }}
-        >
-          <input type="file" accept=".csv,.txt,text/csv" aria-label="Fichier de relevé" onChange={choisirFichier} />
-          <button
-            className="btn"
-            onClick={() => {
-              setTexteReleve(EXEMPLE_RELEVE_BANCAIRE_CSV)
-              setAnalyse(null)
-            }}
-          >
-            Exemple
-          </button>
-          <button className="btn gold" onClick={analyser} disabled={!texteReleve.trim() || !copro}>
-            <Icon name="search" />
-            Analyser
-          </button>
-        </div>
-        <textarea
-          aria-label="Relevé bancaire"
-          value={texteReleve}
-          onChange={(evenement) => {
-            setTexteReleve(evenement.target.value)
-            setAnalyse(null)
-          }}
-          rows={5}
-          style={{
-            width: '100%',
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 12,
-          }}
-          placeholder={EXEMPLE_RELEVE_BANCAIRE_CSV}
-        />
-        {analyse && (
-          <div
-            style={{
-              marginTop: 12,
-            }}
-          >
-            {analyse.erreurs.length > 0 && (
-              <Alert
-                kind="warn"
-                icon="alert"
-                title={`${analyse.erreurs.length} ligne${analyse.erreurs.length > 1 ? 's' : ''} non lue${analyse.erreurs.length > 1 ? 's' : ''}`}
-              >
-                {analyse.erreurs.slice(0, 5).join(' · ')}
-              </Alert>
-            )}
-            {analyse.doublons.length > 0 && (
-              <Alert
-                kind="info"
-                icon="history"
-                title={`${analyse.doublons.length} doublon${analyse.doublons.length > 1 ? 's' : ''} déjà importé${analyse.doublons.length > 1 ? 's' : ''}, écarté${analyse.doublons.length > 1 ? 's' : ''}`}
-              >
-                {analyse.doublons.map((ligne) => `${dateIsoVersFr(ligne.date)} ${ligne.libelle}`).join(' · ')}
-              </Alert>
-            )}
-            {analyse.retenues.length > 0 && (
-              <DataTable
-                rowKey="i"
-                columns={[
-                  {
-                    h: 'Date',
-                    render: (rapprochement) => <span className="mono">{dateIsoVersFr(rapprochement.ligne.date)}</span>,
-                  },
-                  {
-                    h: 'Libellé',
-                    render: (rapprochement) => rapprochement.ligne.libelle,
-                  },
-                  {
-                    h: 'Montant',
-                    render: (rapprochement) => (
-                      <span
-                        className="mono"
-                        style={{
-                          color: rapprochement.ligne.montant < 0 ? 'var(--rust-500)' : 'var(--sage-600, inherit)',
-                        }}
-                      >
-                        {formatEurosCentimes(rapprochement.ligne.montant)}
-                      </span>
-                    ),
-                  },
-                  {
-                    h: 'Copropriétaire',
-                    render: (rapprochement) =>
-                      rapprochement.ligne.montant > 0 ? (
-                        <select
-                          aria-label={`Copropriétaire ligne ${rapprochement.i + 1}`}
-                          value={selections[rapprochement.i] || ''}
-                          onChange={(evenement) =>
-                            setSelections((precedentes) => ({
-                              ...precedentes,
-                              [rapprochement.i]: evenement.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Ne pas imputer</option>
-                          {personnes.map((personne) => (
-                            <option value={personne.id} key={personne.id}>
-                              {personne.nom}
-                              {' · '}
-                              {personne.lot}
-                              {' · '}
-                              {formatEurosCentimes(personne.solde)}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span
-                          style={{
-                            color: 'var(--navy-300)',
-                            fontSize: 12,
-                          }}
-                        >
-                          débit
-                        </span>
-                      ),
-                  },
-                  {
-                    h: 'Rapprochement',
-                    render: (rapprochement) =>
-                      rapprochement.confiance ? (
-                        <>
-                          <Pill kind={PILL_CONFIANCE_RAPPROCHEMENT[rapprochement.confiance].kind} noDot>
-                            {PILL_CONFIANCE_RAPPROCHEMENT[rapprochement.confiance].label}
-                          </Pill>{' '}
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--navy-300)',
-                            }}
-                          >
-                            {rapprochement.motif}
-                          </span>
-                        </>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: 'var(--navy-300)',
-                          }}
-                        >
-                          {rapprochement.motif}
-                        </span>
-                      ),
-                  },
-                ]}
-                rows={analyse.rapprochements.map((rapprochement, index) => ({
-                  ...rapprochement,
-                  i: index,
-                }))}
-              />
-            )}
-            <div
-              style={{
-                marginTop: 10,
-                display: 'flex',
-                gap: 10,
-                alignItems: 'center',
-              }}
-            >
-              <button className="btn gold" onClick={importer} disabled={importEnCours || analyse.retenues.length === 0}>
-                <Icon name="check" />
-                {'Importer '}
-                {analyse.retenues.length}
-                {' ligne'}
-                {analyse.retenues.length > 1 ? 's' : ''}
-              </button>
-              <span
-                style={{
-                  fontSize: 12,
-                  color: 'var(--navy-500)',
-                }}
-              >
-                Les encaissements rapprochés mettent le solde du copropriétaire à jour et écrivent la contrepartie 450.
-              </span>
-            </div>
-          </div>
-        )}
-      </Panel>
+      <ComptesBancairesPanel copro={copro} lus={lus} ecrituresBanque={lignesBanque} />
+      <RapprochementPanel comptes={comptes} etatComptes={etatComptes} ecrituresBanque={lignesBanque} />
+      <ImportRelevePanel
+        copro={copro}
+        comptes={comptes}
+        etatComptes={etatComptes}
+        personnes={personnes}
+        lignesBanque={lignesBanque}
+      />
       <Panel
         title={`Lignes de relevé (${lignesBanque.length})`}
         sub="Journal en partie double : encaissement D 512 / C 450 du copropriétaire ; décaissement C 512 / D 471 compte d'attente, à ventiler sur un compte de charge avec le plan comptable (étape 1) ; un encaissement non imputé peut l'être ici"
@@ -586,6 +269,10 @@ export function TresorerieModule() {
                 ),
               },
               {
+                h: 'Compte',
+                render: (ecriture) => compteDeLaLigne(ecriture, comptes),
+              },
+              {
                 h: 'Lettrage',
                 render: (ecriture) =>
                   ecriture.sens === 'credit' ? (
@@ -620,7 +307,7 @@ export function TresorerieModule() {
       </Panel>
       <Panel
         title={`Recouvrement (${debiteurs.length} débiteur${debiteurs.length > 1 ? 's' : ''})`}
-        sub="Étapes de l'art. 19-2 avec leurs délais · la mise en demeure se génère depuis le cockpit"
+        sub="Étapes de l'art. 19-2 avec leurs délais · la mise en demeure se génère depuis le Tableau de bord (Génération express d'actes)"
         icon="scale"
         flush
       >

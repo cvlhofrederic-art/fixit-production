@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 
 type Locale = 'fr' | 'pt'
 
@@ -153,7 +154,7 @@ export default function LeaDocumentsPanel({ locale, immeubleId }: Props) {
       const res = await fetch(`/api/syndic/lea-documents/${id}`)
       if (!res.ok) throw new Error(`status_${res.status}`)
       const json = await res.json() as { signed_url: string }
-      window.open(json.signed_url, '_blank', 'noopener,noreferrer')
+      safeOpen(json.signed_url, { allowedOrigins: originesSupabase() })
     } catch {
       toast.error(isPt ? 'Não foi possível abrir o documento' : "Impossible d'ouvrir le document")
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
@@ -10,20 +10,38 @@ import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-import { buildDocumentLines, computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
-import { getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId } from '@/lib/devis-utils'
+import { buildDocumentLines, computeDocumentTotalHT, negateDocumentLines, remisesEnPourcentage } from '@/lib/devis-totals'
+import {
+  getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId, optionsFusionPourRole,
+  memeDocument, numeroPorteParUnAutreDocument,
+} from '@/lib/devis-utils'
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
+import { changerEtatDocumentSociete } from '@/lib/documents/societe-client'
+import { fichePortugaise } from '@/lib/numerotation-prefixes'
+import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill } from '@/lib/acompte-par-taux'
 import { aNumeroDefinitif } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
+import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
+import { renduComplet } from '@/lib/version-rendu'
+import { totauxDocumentComplet } from '@/lib/totaux-artisan'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
+import type { ChampRecherche } from '@/lib/documents/recherche-documents'
+import {
+  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, FiltreStatut, IndiceResultat,
+  cleDocumentBtp, useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
+} from '@/components/dashboard/documents/OutilsListeDocuments'
+
+// Colonnes de la liste V5 des factures : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
+const CHAMPS_VISIBLES_FACTURES: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client', 'montant'])
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -49,6 +67,14 @@ function estFactureBrouillon(doc: { status?: string; docNumber?: string }, orgRo
   if (orgRole === 'pro_societe' && doc.status === 'envoye' && aNumeroDefinitif(doc)) return false
   return isDocDraftStatus(doc.status, 'facture')
 }
+
+/**
+ * Société BTP : refus d'annuler une facture dont le numéro est porté par une autre facture de la liste. L'annulation
+ * est envoyée au serveur avec le seul numéro : c'est l'autre facture qui serait annulée en base (relecture adverse du
+ * lot numérotation, 16/11/2026).
+ */
+const messageAnnulationNumeroEnDouble = (numero: string): string =>
+  `Deux factures portent le numéro ${numero} : l'annulation est bloquée tant que ce numéro est en double, pour ne pas annuler la mauvaise.`
 
 interface FacturesSectionProps {
   artisan: Artisan
@@ -83,17 +109,24 @@ export default function FacturesSection({
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as PersistedDocument[]
     // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
     // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
-    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
-    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity). Société BTP :
+    // deux factures distinctes au même numéro restent toutes les deux (optionsFusionPourRole).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts], optionsFusionPourRole(orgRole)))
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<PersistedDocument | null>(null)
 
+  // Société BTP : deux factures distinctes peuvent porter le même numéro (optionsFusionPourRole) ; la suppression d'un
+  // brouillon et le marquage « annulée » ne touchent que la facture visée. Artisan : identité d'origine (numéro).
+  const optionsIdentite = optionsFusionPourRole(orgRole)
   const { cancellingDoc, setCancellingDoc, handleRemoveDoc: _handleRemoveDocRaw, handleCancelled } =
     useDocumentCancel<PersistedDocument>({
       artisanId: artisan?.id,
       docType: 'facture',
+      isSameDoc: optionsIdentite ? (a, b) => memeDocument(a, b, optionsIdentite) : undefined,
       setSavedDocuments,
+      // Salarié invité : la suppression en base passe par le serveur (la RLS filtrerait sans erreur).
+      sousCompte: estSousCompteSociete(artisan),
       // Pré-validé : le modal stylé en amont fait office de confirm() humain.
       confirmDraftDelete: () => true,
     })
@@ -103,6 +136,11 @@ export default function FacturesSection({
   const handleRemoveDoc = (doc: PersistedDocument) => {
     if (estFactureBrouillon(doc, orgRole)) {
       setPendingDraftDelete(doc)
+      return
+    }
+    // BTP : annulation refusée tant qu'une autre facture porte le même numéro (le serveur annule par numéro).
+    if (orgRole === 'pro_societe' && numeroPorteParUnAutreDocument(doc, savedDocuments)) {
+      toast.error(messageAnnulationNumeroEnDouble(doc.docNumber))
       return
     }
     // BTP : facture émise au statut local 'envoye' — le hook la supprimerait comme un brouillon.
@@ -314,7 +352,8 @@ export default function FacturesSection({
                                 locale: locale as 'fr' | 'pt' | 'en',
                                 t,
                                 artisan: artisan ? {
-                                  id: artisan.id,
+                                  // Fiche de la SOCIÉTÉ pour un salarié invité (lib/documents/identite-documents.ts).
+                                  id: idFicheDocuments(artisan),
                                   company_name: artisan.company_name,
                                   logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                   rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -334,7 +373,7 @@ export default function FacturesSection({
                               e.stopPropagation()
                               const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                               const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
-                              window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
+                              window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
@@ -403,7 +442,72 @@ export default function FacturesSection({
    V5 sub-component — Factures for pro_societe
    ═══════════════════════════════════════════════════════ */
 type DocTypeFilter = 'all' | 'facture' | 'acompte' | 'avoir'
-type DocStatusFilter = 'all' | 'sent' | 'paid' | 'draft'
+type DocStatusFilter = 'all' | 'horsBrouillons' | 'sent' | 'paid' | 'draft'
+// Puces des filtres, libellés traduits (proDash.documentsListe) : français et portugais.
+const FILTRES_TYPE_FACTURES: ReadonlyArray<[DocTypeFilter, string]> = [
+  ['all', 'tous'], ['facture', 'factures'], ['acompte', 'acomptes'], ['avoir', 'avoirs'],
+]
+const FILTRES_STATUT_FACTURES: ReadonlyArray<[DocStatusFilter, string]> = [
+  ['all', 'toutes'], ['horsBrouillons', 'horsBrouillons'], ['sent', 'emises'], ['paid', 'payees'], ['draft', 'brouillons'],
+]
+
+/**
+ * Montant TTC de la colonne « Montant TTC » de la liste V5 (aussi cherchable dans la recherche).
+ * Respecte les 3 régimes TVA (cf. lib/tva-calculator.ts) :
+ *   - classique           : TTC = HT + TVA par taux
+ *   - franchise_293b      : TTC = HT (pas de TVA, art. 293 B CGI)
+ *   - autoliquidation_btp : TTC = HT (TVA due par le preneur, art. 283-2 nonies)
+ * Fallback rétro-compat : si regimeTva absent, dérive depuis
+ * autoliquidationBTP (legacy flag) ou tvaEnabled (franchise quand false).
+ * filter(Boolean) protège contre les lignes null/undefined (localStorage
+ * corrompu après flow Facturer interrompu, cf. plan Phase 3).
+ */
+function totalTtcListe(doc: PersistedDocument, orgRole: OrgRole | undefined): number {
+  // Document artisan au rendu complet (lib/version-rendu.ts) : toutes ses lignes, matériaux et frais
+  // annexes compris (TVA des frais à leur taux), comme le formulaire et le PDF. Document d'avant la
+  // correction : calcul d'origine ci-dessous, inchangé.
+  if (orgRole !== 'pro_societe' && renduComplet(doc)) {
+    return totauxDocumentComplet(doc as unknown as Record<string, unknown>).totalTTC
+  }
+  const docRec = doc as {
+    regimeTva?: TvaRegime
+    regime_tva?: TvaRegime
+    autoliquidationBTP?: boolean
+    tvaEnabled?: boolean
+  }
+  const tvaEnabled = docRec.tvaEnabled !== false
+  const regimeSansDrapeau: TvaRegime = tvaEnabled ? 'classique' : 'franchise_293b'
+  const effectiveRegime: TvaRegime =
+    docRec.regimeTva
+    ?? docRec.regime_tva
+    ?? (docRec.autoliquidationBTP ? 'autoliquidation_btp' : regimeSansDrapeau)
+  // Collect lines from both flat lines[] and BTP customTables[].lines[]
+  const flatLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
+  const customTables = (doc as unknown as Record<string, unknown>).customTables as Array<{ lines?: Array<Record<string, unknown>> }> | undefined
+  const tableLines = Array.isArray(customTables)
+    ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
+    : []
+  // Combine flat lines and customTables lines (BTP docs use both)
+  // BTP : même périmètre que le PDF et la base (Matériaux et Frais compris). Sans cela,
+  // une facture de solde — dont la déduction des acomptes est une table — s'afficherait
+  // sans ces sections, jusqu'à un montant négatif. Artisan : calcul historique inchangé.
+  const allLines: unknown[] = orgRole === 'pro_societe'
+    ? buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0])
+    : [...flatLines, ...tableLines]
+  const tva = computeTva({
+    regime: effectiveRegime,
+    lines: allLines
+      .filter((l): l is { totalHT?: number; tvaRate?: number; horsRemise?: boolean } => l !== null && typeof l === 'object')
+      .map(l => ({
+        totalHT: (l.totalHT as number) || 0,
+        tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
+        horsRemise: l.horsRemise === true,
+      })),
+    // Remise globale (lib/remise-commerciale.ts) : absente → total inchangé.
+    remiseGlobale: (doc as unknown as Record<string, unknown>).remiseGlobale,
+  })
+  return tva.totalTTC
+}
 
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis, openFactureForm,
@@ -435,22 +539,43 @@ function FacturesSectionV5({
     if (f === 'acompte') return sub === 'acompte'
     return sub !== 'acompte' && !isAvoir // 'facture' = ni acompte ni avoir
   }
-  // Filtre par statut (Toutes / Émises / Payées / Brouillons). Statuts FR
+  // Filtre par statut (Toutes / Hors brouillons / Émises / Payées / Brouillons). Statuts FR
   // (localStorage) ET EN (DB) acceptés — cf. getV5Badge.
   const [statusFilter, setStatusFilter] = useState<DocStatusFilter>('all')
   const docMatchesStatus = (d: PersistedDocument, f: DocStatusFilter): boolean => {
     if (f === 'all') return true
     const s = d.status || ''
+    // Brouillons = STRICTEMENT brouillon : ni payée/émise/en retard/remboursée/annulée.
+    const brouillon = s === '' || s === 'draft' || s === 'brouillon'
+    // Hors brouillons = tout document émis, payé ou non : le lot du comptable (le mois se choisit par la recherche).
+    // Émis = numéro définitif : un brouillon passé « envoyé » depuis la liste, sans numéro, n'en fait pas partie.
+    if (f === 'horsBrouillons') return !brouillon && aNumeroDefinitif({ docNumber: d.docNumber })
     if (f === 'paid') return s === 'paid' || s === 'payee'
     // Émises = émises + en retard (overdue) : une facture en retard reste émise.
     if (f === 'sent') return s === 'envoye' || s === 'pending' || s === 'overdue' || s === 'en_retard'
-    // Brouillons = STRICTEMENT brouillon : ni payée/émise/en retard/remboursée/annulée.
-    return s === '' || s === 'draft' || s === 'brouillon'
+    return brouillon
   }
+
+  // Même facture, pour les actions d'une ligne. Société BTP : identifiant stable d'abord (deux factures distinctes
+  // peuvent porter le même numéro, optionsFusionPourRole). Artisan : comparaison d'origine (docIdentityKey).
+  const optionsIdentite = optionsFusionPourRole(orgRole)
+  const estLeDocument = (d: PersistedDocument, cible: PersistedDocument): boolean =>
+    optionsIdentite ? memeDocument(d, cible, optionsIdentite) : docIdentityKey(d) === docIdentityKey(cible)
 
   // « Marquer payée » : passe la facture en statut payé (localStorage + state +
   // sync DB). RLS `factures_owner_update` autorise l'UPDATE ; le statut 'paid'
   // est valide (CHECK factures_status_check). Statut local 'paid' aligné sur la DB.
+  // Salarié invité d'une société : l'UPDATE depuis le navigateur ne touche AUCUNE ligne — la RLS de `factures`
+  // filtre sans renvoyer d'erreur — et l'écran annonçait « payée » avant que la facture ne redevienne impayée au
+  // rechargement. Le serveur le fait, borné au propriétaire. Rend le message d'échec à afficher, ou null.
+  const payeeParLeServeur = async (id: string | undefined, docNumber: string | undefined): Promise<string | null> => {
+    if (!id || !isStableDocId(id)) {
+      return `Impossible d'enregistrer « payée » pour ${docNumber || 'ce document'} : rouvrez-le depuis la liste.`
+    }
+    const resultat = await changerEtatDocumentSociete('marquer_payee', 'facture', id)
+    return resultat.ok ? null : resultat.message
+  }
+
   const markPaid = async (doc: PersistedDocument) => {
     const key = docIdentityKey(doc)
     if (!key) return
@@ -458,7 +583,13 @@ function FacturesSectionV5({
     // qu'après succès, sinon le toast mentait quand l'UPDATE échouait (le statut
     // régressait au rechargement). RLS factures_owner_update (WITH CHECK).
     const id = (doc as { id?: string }).id
-    if (id && isStableDocId(id)) {
+    if (estSousCompteSociete(artisan)) {
+      const echec = await payeeParLeServeur(id, doc.docNumber)
+      if (echec) {
+        toast.error(echec)
+        return
+      }
+    } else if (id && isStableDocId(id)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('factures') as any).update({ status: 'paid' }).eq('id', id)
       if (error) {
@@ -481,7 +612,7 @@ function FacturesSectionV5({
       }
     }
     const apply = (d: PersistedDocument): PersistedDocument =>
-      docIdentityKey(d) === key ? ({ ...d, status: 'paid' } as PersistedDocument) : d
+      estLeDocument(d, doc) ? ({ ...d, status: 'paid' } as PersistedDocument) : d
     if (artisan?.id) {
       try {
         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]') as PersistedDocument[]
@@ -496,17 +627,13 @@ function FacturesSectionV5({
   const [acompteParent, setAcompteParent] = useState<PersistedDocument | null>(null)
   const [avoirParent, setAvoirParent] = useState<PersistedDocument | null>(null)
 
-  const filtered = factureDocs
+  // Recherche dans tout ce qui est relié à la facture : client, objet, chantier, adresses, lignes, notes,
+  // devis d'origine, date, montant TTC affiché… (indexée une fois pour la liste, pas à chaque filtre).
+  const montantTtc = useCallback((d: PersistedDocument) => totalTtcListe(d, orgRole), [orgRole])
+  const recherche = useRechercheDocuments(factureDocs, search, locale, CHAMPS_VISIBLES_FACTURES, montantTtc)
+  const filtered = recherche.documents
     .filter(d => docMatchesType(d, typeFilter))
     .filter(d => docMatchesStatus(d, statusFilter))
-    .filter(d => {
-      if (!search) return true
-      const q = search.toLowerCase()
-      return (
-        d.docNumber?.toLowerCase().includes(q) ||
-        d.clientName?.toLowerCase().includes(q)
-      )
-    })
     // Tri « du plus récent au plus ancien » via compareDocsForList :
     // - même série (FACT vs FACT) : seq DESC strict — l'utilisateur attend
     //   FACT-2026-004 au-dessus de FACT-2026-003 même si 003 a été ré-enregistrée
@@ -514,6 +641,19 @@ function FacturesSectionV5({
     // - séries différentes (AC vs FACT) : time DESC — un acompte récent
     //   AC-2026-002 reste au-dessus d'une vieille FACT-2026-017.
     .sort(compareDocsForList)
+
+  // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP. « Tout télécharger » prend les
+  // factures affichées, donc après recherche et filtres (ex. Factures + Émises pour le comptable).
+  // Société BTP : une case par facture, même quand deux factures portent le même numéro (cleDocumentBtp).
+  const selection = useSelectionDocuments(filtered, orgRole === 'pro_societe' ? cleDocumentBtp : undefined)
+  const facturesCochees = selection.selectionnes(factureDocs)
+  const { progression, telecharger, annuler } = useTelechargementGroupe({
+    artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveFactures'),
+  })
+  const telechargerListe = async () => {
+    const cochees = facturesCochees.length > 0
+    if (await telecharger(cochees ? facturesCochees : filtered) && cochees) selection.vider()
+  }
 
   const getV5Badge = (doc: PersistedDocument) => {
     // Accepte les statuts FR (localStorage) ET EN (DB Supabase).
@@ -594,7 +734,9 @@ function FacturesSectionV5({
     // customTables (corps d'état) et fraisLines restaient positifs → l'avoir
     // ne soldait pas la facture BTP (total faux, voire positif). Même faille
     // que l'acompte, même remède (cf. scaleDocumentLines, PR #396).
-    const negated = negateDocumentLines(parent as unknown as Parameters<typeof negateDocumentLines>[0])
+    // Remises en euros passées en pourcentages équivalents : un avoir partiel (lignes retirées,
+    // quantités réduites) reste juste ; l'avoir total reste l'opposé exact (lib/devis-totals.ts).
+    const negated = remisesEnPourcentage(negateDocumentLines(parent as unknown as Parameters<typeof negateDocumentLines>[0]))
     const parentAny = parent as unknown as Record<string, unknown>
     return {
       ...negated,
@@ -615,6 +757,8 @@ function FacturesSectionV5({
       parentInvoiceNumber: parent.docNumber,
       avoirDeFactureId: (parentAny.id as string | undefined) ?? parent.docNumber,
       avoirMotif: p.motif,
+      // Escompte du PDF artisan (lib/escompte-pdf.ts) : l'avoir imprime ce que sa facture imprimait.
+      escompteSurPdf: parentAny.escompteSurPdf === true,
       acomptesEnabled: false,
       acomptes: [],
       notes: `Avoir (note de crédit) émis en annulation ${p.type} de la facture ${parent.docNumber}. ` +
@@ -634,6 +778,16 @@ function FacturesSectionV5({
           placeholder={t('proDash.factures.rechercher')}
           value={search}
           onChange={e => setSearch(e.target.value)}
+          aria-label={t('proDash.factures.rechercher')}
+        />
+        <BoutonsTelechargementGroupe
+          nbAffiches={filtered.length}
+          nbSelectionnes={facturesCochees.length}
+          progression={progression}
+          onTelecharger={() => { void telechargerListe() }}
+          onVider={selection.vider}
+          onAnnuler={annuler}
+          t={t}
         />
         <button className="v5-btn v5-btn-p" onClick={() => openFactureForm()}>
           {t('proDash.factures.nouvelle')}
@@ -642,7 +796,8 @@ function FacturesSectionV5({
 
       {/* Filtre par type (méthode pro 2026) : afficher Tous / Factures / Acomptes / Avoirs. */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {([['all', 'Tous'], ['facture', 'Factures'], ['acompte', 'Acomptes'], ['avoir', 'Avoirs']] as Array<[DocTypeFilter, string]>).map(([key, label]) => {
+        {FILTRES_TYPE_FACTURES.map(([key, nom]) => {
+          const label = t(`proDash.documentsListe.filtresTypeFactures.${nom}`)
           const active = typeFilter === key
           const count = factureDocs.filter(d => docMatchesType(d, key)).length
           return (
@@ -664,35 +819,23 @@ function FacturesSectionV5({
         })}
       </div>
 
-      {/* Filtre par statut : Toutes / Émises / Payées / Brouillons. */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {([['all', 'Toutes'], ['sent', 'Émises'], ['paid', 'Payées'], ['draft', 'Brouillons']] as Array<[DocStatusFilter, string]>).map(([key, label]) => {
-          const active = statusFilter === key
-          const count = factureDocs.filter(d => docMatchesStatus(d, key)).length
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setStatusFilter(key)}
-              aria-pressed={active}
-              style={{
-                padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: active ? 700 : 500,
-                border: `1px solid ${active ? '#16a34a' : '#ddd'}`,
-                background: active ? 'rgba(22, 163, 74, 0.12)' : '#fff',
-                color: active ? '#15803d' : '#444',
-              }}
-            >
-              {label} ({count})
-            </button>
-          )
-        })}
-      </div>
+      {/* Filtre par statut : Toutes / Hors brouillons / Émises / Payées / Brouillons (puces partagées avec les devis). */}
+      <FiltreStatut
+        options={FILTRES_STATUT_FACTURES.map(([cle, nom]) => ({
+          cle,
+          libelle: t(`proDash.documentsListe.filtresFactures.${nom}`),
+          nombre: factureDocs.filter(d => docMatchesStatus(d, cle)).length,
+        }))}
+        actif={statusFilter}
+        onChoisir={setStatusFilter}
+      />
 
       {/* Table */}
       <div className="v5-card" style={{ overflowX: 'auto' }}>
         <table className="v5-dt">
           <thead>
             <tr>
+              <EnteteSelection etat={selection.etatEntete} onBasculer={selection.basculerTout} t={t} />
               <th>{t('proDash.factures.colNum')}</th>
               <th>{t('proDash.factures.colClient')}</th>
               <th>{t('proDash.factures.colType')}</th>
@@ -704,49 +847,6 @@ function FacturesSectionV5({
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
               const totalHT = computeDocumentTotalHT(doc)
-              // Respecte les 3 régimes TVA (cf. lib/tva-calculator.ts) :
-              //   - classique           : TTC = HT + TVA par taux
-              //   - franchise_293b      : TTC = HT (pas de TVA, art. 293 B CGI)
-              //   - autoliquidation_btp : TTC = HT (TVA due par le preneur, art. 283-2 nonies)
-              // Fallback rétro-compat : si regimeTva absent, dérive depuis
-              // autoliquidationBTP (legacy flag) ou tvaEnabled (franchise quand false).
-              // filter(Boolean) protège contre les lignes null/undefined (localStorage
-              // corrompu après flow Facturer interrompu, cf. plan Phase 3).
-              const docRec = doc as {
-                regimeTva?: TvaRegime
-                regime_tva?: TvaRegime
-                autoliquidationBTP?: boolean
-                tvaEnabled?: boolean
-              }
-              const tvaEnabled = docRec.tvaEnabled !== false
-              const effectiveRegime: TvaRegime =
-                docRec.regimeTva
-                ?? docRec.regime_tva
-                ?? (docRec.autoliquidationBTP
-                  ? 'autoliquidation_btp'
-                  : (tvaEnabled ? 'classique' : 'franchise_293b'))
-              // Collect lines from both flat lines[] and BTP customTables[].lines[]
-              const flatLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
-              const customTables = (doc as unknown as Record<string, unknown>).customTables as Array<{ lines?: Array<Record<string, unknown>> }> | undefined
-              const tableLines = Array.isArray(customTables)
-                ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
-                : []
-              // Combine flat lines and customTables lines (BTP docs use both)
-              // BTP : même périmètre que le PDF et la base (Matériaux et Frais compris). Sans cela,
-              // une facture de solde — dont la déduction des acomptes est une table — s'afficherait
-              // sans ces sections, jusqu'à un montant négatif. Artisan : calcul historique inchangé.
-              const allLines: unknown[] = orgRole === 'pro_societe'
-                ? buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0])
-                : [...flatLines, ...tableLines]
-              const tva = computeTva({
-                regime: effectiveRegime,
-                lines: allLines
-                  .filter((l): l is { totalHT?: number; tvaRate?: number } => l !== null && typeof l === 'object')
-                  .map(l => ({
-                    totalHT: (l.totalHT as number) || 0,
-                    tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
-                  })),
-              })
               // FR-V1.3 — Affiche le total brut des lignes, identique au PDF generator V3
               // et à `total_ttc_cents` en DB (source de vérité légale, art. L441-9 C. com.).
               // L'ancienne multiplication `totalTTC * firstAcompte.pourcentage / 100`
@@ -755,12 +855,20 @@ function FacturesSectionV5({
               // Pour un acompte propre, l'utilisateur édite les lignes pour qu'elles
               // représentent directement l'acompte consolidé par TVA (workflow Gourdon :
               // "Acompte 50% — Travaux d'amélioration (TVA 10%)" + "(TVA 20%)", art. 269-2-c CGI).
-              const totalTTC = tva.totalTTC
+              const totalTTC = totalTtcListe(doc, orgRole)
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
+                  <CelluleSelection
+                    coche={selection.estSelectionne(doc)}
+                    onBasculer={plage => selection.basculer(doc, plage)}
+                    libelle={`${t('proDash.documentsListe.selectionner')} ${doc.docNumber || doc.clientName || ''}`.trim()}
+                  />
                   <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
-                  <td>{doc.clientName || t('proDash.factures.nonRenseigne')}</td>
+                  <td>
+                    {doc.clientName || t('proDash.factures.nonRenseigne')}
+                    <IndiceResultat indice={recherche.indiceDe(doc)} t={t} />
+                  </td>
                   <td>{guessType(doc)}</td>
                   <td>{totalTTC.toLocaleString(dateLocale, { maximumFractionDigits: 0 })} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
@@ -769,15 +877,21 @@ function FacturesSectionV5({
                       {doc.status !== 'envoye' && doc.status !== 'pending' && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
+                          // BTP : un brouillon sans numéro ne passe pas « envoyé » : il s'émet par « Valider et
+                          // enregistrer », qui lui donne son numéro.
+                          if (orgRole === 'pro_societe' && !aNumeroDefinitif({ docNumber: doc.docNumber })) {
+                            toast.error('Ce brouillon n\'a pas encore de numéro : ouvrez-le et cliquez sur « Valider et enregistrer » pour l\'émettre.')
+                            return
+                          }
                           const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
-                          const updDocs = (docs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
-                          const updDrafts = (drafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDocs = (docs as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDrafts = (drafts as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                           // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                          setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
+                          setSavedDocuments(prev => prev.map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.marquerEnvoyee')}
                         </button>
@@ -787,16 +901,18 @@ function FacturesSectionV5({
                           e.stopPropagation()
                           const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                           const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
-                          window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
+                          window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
+                          // BTP : un brouillon sans numéro reste un brouillon (il s'émet par « Valider et enregistrer »).
+                          if (orgRole === 'pro_societe' && !aNumeroDefinitif({ docNumber: doc.docNumber })) return
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
-                          const uDocs = (allDocs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
-                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDocs = (allDocs as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                           // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                          setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
+                          setSavedDocuments(prev => prev.map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.envoyerEmail')}
                         </button>
@@ -809,7 +925,7 @@ function FacturesSectionV5({
                               locale: locale as 'fr' | 'pt' | 'en',
                               t,
                               artisan: artisan ? {
-                                id: artisan.id,
+                                id: idFicheDocuments(artisan),
                                 company_name: artisan.company_name,
                                 logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -880,8 +996,10 @@ function FacturesSectionV5({
               )
             }) : (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
-                  {search ? t('proDash.factures.aucuneRecherche') : t('proDash.factures.aucune')}
+                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
+                  {search || typeFilter !== 'all' || statusFilter !== 'all'
+                    ? t('proDash.factures.aucuneRecherche')
+                    : t('proDash.factures.aucune')}
                 </td>
               </tr>
             )}
@@ -904,14 +1022,23 @@ function FacturesSectionV5({
               ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: locale === 'pt' ? 'pt' : 'fr' })
               : buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
             setAcompteParent(null)
+            const estBtp = orgRole === 'pro_societe'
             const tid = toast.loading('Émission de l\'acompte…')
             try {
               const emitted = await emitDocument({
-                // BTP : RIB du profil au jour de l'émission, pas celui figé dans la facture parente.
-                payload: orgRole === 'pro_societe' ? appliquerRibCourant(prefilled, await chargerRibProfil()) : prefilled,
+                // BTP : RIB et forme juridique du profil au jour de l'émission, pas ceux figés dans la facture parente.
+                payload: estBtp
+                  ? appliquerFormeProfil(appliquerRibCourant(prefilled, await chargerRibProfil()), (artisan as { legal_form?: string } | null)?.legal_form)
+                  : prefilled,
                 artisanId: artisan.id,
-                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                ficheId: idFicheDocuments(artisan),
+                // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
+                // (lib/emission-hors-serveur.ts). Artisan : repli local d'origine, préfixes selon la langue de sa fiche.
+                getNumber: estBtp
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false, uidSerie: artisan.user_id })
+                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: fichePortugaise(artisan) }),
                 sync: syncDocumentSafe,
+                ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })
               setSavedDocuments(prev => [...prev, emitted as unknown as PersistedDocument])
               toast.success(
@@ -920,7 +1047,8 @@ function FacturesSectionV5({
               )
             } catch (err) {
               console.warn('[AcompteEmit] émission échouée', err)
-              toast.error('Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+              const message = estBtp ? messageEmissionArretee(err, 'acompte', 'emission') : null
+              toast.error(message ?? 'Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
             }
           }}
         />
@@ -934,7 +1062,7 @@ function FacturesSectionV5({
             setAvoirParent(null)
             openFactureForm(prefilled)
             toast.success(
-              `Avoir préparé sur ${avoirParent.docNumber}. Numéro AV- généré à l'enregistrement.`,
+              `Avoir préparé sur ${avoirParent.docNumber}. Numéro attribué à l'enregistrement.`,
             )
           }}
         />

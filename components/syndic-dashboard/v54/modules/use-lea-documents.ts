@@ -5,6 +5,7 @@ import { useToast } from '../primitives/toast'
 import type { PillKind } from '../primitives/pill'
 import type { IconName } from '@/lib/syndic/icon-names'
 import { useMessages } from '@/lib/syndic/v54/i18n'
+import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import type { V54Locale } from '@/lib/syndic/v54/i18n/locale'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { HOOKS_MESSAGES, STATUTS_DOCUMENT, TYPES_DOCUMENT } from './i18n/hooks.messages'
@@ -218,7 +219,10 @@ export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult
         return
       }
       const data = (await res.json()) as { signed_url?: string }
-      if (data.signed_url) window.open(data.signed_url, '_blank', 'noopener,noreferrer')
+      // Seule une URL signée du stockage Supabase s'ouvre : sinon (ou sans URL), même toast qu'une route en échec.
+      if (!safeOpen(data.signed_url, { allowedOrigins: originesSupabase() })) {
+        push({ kind: 'error', title: t.ouvertureImpossible, desc: t.indisponible })
+      }
     } catch {
       push({ kind: 'error', title: t.erreurReseau, desc: t.ouvertureReseau })
     }

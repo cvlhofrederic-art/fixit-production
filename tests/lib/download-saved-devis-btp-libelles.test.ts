@@ -8,14 +8,21 @@ const recu = vi.hoisted(() => ({
   fiche: {} as Record<string, unknown>,
 }))
 
-vi.mock('@/lib/supabase', () => {
+vi.mock('@/lib/supabase', async () => {
+  const { COLONNES_PROFILES_ARTISAN_PRODUCTION } = await import('../helpers/colonnes-profiles-artisan')
+  const colonnesProduction = new Set(COLONNES_PROFILES_ARTISAN_PRODUCTION)
   const chaine: Record<string, unknown> = {}
-  chaine.select = () => chaine
+  let colonnes: string[] = []
+  // Comme PostgREST : seules les colonnes demandées par le select reviennent, et une colonne absente de la production
+  // fait échouer tout le select (42703) : la fiche reste vide (IBAN, identité légale et assurance perdus)
+  chaine.select = (liste: string) => { colonnes = liste.split(',').map((c) => c.trim()); return chaine }
   chaine.eq = () => chaine
-  chaine.single = async () => ({
-    data: { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche },
-    error: null,
-  })
+  chaine.single = async () => {
+    const absente = colonnes.find((c) => !colonnesProduction.has(c))
+    if (absente) return { data: null, error: { code: '42703', message: `column profiles_artisan.${absente} does not exist` } }
+    const fiche: Record<string, unknown> = { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche }
+    return { data: Object.fromEntries(Object.entries(fiche).filter(([cle]) => colonnes.includes(cle))), error: null }
+  }
   return { supabase: { from: () => chaine } }
 })
 
@@ -117,5 +124,73 @@ describe('downloadSavedDevis (BTP) — libellés alignés sur le formulaire', ()
     recu.fiche = { rcs_number: 'RCS Marseille 999 999 999', share_capital: '5000' }
     const e = await telecharger(document({ companyRCS: 'RCS Aix-en-Provence 131 197 253', companyCapital: '600' }))
     expect(e).toMatchObject({ companyRCS: 'RCS Aix-en-Provence 131 197 253', companyCapital: '600' })
+  })
+})
+
+// Demande de Frédéric du 20/11/2026 : orçamentos d'une société portugaise émis le 17/11 avant le correctif des formes
+// portugaises, enregistrés en « Entreprise Individuelle (EI) » avec la couverture française par défaut de la fiche.
+describe('downloadSavedDevis (BTP) — anciens documents d\'une société portugaise', () => {
+  const ANCIEN = { companyStatus: 'Entreprise Individuelle (EI)', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123' }
+
+  it('forme portugaise de la fiche à la place de l\'EI, couverture française remplacée par le défaut portugais', async () => {
+    recu.fiche = { legal_form: 'Sociedade por Quotas (Lda.)' }
+    const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
+    expect(e).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
+    // Sur /fr aussi : le modèle V3 n'imprime pas son défaut « France métropolitaine »
+    expect(await telecharger(document({ ...ANCIEN, insuranceCoverage: '' }))).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
+  })
+
+  it('forme portugaise déjà enregistrée et couverture portugaise : gardées', async () => {
+    recu.fiche = { legal_form: 'Sociedade por Quotas (Lda.)' }
+    const e = await telecharger(document({ ...ANCIEN, companyStatus: 'Sociedade Anónima (SA)', insuranceCoverage: 'Portugal' }), 'pt')
+    expect(e).toMatchObject({ companyStatus: 'sa', insuranceCoverage: 'Portugal' })
+  })
+
+  it('société française : EI et « France métropolitaine » du document gardés, comme avant', async () => {
+    recu.fiche = { legal_form: 'SAS' }
+    const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France métropolitaine' }))
+    expect(e).toMatchObject({ companyStatus: 'ei', insuranceCoverage: 'France métropolitaine' })
+    recu.fiche = {}
+    expect(await telecharger(document({ ...ANCIEN, companyStatus: '', insuranceCoverage: undefined }))).toMatchObject({ companyStatus: 'ei', insuranceCoverage: '' })
+  })
+
+  // Demandes de Frédéric des 21 et 22/11/2026 : l'assureur et le médiateur de la fiche, comme le formulaire à
+  // l'ouverture du document
+  const FICHE_ASSUREE = {
+    legal_form: 'Sociedade por Quotas (Lda.)', insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-2026-000123',
+    insurance_type: 'both', insurance_coverage: 'Portugal',
+    mediator_name: 'Centro de Arbitragem Exemplo', mediator_url: 'https://arbitragem.exemplo.pt',
+  }
+
+  it('document sans assureur ni médiateur : ceux de la fiche, depuis la liste comme dans le ZIP', async () => {
+    recu.fiche = FICHE_ASSUREE
+    const sansAssureur = document({ companyStatus: 'Entreprise Individuelle (EI)', insuranceName: '', insuranceNumber: '', insuranceCoverage: 'France metropolitaine' })
+    const attendu = {
+      companyStatus: 'lda', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'both', insuranceCoverage: 'Portugal',
+      mediatorName: 'Centro de Arbitragem Exemplo', mediatorUrl: 'https://arbitragem.exemplo.pt',
+    }
+    expect(await telecharger(sansAssureur, 'pt')).toMatchObject(attendu)
+    expect(await telecharger(document({ companyStatus: 'Entreprise Individuelle (EI)' }))).toMatchObject(attendu)
+    const { produireFichierDocument } = await import('@/lib/pdf/download-saved-devis')
+    await produireFichierDocument(sansAssureur as never, { locale: 'pt', t: (k: string) => k, artisan: { id: 'a1' }, useBtpDesign: true })
+    expect(recu.entrees.at(-1)).toMatchObject(attendu)
+  })
+
+  it('document avec son assureur : nom et numéro du document, couverture de la fiche à défaut', async () => {
+    recu.fiche = { ...FICHE_ASSUREE, insurance_name: 'Outra Seguradora', insurance_number: 'AP-0000-0001' }
+    const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
+    expect(e).toMatchObject({ insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceCoverage: 'Portugal' })
+    expect(await telecharger(document({ ...ANCIEN, mediatorName: 'Outro Centro' }), 'pt')).toMatchObject({ mediatorName: 'Outro Centro', mediatorUrl: '' })
+    // Médiateur de la fiche sans adresse : jamais l'adresse restée seule dans le document
+    recu.fiche = { ...FICHE_ASSUREE, mediator_url: null }
+    expect(await telecharger(document({ ...ANCIEN, mediatorName: '', mediatorUrl: 'https://doc.exemplo.test' }), 'pt'))
+      .toMatchObject({ mediatorName: 'Centro de Arbitragem Exemplo', mediatorUrl: '' })
+  })
+
+  it('société française : jamais l\'assureur ni le médiateur de la fiche, le document tel qu\'enregistré', async () => {
+    recu.fiche = { ...FICHE_ASSUREE, legal_form: 'SAS', insurance_type: 'decennale', insurance_coverage: 'France métropolitaine' }
+    expect(await telecharger(document({ companyStatus: 'SAS' }))).toMatchObject({
+      insuranceName: '', insuranceNumber: '', insuranceType: 'rc_pro', insuranceCoverage: '', mediatorName: '', mediatorUrl: '',
+    })
   })
 })

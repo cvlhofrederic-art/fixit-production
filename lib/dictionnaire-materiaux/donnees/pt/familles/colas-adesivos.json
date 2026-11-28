@@ -1,0 +1,718 @@
+{
+  "famille": {
+    "id": "colas-adesivos",
+    "nom": "Colas e fitas adesivas",
+    "description": "Colas de montagem, de contacto, para madeira, instantâneas e de dois componentes, colas para materiais específicos, cola quente e fitas adesivas de fixação, reparação e uso geral.",
+    "icone": "🩹",
+    "sousFamilles": [
+      {
+        "id": "colas-montagem",
+        "nom": "Colas de montagem",
+        "description": "Colas em cartucho ou bisnaga para fixar sem pregos nem parafusos: rodapés, sancas, perfis, painéis."
+      },
+      {
+        "id": "colas-contacto",
+        "nom": "Colas de contacto",
+        "description": "Colas de dupla aplicação para superfícies grandes: laminados, borracha, cortiça, alcatifa, isolamentos."
+      },
+      {
+        "id": "colas-madeira",
+        "nom": "Colas para madeira",
+        "description": "Colas brancas e de poliuretano para carpintaria, classificadas de D1 a D4 conforme a resistência à humidade, e colas para parquet."
+      },
+      {
+        "id": "colas-instantaneas-epoxi",
+        "nom": "Colas instantâneas e de dois componentes",
+        "description": "Cianoacrilatos, epóxis e massas de soldadura a frio para reparações rápidas ou estruturais."
+      },
+      {
+        "id": "colas-especificas",
+        "nom": "Colas para materiais específicos",
+        "description": "Colas próprias para PVC, esferovite, pavimentos, papel de parede e plásticos, e produtos para remover cola."
+      },
+      {
+        "id": "cola-quente",
+        "nom": "Cola quente (termofusível)",
+        "description": "Pistolas e barras de cola termofusível."
+      },
+      {
+        "id": "fitas-dupla-face",
+        "nom": "Fitas de dupla face e fixadores adesivos",
+        "description": "Fitas bi-adesivas finas, fitas de montagem em espuma e massas adesivas para fixar sem furar."
+      },
+      {
+        "id": "fitas-reparacao",
+        "nom": "Fitas de reparação e vedação",
+        "description": "Fita americana, de alumínio, auto-soldante, impermeável e de malha para juntas."
+      },
+      {
+        "id": "fitas-uso-geral",
+        "nom": "Fitas de uso geral",
+        "description": "Fitas de embalar, isoladoras e antiderrapantes."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "cola-montagem-universal",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-montagem",
+      "nom": "Cola de montagem universal",
+      "aussiAppele": [
+        "cola de fixação",
+        "prego líquido",
+        "cola e fixa"
+      ],
+      "aussiCherche": [
+        "não mais pregos"
+      ],
+      "usage": "Fixa rodapés, sancas, perfis, painéis e pequenos elementos decorativos em paredes e tetos, sem furar.",
+      "aSavoir": "Nas versões de base aquosa, pelo menos um dos suportes tem de ser poroso; em exterior ou zonas húmidas escolher uma cola indicada para esse uso.",
+      "conditionnement": "Cartucho 290-350 g; bisnaga 100-250 g",
+      "recherche": "cola de montagem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-montagem-extra-forte-solvente",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-montagem",
+      "nom": "Cola de montagem extra forte (base solvente)",
+      "aussiAppele": [
+        "cola de montagem de solvente",
+        "cola de montagem para exterior",
+        "cola de construção"
+      ],
+      "usage": "Colagens mais exigentes em madeira, metal, pedra e betão, incluindo suportes não porosos.",
+      "aSavoir": "Os solventes atacam o poliestireno (esferovite); arejar bem o local durante a aplicação.",
+      "conditionnement": "Cartucho 300 ml",
+      "recherche": "cola montagem extra forte",
+      "rechercheEnseigne": {
+        "leroy-merlin": "cola de montagem para exterior"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-montagem-agarre-imediato",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-montagem",
+      "nom": "Cola de montagem de aderência imediata",
+      "aussiAppele": [
+        "agarre imediato",
+        "high tack",
+        "cola de alta aderência",
+        "cola de agarre total",
+        "cola de montagem imediata"
+      ],
+      "usage": "Segura a peça logo após a aplicação, sem escoramento: rodapés, painéis, degraus e perfis em paredes e tetos.",
+      "aSavoir": "A aderência inicial não dispensa a cura completa antes de aplicar carga; ver o tempo no rótulo.",
+      "conditionnement": "Cartucho 290-450 g",
+      "recherche": "cola montagem high tack",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-montagem-transparente",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-montagem",
+      "nom": "Cola de montagem transparente",
+      "aussiAppele": [
+        "cola de montagem cristal",
+        "cola de montagem invisível"
+      ],
+      "usage": "Colagens à vista em que a junta não deve notar-se: vidro, metal, cerâmica e elementos decorativos.",
+      "conditionnement": "Cartucho 290-310 g",
+      "recherche": "cola montagem transparente",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-montagem-sancas-rodapes",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-montagem",
+      "nom": "Cola de montagem para sancas e rodapés",
+      "aussiAppele": [
+        "cola de sancas",
+        "cola de rodapé",
+        "cola para molduras",
+        "cola de montagem para rodapés",
+        "cola de montagem",
+        "cola para sancas e rodapés",
+        "cola sem pregos"
+      ],
+      "usage": "Colagem de sancas, rosetas, molduras e rodapés leves em paredes e tetos interiores.",
+      "conditionnement": "Cartucho 300-440 g",
+      "recherche": "cola sancas rodapé",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-contacto",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-contacto",
+      "nom": "Cola de contacto",
+      "aussiAppele": [
+        "cola de sapateiro",
+        "cola amarela",
+        "cola de neopreno",
+        "cola contacto"
+      ],
+      "usage": "Colagem de superfícies grandes por dupla aplicação: laminados, folheados, borracha, cortiça, couro e alcatifa.",
+      "aSavoir": "Aplicar nas duas faces, deixar secar ao toque e só então juntar com pressão: depois de encostar já não se corrige. Não usar em esferovite. Existe também em gel, que não escorre.",
+      "conditionnement": "Bisnaga 30-70 ml; lata 250 ml a 5 L",
+      "recherche": "cola de contacto",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-contacto-spray",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-contacto",
+      "nom": "Cola de contacto em spray",
+      "aussiAppele": [
+        "cola spray",
+        "cola em aerossol",
+        "spray de cola"
+      ],
+      "usage": "Colagem rápida de materiais leves em áreas grandes: alcatifa, espumas, tecidos, cartão e isolamentos.",
+      "aSavoir": "Proteger as zonas vizinhas da névoa de cola e usar em local arejado.",
+      "conditionnement": "Aerossol 400 ml",
+      "recherche": "cola contacto spray",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-contacto-poliestireno",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-contacto",
+      "nom": "Cola de contacto para poliestireno",
+      "aussiAppele": [
+        "cola de contacto para esferovite",
+        "cola de contacto para isolamentos"
+      ],
+      "usage": "Cola de contacto que não ataca o esferovite: placas de poliestireno e outros isolamentos.",
+      "conditionnement": "Lata 0,75-1 L",
+      "recherche": "cola contacto poliestireno",
+      "rechercheEnseigne": {
+        "maxmat": "cola contacto",
+        "leroy-merlin": "cola de contacto para esferovite"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-branca-madeira-interior",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-madeira",
+      "nom": "Cola branca para madeira (interior)",
+      "aussiAppele": [
+        "cola de carpinteiro",
+        "cola PVA",
+        "cola vinílica",
+        "cola branca"
+      ],
+      "usage": "Montagem e reparação de móveis, encaixes, folheados e aglomerados em interior seco.",
+      "aSavoir": "Classe D1/D2: só para interior seco; em cozinhas, casas de banho e exterior abrigado usar D3. Manter as peças apertadas com grampos até secar.",
+      "conditionnement": "Biberão 75-750 g; balde 5 kg",
+      "recherche": "cola branca madeira",
+      "rechercheEnseigne": {
+        "maxmat": "cola branca"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-madeira-d3",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-madeira",
+      "nom": "Cola para madeira D3 (resistente à humidade)",
+      "aussiAppele": [
+        "cola branca exterior",
+        "cola de madeira para exterior",
+        "cola D3"
+      ],
+      "usage": "Madeiras em cozinhas, casas de banho e exterior abrigado: portas, aros e janelas protegidas da chuva.",
+      "aSavoir": "D3 aguenta humidade frequente, não a exposição direta à chuva nem à água permanente; para isso usar D4.",
+      "conditionnement": "Biberão 250-750 g; balde 5 kg",
+      "recherche": "cola madeira D3",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-madeira-d4-poliuretano",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-madeira",
+      "nom": "Cola para madeira D4 (exterior, poliuretano)",
+      "aussiAppele": [
+        "cola de poliuretano",
+        "cola PU para madeira",
+        "cola D4",
+        "cola de madeira à prova de água"
+      ],
+      "usage": "Colagens de madeira expostas à água e ao exterior: móveis de jardim, portões e caixilharia exposta.",
+      "conditionnement": "Biberão 250 g",
+      "recherche": "cola madeira D4",
+      "rechercheEnseigne": {
+        "maxmat": "cola D4"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-instantanea-cianoacrilato",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-instantaneas-epoxi",
+      "nom": "Cola instantânea (cianoacrilato)",
+      "aussiAppele": [
+        "super cola",
+        "cianoacrilato",
+        "cola rápida"
+      ],
+      "aussiCherche": [
+        "super cola 3"
+      ],
+      "usage": "Pequenas reparações rápidas em plástico rígido, borracha, metal, cerâmica e madeira.",
+      "aSavoir": "Só funciona em peças bem ajustadas: não preenche folgas. Cola a pele em segundos.",
+      "conditionnement": "Tubo 3-5 g",
+      "recherche": "cola instantânea",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-instantanea-gel",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-instantaneas-epoxi",
+      "nom": "Cola instantânea em gel",
+      "aussiAppele": [
+        "super cola gel",
+        "cianoacrilato gel"
+      ],
+      "usage": "Como a instantânea líquida, mas não escorre: superfícies verticais e materiais porosos.",
+      "conditionnement": "Tubo 3 g",
+      "recherche": "super cola gel",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-epoxi-bicomponente",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-instantaneas-epoxi",
+      "nom": "Cola epóxi de dois componentes",
+      "aussiAppele": [
+        "araldite",
+        "cola de dois componentes",
+        "epóxi",
+        "cola bicomponente"
+      ],
+      "usage": "Colagens fortes e reparações em metal, cerâmica, pedra, vidro e madeira; preenche folgas.",
+      "aSavoir": "Misturar os dois componentes em partes iguais; a versão rápida dá poucos minutos de trabalho.",
+      "conditionnement": "2 tubos de 15 ml; seringa dupla 24 ml",
+      "recherche": "cola epóxi",
+      "rechercheEnseigne": {
+        "maxmat": "araldite"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "soldadura-a-frio-metal",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-instantaneas-epoxi",
+      "nom": "Massa de soldadura a frio para metal",
+      "aussiAppele": [
+        "soldadura metálica",
+        "solda a frio",
+        "massa epóxi para metal"
+      ],
+      "usage": "Repara fissuras e furos em peças metálicas sem soldar.",
+      "conditionnement": "2 tubos, 22 ml",
+      "recherche": "soldadura a frio",
+      "rechercheEnseigne": {
+        "maxmat": "soldadura metálica"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-poliestireno-esferovite",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-especificas",
+      "nom": "Cola para poliestireno (esferovite)",
+      "aussiAppele": [
+        "cola de esferovite",
+        "cola para placas de teto",
+        "cola para sancas de esferovite",
+        "cola para poliestireno",
+        "cola para EPS",
+        "cola de isolamento",
+        "cola de sancas"
+      ],
+      "usage": "Colagem de placas de teto, sancas e molduras de esferovite em interior.",
+      "aSavoir": "As colas com solvente derretem o esferovite: usar só cola própria.",
+      "conditionnement": "Bisnaga 70 ml; cartucho 300 ml; balde 1-5 kg",
+      "recherche": "cola poliestireno",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-papel-parede",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-especificas",
+      "nom": "Cola para papel de parede",
+      "aussiAppele": [
+        "cola de papel",
+        "cola para papel vinílico"
+      ],
+      "usage": "Colagem de papel de parede; existem versões para papel normal e para vinílico.",
+      "aSavoir": "Escolher a cola conforme o tipo de papel indicado no rolo.",
+      "conditionnement": "Pacote 125 g; pronta a aplicar 1-5 L",
+      "recherche": "cola papel de parede",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-plasticos",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-especificas",
+      "nom": "Cola para plásticos",
+      "aussiAppele": [
+        "cola de plástico",
+        "cola para reparar plásticos"
+      ],
+      "usage": "Reparação de peças de plástico rígido.",
+      "aSavoir": "Polietileno e polipropileno são difíceis de colar: confirmar no rótulo.",
+      "conditionnement": "2 tubos, 22 ml",
+      "recherche": "cola plásticos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-universal-transparente",
+      "famille": "colas-adesivos",
+      "sousFamille": "colas-especificas",
+      "nom": "Cola universal transparente",
+      "aussiAppele": [
+        "cola tudo",
+        "cola multiusos"
+      ],
+      "aussiCherche": [
+        "cola UHU"
+      ],
+      "usage": "Pequenas colagens do dia a dia em papel, cartão, madeira, tecido, cerâmica e muitos plásticos.",
+      "conditionnement": "Bisnaga 7-35 ml",
+      "recherche": "cola universal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pistola-cola-quente",
+      "famille": "colas-adesivos",
+      "sousFamille": "cola-quente",
+      "nom": "Pistola de cola quente",
+      "aussiAppele": [
+        "pistola de cola termofusível",
+        "pistola de silicone quente",
+        "pistola de cola"
+      ],
+      "usage": "Aplica cola termofusível para fixações rápidas de cabos, decoração, cartão, madeira e tecidos.",
+      "aSavoir": "Usar barras do diâmetro da pistola (cerca de 7-8 mm ou 12 mm).",
+      "recherche": "pistola cola termofusível",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "barras-cola-quente",
+      "famille": "colas-adesivos",
+      "sousFamille": "cola-quente",
+      "nom": "Barras de cola quente",
+      "aussiAppele": [
+        "cola termofusível",
+        "bastões de cola",
+        "recargas de cola quente",
+        "silicone quente"
+      ],
+      "usage": "Recargas para a pistola de cola quente; há barras transparentes de uso geral e barras próprias para madeira.",
+      "aSavoir": "Confirmar o diâmetro da pistola antes de comprar.",
+      "conditionnement": "Saco de 120 g a 1 kg; Ø 8 ou 12 mm",
+      "recherche": "cola termofusível",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-dupla-face-universal",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-dupla-face",
+      "nom": "Fita de dupla face fina (universal e para alcatifa)",
+      "aussiAppele": [
+        "fita bi-adesiva",
+        "fita cola dupla",
+        "fita dupla face para alcatifa",
+        "fita adesiva dupla face",
+        "fita dupla face",
+        "fita para alcatifa",
+        "fita de dois lados"
+      ],
+      "usage": "Fixação fina e discreta de alcatifas, vinílicos, plásticos de proteção e cartazes.",
+      "conditionnement": "Rolo 48-50 mm x 10 m",
+      "recherche": "fita dupla face",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-montagem-espuma",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-dupla-face",
+      "nom": "Fita de montagem de dupla face (espuma)",
+      "aussiAppele": [
+        "fita de espuma dupla face",
+        "fita de montagem forte",
+        "fita bi-adesiva de montagem"
+      ],
+      "usage": "Fixa sem furar objetos leves em superfícies lisas: calhas, perfis, molduras e acessórios.",
+      "aSavoir": "Superfície limpa, seca e sem pó; respeitar o peso máximo indicado. Não segura em tinta a descascar nem em paredes muito texturadas.",
+      "conditionnement": "Rolo 18-19 mm x 1,5-5 m",
+      "recherche": "fita dupla face montagem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-montagem-exterior",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-dupla-face",
+      "nom": "Fita de montagem de dupla face para exterior",
+      "aussiAppele": [
+        "fita bi-adesiva exterior",
+        "fita de montagem exterior"
+      ],
+      "usage": "Fixação sem furar em exterior: números de porta, caixas, calhas e acessórios expostos ao tempo.",
+      "aSavoir": "Superfície limpa, seca e sem pó; respeitar o peso máximo indicado.",
+      "conditionnement": "Rolo 19 mm x 1,5 m",
+      "recherche": "fita dupla face exterior",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-dupla-face-espelhos",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-dupla-face",
+      "nom": "Fita de dupla face para espelhos",
+      "aussiAppele": [
+        "fita para espelhos",
+        "fita bi-adesiva espelhos",
+        "fita de montagem de espelhos"
+      ],
+      "usage": "Fixação de espelhos em paredes lisas, azulejo e portas de roupeiro.",
+      "aSavoir": "Respeitar a quantidade de fita por peso de espelho indicada na embalagem; superfície lisa, limpa e seca.",
+      "conditionnement": "Rolo 19 mm x 1,5-5 m",
+      "recherche": "fita dupla face espelho",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-adesiva-removivel",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-dupla-face",
+      "nom": "Massa adesiva removível (pastilhas)",
+      "aussiAppele": [
+        "patafix",
+        "pastilhas adesivas",
+        "massa de fixação"
+      ],
+      "usage": "Fixação temporária de cartazes, fotografias e pequenos objetos, sem furar.",
+      "conditionnement": "Embalagem de pastilhas",
+      "recherche": "pastilhas adesivas",
+      "rechercheEnseigne": {
+        "maxmat": "patafix"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-americana",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-reparacao",
+      "nom": "Fita americana (fita de tela)",
+      "aussiAppele": [
+        "fita de tela",
+        "fita cinzenta",
+        "duct tape",
+        "fita de tecido",
+        "fita multiusos"
+      ],
+      "usage": "Reparações provisórias, fixações e vedações rápidas em obra: tubos, lonas, condutas e proteções.",
+      "aSavoir": "Deixa resíduos de cola e degrada-se ao sol; não é solução definitiva de vedação.",
+      "conditionnement": "Rolo 48-50 mm x 10-50 m",
+      "recherche": "fita americana",
+      "rechercheEnseigne": {
+        "maxmat": "fita de tela"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-aluminio",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-reparacao",
+      "nom": "Fita de alumínio",
+      "aussiAppele": [
+        "fita alumínio adesiva",
+        "fita de alumínio para condutas",
+        "fita prateada",
+        "fita adesiva de alumínio para juntas de subcamada",
+        "fita de junção",
+        "fita para manta",
+        "fita para barreira de vapor",
+        "fita de alumínio adesiva",
+        "fita aluminizada",
+        "fita para isolamento",
+        "fita de condutas"
+      ],
+      "usage": "Vedação de juntas em condutas de ventilação e exaustão e em isolamentos com face de alumínio.",
+      "aSavoir": "Em condutas quentes usar a versão de alta temperatura.",
+      "conditionnement": "Rolo 48 mm x 25 m",
+      "recherche": "fita alumínio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-auto-soldante",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-reparacao",
+      "nom": "Fita auto-soldante (autovulcanizante)",
+      "aussiAppele": [
+        "fita autovulcanizante",
+        "fita de borracha",
+        "fita de reparação de tubos",
+        "fita autovulcanizante de reparação",
+        "fita auto-soldante",
+        "fita autosoldante",
+        "fita de silicone",
+        "fita de reparação de fugas",
+        "fita autofusível"
+      ],
+      "usage": "Enrolada esticada sobre si mesma, funde-se numa manga de borracha: reparação de emergência de tubos e mangueiras e isolamento de cabos.",
+      "aSavoir": "Não tem cola: tem de ser esticada e sobreposta. Em tubos sob pressão é uma reparação provisória.",
+      "conditionnement": "Rolo",
+      "recherche": "fita auto-soldante",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-reparacao-impermeavel",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-reparacao",
+      "nom": "Fita de reparação impermeável",
+      "aussiAppele": [
+        "fita tapa-fugas",
+        "fita estanque",
+        "fita para fugas de água"
+      ],
+      "usage": "Tapa fugas e fissuras em caleiras, tubos de queda, coberturas, depósitos e lonas.",
+      "aSavoir": "Solução de emergência: prever a reparação definitiva. Aplicar sobre superfície limpa.",
+      "conditionnement": "Rolo 5-10 cm x 1,5 m",
+      "recherche": "fita reparação impermeável",
+      "rechercheEnseigne": {
+        "maxmat": "fita reparação"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-de-embalar",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-uso-geral",
+      "nom": "Fita de embalar",
+      "aussiAppele": [
+        "fita castanha",
+        "fita de embalagem",
+        "fita cola larga"
+      ],
+      "usage": "Fecho de caixas e embalagens e proteção de materiais em mudanças e transporte.",
+      "conditionnement": "Rolo 48-50 mm x 66 m",
+      "recherche": "fita embalagem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-antiderrapante",
+      "famille": "colas-adesivos",
+      "sousFamille": "fitas-uso-geral",
+      "nom": "Fita antiderrapante",
+      "aussiAppele": [
+        "fita antideslizante",
+        "fita para degraus",
+        "fita de lixa para escadas"
+      ],
+      "usage": "Aplicada em degraus, rampas e zonas escorregadias para evitar quedas.",
+      "aSavoir": "Aplicar sobre superfície limpa, seca e desengordurada.",
+      "conditionnement": "Rolo 25 mm x 5 m",
+      "recherche": "fita antiderrapante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}

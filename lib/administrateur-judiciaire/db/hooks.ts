@@ -27,6 +27,8 @@ import {
   type CoproprieteVueFormatee,
 } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
+import { useLiaisonCoproAj } from '@/lib/liaison-copro-aj/hooks'
+import { notificationsLiaison } from '@/lib/liaison-copro-aj/vues-aj'
 
 /**
  * Hooks de lecture de la base locale. Chacun déclenche le chargement du store (loadAll) tant qu'il n'a pas eu lieu.
@@ -167,17 +169,26 @@ export interface DonneesCadre {
   alerteLecture: AlerteLectureBase | null
 }
 
-/** Données du cadre commun (cloche, alerte de lecture) selon le mode. */
+/**
+ * Données du cadre commun (cloche, alerte de lecture) selon le mode. Les échanges du portail copropriétaire relié
+ * (demandes, messages, votes : lib/liaison-copro-aj) viennent en tête de la cloche, dans les deux modes ; ceux que l'AJ
+ * a déjà vus sont lus.
+ */
 export function useDonneesCadre(): DonneesCadre {
   const { notifications, erreur } = useStoreEnModeReel()
-  return useMemo(
-    () => ({
-      notifications: notificationsDuCentre(MODE_ACTIF, DEMO_NOTIFICATIONS, notifications),
-      idsLusBase: MODE_ACTIF === 'reel' ? idsNotificationsLuesInitiales('reel', notifications) : [],
+  const liaison = useLiaisonCoproAj()
+  return useMemo(() => {
+    const duPortail = notificationsLiaison(liaison)
+    const idsLusPortail = duPortail.filter((notification) => notification.lue).map((notification) => notification.id)
+    return {
+      notifications: [
+        ...duPortail.map(({ id, kind, icon, title, desc, time, route }) => ({ id, kind, icon, title, desc, time, route })),
+        ...notificationsDuCentre(MODE_ACTIF, DEMO_NOTIFICATIONS, notifications),
+      ],
+      idsLusBase: [...(MODE_ACTIF === 'reel' ? idsNotificationsLuesInitiales('reel', notifications) : []), ...idsLusPortail],
       alerteLecture: alerteLectureBase(MODE_ACTIF, erreur),
-    }),
-    [notifications, erreur],
-  )
+    }
+  }, [notifications, erreur, liaison])
 }
 
 /** Copropriété d'un code (voir useTrouverCopro). */

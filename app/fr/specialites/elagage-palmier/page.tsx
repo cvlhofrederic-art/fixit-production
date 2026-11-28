@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Élagage Palmier PACA : Taille palmier Marseille, La Ciotat, Aubagne | VITFIX',
+  title: 'Élagage Palmier PACA : Taille palmier Marseille, La Ciotat, Aubagne',
   description: 'Élagage et taille de palmiers à Marseille, La Ciotat, Cassis, Bandol et PACA. Taille ananas, marguerite, traitement charançon rouge. Élagueur certifié, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/elagage-palmier/',
@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Élagage Palmier PACA : Taille palmier Marseille & littoral',
     description: 'Spécialistes taille et élagage de palmiers en PACA. Traitement charançon rouge, taille ananas/marguerite. Toute la côte de Marseille à Hyères.',
+    siteName: 'VITFIX',
+    locale: 'fr_FR',
   },
 }
 

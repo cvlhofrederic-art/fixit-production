@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { safeOpen } from '@/lib/security/safe-url'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan } from '@/lib/types'
 
@@ -44,12 +46,16 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  // Les routes du parrainage exigent le jeton de la session : la société BTP l'envoie. Côté artisan, l'appel d'origine
+  // est conservé (règle artisan / BTP) ; le même défaut y reste, signalé.
+  const envoyerSession = orgRole === 'pro_societe'
 
   const fetchData = useCallback(async () => {
+    const appel = (url: string, options?: RequestInit) => (envoyerSession ? fetchAuthentifie(url, options) : fetch(url, options))
     try {
       const [statsRes, historyRes] = await Promise.all([
-        fetch('/api/referral/stats'),
-        fetch('/api/referral/history'),
+        appel('/api/referral/stats'),
+        appel('/api/referral/history'),
       ])
       let statsData: ReferralStats | null = null
       if (statsRes.ok) {
@@ -64,10 +70,10 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
       // Auto-generate referral code if none exists
       if (statsData && !statsData.referral_code) {
         try {
-          const genRes = await fetch('/api/referral/generate-code', { method: 'POST' })
+          const genRes = await appel('/api/referral/generate-code', { method: 'POST' })
           if (genRes.ok) {
             // Re-fetch stats to get the new code & link
-            const refreshRes = await fetch('/api/referral/stats')
+            const refreshRes = await appel('/api/referral/stats')
             if (refreshRes.ok) setStats(await refreshRes.json())
           }
         } catch {
@@ -79,7 +85,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [envoyerSession])
 
   useEffect(() => {
     fetchData()
@@ -97,14 +103,14 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     let text: string
     if (isPt) {
       text = isSociete
-        ? `Olá,\nUsamos o VITFIX Pro para gerir as nossas obras, orçamentos e faturas.\nCom este link, após a 1ª mensalidade paga, o 2º mês é oferecido :\n${stats.referral_link}\n(Nós também ganhamos 1 mês assim que se subscrever 😊)`
-        : `Olá! Uso o VITFIX para os meus orçamentos, obras e faturas.\nCom este link, após pagares o 1º mês, o 2º é grátis :\n${stats.referral_link}\n(Eu também ganho 1 mês se te subscreveres 😄)`
+        ? `Olá,\nUsamos o VITFIX Pro para gerir as nossas obras, orçamentos e faturas.\nCom este link, após a 1.ª mensalidade paga, o 2.º mês é oferecido:\n${stats.referral_link}\n(Nós também ganhamos 1 mês assim que se subscrever 😊)`
+        : `Olá! Uso o VITFIX para os meus orçamentos, obras e faturas.\nCom este link, após pagares o 1.º mês, o 2.º é grátis:\n${stats.referral_link}\n(Eu também ganho 1 mês se te subscreveres 😄)`
     } else {
       text = isSociete
         ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien, après le 1er mois payé, le 2ᵉ mois est offert :\n${stats.referral_link}\n(Nous recevons aussi 1 mois dès que vous vous abonnez 😊)`
         : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien, une fois ton 1er mois payé, ton 2ᵉ mois est offert :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    safeOpen(`https://wa.me/?text=${encodeURIComponent(text)}`, { allowedOrigins: ['https://wa.me'] })
   }
 
   const shareSMS = () => {
@@ -112,8 +118,8 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     let text: string
     if (isPt) {
       text = isSociete
-        ? `Vitfix Pro — gestão de obras & orçamentos. Após a 1ª mensalidade, o 2º mês é oferecido : ${stats.referral_link}`
-        : `Junta-te ao VITFIX : após pagar o 1º mês, o 2º é grátis ${stats.referral_link}`
+        ? `Vitfix Pro: gestão de obras e orçamentos. Após a 1.ª mensalidade, o 2.º mês é oferecido: ${stats.referral_link}`
+        : `Junta-te ao VITFIX: após pagares o 1.º mês, o 2.º é grátis: ${stats.referral_link}`
     } else {
       text = isSociete
         ? `Vitfix Pro — gestion chantiers & devis BTP. Après le 1er mois payé, le 2ᵉ est offert : ${stats.referral_link}`
@@ -283,11 +289,11 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: tv.text, marginBottom: 4 }}>
-          {isSociete ? (isPt ? '🤝 Referenciação de Empresas' : '🤝 Parrainage Entreprises BTP') : (isPt ? '🎁 Referenciação' : '🎁 Parrainage')}
+          {isSociete ? (isPt ? '🤝 Programa de recomendação' : '🤝 Parrainage Entreprises BTP') : (isPt ? '🎁 Programa de recomendação' : '🎁 Parrainage')}
         </h2>
         <p style={{ fontSize: 14, color: '#8A9BB0' }}>
           {isPt
-            ? (isSociete ? 'Recomende o Vitfix a outras empresas de construção e ganhe meses gratuitos' : 'Referencie colegas artesãos e ganhe meses gratuitos')
+            ? (isSociete ? 'Recomende o Vitfix a outras empresas de construção e ganhe meses gratuitos' : 'Recomende colegas profissionais e ganhe meses gratuitos')
             : (isSociete ? "Recommandez Vitfix à d'autres entreprises du bâtiment et gagnez des mois gratuits" : 'Parrainez des artisans et gagnez des mois gratuits')}
         </p>
       </div>

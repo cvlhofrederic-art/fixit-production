@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { estUrlStockageSupabase } from '@/lib/security/safe-url'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { ficheSocieteOuRefus, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { niveauSur, type PerimetreBtp } from '@/lib/btp/perimetre-compte'
+import type { User } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
 
 /**
  * POST /api/upload
@@ -15,6 +20,35 @@ import { logger } from '@/lib/logger'
  *   artisan_id? : string (pour mettre à jour le profil après upload)
  *   field?      : 'insurance_url' | 'kbis_url' | 'profile_photo_url'
  */
+
+const CHAMPS_DU_PROFIL = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
+
+/**
+ * Droit qu'un compte invité dans une société BTP doit avoir pour que ce champ de la fiche de SA société change : le
+ * logo et la photo relèvent de « Mon profil » (settings), les références du carnet de visite du module portfolio. Kbis,
+ * assurance et pièce d'identité jamais : ce sont les pièces du titulaire, qu'un sous-compte ne lit même pas
+ * (COLONNES_SECRETES, lib/btp/titulaire-documents.ts).
+ */
+function droitDuSousCompteSur(champ: string): (perimetre: PerimetreBtp) => boolean {
+  if (champ === 'logo_url' || champ === 'profile_photo_url') return peutModifierFicheSociete
+  if (champ === 'portfolio_photo') return (perimetre) => niveauSur(perimetre, 'portfolio') === 'FULL'
+  return () => false
+}
+
+/**
+ * Fiche visée par la mise à jour du profil pour un compte invité dans une société BTP, sans fiche à lui : celle de sa
+ * société, ou la réponse de refus. `null` pour tout autre compte, qui garde la recherche d'origine. Appelée AVANT
+ * l'envoi dans Storage : un refus ne laisse pas de fichier orphelin.
+ */
+async function ficheVisee(user: User, artisanId: string, champ: string): Promise<string | NextResponse | null> {
+  const fiche = await ficheSocieteOuRefus(user, supabaseAdmin, droitDuSousCompteSur(champ))
+  if (!fiche || fiche instanceof NextResponse) return fiche
+  // L'écran envoie l'identifiant de la fiche de la société ou celui du compte : rien d'autre ne la désigne.
+  if (artisanId !== fiche.ficheId && artisanId !== user.id) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  }
+  return fiche.ficheId
+}
 export async function POST(request: NextRequest) {
   // Auth guard
   const user = await getAuthUser(request)
@@ -38,13 +72,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bucket non autorisé' }, { status: 400 })
     }
     const bucket = bucketRaw
-    const folder = (formData.get('folder') as string) || 'misc'
+    // Dossier : racine connue + segments [A-Za-z0-9_-] uniquement. Sans ce contrôle, un « ../ »
+    // dans folder sortait du bucket autorisé (le client Storage normalise l'URL, upload en service role).
+    const DOSSIERS_RACINE = [
+      'misc', 'profiles', 'kbis', 'insurance', 'logos', 'messages', 'clients', 'portfolio',
+      'wallet', 'en-quotes', 'syndic-ged', 'syndic-interventions', 'syndic-logos',
+    ]
+    const segmentsDossier = ((formData.get('folder') as string) || 'misc').split('/')
+    if (
+      segmentsDossier.length > 4 ||
+      !segmentsDossier.every((s) => /^[A-Za-z0-9_-]{1,64}$/.test(s)) ||
+      !DOSSIERS_RACINE.includes(segmentsDossier[0])
+    ) {
+      return NextResponse.json({ error: 'Dossier non autorisé' }, { status: 400 })
+    }
+    // Dossiers portant un identifiant de propriétaire (wallet/{fiche}/…, portfolio/{fiche}, syndic-logos/{user}) :
+    // ce segment doit désigner l'utilisateur connecté ou sa fiche artisan, jamais un tiers — la liste des
+    // pièces du Wallet lue par les syndics (/api/syndic/artisans) repose sur ce dossier.
+    const DOSSIERS_PROPRIETAIRE = ['wallet', 'portfolio', 'syndic-logos']
+    let segmentsFinals: string[]
+    if (DOSSIERS_PROPRIETAIRE.includes(segmentsDossier[0])) {
+      const proprietaire = segmentsDossier[1]
+      if (!proprietaire) {
+        return NextResponse.json({ error: 'Dossier non autorisé' }, { status: 400 })
+      }
+      if (proprietaire !== user.id) {
+        const { data: fiche } = await supabaseAdmin
+          .from('profiles_artisan')
+          .select('id')
+          .eq('user_id', user.id)
+          .single()
+        if (!fiche || fiche.id !== proprietaire) {
+          return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+        }
+      }
+      segmentsFinals = segmentsDossier
+    } else {
+      // Racines sans propriétaire (misc, kbis, messages, syndic-ged…) : le compte connecté devient le dossier
+      // de tête sous la racine — identifiant tiré de la session, jamais du corps — pour qu'aucun compte
+      // n'écrive dans le dossier d'un autre (ex. syndic-ged/{autre cabinet}/…). Les lecteurs passent par
+      // l'URL stockée en base, pas par le chemin.
+      segmentsFinals = [segmentsDossier[0], user.id, ...segmentsDossier.slice(1)]
+    }
+    const folder = segmentsFinals.join('/')
     const artisanId = formData.get('artisan_id') as string | null
     const field = formData.get('field') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
     }
+
+    const ficheDeLaSociete = artisanId && field && CHAMPS_DU_PROFIL.includes(field)
+      ? await ficheVisee(user, artisanId, field)
+      : null
+    if (ficheDeLaSociete instanceof NextResponse) return ficheDeLaSociete
 
     // Vérifier taille max 10 Mo
     if (file.size > 10 * 1024 * 1024) {
@@ -99,16 +180,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // F11: whitelist d'extensions au lieu du nom fourni par le client
+    // F11: extension de la liste blanche par type MIME accepté (jamais le nom du fichier client),
+    // nom généré côté serveur, segments vérifiés par buildStoragePath.
     const EXT_MAP: Record<string, string> = {
       'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
       'application/pdf': 'pdf', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg',
       'audio/webm': 'webm', 'audio/mp4': 'm4a',
     }
-    const ext = EXT_MAP[file.type] || file.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '') || 'bin'
-    const timestamp = Date.now()
-    const randomSuffix = Math.random().toString(36).substring(2, 8)
-    const filename = `${folder}/${timestamp}_${randomSuffix}.${ext}`
+    const ext = EXT_MAP[file.type]
+    if (!ext) {
+      return NextResponse.json({ error: 'Format non supporté. Utilisez JPG, PNG, WEBP ou PDF.' }, { status: 400 })
+    }
+    const filename = buildStoragePath(...segmentsFinals, `${crypto.randomUUID()}.${ext}`)
 
     // Upload vers Supabase Storage
     const { data: uploadData, error: uploadError } = await supabaseAdmin
@@ -127,31 +210,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Chemin renvoyé par Storage revérifié (défense en profondeur) : traversée bloquée, dossier demandé imposé.
+    const cheminDepose = assertStoragePath(uploadData.path, folder)
+
     // URL publique pour logos/photos (permanente), signed URL pour documents sensibles
     const isPublicField = field === 'logo_url' || field === 'profile_photo_url'
     let publicUrl: string
     if (isPublicField) {
-      publicUrl = supabaseAdmin.storage.from(bucket).getPublicUrl(uploadData.path).data.publicUrl
+      publicUrl = supabaseAdmin.storage.from(bucket).getPublicUrl(cheminDepose).data.publicUrl
     } else {
-      const { data: signedData } = await supabaseAdmin.storage.from(bucket).createSignedUrl(uploadData.path, 60 * 60 * 24 * 7)
-      publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from(bucket).getPublicUrl(uploadData.path).data.publicUrl
+      const { data: signedData } = await supabaseAdmin.storage.from(bucket).createSignedUrl(cheminDepose, 60 * 60 * 24 * 7)
+      publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from(bucket).getPublicUrl(cheminDepose).data.publicUrl
     }
 
     // Si artisan_id + field fournis, mettre à jour le profil
     if (artisanId && field) {
-      const allowedFields = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
-      if (allowedFields.includes(field)) {
-        // Trouver l'artisan : d'abord par id, puis par user_id (fallback)
+      if (CHAMPS_DU_PROFIL.includes(field)) {
+        let verifiedArtisanId: string
+        if (ficheDeLaSociete) {
+          verifiedArtisanId = ficheDeLaSociete
+        } else {
+        // Trouver l'artisan : d'abord par id, puis par user_id (fallback). Sans portfolio_photos :
+        // la colonne n'existe pas en production (relevé du 23/10/2026), la sélectionner faisait
+        // échouer la recherche et chaque mise à jour du profil répondait 404.
         let artisanRow = (await supabaseAdmin
           .from('profiles_artisan')
-          .select('id, user_id, portfolio_photos')
+          .select('id, user_id')
           .eq('id', artisanId)
           .single()).data
         if (!artisanRow) {
           // Fallback : artisanId pourrait être le user_id (admin override ou mismatch)
           artisanRow = (await supabaseAdmin
             .from('profiles_artisan')
-            .select('id, user_id, portfolio_photos')
+            .select('id, user_id')
             .eq('user_id', artisanId)
             .single()).data
         }
@@ -159,7 +250,7 @@ export async function POST(request: NextRequest) {
           // Dernier fallback : chercher par user_id de l'utilisateur connecté
           artisanRow = (await supabaseAdmin
             .from('profiles_artisan')
-            .select('id, user_id, portfolio_photos')
+            .select('id, user_id')
             .eq('user_id', user.id)
             .single()).data
         }
@@ -170,13 +261,16 @@ export async function POST(request: NextRequest) {
         if (artisanRow.user_id !== user.id) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
         }
-        const verifiedArtisanId = artisanRow.id
+        verifiedArtisanId = artisanRow.id
+        }
 
         if (field === 'portfolio_photo') {
           // Append to portfolio_photos JSONB array
           const photoMeta = formData.get('photo_meta') as string | null
           const photoUrl = formData.get('photo_url') as string | null
-          const targetUrl = photoUrl || publicUrl
+          // portfolio_photos est affiché sur la page publique, qui n'ouvre que les photos du stockage Supabase
+          // (lib/security/safe-url.ts) : une URL d'une autre origine (ou javascript:) n'est pas gardée.
+          const targetUrl = photoUrl && estUrlStockageSupabase(photoUrl) ? photoUrl : publicUrl
           let meta: Record<string, unknown> = {}
           try { meta = photoMeta ? JSON.parse(photoMeta) : {} } catch { /* invalid JSON, use empty */ }
           const newEntry = {
@@ -186,21 +280,35 @@ export async function POST(request: NextRequest) {
             uploadedAt: new Date().toISOString(),
             id: Date.now().toString(),
           }
-          const existing: Array<Record<string, unknown>> = artisanRow.portfolio_photos || []
-          const { error: updateError } = await supabaseAdmin
+          const { data: portfolio, error: portfolioError } = await supabaseAdmin
             .from('profiles_artisan')
-            .update({
-              portfolio_photos: [newEntry, ...existing],
-              updated_at: new Date().toISOString(),
-            })
+            .select('portfolio_photos')
             .eq('id', verifiedArtisanId)
-          if (updateError) {
-            logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
+            .single()
+          if (portfolioError) {
+            // Colonne absente en production : le fichier est envoyé, le portfolio n'est pas mis à jour.
+            logger.error('[UPLOAD] Lecture portfolio_photos:', portfolioError)
+          } else {
+            const existing: Array<Record<string, unknown>> = portfolio?.portfolio_photos || []
+            const { error: updateError } = await supabaseAdmin
+              .from('profiles_artisan')
+              .update({
+                portfolio_photos: [newEntry, ...existing],
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', verifiedArtisanId)
+            if (updateError) {
+              logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
+            }
           }
         } else {
+          // Pièce du seau privé (Kbis, assurance, pièce d'identité) : la fiche reçoit le chemin du fichier, jamais
+          // le lien signé (valable 7 jours, puis mort). Le lien se crée à la lecture (lib/storage/liens-stockage.ts) ;
+          // la réponse garde le lien signé pour l'affichage immédiat.
+          const champPiece = bucket === 'artisan-documents' && ['insurance_url', 'kbis_url', 'id_document_url'].includes(field)
           const { error: updateError } = await supabaseAdmin
             .from('profiles_artisan')
-            .update({ [field]: publicUrl, updated_at: new Date().toISOString() })
+            .update({ [field]: champPiece ? cheminDepose : publicUrl, updated_at: new Date().toISOString() })
             .eq('id', verifiedArtisanId)
           if (updateError) {
             logger.error('[UPLOAD] Erreur mise à jour profil:', updateError)
@@ -213,9 +321,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      path: uploadData.path,
+      path: cheminDepose,
     })
   } catch (err: unknown) {
+    if (err instanceof StoragePathError) {
+      logger.warn('[UPLOAD] chemin de stockage refusé')
+      return NextResponse.json({ error: 'Requête invalide' }, { status: 400 })
+    }
     logger.error('[UPLOAD] Error:', err)
     return NextResponse.json(
       { error: 'Erreur serveur lors de l\'upload' },

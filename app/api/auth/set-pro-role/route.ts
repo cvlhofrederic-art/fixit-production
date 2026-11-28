@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { isSuperAdmin } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // SÉCURITÉ (audit 2026-06-10) : cet endpoint permettait à tout utilisateur
@@ -46,9 +47,9 @@ export async function POST(req: NextRequest) {
     const { user_id, role, org_type } = parsed.data
 
     const callerRole = caller.app_metadata?.role
-    const isSuperAdmin = callerRole === 'super_admin'
 
-    if (!isSuperAdmin) {
+    // super_admin : rôle app_metadata + e-mail de la liste ADMIN_EMAIL / ADMIN_EMAIL_2 (isSuperAdmin)
+    if (!isSuperAdmin(caller)) {
       // Self-set uniquement, et uniquement pro_societe
       if (caller.id !== user_id) {
         return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })

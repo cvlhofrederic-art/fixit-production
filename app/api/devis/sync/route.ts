@@ -10,6 +10,11 @@ import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
 import { isStableDocId } from '@/lib/devis-utils'
+import { renduComplet } from '@/lib/version-rendu'
+import { lignesTvaCompletes, regimeTvaDocument } from '@/lib/totaux-artisan'
+import { lirePerimetreBtp } from '@/lib/btp/perimetre-compte'
+import { familleDuTypeSerie, peutEcrireDocuments, societeNonResolue } from '@/lib/btp/titulaire-documents'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 
 export const maxDuration = 30
 
@@ -44,6 +49,15 @@ function mapStatus(rawStatus: string, table: 'factures' | 'devis'): string {
   return 'pending'
 }
 
+// Refus d'un document dont le numéro est déjà porté par un autre document du compte (sociétés BTP). Le client garde
+// le document tel quel (jamais renuméroté) et affiche un message (lib/document-sync.ts, kind numero-collision).
+function reponseNumeroEnDouble(): NextResponse {
+  return NextResponse.json({
+    error: 'numero_collision',
+    message: 'Ce numéro est déjà porté par un autre document de votre compte : ce document n\'a pas été enregistré sur le serveur. Le document qui porte déjà ce numéro n\'a pas été modifié.',
+  }, { status: 409 })
+}
+
 // POST /api/devis/sync
 // Auth Bearer → rate-limit → validate → upsert via service_role.
 // onConflict: 'numero,artisan_user_id' (idempotency naturelle, pas de table dediee).
@@ -73,6 +87,39 @@ export async function POST(request: NextRequest) {
   }
 
   const { docType, artisanId, doc } = v.data
+
+  // ── Propriétaire de la ligne : la société, pas l'auteur ──────────────────────────────────────────────────
+  // Jusqu'au 25/11/2026 la ligne était enregistrée sous le compte qui l'écrivait (`artisan_user_id: user.id`),
+  // alors que la société n'apparaissait que dans `artisan_id`. Or TOUTES les lectures filtrent sur
+  // `artisan_user_id` : un document émis par un salarié invité restait invisible au gérant, et le contrôle de
+  // collision de numéro ne le voyait pas non plus. Le propriétaire est donc la société, résolue côté serveur.
+  //
+  // Pour un artisan, un gérant ou un super_admin, la société résolue vaut son propre identifiant : la ligne
+  // écrite est exactement celle d'avant (règle #1 — le côté artisan ne bouge pas).
+  const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+
+  if (societeNonResolue(user, perimetre)) {
+    logger.warn('[devis-sync] société non résolue : enregistrement refusé', {
+      compte: user.id.slice(0, 8),
+      roleEquipe: perimetre.roleEquipe,
+      rattachementAuJeton: typeof user.app_metadata?.company_id === 'string',
+    })
+    return NextResponse.json({ error: messageRefusFr('societe_non_resolue') }, { status: 409 })
+  }
+
+  // Droit d'écrire ce type de document. Le contrôle d'appartenance ci-dessous (« path B ») autorise tout membre
+  // actif de l'équipe sans consulter une seule permission : un OUVRIER ou un CHEF_CHANTIER (devis NONE,
+  // factures NONE) pouvait donc enregistrer sous la société. Le niveau FULL est maintenant exigé.
+  const familleDocument = familleDuTypeSerie(docType)
+  if (!familleDocument || !peutEcrireDocuments(perimetre, familleDocument)) {
+    return NextResponse.json(
+      { error: "Votre rôle dans l'entreprise ne permet pas d'enregistrer ce document." },
+      { status: 403 },
+    )
+  }
+
+  /** Compte sous lequel la ligne est rangée et recherchée : la société du compte connecté. */
+  const proprietaire = perimetre.societeId
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
 
   // Identité document (méthode pro Stripe) : `id` UUID stable si fourni
@@ -118,6 +165,12 @@ export async function POST(request: NextRequest) {
     let ownsArtisan = (ownedProfiles || []).some((p: { id: string }) => p.id === artisanId)
 
     // Path B : membre d'équipe BTP — résoudre via pro_team_members
+    //
+    // Ce chemin accepte la fiche de toute société dont le compte est membre actif, alors que `proprietaire`
+    // n'en désigne qu'une. Deux appartenances actives sont pourtant déjà refusées en amont, avant d'arriver ici :
+    // `resolveCompanyId` lit en `maybeSingle`, ce qui rend PGRST116 dès deux lignes, retombe donc sur le compte
+    // lui-même, et `societeNonResolue` rend alors 409 (lib/btp/titulaire-documents.ts). Le propriétaire enregistré
+    // reste `proprietaire` dans tous les cas : ce chemin n'autorise que le passage, il ne choisit rien.
     if (!ownsArtisan) {
       const { data: memberships, error: memErr } = await supabaseAdmin
         .from('pro_team_members')
@@ -167,15 +220,22 @@ export async function POST(request: NextRequest) {
   // 4bis. Régime TVA + calcul officiel (corrige bug antérieur total_tax_cents=0).
   // computeTva() force totalTVA=0 et totalTTC=totalHT en régime franchise/autoliq.
   // En classique, agrège la TVA par taux à partir des lignes (BOFiP §50).
-  const regimeTva: TvaRegime =
-    (docRec.regimeTva as TvaRegime) ?? 'classique'
-  const tvaLines: TvaLineInput[] = items
+  // Document artisan au rendu complet (lib/version-rendu.ts) : régime d'après `tvaEnabled` et taux des
+  // frais annexes (`tva_applicable`) comptés, comme le formulaire, le PDF et la liste. Document d'avant
+  // la correction : calcul d'origine, montants en base inchangés.
+  const complet = renduComplet(docRec)
+  const regimeTva: TvaRegime = complet
+    ? regimeTvaDocument(docRec)
+    : (docRec.regimeTva as TvaRegime) ?? 'classique'
+  const tvaLines: TvaLineInput[] = complet ? lignesTvaCompletes(docRec) : items
     .filter((l): l is Record<string, unknown> => l != null && typeof l === 'object')
     .map(l => ({
       totalHT: Number(l.totalHT ?? l.total_ht ?? l.total ?? 0),
       tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0),
+      horsRemise: l.horsRemise === true,
     }))
-  const tva = computeTva({ regime: regimeTva, lines: tvaLines })
+  // Remise globale du document (lib/remise-commerciale.ts) : même total que computeDocumentTotalHtCents.
+  const tva = computeTva({ regime: regimeTva, lines: tvaLines, remiseGlobale: docRec.remiseGlobale })
   const totalTaxCents = toCents(tva.totalTVA)
   const totalTtcCents = toCents(tva.totalTTC)
 
@@ -198,7 +258,7 @@ export async function POST(request: NextRequest) {
   {
     const sel = supabaseAdmin.from(table).select('id, status, content_hash, artisan_user_id')
     const { data: existing, error: lookupErr } = await (
-      docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
+      docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', proprietaire)
     ).maybeSingle()
     if (lookupErr) {
       // Fallback si la colonne content_hash n'existe pas (migration 081 non appliquée).
@@ -206,7 +266,7 @@ export async function POST(request: NextRequest) {
       if (/column .*content_hash.* does not exist/i.test(lookupErr.message || '')) {
         const selFb = supabaseAdmin.from(table).select('id, status, artisan_user_id')
         const fb = await (
-          docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
+          docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', proprietaire)
         ).maybeSingle()
         if (fb.error) {
           logger.error(`[devis-sync] status lookup fallback failed ${docRec.docNumber}:`, fb.error.message)
@@ -242,13 +302,45 @@ export async function POST(request: NextRequest) {
   // authentifié qui connaît le UUID d'un document d'autrui pourrait l'écraser et
   // se l'attribuer (artisan_user_id réassigné). Le chemin `numero` est déjà sûr
   // (lookup ET onConflict scopés par artisan_user_id).
-  if (existingOwner && existingOwner !== user.id) {
+  // Comparé à la SOCIÉTÉ, et non au compte qui écrit : un salarié invité modifie les documents de son entreprise,
+  // et personne ne peut écrire sur ceux d'une autre. Comme toute ligne modifiable appartient déjà à cette même
+  // société, le `artisan_user_id` écrit plus bas ne change jamais de valeur sur une ligne existante : la chaîne
+  // d'inaltérabilité (content_hash, previous_hash) reste rattachée au même propriétaire.
+  if (existingOwner && existingOwner !== proprietaire) {
     logger.warn(`[devis-sync] forbidden cross-owner write table=${table} docId=${docId} user=${user.id}`)
     Sentry.captureException(new Error('devis-sync cross-owner write blocked'), {
       tags: { agent_type: 'devis-sync', stage: 'idor-guard', table },
       extra: { docId, artisan_id: artisanId },
     })
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Numéro déjà porté par un AUTRE document du compte (sociétés BTP, audit du 11/11/2026, constat api-coeur-11).
+  // Le document entrant est cherché par son identifiant : l'autre ligne au même numéro n'était jamais vue, et
+  // l'enregistrement échouait sur la contrainte UNIQUE (numero, artisan_user_id) (erreur 500). Désormais le document
+  // entrant est refusé avec un message clair ; celui qui porte déjà le numéro n'est ni écrasé ni renuméroté, et rien
+  // n'est écrit. Artisan : comportement inchangé.
+  const estSocieteBtp = user.app_metadata?.role === 'pro_societe'
+  if (estSocieteBtp && docId && numeroIn) {
+    const { data: autres, error: autresErr } = await supabaseAdmin
+      .from(table)
+      .select('id')
+      .eq('numero', numeroIn)
+      .eq('artisan_user_id', proprietaire)
+      .neq('id', docId)
+      .limit(1)
+    if (autresErr) {
+      logger.error(`[devis-sync] numero lookup failed ${table}:`, autresErr.message)
+      Sentry.captureException(autresErr, {
+        tags: { agent_type: 'devis-sync', stage: 'numero-lookup', table },
+        extra: { artisan_id: artisanId },
+      })
+      return NextResponse.json({ error: 'Status lookup failed' }, { status: 500 })
+    }
+    if ((autres ?? []).length > 0) {
+      logger.warn(`[devis-sync] numero_collision refusée table=${table} docId=${docId}`)
+      return reponseNumeroEnDouble()
+    }
   }
 
   const docTypeForGuard: 'devis' | 'facture' = docType
@@ -259,8 +351,8 @@ export async function POST(request: NextRequest) {
     // même document : ce sont DEUX documents distincts qui se disputent le même
     // numéro légal (typiquement après un fallback de numérotation localStorage
     // sur un device neuf — cause racine du bug « doc qui disparaît »). On le
-    // signale par un corps distinct `numero_collision` pour que le client
-    // renumérote le doc entrant et resynchronise, AU LIEU de le perdre.
+    // signale par un corps distinct `numero_collision` : le client garde le doc
+    // entrant tel quel (jamais renuméroté) et affiche un message.
     // Le cas même-id (existingId === docId, ou pas d'id stable des deux côtés)
     // reste un vrai conflit de transition → réponse inchangée.
     // NB : on exige docId NON-NULL (id canonique entrant). Un doc LEGACY (docId
@@ -285,7 +377,7 @@ export async function POST(request: NextRequest) {
     // cycle brouillon→émis). Absent pour les docs legacy → onConflict tombe sur
     // numero+artisan_user_id. numero = null pour un brouillon (pas encore émis).
     ...(docId ? { id: docId } : {}),
-    artisan_user_id: user.id,
+    artisan_user_id: proprietaire,
     artisan_id: artisanId,
     numero: numeroIn,
     client_name: (docRec.clientName as string) || '',
@@ -327,7 +419,11 @@ export async function POST(request: NextRequest) {
     try {
       const canonical: CanonicalDocPayload = {
         numero: numeroIn as string,
-        artisan_user_id: user.id,
+        // Le MÊME propriétaire que la ligne enregistrée. Avec le compte de l'auteur, le document d'un salarié
+        // invité aurait été haché sur un identifiant que la ligne ne porte pas — vérification d'intégrité fausse —
+        // et son `previous_hash` cherché dans une chaîne vide au lieu de celle de la société
+        // (lib/document-integrity.ts : le dernier document signé est cherché par `artisan_user_id`).
+        artisan_user_id: proprietaire,
         client_name: (docRec.clientName as string) || '',
         total_ht_cents: totalHtCents,
         total_tax_cents: totalTaxCents,
@@ -405,6 +501,13 @@ export async function POST(request: NextRequest) {
     delete legacy.tva_intra_preneur
     delete legacy.avoir_de_facture_id
     result = await tryUpsert(legacy)
+  }
+
+  // Société BTP : deux envois au même numéro presque en même temps (le contrôle ci-dessus ne voyait pas encore
+  // l'autre) ; la contrainte d'unicité refuse le second, qui reçoit la même réponse que le contrôle. Rien n'est écrit.
+  if (result.error && estSocieteBtp && numeroIn && result.error.code === '23505' && /numero/i.test(result.error.message || '')) {
+    logger.warn(`[devis-sync] numero_collision refusée par la contrainte table=${table} docId=${docId}`)
+    return reponseNumeroEnDouble()
   }
 
   if (result.error) {

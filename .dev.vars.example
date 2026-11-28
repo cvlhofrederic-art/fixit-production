@@ -1,0 +1,11 @@
+# Variables locales pour `wrangler dev` / OpenNext (Cloudflare Workers).
+# Copie : cp .dev.vars.example .dev.vars — .dev.vars est ignoré par git (.gitignore : .dev.vars*).
+# Noms seuls, jamais de valeur dans le dépôt (lot 1 Aikido, 28/10/2026).
+# En production : wrangler secret put <NOM>, et secrets GitHub Actions pour le build / le déploiement.
+
+# Clé anon Supabase (publique par conception, mais hors du dépôt) : injectée au build
+# (NEXT_PUBLIC_* inlinées par Next) et au déploiement (`vars` de wrangler-action, deploy-cloudflare.yml).
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+# Clé IndexNow (32 caractères hexadécimaux) : lib/seo/indexnow.ts, servie à /indexnow-key.txt.
+INDEXNOW_KEY=

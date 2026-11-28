@@ -20,6 +20,8 @@ Mesures de contenu (méthode du rapport, section 11) : séquences glissantes de 
 
 Options : `--base` (défaut `https://vitfix.io`), `--out`, `--concurrence` (8), `--echantillon N` (N URL par groupe, pour un passage rapide), `--git`, `--date`.
 
+Les fichiers lus par les scripts (`--csv`, et pour `pt-tests.mjs` `--reference`, `--audit`, `--redirections`, `--porte`, `--lot` ; chemin relatif à la racine du dépôt, ou absolu) doivent être dans le dépôt ou dans le dossier `--out` (`fabriquerAbsolu` de `pt-audit/lib/chemins.mjs`, bâti sur `scripts/lib/safe-fs-path.mjs`) : un CSV téléchargé ailleurs se copie dans `data/seo/` avant l'audit, et un audit écrit avec `--out /tmp/seo` se relit avec `--audit /tmp/seo/pt-audit-{date}.json --out /tmp/seo`. Tout autre chemin arrête le script avec un message qui nomme l'option, le chemin et les dossiers autorisés. `--out` lui-même, dossier seulement écrit, peut viser l'extérieur du dépôt.
+
 Limites : analyse HTML par expressions régulières (suffisant pour le HTML généré par Next.js) ; le graphe ne connaît que les pages auditées comme sources ; `derniere_modif_reelle` est la date du dernier commit des fichiers qui produisent la page (`lib/data/seo-pages-data.ts` et la route), pas la date de modification de la seule entrée concernée.
 
 ## Tests T1 à T12 : `pt-tests.mjs`
@@ -55,6 +57,6 @@ node scripts/seo/pt-tests.mjs --mode controle --base http://localhost:3000 --tes
 | T11 | robots.txt : `/pt/servicos/canalizador-ovar/` autorisée ; `og:image` de 5 pages non bloquée ; règles hors PT identiques à la référence | requête + référence |
 | T12 | chemin inconnu sous `/pt/` et sans préfixe : 404 final avec `noindex`, jamais `/pt/` | requêtes |
 
-La référence (`data/seo/reference-seo-pt.json`) est écrite par `--mode reference` : empreintes des sitemaps FR, mesures des 30 URL FR, règles robots hors PT. Elle ne doit être régénérée que si un changement FR voulu a eu lieu.
+La référence (`data/seo/reference-seo-pt.json`) est écrite par `--mode reference` : empreintes des sitemaps FR, mesures des 30 URL FR, règles robots hors PT. Elle ne doit être régénérée que si un changement FR voulu a eu lieu. Ses valeurs viennent du site audité : elle n'est écrite que si chacune a la forme et la taille attendues (`pt-audit/lib/reference.mjs` : clés connues, statut HTTP entier, textes d'au plus 2 048 caractères sans caractère de contrôle, empreintes SHA-256) ; sinon le script s'arrête sans rien écrire, en nommant la valeur fautive.
 
 Précaution : le CDN garde les pages SEO en cache 1 h (`Cache-Control: public, s-maxage=3600`) ; après une mise en production, attendre l'expiration ou purger avant de lancer `--mode controle`.

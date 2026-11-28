@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { SERVICES } from '@/lib/data/seo-pages-data'
 import type { PaginaConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
-import { deConcelho, descricaoConcelhoDistrito, emConcelho, nomeDistrito } from '@/lib/seo/pt-meta'
+import { deConcelho, descricaoConcelhoDistrito, dosDistritos, emConcelho } from '@/lib/seo/pt-meta'
 import { noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, mesPorExtenso, notasConcelhoPara, prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
 import { BotoesContacto, CabecalhoServico, SeccaoPreco, TITULO_SECCAO, detalhesChantier, fraseChantier, migalhasServicos } from './servico-distrito-partilhado'
@@ -21,7 +21,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: Readonly<{ pag
   const urlDistrito = `/pt/servicos/${servico.slug}/`
   const noConcelho = emConcelho(city.name)
   const precos = precosPara(servico.slug)
-  const prazo = prazoDistritoPara(servico.distrito, servico.slug)
+  const prazo = prazoDistritoPara(servico.distritos, servico.slug)
   const notas = notasConcelhoPara(servico.slug, city.slug)
   const avis = avisPara(servico.slug, city.slug)
   const lugares = [...new Set(chantiers.map((c) => c.freguesia?.trim()).filter((f): f is string => Boolean(f)))]
@@ -31,8 +31,8 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: Readonly<{ pag
   const ondeFoi = `${noConcelho}${listaLugares ? ` (${listaLugares})` : ''}`
   const intro =
     n > 1
-      ? `A equipa VITFIX já fez ${n} trabalhos de ${tipo} ${ondeFoi}, o mais recente em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todo o distrito ${nomeDistrito(servico.distrito)}.`
-      : `A equipa VITFIX fez um trabalho de ${tipo} ${ondeFoi}, em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todo o distrito ${nomeDistrito(servico.distrito)}.`
+      ? `A equipa VITFIX já fez ${n} trabalhos de ${tipo} ${ondeFoi}, o mais recente em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todos os concelhos ${dosDistritos(servico.distritos)}.`
+      : `A equipa VITFIX fez um trabalho de ${tipo} ${ondeFoi}, em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todos os concelhos ${dosDistritos(servico.distritos)}.`
   const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`${servico.mensagemWhatsapp} ${servico.mensagemLocal} ${noConcelho}.`)}`
   const metiersDaCidade = servico.metiersLigados.map((m) => SERVICES.find((s) => s.slug === m)).filter((s): s is NonNullable<typeof s> => Boolean(s))
 
@@ -172,7 +172,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: Readonly<{ pag
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
             {servico.titulos.ctaFinal} {noConcelho}
           </h2>
-          <p className="text-text-muted mb-8 max-w-md mx-auto">Grátis e sem compromisso, {noConcelho} e em todo o distrito {nomeDistrito(servico.distrito)}.</p>
+          <p className="text-text-muted mb-8 max-w-md mx-auto">Grátis e sem compromisso, {noConcelho} e em todos os concelhos onde trabalhamos.</p>
           <BotoesContacto waHref={waHref} variante="fim" />
         </div>
       </section>

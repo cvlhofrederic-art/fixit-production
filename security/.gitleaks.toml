@@ -18,14 +18,26 @@ paths = [
   '''pnpm-lock\.yaml''',
 ]
 
-# Supabase anon key is public by design (exposed in frontend)
-regexTarget = "match"
-regexes = [
-  '''NEXT_PUBLIC_SUPABASE_ANON_KEY''',
-  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9''',
-]
+# Plus aucune allowlist par regex (lot 1 Aikido, 28/10/2026, relecture). L'ancienne entrée sur
+# l'en-tête JWT HS256 (regexTarget = "match") blanchissait TOUT JWT HS256 : une clé service_role
+# Supabase committée, ou le retour de la clé anon dans wrangler.toml (issue 3), passaient sans
+# alerte. La clé anon n'est plus dans le dépôt (secret GitHub au build, entrée `vars` de
+# wrangler-action au déploiement) et les gabarits sans valeur (`NOM=`, `${{ secrets.NOM }}`,
+# `<…>`) ne déclenchent aucune règle : aucune exception n'est nécessaire. Un JWT dans le dépôt
+# est une fuite, quelle que soit la variable qui le porte.
 
-# Example entries — add specific commit hashes or paths as needed
-# commits = [
-#   "abc123def456",
-# ]
+# Historique seulement : security-daily.yml scanne tout l'historique avec cette config. Commits
+# dont l'unique détection est un faux positif établi (scan gitleaks du 28/10/2026, règles par
+# défaut) ; un commit listé ici est ignoré en entier, donc n'y ajouter que des commits vérifiés
+# sans autre secret. Sans effet sur `gitleaks dir` (état du dépôt), sur le hook pre-commit ni
+# sur la plage base..head d'une PR. Les commits portant de vrais secrets (mot de passe de la base,
+# clé PostHog, sentry-alerts.json, TEST_KEY_B64) ne sont PAS listés : ils restent signalés tant
+# que la rotation n'est pas faite (décision Frédéric ensuite : allowlist par commit ou purge).
+commits = [
+  # wrangler.toml : clé anon Supabase (publique par conception), sortie du dépôt au lot 1
+  "dccf246bd0e9a5c4afb4bf6f07349c1a9473c075",
+  # .github/workflows/ci.yml : JWT de build factice (claim ref = « placeholder »)
+  "d73eda0b139bbb0ec20755a8687ad3b26e18e2a5",
+  # lib/supabase-server.ts, lib/supabase-server-component.ts : même JWT factice « placeholder »
+  "fd17e50d106d1cd3b90ad48e6afa022dccc41ffd",
+]

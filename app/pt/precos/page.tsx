@@ -22,6 +22,8 @@ export const metadata: Metadata = {
   },
 }
 
+// `services` = nombre de lignes du tableau de prix du guide (app/pt/precos/[slug]/page.tsx), contrôlé par
+// tests/seo/pt-prix-facade-sur-devis.test.tsx. Pintor : 8 depuis le retrait de la ligne de façade (23/10/2026).
 const PRICE_GUIDES = [
   {
     slug: 'canalizador',
@@ -45,7 +47,7 @@ const PRICE_GUIDES = [
     icon: '🎨',
     description: 'Pintura interior e exterior, tratamento anti-humidade, lacagem de portas, estuque e massa corrida.',
     priceRange: '5 - 1500',
-    services: 9,
+    services: 8,
   },
 ]
 

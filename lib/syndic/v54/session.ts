@@ -60,8 +60,9 @@ export function useSyndicSession(): SyndicSession {
     }
 
     resolve()
-    // Re-résoudre sur login/logout/refresh token.
-    const { data: sub } = supabase.auth.onAuthStateChange(() => { resolve() })
+    // Re-résoudre sur login/logout/refresh token, hors du callback : jamais d'appel Supabase lancé dans un
+    // callback onAuthStateChange (interblocage documenté par Supabase).
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { setTimeout(() => { void resolve() }, 0) })
     return () => {
       active = false
       sub.subscription.unsubscribe()

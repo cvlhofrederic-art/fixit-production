@@ -2,7 +2,8 @@
  * Données structurées des pages FR : chaque niveau du fil d'Ariane (BreadcrumbList) désigne l'URL finale,
  * jamais une URL qui redirige (https://vitfix.io/ en 302 géolocalisé, /recherche/ en 308, hub
  * /fr/pres-de-chez-moi/ en 308 vers /fr/).
- * Fiche artisan FR : un profil inexistant (page client servie en 200, « Artisan non trouvé ») est en noindex.
+ * Fiche artisan FR : un profil inexistant (page client servie en 200, « Artisan non trouvé ») est en noindex ; un profil
+ * introuvable ou illisible n'hérite d'aucun hreflang du layout FR.
  *
  * Les composants serveur sont appelés comme des fonctions : le JSON-LD est lu dans l'arbre d'éléments rendu,
  * sans monter les composants enfants. Supabase (REST) est simulé par un fetch factice.
@@ -10,6 +11,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isValidElement, type ReactNode } from 'react'
+import type { Metadata } from 'next'
 
 const journal = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn() }))
 
@@ -75,7 +77,7 @@ describe('/fr/pres-de-chez-moi/<slug>/ : pas de niveau vers le hub redirigé', (
 })
 
 describe('fiche artisan /fr/artisan/<id>/', () => {
-  const lecture: { reponse: null | { ok: boolean; lignes: unknown[] } | 'erreur-reseau' } = { reponse: null }
+  const lecture: { reponse: null | { ok: boolean; lignes: unknown[] } | 'erreur-reseau' | 'delai-depasse' } = { reponse: null }
 
   const ARTISAN = {
     company_name: 'Plomberie Durand',
@@ -97,6 +99,8 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
     vi.stubGlobal('fetch', vi.fn(async () => {
       if (lecture.reponse === 'erreur-reseau') throw new TypeError('fetch failed')
+      // Ce que lève fetch quand le signal AbortSignal.timeout de la lecture (3 s) expire.
+      if (lecture.reponse === 'delai-depasse') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
       if (!lecture.reponse) throw new Error('réponse Supabase non définie par le test')
       const { ok, lignes } = lecture.reponse
       return { ok, status: ok ? 200 : 503, json: async () => lignes }
@@ -122,7 +126,7 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     lecture.reponse = { ok: true, lignes: [] }
     const metadata = await generateMetadata({ params: params('xyz-inexistant-999') })
     expect(metadata.robots).toEqual({ index: false, follow: false })
-    expect(metadata.title).toBe('Artisan non trouvé - Vitfix')
+    expect(metadata.title).toBe('Artisan non trouvé')
   })
 
   it('Supabase en erreur : on ne conclut pas à un profil inexistant (pas de noindex), erreur journalisée', async () => {
@@ -130,14 +134,14 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     lecture.reponse = { ok: false, lignes: [] }
     const enErreur = await generateMetadata({ params: params('plomberie-durand') })
     expect(enErreur.robots).toBeUndefined()
-    expect(enErreur.title).toBe('Artisan non trouvé - Vitfix')
+    expect(enErreur.title).toBe('Artisan non trouvé')
     expect(journal.warn).toHaveBeenCalledWith(expect.stringContaining('[fr/artisan]'), expect.objectContaining({ status: 503 }))
 
     journal.warn.mockClear()
     lecture.reponse = 'erreur-reseau'
     const horsLigne = await generateMetadata({ params: params('plomberie-durand') })
     expect(horsLigne.robots).toBeUndefined()
-    expect(horsLigne.title).toBe('Artisan - Vitfix')
+    expect(horsLigne.title).toBe('Artisan')
     expect(journal.warn).toHaveBeenCalledWith(
       expect.stringContaining('[fr/artisan]'),
       expect.objectContaining({ id: 'plomberie-durand', error: expect.stringContaining('fetch failed') }),
@@ -165,6 +169,20 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     await generateMetadata({ params: params('plomberie-durand') })
     expect(journal.warn).not.toHaveBeenCalled()
     expect(journal.error).not.toHaveBeenCalled()
+  })
+
+  // app/fr/layout.tsx déclare six hreflang vers les accueils (x-default vers /). Next fusionne les métadonnées clé par
+  // clé : une page qui déclare `alternates` remplace la clé entière, sinon elle hérite de celle du layout.
+  it.each([
+    ['délai de lecture dépassé', 'delai-depasse', undefined],
+    ['Supabase en erreur (lecture indisponible)', { ok: false, lignes: [] }, undefined],
+    ['profil inexistant', { ok: true, lignes: [] }, { index: false, follow: false }],
+  ] as Array<[string, typeof lecture.reponse, Metadata['robots']]>)('%s : alternates vides, aucun hreflang hérité du layout FR ni canonical bâtie sur l’identifiant', async (_cas, reponse, robots) => {
+    const { generateMetadata } = await charger()
+    lecture.reponse = reponse
+    const metadata = await generateMetadata({ params: params('plomberie-durand') })
+    expect(metadata.alternates).toEqual({})
+    expect(metadata.robots).toEqual(robots)
   })
 
   it('profil existant : indexable, canonical sur la fiche', async () => {
@@ -196,6 +214,48 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
       'https://vitfix.io/pt/pesquisar/',
       'https://vitfix.io/pt/profissional/canalizacao-silva/',
     ])
+  })
+
+  // /api/save-logo enregistre la photo en data: URL base64 (plusieurs centaines de Ko). Recopiée dans og:image,
+  // twitter:image et le JSON-LD, elle portait la fiche à ~3 Mo : le flux HTML se découpait au milieu de ces
+  // balises, le script d'amorçage RSC n'était plus exécuté et la page ne s'hydratait pas (React #412).
+  const PHOTO_BASE64 = `data:image/png;base64,${'A'.repeat(4096)}`
+
+  it('photo en data: URL : absente des métadonnées, image Open Graph par défaut', async () => {
+    const { generateMetadata } = await charger()
+    lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: PHOTO_BASE64 }] }
+    const metadata = await generateMetadata({ params: params('plomberie-durand') })
+    expect(JSON.stringify(metadata)).not.toContain('data:')
+    expect(metadata.openGraph?.images).toEqual([{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }])
+  })
+
+  it('photo en data: URL : absente du JSON-LD', async () => {
+    const { default: ArtisanLayout } = await charger()
+    lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: PHOTO_BASE64 }] }
+    const jsonLd = extraireJsonLd(await ArtisanLayout({ children: null, params: params('plomberie-durand') }))
+    expect(jsonLd).toHaveLength(1)
+    expect(JSON.stringify(jsonLd)).not.toContain('data:')
+  })
+
+  it('photo hébergée en https : reprise dans Open Graph et le JSON-LD', async () => {
+    const { default: ArtisanLayout, generateMetadata } = await charger()
+    const photo = 'https://exemple.supabase.co/storage/v1/object/public/photos/durand.jpg'
+    lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: photo }] }
+    const metadata = await generateMetadata({ params: params('plomberie-durand') })
+    expect(metadata.openGraph?.images).toEqual([{ url: photo, width: 400, height: 400 }])
+    const [jsonLd] = extraireJsonLd(await ArtisanLayout({ children: null, params: params('plomberie-durand') })) as { '@graph': { image?: string }[] }[]
+    expect(jsonLd['@graph'][0].image).toBe(photo)
+  })
+
+  it('photo en http (non sécurisé) ou en blob: : image Open Graph par défaut, absente du JSON-LD', async () => {
+    const { default: ArtisanLayout, generateMetadata } = await charger()
+    for (const photo of ['http://exemple.supabase.co/storage/v1/object/public/photos/durand.jpg', 'blob:https://vitfix.io/abc']) {
+      lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: photo }] }
+      const metadata = await generateMetadata({ params: params('plomberie-durand') })
+      expect(metadata.openGraph?.images).toEqual([{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }])
+      const [jsonLd] = extraireJsonLd(await ArtisanLayout({ children: null, params: params('plomberie-durand') })) as { '@graph': { image?: string }[] }[]
+      expect(jsonLd['@graph'][0].image).toBeUndefined()
+    }
   })
 
   it('profil inexistant : pas de JSON-LD', async () => {

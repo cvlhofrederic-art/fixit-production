@@ -7,6 +7,7 @@ import { FixyDemande } from '@/components/administrateur-judiciaire/modules/agen
 import { FixyOrdonnance } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyOrdonnance'
 import { FixyVeille } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyVeille'
 import { useFixy } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useFixy'
+import { useVeilleSelonCopro } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useVeilleSelonCopro'
 import { OngletsAgent, type OngletAgent } from '@/components/administrateur-judiciaire/modules/agents-ia/OngletsAgent'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
@@ -93,10 +94,12 @@ export function FixyModule() {
 
 /**
  * Tableau de Fixy (agents IA · pilotage, données réelles) : veille calculée depuis la base et le moteur d'échéances,
- * demande libre, analyse d'un courriel reçu, création d'un mandat depuis une ordonnance, notes au gestionnaire.
+ * demande libre, analyse d'un courriel reçu, création d'un mandat depuis une ordonnance, notes au gestionnaire. La
+ * veille affichée est celle de la copropriété choisie en haut de page (tout le portefeuille sans copropriété choisie).
  */
 function FixyTableau() {
   const fixy = useFixy()
+  const { veille, nbUrgents, messageVide } = useVeilleSelonCopro(fixy)
   const [faites, setFaites] = useState<string[]>([])
   const [enCours, setEnCours] = useState<string | null>(null)
 
@@ -130,18 +133,24 @@ function FixyTableau() {
         </Alert>
       )}
       <Panel
-        title={`Veille · ${fixy.veille.length} rappel${fixy.veille.length > 1 ? 's' : ''}`}
+        title={`Veille · ${veille.length} rappel${veille.length > 1 ? 's' : ''}`}
         sub="Courriers oubliés, personnes à relancer, échéances qui tombent, pièces attendues · calculés depuis la base et le moteur"
         icon="alert"
         right={
-          <Pill kind={fixy.veille.some((rappel) => rappel.gravite === 'rust') ? 'rust' : 'sage'} noDot>
-            {fixy.veille.filter((rappel) => rappel.gravite === 'rust').length}
+          <Pill kind={nbUrgents > 0 ? 'rust' : 'sage'} noDot>
+            {nbUrgents}
             {' urgent'}
-            {fixy.veille.filter((rappel) => rappel.gravite === 'rust').length > 1 ? 's' : ''}
+            {nbUrgents > 1 ? 's' : ''}
           </Pill>
         }
       >
-        <FixyVeille veille={fixy.veille} faites={faites} onAction={executerAction} enCours={enCours} />
+        <FixyVeille
+          veille={veille}
+          faites={faites}
+          onAction={executerAction}
+          enCours={enCours}
+          messageVide={messageVide}
+        />
       </Panel>
       <Panel
         title="Demande"

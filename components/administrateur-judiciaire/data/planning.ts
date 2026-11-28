@@ -44,6 +44,11 @@ export interface EvenementPlanning {
   start: string
   end: string
   label: string
+  /**
+   * Code de la copropriété concernée (sélecteur du haut de page) ; absent pour une tâche du cabinet, affichée
+   * quelle que soit la copropriété choisie.
+   */
+  code?: string
   kind: CouleurEvenement
   owner: string
 }
@@ -56,6 +61,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '09:00',
     end: '10:30',
     label: 'Convocation AG — Le Clos des Vignes',
+    code: 'CV',
     kind: 'gold',
     owner: 'CN',
   },
@@ -65,6 +71,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '14:00',
     end: '16:00',
     label: 'Visite technique — Les Tilleuls (toiture)',
+    code: 'TL',
     kind: 'sage',
     owner: 'ML',
   },
@@ -74,6 +81,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '10:00',
     end: '11:00',
     label: 'Conseil syndical — Le Méridien',
+    code: 'LM',
     kind: 'gold',
     owner: 'AD',
   },
@@ -83,6 +91,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '15:00',
     end: '16:00',
     label: 'Mise en demeure — SCI Belvédère',
+    code: 'TL',
     kind: 'amber',
     owner: 'JM',
   },
@@ -92,6 +101,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '09:00',
     end: '11:00',
     label: 'Inspection ascenseur — Le Méridien',
+    code: 'LM',
     kind: 'amber',
     owner: 'ML',
   },
@@ -101,6 +111,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '15:00',
     end: '16:30',
     label: 'Réunion copropriétaires — Villa Montaigne',
+    code: 'VM',
     kind: 'gold',
     owner: 'CN',
   },
@@ -110,6 +121,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '08:30',
     end: '09:30',
     label: 'Notification ordonnance — Villa Montaigne',
+    code: 'VM',
     kind: 'sage',
     owner: 'SV',
   },
@@ -128,6 +140,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '16:00',
     end: '17:00',
     label: 'Dépôt requête en prorogation — Les Tilleuls',
+    code: 'TL',
     kind: 'rust',
     owner: 'CN',
   },
@@ -137,6 +150,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '10:00',
     end: '12:00',
     label: 'AG élective — Le Clos des Vignes',
+    code: 'CV',
     kind: 'gold',
     owner: 'CD',
   },
@@ -146,6 +160,7 @@ export const DEMO_EVENEMENTS_PLANNING: EvenementPlanning[] = [
     start: '15:00',
     end: '16:00',
     label: 'État de frais & taxation — Le Méridien',
+    code: 'LM',
     kind: 'amber',
     owner: 'JM',
   },

@@ -3,7 +3,8 @@
 import { readFile, writeFile, stat, mkdir } from 'fs/promises'
 import path from 'path'
 import { logger } from '@/lib/logger'
-import { SCANNER_CONFIG, DEPARTMENTS } from './config'
+import { resolveInside } from '@/lib/security/safe-fs-path'
+import { SCANNER_CONFIG, DEPARTMENTS, assertKnownDepartment } from './config'
 import type { Commune } from './types'
 
 const GEO_API_BASE = 'https://geo.api.gouv.fr'
@@ -26,8 +27,10 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
+// Le code de département entre dans le nom du fichier : liste fermée (DEPARTMENTS) puis confinement
+// du chemin dans data/ (lot 7 du brief Aikido du 28/10/2026, issue 9).
 function cachePath(department: string): string {
-  return path.join(CACHE_DIR, `communes-${department}.json`)
+  return resolveInside(CACHE_DIR, `communes-${assertKnownDepartment(department)}.json`)
 }
 
 async function isCacheFresh(filePath: string): Promise<boolean> {
@@ -49,6 +52,9 @@ interface GeoApiCommune {
 }
 
 export async function fetchCommunes(department: string): Promise<Commune[]> {
+  // Liste fermée avant d'interpoler le code dans l'URL (même garde que cachePath, même entrée « department » :
+  // un appelant direct ne doit pas pouvoir y glisser « 13/../../x »). Lot 7 du brief Aikido du 28/10/2026, issue 9.
+  assertKnownDepartment(department)
   const url = `${GEO_API_BASE}/departements/${department}/communes?fields=nom,code,codesPostaux,population&format=json`
 
   logger.info(`[communes] Fetching communes for department ${department}`)

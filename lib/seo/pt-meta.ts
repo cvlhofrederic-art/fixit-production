@@ -81,6 +81,27 @@ export function nomeDistrito(distrito: string): string {
   return distrito === 'Porto' ? 'do Porto' : `de ${distrito}`
 }
 
+/** « Porto », « Porto e Braga », « Porto, Braga e Aveiro ». */
+export function enumerar(nomes: readonly string[]): string {
+  return nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}` : (nomes[0] ?? '')
+}
+
+/**
+ * Zone d'une page de district, dite en clair : « distrito do Porto », ou « distritos do Porto, Braga e Aveiro » (zone de
+ * l'équipe confirmée le 28/10/2026). Les distritos seulement, jamais la liste de leurs concelhos (keyword stuffing).
+ */
+export function zonaDistritos(distritos: readonly string[]): string {
+  if (distritos.length <= 1) return `distrito ${nomeDistrito(distritos[0] ?? '')}`
+  const [primeiro, ...resto] = distritos
+  return `distritos ${enumerar([nomeDistrito(primeiro), ...resto])}`
+}
+
+/** « no distrito do Porto », « nos distritos do Porto, Braga e Aveiro ». */
+export const nosDistritos = (distritos: readonly string[]) => `${distritos.length > 1 ? 'nos' : 'no'} ${zonaDistritos(distritos)}`
+
+/** « do distrito do Porto », « dos distritos do Porto, Braga e Aveiro ». */
+export const dosDistritos = (distritos: readonly string[]) => `${distritos.length > 1 ? 'dos' : 'do'} ${zonaDistritos(distritos)}`
+
 /**
  * Titre « <nome><complemento> <cidade> » (complemento : « em », « urgente em », « perto de mim em ») :
  * le nom de la ville n'est jamais coupé. Si l'ensemble dépasse 65 caractères marque comprise, le

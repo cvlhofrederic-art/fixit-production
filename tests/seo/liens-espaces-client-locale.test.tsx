@@ -51,7 +51,7 @@ const reservationTerminee = {
 }
 
 // La locale arrive par la prop (textes) et par le contexte (préfixe ajouté
-// par LocaleLink) : dans app/client/dashboard, les deux viennent de useLocale().
+// par LocaleLink) : dans app/(commun)/client/dashboard, les deux viennent de useLocale().
 function rendreReservations(locale: 'fr' | 'pt', activeTab: 'upcoming' | 'past' = 'past') {
   const rien = () => undefined
   return render(

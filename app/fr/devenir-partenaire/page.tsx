@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { titreAvecMarque } from '@/lib/seo/titre-avec-marque'
 
 export const metadata: Metadata = {
-  title: 'Devenir Artisan Partenaire Vitfix : Marseille & PACA | Vitfix',
+  title: titreAvecMarque('Devenir Artisan Partenaire Vitfix : Marseille & PACA'),
   description: 'Rejoignez Vitfix et recevez plus de clients particuliers à Marseille et en PACA. Sans commission par chantier. Créez votre profil gratuitement et développez votre activité.',
   openGraph: {
     title: 'Devenir Artisan Partenaire Vitfix : Plus de clients en PACA',

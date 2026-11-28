@@ -21,8 +21,17 @@ export interface PlanComptable {
   source: SourceComptable
   /** @observe case « Hors service » */
   horsService: boolean
-  /** @aconfirmer référentiel « Type de plan » non déroulé */
+  /**
+   * @aconfirmer référentiel « Type de plan » non déroulé. @observe c'est le type, et non le code, qui décide de l'usage :
+   * un même code peut porter deux entrées de types différents (47150, tranche 43 § 21). Clé : plan-comptable-doubles.ts.
+   */
   type?: string
+  /**
+   * @observe colonne « Compte » de la liste du plan (tranche 21 § 4.2) : 5 caractères alphanumériques, renseignée sur
+   * 24 lignes ; deux lignes de même code et de sous-comptes différents sont deux entrées distinctes.
+   * @aconfirmer son lien avec la règle « Fixe » du segment auxiliaire et avec `regleSousCompte` (non observé).
+   */
+  sousCompte?: string
   /** @observe NATURE_PLAN_COMPTABLE, 69 valeurs (tranche 24) ; distincte de `type` (Règle 5) */
   nature: NaturePlanComptable
   /** @observe objet métier rattaché */
@@ -39,6 +48,11 @@ export interface PlanComptable {
   ajouterDesZeros?: number
   /** @observe « N° Sous compte » */
   regleSousCompte?: RegleNumeroCompte
+  /**
+   * @observe « Pointe de » : Inclu (tranche 24 § 3) ou Exclu (tranche 43 § 21 : distingue les deux 47150).
+   * @aconfirmer liste fermée : la tranche 13 a lu « PB » dans ce champ, sens non établi.
+   */
+  pointe?: 'inclu' | 'exclu'
   /** @observe « Identique plan » par défaut */
   libelleCompteIdentiquePlan: boolean
   /** @observe */

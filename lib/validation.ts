@@ -1,6 +1,16 @@
 // ── Zod validation schemas for API routes ────────────────────────────────────
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
+import { TRACKING_TOKEN_PATTERN } from './security/tracking-token'
+import { FILTRE_SANS_BUREAU_QR, NOM_BUREAU_MAX_QR, contientControleQr } from './aj-signalement/bureaux'
+import {
+  FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
+} from './aj-signalement/chemin-cabinet'
+import { batimentDeLaListeQr } from './aj-signalement/batiments'
+import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
+import { LOGO_BASE64_MAX_QR, LOGO_OCTETS_MIN_QR } from './aj-signalement/logo'
+import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './aj-signalement/types'
+import { motDePasseConforme } from './auth/lien-email'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -376,6 +386,470 @@ export const coproSignalementSchema = z.object({
   zoneSignalee: z.string().max(200).optional(),
   // Fiche affichée d'un compte rattaché (plusieurs lots) ; ignoré sans jeton.
   lot: z.string().uuid().optional(),
+})
+
+// ── AJ Signalement (signalements déposés par QR code) ───────────────────────
+// Dépôt public : la copropriété est désignée par le jeton du QR code ; tous les champs du déclarant sont
+// obligatoires, bâtiment et qualité (propriétaire / locataire) compris depuis le 06/11/2026 ; pour les parties
+// communes, la zone l'est aussi. Mêmes bornes et mêmes règles que lib/aj-signalement/formulaire.ts.
+export const jetonQrSchema = z.string().regex(/^[0-9a-f]{32}$/, 'Jeton de QR code invalide')
+
+export const signalementQrSchema = z.object({
+  jeton: jetonQrSchema,
+  prenom: z.string().trim().min(1, 'Prénom requis').max(100),
+  nom: z.string().trim().min(1, 'Nom requis').max(100),
+  telephone: z.string().trim().min(6, 'Téléphone requis').max(30)
+    .regex(/^\+?[0-9 .()\-]+$/, 'Téléphone invalide')
+    .refine((v) => (v.match(/\d/g) ?? []).length >= 6, 'Téléphone invalide'),
+  email: strictEmail,
+  batiment: z.string().trim().min(1, 'Bâtiment requis').max(50),
+  etage: z.string().trim().min(1, 'Étage requis').max(20),
+  numLot: z.string().trim().min(1, 'Numéro de lot requis').max(20),
+  qualiteDeclarant: z.enum(['proprietaire', 'locataire'], 'Qualité requise (propriétaire ou locataire)'),
+  estPartieCommune: z.boolean(),
+  zoneSignalee: z.string().trim().max(200).optional().default(''),
+  typeIntervention: z.string().trim().min(1, 'Type de problème requis').max(100),
+  description: z.string().trim().min(10, 'Description requise (minimum 10 caractères)').max(5000),
+  priorite: z.enum(['urgente', 'normale', 'planifiee']),
+  langue: z.enum(['fr', 'pt']).optional().default('fr'),
+  // Adresse proposée d'après la position (texte seul, jamais les coordonnées) ; ignorée si la copropriété a une adresse.
+  adresseProposee: z.string().trim().max(300).optional().default(''),
+  // Numéro du signalement désigné comme « le même problème » ; le serveur le cherche parmi les semblables de la copropriété.
+  signalementLieNumero: z.union([z.literal(''), z.string().regex(/^[0-9A-F]{8}$/, 'Numéro de signalement invalide')]).optional().default(''),
+}).refine((d) => !d.estPartieCommune || d.zoneSignalee !== '', { path: ['zoneSignalee'], message: 'Zone requise pour les parties communes' })
+
+// Bâtiment d'un dépôt public quand le cabinet a saisi les bâtiments de la copropriété (demande de Hugo du 17/11/2026) :
+// appliqué par la route APRÈS signalementQrSchema, avec la liste lue en base (batimentsProposesQr) quand elle n'est pas
+// vide. Accepté sans tenir compte de la casse ni des espaces en trop, rendu sous le nom saisi par le cabinet ; absent de
+// la liste : refusé (message sans la liste). Copropriété sans bâtiment : ce contrôle n'est pas appliqué.
+export const batimentListeQrSchema = (batiments: readonly string[]) => z.string().transform((saisie, ctx) => {
+  const nom = batimentDeLaListeQr(saisie, batiments)
+  if (nom === null) {
+    ctx.addIssue({ code: 'custom', message: 'Bâtiment absent de la liste de la copropriété' })
+    return z.NEVER
+  }
+  return nom
+})
+
+// Adresse proposée d'après la position du navigateur (copropriété sans adresse). Zod 4 refuse NaN et l'infini.
+export const adresseQrSchema = z.object({
+  jeton: jetonQrSchema,
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+})
+
+// Signalements déjà faits au même endroit (paramètres de GET /api/aj-signalement/similaires).
+export const semblablesQrQuerySchema = z.object({
+  jeton: jetonQrSchema,
+  batiment: z.string().trim().min(1, 'Bâtiment requis').max(50),
+  zone: z.string().trim().min(1, 'Zone requise').max(200),
+  langue: z.enum(['fr', 'pt']).optional().default('fr'),
+})
+
+// ── AJ Signalement : administration (super admin ; gestionnaires en PR 2) ─────
+// Demandes de Hugo du 10/11/2026 (cabinets clients, gestionnaires, chemin vitfix.io/<identifiant>/…). Tous les corps
+// écrits sont STRICTS (z.strictObject : une clé inconnue est refusée, l'auteur vient toujours de la session). Les corps
+// actuels des écrans restent acceptés (creerCoproprieteQr, modifierCoproprieteQr, changerStatutSignalementQr) : on
+// n'ajoute que des clés facultatives. Les schémas publics ci-dessus (dépôt, adresse, semblables) ne changent pas.
+const STATUTS_SIGNALEMENT_QR_ZOD = ['en_attente', 'acceptee', 'en_cours', 'terminee', 'annulee'] as const
+const nomCoproQr = z.string().trim().min(1, 'Nom requis').max(200)
+const codePostalQr = z.string().trim().regex(/^(\d{5}|\d{4}-\d{3})?$/, 'Code postal : 5 chiffres')
+const immatriculationQr = z.string().transform((v) => v.toUpperCase().replace(/[\s.-]/g, ''))
+  .pipe(z.string().regex(/^[A-Z0-9]{0,20}$/, 'N° d’immatriculation invalide'))
+const referenceCabinetQr = z.string().trim().max(50)
+const batimentsQr = z.array(z.string().trim().min(1).max(50)).max(50)
+const emailsQr = z.array(strictEmail).max(10)
+
+const ficheCoproQr = {
+  nom: nomCoproQr,
+  adresse: z.string().trim().max(300).optional().default(''),
+  codePostal: codePostalQr.optional().default(''),
+  ville: z.string().trim().max(100).optional().default(''),
+  immatriculation: immatriculationQr.optional().default(''),
+  referenceCabinet: referenceCabinetQr.optional().default(''),
+  batiments: batimentsQr.optional().default([]),
+  emailsDestinataires: emailsQr.optional().default([]),
+}
+
+/** Identifiant du chemin public d'un cabinet (vitfix.io/<identifiant>/…) : rogné, minuscules, format, noms réservés. */
+export const identifiantCabinetQrSchema = z.string().trim().toLowerCase().superRefine((valeur, ctx) => {
+  const v = validerIdentifiantCabinetQr(valeur)
+  if (!v.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      message: v.raison === 'reserve'
+        ? 'Identifiant réservé'
+        : 'Identifiant : 3 à 40 caractères, minuscules, chiffres et tirets simples, commençant par une lettre',
+    })
+  }
+})
+
+/**
+ * Identifiant lu dans le chemin d'une page publique (lien de confirmation) : format seul. Un nom réservé APRÈS la
+ * création d'un cabinet ne doit pas rendre ses liens déjà envoyés invalides ; le cabinet est relu en base.
+ */
+const identifiantCheminQrSchema = z.string().trim().toLowerCase().refine(
+  (v) => v.length >= LONGUEUR_MIN_IDENTIFIANT_CABINET_QR && v.length <= LONGUEUR_MAX_IDENTIFIANT_CABINET_QR && FORMAT_IDENTIFIANT_CABINET_QR.test(v),
+  'Identifiant invalide',
+)
+
+export const langueCabinetQrSchema = z.enum(['fr', 'pt'])
+
+/** Domaine e-mail d'un cabinet : rogné, minuscules, format du CHECK SQL, jamais une messagerie publique. */
+export const domaineQrSchema = z.string().trim().toLowerCase().superRefine((valeur, ctx) => {
+  const v = validerDomaineCabinetQr(valeur)
+  if (!v.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      message: v.raison === 'public' ? 'Messagerie publique : ce n’est pas le domaine d’un cabinet' : 'Domaine invalide (exemple : cabinet.fr)',
+    })
+  }
+})
+
+// P1-R3. Compatible avec l'appel actuel { nom, adresse, emailsDestinataires } (sans operationId : la route en tire un,
+// sans idempotence, tant que l'écran ne le fournit pas). cabinetId absent : copropriété sans cabinet. bureauId
+// (bureaux, 19/11/2026) : facultatif, un bureau du cabinet, posé juste après la création.
+export const coproprieteQrSchema = z.strictObject({
+  operationId: z.uuid().optional(),
+  ...ficheCoproQr,
+  cabinetId: z.uuid().optional(),
+  bureauId: z.uuid().optional(),
+  gestionnaireIds: z.array(z.uuid()).max(100).optional().default([]),
+  attribueeATous: z.boolean().optional().default(false),
+  forcerDoublon: z.boolean().optional().default(false),            // « Ce n'est pas un doublon » (super admin)
+  confirmerDoublonProbable: z.boolean().optional().default(false),
+  confirmerHorsDomaine: z.boolean().optional().default(false),     // destinataire saisi hors des domaines (RG-02)
+})
+
+// P1-R4 : tous facultatifs, au moins un autre qu'un drapeau de confirmation. cabinetId refusé (rattachement par
+// POST /cabinets/[id]/rattachement seulement, définitif).
+const DRAPEAUX_CONFIRMATION_QR: readonly string[] = ['forcerDoublon', 'confirmerDoublonProbable', 'confirmerHorsDomaine']
+export const modificationCoproprieteQrSchema = z.strictObject({
+  nom: nomCoproQr.optional(),
+  adresse: z.string().trim().max(300).optional(),
+  codePostal: codePostalQr.optional(),
+  ville: z.string().trim().max(100).optional(),
+  immatriculation: immatriculationQr.optional(),
+  referenceCabinet: referenceCabinetQr.optional(),
+  batiments: batimentsQr.optional(),
+  emailsDestinataires: emailsQr.optional(),
+  actif: z.boolean().optional(),
+  // Tire un nouveau jeton : l'ancien QR code ne répond plus.
+  regenererJeton: z.literal(true).optional(),
+  attribueeATous: z.boolean().optional(),
+  // Décision H7 de Hugo (PR 3) : fin de mission prévue (AAAA-MM-JJ, heure de Paris) ; à partir de ce jour, plus aucune
+  // diffusion ; null l'efface. Super admin seulement (comme l'activation, elle coupe la diffusion).
+  diffusionFinGestionLe: z.iso.date().nullable().optional(),
+  // Bureaux (19/11/2026) : bureau de la copropriété, dans son cabinet ; null le retire (bureau facultatif).
+  bureauId: z.uuid().nullable().optional(),
+  forcerDoublon: z.boolean().optional(),
+  confirmerDoublonProbable: z.boolean().optional(),
+  confirmerHorsDomaine: z.boolean().optional(),
+}).refine((m) => Object.keys(m).some((k) => !DRAPEAUX_CONFIRMATION_QR.includes(k)), 'Rien à modifier')
+
+// PR 2 (SPEC § 2.5, RG-20, RG-21) : corps d'un GESTIONNAIRE connecté. Ni cabinet, ni gestionnaires, ni « à tous », ni
+// forçage, ni confirmation hors domaine, ni activation, ni jeton : une clé inconnue → 400 (le cabinet, la fiche et
+// l'auteur viennent de la session, jamais du corps). Nom, adresse, code postal et ville obligatoires (comparés pour les
+// doublons) et jamais vidés ; operationId obligatoire à la création (double clic sans effet).
+const champObligatoireQr = (max: number, message: string) => z.string().trim().min(1, message).max(max)
+const adresseObligatoireQr = champObligatoireQr(300, 'Adresse requise')
+const codePostalObligatoireQr = codePostalQr.refine((v) => v !== '', 'Code postal requis')
+const villeObligatoireQr = champObligatoireQr(100, 'Ville requise')
+
+export const coproprieteGestionnaireQrSchema = z.strictObject({
+  operationId: z.uuid(),
+  nom: nomCoproQr,
+  adresse: adresseObligatoireQr,
+  codePostal: codePostalObligatoireQr,
+  ville: villeObligatoireQr,
+  immatriculation: immatriculationQr.optional().default(''),
+  referenceCabinet: referenceCabinetQr.optional().default(''),
+  batiments: batimentsQr.optional().default([]),
+  emailsDestinataires: emailsQr.optional().default([]),
+  confirmerDoublonProbable: z.boolean().optional().default(false),
+})
+
+export const modificationCoproprieteGestionnaireQrSchema = z.strictObject({
+  nom: nomCoproQr.optional(),
+  adresse: adresseObligatoireQr.optional(),
+  codePostal: codePostalObligatoireQr.optional(),
+  ville: villeObligatoireQr.optional(),
+  immatriculation: immatriculationQr.optional(),
+  referenceCabinet: referenceCabinetQr.optional(),
+  batiments: batimentsQr.optional(),
+  emailsDestinataires: emailsQr.optional(),
+  confirmerDoublonProbable: z.boolean().optional(),
+}).refine((m) => Object.keys(m).some((k) => k !== 'confirmerDoublonProbable'), 'Rien à modifier')
+
+export const suppressionCoproprieteQrSchema = z.strictObject({ nomConfirmation: z.string().trim().min(1).max(200) })
+
+export const attributionsCoproprieteQrSchema = z.strictObject({
+  gestionnaireIds: z.array(z.uuid()).max(100),
+  attribueeATous: z.boolean().optional(),
+})
+
+// P1-R7 : { statut } seul (appel actuel) ; statutAttendu facultatif (contrôle de concurrence, 409 conflit_statut).
+export const statutSignalementQrSchema = z.strictObject({
+  statut: z.enum(STATUTS_SIGNALEMENT_QR_ZOD),
+  statutAttendu: z.enum(STATUTS_SIGNALEMENT_QR_ZOD).optional(),
+})
+
+// P1-R9 : ni id ni jeton — l'identifiant de la fiche est tiré par la route et signé dans le lien.
+export const gestionnaireQrSchema = z.strictObject({
+  nom: z.string().trim().min(1, 'Nom requis').max(120),
+  email: strictEmail.transform((e) => e.trim().toLowerCase()),
+  cabinetId: z.uuid(),
+  coproprieteIds: z.array(z.uuid()).max(500).optional().default([]),
+  forcerDomaine: z.boolean().optional().default(false),   // adresse hors des domaines du cabinet (RG-02), journalisé
+  bureauId: z.uuid().optional(),   // bureaux (19/11/2026) : exigé par la route dès que le cabinet a un bureau ouvert
+})
+
+// P1-R11 : une seule action (la désactivation passe par le départ). Bureaux (19/11/2026) : { bureauId } change le bureau
+// de la fiche ; jamais null (le bureau se change, il ne se retire pas : réponse proposée, à valider).
+export const modificationGestionnaireQrSchema = z.union([
+  z.strictObject({ nom: z.string().trim().min(1).max(120) }),
+  z.strictObject({ actif: z.literal(true) }),
+  z.strictObject({ pseudonymiser: z.literal(true) }),
+  z.strictObject({ bureauId: z.uuid() }),
+])
+
+// P1-R13, P1-R14 : ensemble complet des attributions d'une fiche, et une succession par attribution. Même borne que la
+// base (au plus ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR attributions par fiche) : le départ passe toujours.
+export const attributionsGestionnaireQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).max(ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR) })
+
+export const departGestionnaireQrSchema = z.strictObject({
+  successions: z.array(z.strictObject({ coproprieteId: z.uuid(), versGestionnaireId: z.uuid().nullable() })).max(ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR),
+})
+
+// P1-R16, R17, R17b (publiques) : jeton signé du lien + identifiant du chemin du cabinet (vérifié contre la fiche).
+// Aussi P2-R2 et P2-R3b (lien d'accès d'un gestionnaire, PR 2).
+export const jetonLienQrSchema = z.strictObject({
+  token: z.string().regex(/^[a-f0-9]{48}\.[a-f0-9]{64}$/),
+  cabinet: identifiantCheminQrSchema,
+})
+
+// P2-R3 (publique) : acceptation de l'accès d'un gestionnaire. Mot de passe : la règle de « mot de passe oublié »
+// (motDePasseConforme : 8 caractères au moins, une majuscule, une minuscule, un chiffre, 72 octets au plus), jamais
+// rogné ni transformé ; case « politique de confidentialité » obligatoire. Ni rôle, ni repère, ni cabinet d'arrivée :
+// le serveur les fixe (clé inconnue → 400).
+export const invitationGestionnaireQrSchema = z.strictObject({
+  token: z.string().regex(/^[a-f0-9]{48}\.[a-f0-9]{64}$/),
+  cabinet: identifiantCheminQrSchema,
+  password: z.string().max(200).refine(motDePasseConforme, '8 caractères au moins, dont une majuscule, une minuscule et un chiffre'),
+  politiqueLue: z.literal(true),
+})
+
+// P2-R1b : envoi groupé des accès (super admin), 1 à 50 fiches, une à une.
+export const accesGroupeQrSchema = z.strictObject({ gestionnaireIds: z.array(z.uuid()).min(1).max(50) })
+
+// P2-R1 : envoi de l'accès d'une fiche, sans corps (ou un objet vide).
+export const corpsVideQrSchema = z.strictObject({})
+
+// P1-R21, R22, R23 : cabinets clients (saisis par le super admin, jamais dans le code).
+export const cabinetQrSchema = z.strictObject({
+  nom: z.string().trim().min(1, 'Nom requis').max(200),
+  identifiant: identifiantCabinetQrSchema,
+  langue: langueCabinetQrSchema.optional().default('fr'),
+  domaines: z.array(domaineQrSchema).max(20).optional().default([]),
+})
+
+export const modificationCabinetQrSchema = z.strictObject({
+  nom: z.string().trim().min(1).max(200).optional(),
+  identifiant: identifiantCabinetQrSchema.optional(),
+  langue: langueCabinetQrSchema.optional(),
+  domaines: z.array(domaineQrSchema).max(20).optional(),
+}).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
+
+// Bureaux d'un cabinet (19/11/2026), super admin seul : nom rogné, 1 à 80 caractères, sans caractère de contrôle (même
+// règle que la base). Aucune adresse de contact en V1 (clé inconnue → 400). Modification : une seule action par appel.
+const nomBureauQr = z.string().trim().min(1, 'Nom requis').max(NOM_BUREAU_MAX_QR)
+  .refine((v) => !contientControleQr(v), 'Caractère non admis')
+export const bureauQrSchema = z.strictObject({ nom: nomBureauQr })
+export const modificationBureauQrSchema = z.union([
+  z.strictObject({ nom: nomBureauQr }),
+  z.strictObject({ fermer: z.boolean() }),
+])
+
+// Logo d'un cabinet (demande de Hugo du 13/11/2026), super admin : le PNG produit par le navigateur (canvas), en base64
+// strict ; la route revérifie l'image elle-même (signature, morceaux, en-tête, poids : lib/aj-signalement/logo.ts).
+export const logoCabinetQrSchema = z.strictObject({
+  png: z.string()
+    .min(Math.ceil(LOGO_OCTETS_MIN_QR / 3) * 4, 'PNG trop court')
+    .max(LOGO_BASE64_MAX_QR, 'PNG trop lourd (200 Kio au plus)')
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/, 'PNG en base64 attendu'),
+})
+
+// P1-R23 : rattachement définitif ; doublon avec le cabinet (RG-08) refusé sauf confirmation (probable) ou « Ce n'est
+// pas un doublon » (nom + code postal, super admin, journalisé doublon.force).
+export const rattachementQrSchema = z.strictObject({
+  coproprieteIds: z.array(z.uuid()).min(1).max(500),
+  forcerDoublon: z.boolean().optional().default(false),
+  confirmerDoublonProbable: z.boolean().optional().default(false),
+})
+
+// P1-R19 (SPEC § 1.9.6) : import des copropriétés d'UN cabinet client (obligatoire : isolation entre cabinets). Les lignes
+// sont normalisées dans le navigateur (lib/aj-signalement/import/ligne.ts, mêmes bornes) ; le fichier n'est jamais envoyé.
+// Gestionnaires : adresses (résolues au serveur sur les fiches actives du cabinet) ou, à défaut, noms (sans ambiguïté).
+const ligneImportQrSchema = z.strictObject({
+  numeroLigne: z.number().int().min(1).max(100_000),
+  ...ficheCoproQr,
+  gestionnaires: z.array(strictEmail.transform((e) => e.trim().toLowerCase())).max(20).optional().default([]),
+  nomsGestionnaires: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
+  actionSiExiste: z.enum(['ignorer', 'completer']).optional().default('ignorer'),
+  coproprieteExistanteId: z.uuid().optional(),
+  forcerDoublon: z.boolean().optional().default(false),
+  creerSiDoublonProbable: z.boolean().optional().default(true),
+}).refine((l) => l.actionSiExiste !== 'completer' || l.coproprieteExistanteId !== undefined, {
+  path: ['coproprieteExistanteId'], message: 'Copropriété à compléter requise',
+})
+export const importCoproprietesQrSchema = z.strictObject({
+  mode: z.enum(['verifier', 'creer']),
+  operationId: z.uuid(),
+  cabinetId: z.uuid(),
+  lignes: z.array(ligneImportQrSchema).min(1).max(500),
+  confirmerHorsDomaine: z.boolean().optional().default(false),   // destinataires hors des domaines du cabinet (RG-02)
+}).refine((c) => new Set(c.lignes.map((l) => l.numeroLigne)).size === c.lignes.length, { path: ['lignes'], message: 'N° de ligne en double' })
+
+// Paramètres de requête (GET), lus par Object.fromEntries(searchParams) : un paramètre inconnu donne 400.
+// Curseur : PostgREST renvoie les timestamptz en « 2026-11-10T12:00:00.123456+00:00 ». Sans { offset: true }, Zod 4
+// n'accepte que le suffixe « Z » : la deuxième page répondrait 400. Le curseur est passé TEL QUEL à la base.
+const curseurDateQr = z.iso.datetime({ offset: true })
+// bureau (19/11/2026) : filtre du super admin seulement (refusé à un gestionnaire, 403).
+export const tableauQrQuerySchema = z.strictObject({ gestionnaire: z.uuid().optional(), cabinet: z.uuid().optional(), bureau: z.uuid().optional() })
+export const signalementsCoproQrQuerySchema = z.strictObject({
+  statut: z.enum(['ouverts', 'tous', 'clos']).optional().default('ouverts'),
+  priorite: z.enum(['urgente', 'normale', 'planifiee']).optional(),
+  avant: curseurDateQr.optional(),
+  avantId: z.uuid().optional(),
+  limite: z.coerce.number().int().min(1).max(100).default(50),
+})
+export const listeGestionnairesQrQuerySchema = z.strictObject({
+  etat: z.enum(['actifs', 'desactives', 'tous']).optional().default('actifs'),
+  cabinet: z.uuid().optional(),
+  // Bureaux (19/11/2026) : les fiches d'un bureau, ou « aucun » (fiches sans bureau d'un cabinet qui a un bureau ouvert,
+  // hors fiches effacées).
+  bureau: z.union([z.uuid(), z.literal(FILTRE_SANS_BUREAU_QR)]).optional(),
+})
+export const journalQrQuerySchema = z.strictObject({
+  action: z.enum(ACTIONS_JOURNAL_QR).optional(),
+  copropriete: z.uuid().optional(),
+  gestionnaire: z.uuid().optional(),
+  cabinet: z.uuid().optional(),
+  avant: curseurDateQr.optional(),
+  // Identifiant BIGINT de la ligne (départage les lignes du même instant).
+  avantId: z.string().regex(/^\d{1,19}$/).optional(),
+  limite: z.coerce.number().int().min(1).max(100).default(100),
+})
+
+// ── AJ Signalement : diffusion de messages d'exploitation aux déclarants (PR 3, cahier § 4.2) ──
+// Le contenu (objet, texte, libellés saisis) passe ENSUITE par controlerTexteDiffusionQr dans la route (liens, adresses,
+// téléphones non déclarés, termes commerciaux) : ce fichier est aussi lu par des écrans, il n'importe donc ni la liste
+// des domaines de l'IANA ni les modèles (liste ci-dessous, test d'accord avec MODELES_DIFFUSION_QR).
+// Refus par catégorie Unicode, AVANT tout rognage (trim() retirerait sans bruit U+FEFF ou U+2028 en tête ou en fin) :
+// Cc (contrôles C0 et C1), Cf (invisibles, sens d'écriture), Zl et Zp ; le texte garde seulement « \n ».
+const INTERDITS_LIGNE_DIFFUSION_QR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+const INTERDITS_TEXTE_DIFFUSION_QR = /(?!\n)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+/** Longueur en caractères (points de code), comme char_length en base et le contrôle du texte. */
+const caracteresQr = (t: string): number => Array.from(t).length
+
+export const MODELES_DIFFUSION_SCHEMA_QR = [
+  'libre', 'fuite', 'coupure_eau', 'coupure_electricite', 'intervention', 'fin_incident', 'ascenseur_arret', 'annonce',
+] as const
+
+/** Ligne de diffusion (objet, référence d'instruction) : caractères interdits refusés, puis rognée, bornée en caractères. */
+const ligneDiffusionQr = (min: number, max: number) => z.string()
+  .refine((t) => !INTERDITS_LIGNE_DIFFUSION_QR.test(t), 'Caractère non autorisé')
+  .transform((t) => t.normalize('NFC').trim())
+  .pipe(z.string().refine((t) => caracteresQr(t) >= min && caracteresQr(t) <= max, `De ${min} à ${max} caractères`))
+
+/** Clé de bâtiment ou d'étage proposée par D-R1 (le serveur la reconvertit en valeurs brutes). */
+const cleValeurDiffusionQr = z.string().trim().min(1).max(60)
+export const perimetreDiffusionQrSchema = z.discriminatedUnion('portee', [
+  z.strictObject({ portee: z.literal('copropriete') }),
+  z.strictObject({ portee: z.literal('batiment'), batiment: cleValeurDiffusionQr }),
+  z.strictObject({ portee: z.literal('etage'), batiment: cleValeurDiffusionQr, etage: cleValeurDiffusionQr }),
+  z.strictObject({ portee: z.literal('signalement'), signalementId: z.uuid() }),
+])
+/** Nom du bâtiment ou de l'étage écrit dans l'e-mail, seulement quand D-R1 rend libelleASaisir (même contrôle que le texte). */
+const libelleSaisiDiffusionQr = ligneDiffusionQr(1, 50)
+
+// D-R2 : aperçu (aucune écriture). `annonce` : message d'annonce (H1 = C), copropriété entière seulement.
+export const apercuDiffusionQrSchema = z.strictObject({
+  perimetre: perimetreDiffusionQrSchema,
+  annonce: z.literal(true).optional(),
+  libelleBatimentSaisi: libelleSaisiDiffusionQr.optional(),
+  libelleEtageSaisi: libelleSaisiDiffusionQr.optional(),
+}).refine((a) => !a.annonce || a.perimetre.portee === 'copropriete', { path: ['annonce'], message: 'Annonce : toute la copropriété' })
+
+// D-R3 : envoi. Instruction écrite du cabinet exigée du super admin par la route (400 sinon), date non future.
+export const diffusionQrSchema = z.strictObject({
+  operationId: z.uuid(),
+  modele: z.enum(MODELES_DIFFUSION_SCHEMA_QR),
+  objet: ligneDiffusionQr(3, 120),
+  texte: z.string()
+    .transform((t) => t.replace(/\r\n?/g, '\n'))
+    .refine((t) => !INTERDITS_TEXTE_DIFFUSION_QR.test(t), 'Caractère non autorisé')
+    .transform((t) => t.normalize('NFC').trim())
+    .pipe(z.string().refine((t) => caracteresQr(t) >= 10 && caracteresQr(t) <= 2000, 'De 10 à 2000 caractères')),
+  perimetre: perimetreDiffusionQrSchema,
+  libelleBatimentSaisi: libelleSaisiDiffusionQr.optional(),
+  libelleEtageSaisi: libelleSaisiDiffusionQr.optional(),
+  // `libellePerimetre` rendu par l'aperçu et montré dans la confirmation, renvoyé tel quel : la route le compare au
+  // libellé recalculé (différent → 409 perimetre_change ; relecture 2 de la PR 3, cahier § 3.6, § 7.2 point 9).
+  libellePerimetre: z.string().min(1).max(200),
+  perimetreJusquAu: z.iso.datetime({ offset: true }),       // `instant` rendu par l'aperçu, passé tel quel à la base
+  nbDestinatairesAttendu: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),   // aucun plafond (décision de Hugo)
+  instruction: z.strictObject({
+    reference: ligneDiffusionQr(5, 200).refine((t) => !t.includes('@'), 'Référence sans adresse e-mail'),
+    recueLe: z.iso.date(),
+  }).optional(),
+}).refine((d) => d.modele !== 'annonce' || d.perimetre.portee === 'copropriete', { path: ['modele'], message: 'Annonce : toute la copropriété' })
+
+// D-R4 : reprise d'un envoi interrompu ; plus d'une heure après la création, le contenu doit être confirmé à jour.
+export const repriseDiffusionQrSchema = z.strictObject({ confirmeContenuAJour: z.literal(true).optional() })
+
+// D-R5 : historique d'une copropriété (curseur BRUT de PostgREST, comme les autres listes).
+export const diffusionsQrQuerySchema = z.strictObject({ avant: curseurDateQr.optional() })
+
+// D-R7 : opposition enregistrée à la demande écrite de la personne (date de réception, non future : vérifiée par la route).
+export const oppositionSignalementQrSchema = z.strictObject({ demandeRecueLe: z.iso.date() })
+
+// D-R8 : réglages de diffusion d'un cabinet (super admin), seuls dans la requête (jamais mêlés au nom, à l'identifiant…).
+// Contact : même langage que le CHECK signalements_qr_cabinets_diffusion_contact_format ; politique : https, recopiée
+// dans un href (même langage que le CHECK) ; téléphones : normalisés par la route (normaliserTelephoneDeclareQr).
+const FORMAT_CONTACT_DIFFUSION_QR = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const FORMAT_POLITIQUE_DIFFUSION_QR = /^https:\/\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
+export const CHAMPS_REGLAGES_DIFFUSION_QR = [
+  'diffusionContactEmail', 'diffusionPolitiqueUrl', 'politiqueDecritDiffusion', 'contratReference', 'contratSigneLe',
+  'telephonesAutorises', 'diffusionActivee',
+] as const
+export const reglagesDiffusionCabinetQrSchema = z.strictObject({
+  diffusionContactEmail: z.string().trim().toLowerCase().max(254).pipe(strictEmail)
+    .refine((e) => FORMAT_CONTACT_DIFFUSION_QR.test(e), 'Adresse de contact : lettres, chiffres et . _ % + - seulement').optional(),
+  diffusionPolitiqueUrl: z.string().trim().max(500).pipe(z.url({ protocol: /^https$/, hostname: z.regexes.domain }))
+    .refine((u) => u.length >= 12 && FORMAT_POLITIQUE_DIFFUSION_QR.test(u), 'Adresse https sans espace, guillemet ni chevron').optional(),
+  politiqueDecritDiffusion: z.literal(true).optional(),
+  contratReference: ligneDiffusionQr(3, 100).optional(),
+  contratSigneLe: z.iso.date().optional(),
+  telephonesAutorises: z.array(z.string().trim().min(6).max(40)).max(10).optional(),
+  diffusionActivee: z.boolean().optional(),
+}).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
+
+// D-P1 à D-P4 (publiques, PR 3 lot 6) : désinscription des messages de diffusion. Jeton du lien : identifiant du
+// destinataire (32 hex) et signature (64 hex), page ou un clic (lib/aj-signalement/diffusion-lien.ts) ; identifiant du
+// chemin : format seul, comme les liens de confirmation (un nom réservé après coup ne rend pas invalides les liens déjà
+// envoyés ; le cabinet de la diffusion est comparé en base, autre cabinet → « inconnu »).
+export const jetonDesinscriptionQrSchema = z.string().regex(/^[a-f0-9]{32}\.[a-f0-9]{64}$/, 'Lien invalide')
+export const lienDesinscriptionQrSchema = z.strictObject({
+  jeton: jetonDesinscriptionQrSchema,
+  identifiant: identifiantCheminQrSchema,
+})
+// D-P4 : repli d'un lien expiré. L'adresse saisie est passée telle quelle (rognée) à la fonction SQL, seule à la
+// normaliser et à la comparer à l'empreinte (cahier § 2.2) : jamais mise en minuscules ni comparée ici.
+export const adresseDesinscriptionQrSchema = z.strictObject({
+  jeton: jetonDesinscriptionQrSchema,
+  identifiant: identifiantCheminQrSchema,
+  email: z.string().trim().max(254).pipe(strictEmail),
 })
 
 // ── Devis Sign schema ────────────────────────────────────────────────────────
@@ -939,7 +1413,8 @@ export const createCandidatureSchema = z.object({
   timeline: z.string().min(1).max(200),
   description: z.string().min(10, 'Description trop courte (min 10)').max(3000),
   materials_included: z.boolean().default(false),
-  guarantee: z.string().max(500).optional(),
+  // Garantie facultative : l'écran de candidature envoie null quand le champ est laissé vide.
+  guarantee: z.string().max(500).optional().nullable(),
 })
 
 export const updateCandidatureStatusSchema = z.object({
@@ -1238,6 +1713,9 @@ export const proTeamInviteSchema = z.object({
   full_name: z.string().min(1, 'Nom requis').max(200),
   phone: z.string().max(30).optional(),
   memberRole: z.enum(['GERANT', 'CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER']),
+  // Catégorie professionnelle affichée (titre libre) : bornée ici, ramenée à sa forme enregistrée par
+  // normaliserCategorie (lib/equipe/categorie-professionnelle.ts), qui refuse aussi les caractères de contrôle.
+  job_title: z.string().max(200).nullable().optional(),
   assigned_chantiers: z.array(z.string().uuid()).max(50).optional(),
   permissionOverrides: z.array(z.object({
     module_id: z.string().max(50),
@@ -1273,16 +1751,24 @@ export const syndicImportGecondSchema = z.object({
 })
 
 // ── Pro Channel schema ─────────────────────────────────────────────────────
+// Types de message que l'écran « Canal Pro » envoie ou sait afficher
+// (components/dashboard/CanalProSection.tsx, MSG_TYPE_ICONS) : aucun autre n'est accepté.
+export const TYPES_MESSAGE_CANAL_PRO = [
+  'text', 'voice', 'voice_location', 'voice_status', 'voice_alert', 'voice_devis', 'file', 'photo', 'rapport', 'devis',
+] as const
+
 export const proChannelPostSchema = z.object({
   content: z.string().max(5000).optional(),
   contact_id: z.string().uuid().optional(),
-  type: z.string().max(50).optional(),
+  type: z.enum(TYPES_MESSAGE_CANAL_PRO).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
 // ── Tracking Update schema ─────────────────────────────────────────────────
 export const trackingUpdatePostSchema = z.object({
-  token: z.string().min(1).max(200),
+  // Jeton de suivi au format réellement émis (lib/security/tracking-token.ts) : il sert de nom
+  // d'objet Storage, tout autre texte est refusé avant toute construction de chemin.
+  token: z.string().regex(TRACKING_TOKEN_PATTERN, 'Token invalide'),
   lat: z.number().min(-90).max(90).optional().nullable(),
   lng: z.number().min(-180).max(180).optional().nullable(),
   status: z.string().max(50).optional(),
@@ -1690,6 +2176,27 @@ export const devisStatusUpdateSchema = z.object({
   numero: z.string().min(1, 'numero requis').max(100),
   newStatus: z.enum(['accepted', 'rejected', 'expired']),
   reason: z.string().max(500).optional(),
+})
+
+// ── Devis / facture envoyé par e-mail (POST /api/devis/send-email) ──────────
+// Le message part de l'adresse d'envoi de la plateforme vers l'adresse saisie par le professionnel : une seule
+// adresse valide, un type de document connu, des champs de longueur bornée. Les bornes laissent passer tout document
+// ordinaire (numéro et nom du client : celles de la synchronisation des documents, devisSyncSchema). Les champs
+// facultatifs acceptent '' et null (le formulaire les envoie tels quels quand ils sont vides). La pièce jointe est
+// contrôlée par la route (PDF, taille).
+/** Taille maximale du PDF joint à l'e-mail, en octets : 10 Mo, la limite des dépôts de fichiers du site. */
+export const TAILLE_MAX_PDF_EMAIL_OCTETS = 10 * 1024 * 1024
+const texteFacultatifEmail = (longueurMax: number) => z.union([z.string().max(longueurMax), z.null()]).optional()
+export const devisEnvoiEmailSchema = z.object({
+  to: z.string().trim().max(254).pipe(strictEmail),
+  docType: z.enum(['devis', 'facture']),
+  docNumber: z.string().min(1).max(100),
+  docTitle: texteFacultatifEmail(500),
+  totalStr: texteFacultatifEmail(60),
+  clientName: texteFacultatifEmail(500),
+  companyName: texteFacultatifEmail(300),
+  companyPhone: texteFacultatifEmail(60),
+  pdfBase64: z.string().min(1),
 })
 
 // ── Syndic v54 — lot features net-new (Reservas, Infrações, Enquetes, Checklists) ──

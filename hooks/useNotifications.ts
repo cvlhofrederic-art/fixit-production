@@ -4,12 +4,41 @@ import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { POLL_NOTIFICATIONS, POLL_MISSIONS, TOAST_LONG, TOAST_DEFAULT } from '@/lib/constants'
 import type { Notification } from '@/lib/types'
 
+/**
+ * Sondage périodique « un seul intervalle à la fois » : appel immédiat puis toutes les `intervalleMs` tant que
+ * l'onglet est visible ; rien tant qu'il est caché (reprise avec un appel immédiat quand il redevient visible).
+ * Renvoie la fonction d'arrêt (intervalle coupé, écouteur retiré, requêtes en cours annulées).
+ */
+export function sonderQuandVisible(action: () => void | Promise<void>, intervalleMs: number, controleur: AbortController): () => void {
+  let intervalle: ReturnType<typeof setInterval> | null = null
+  const demarrer = () => {
+    if (intervalle !== null) return
+    void action()
+    intervalle = setInterval(() => { void action() }, intervalleMs)
+  }
+  const suspendre = () => {
+    if (intervalle === null) return
+    clearInterval(intervalle)
+    intervalle = null
+  }
+  const surVisibilite = () => { if (document.hidden) suspendre(); else demarrer() }
+  if (!document.hidden) demarrer()
+  document.addEventListener('visibilitychange', surVisibilite)
+  return () => {
+    suspendre()
+    document.removeEventListener('visibilitychange', surVisibilite)
+    controleur.abort()
+  }
+}
+
 type RealtimeCallbacks = {
   onNavigate: (page: string) => void
   onNewBooking: (booking: any) => void
   getAuthToken: () => Promise<string | null>
   t: (key: string) => string
   isPt: boolean
+  /** Société BTP (orgRole pro_societe) : ses messages partent de plusieurs comptes (gérant, co-gérant, secrétaire). */
+  estSociete?: boolean
 }
 
 export function useNotifications(
@@ -51,14 +80,19 @@ export function useNotifications(
     }
   }, [])
 
+  // Requêtes en cours des sondages : annulées au démontage (plus de « Failed to fetch » à la fermeture de la page).
+  const abandonRef = useRef<AbortController | null>(null)
+
   // Load notifications from API — paused when tab is hidden
   useEffect(() => {
     if (!userId) return
+    const controleur = new AbortController()
     const loadNotifs = async () => {
       try {
         const token = await getAuthToken()
         const res = await fetch(`/api/syndic/notify-artisan?artisan_id=${userId}&limit=30`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controleur.signal,
         })
         if (res.ok) {
           const data = await res.json()
@@ -69,32 +103,21 @@ export function useNotifications(
         }
       } catch {}
     }
-    loadNotifs()
-    let interval = setInterval(loadNotifs, POLL_NOTIFICATIONS)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        loadNotifs()
-        interval = setInterval(loadNotifs, POLL_NOTIFICATIONS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
+    // Lot 8 Sentry du 28/10/2026 : un seul intervalle à la fois (avant, un montage onglet caché laissait courir deux
+    // sondages en parallèle), rien tant que l'onglet est caché, annulation au démontage.
+    return sonderQuandVisible(loadNotifs, POLL_NOTIFICATIONS, controleur)
   }, [userId])
 
   // Load unread message count — paused when tab is hidden
   const refreshUnreadMsgCount = useCallback(async () => {
     if (!userId) return
+    const signal = abandonRef.current?.signal
     try {
       const token = await getAuthToken()
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const [clientsRes, proRes] = await Promise.all([
-        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=particulier`, { headers }),
-        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=pro`, { headers }),
+        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=particulier`, { headers, signal }),
+        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=pro`, { headers, signal }),
       ])
       // Réponse en erreur (429, 500…) : le compteur affiché est conservé (avant : remis à 0, clignotement).
       if (!clientsRes.ok || !proRes.ok) return
@@ -103,27 +126,22 @@ export function useNotifications(
                     (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
       setUnreadMsgCount(total)
     } catch (e) {
+      // Requête annulée au démontage ou à la fermeture de la page : rien à signaler.
+      if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) return
       console.warn('[notifications] compteur de messages non lus non rechargé', e)
     }
   }, [userId, getAuthToken])
 
   useEffect(() => {
     if (!userId) return
-    refreshUnreadMsgCount()
-    let interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        refreshUnreadMsgCount()
-        interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    const controleur = new AbortController()
+    abandonRef.current = controleur
+    const arreter = sonderQuandVisible(refreshUnreadMsgCount, POLL_MISSIONS, controleur)
     return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      arreter()
+      if (abandonRef.current === controleur) abandonRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
   // Realtime subscription for notifications + bookings + messages
@@ -148,17 +166,17 @@ export function useNotifications(
             planning_change: `📅 ${_t('proDash.notifs.planningChange')}`,
             message: `💬 ${_t('proDash.notifs.message')}`,
             new_booking: `📅 ${_t('proDash.notifs.newBooking')}`,
-            marche_new: _isPt ? '🏛️ Novo mercado disponível' : '🏛️ Nouveau marché disponible',
-            marche_message: _isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
+            marche_new: _isPt ? '🏛️ Nova oportunidade disponível' : '🏛️ Nouveau marché disponible',
+            marche_message: _isPt ? '💬 Mensagem sobre uma oportunidade' : '💬 Message sur un marché',
             marche_won: _isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
             marche_rejected: _isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
             tva_threshold: _isPt ? '🧾 Alerta de IVA' : '🧾 Alerte TVA',
-            marketplace_demande: _isPt ? '🏗️ Nova solicitação — Marketplace BTP' : '🏗️ Nouvelle demande — Marketplace BTP',
-            marketplace_accepte: _isPt ? '✅ Solicitação aceite — Marketplace BTP' : '✅ Demande acceptée — Marketplace BTP',
-            marketplace_refuse: _isPt ? '❌ Solicitação recusada — Marketplace BTP' : '❌ Demande refusée — Marketplace BTP',
+            marketplace_demande: _isPt ? '🏗️ Novo pedido no Marketplace da construção' : '🏗️ Nouvelle demande — Marketplace BTP',
+            marketplace_accepte: _isPt ? '✅ Pedido aceite no Marketplace da construção' : '✅ Demande acceptée — Marketplace BTP',
+            marketplace_refuse: _isPt ? '❌ Pedido recusado no Marketplace da construção' : '❌ Demande refusée — Marketplace BTP',
           }
           sendBrowserNotif(
-            typeLabels[n.type] || '🔔 Notification Vitfix',
+            typeLabels[n.type] || (_isPt ? '🔔 Notificação Vitfix' : '🔔 Notification Vitfix'),
             n.message || n.title || _t('proDash.notifs.newNotif'),
             () => {
               if (n.type === 'new_mission') _onNav('missions')
@@ -176,11 +194,14 @@ export function useNotifications(
         table: 'conversation_messages',
       }, (payload) => {
         const msg = payload.new as any
-        const { t: _t, onNavigate: _onNav } = callbacksRef.current
-        if (msg.sender_id !== userId) {
+        const { t: _t, isPt: _isPt, onNavigate: _onNav, estSociete: _estSociete } = callbacksRef.current
+        // Société BTP : un message du côté prestataire (`metadata.cote = 'artisan'`) vient d'un autre de ses comptes
+        // (co-gérant, secrétaire), ce n'est pas un message reçu. L'artisan garde le filtre d'avant (règle n° 1).
+        const deLaSociete = _estSociete === true && msg.metadata?.cote === 'artisan'
+        if (msg.sender_id !== userId && !deLaSociete) {
           setUnreadMsgCount(prev => prev + 1)
           sendBrowserNotif(
-            '💬 Nouveau message',
+            _isPt ? '💬 Nova mensagem' : '💬 Nouveau message',
             msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : _t('proDash.notifs.newMsgReceived'),
             () => _onNav('messages')
           )
@@ -198,7 +219,9 @@ export function useNotifications(
           _onNew(b)
           sendBrowserNotif(
             _isPt ? '📅 Nova marcação' : '📅 Nouveau rendez-vous',
-            `${b.booking_date || (_isPt ? 'Data a confirmar' : 'Date à confirmer')} — ${b.client_name || (_isPt ? 'Novo cliente' : 'Nouveau client')}`,
+            _isPt
+              ? `${b.booking_date || 'Data a confirmar'} · ${b.client_name || 'Novo cliente'}`
+              : `${b.booking_date || 'Date à confirmer'} — ${b.client_name || 'Nouveau client'}`,
             () => _onNav('calendar')
           )
         }
@@ -210,9 +233,10 @@ export function useNotifications(
       }, (payload) => {
         const msg = payload.new as any
         if (msg.sender_role === 'client') {
+          const { isPt: _isPt } = callbacksRef.current
           sendBrowserNotif(
-            '💬 ' + (msg.sender_name || 'Client'),
-            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : 'Nouveau message',
+            '💬 ' + (msg.sender_name || (_isPt ? 'Cliente' : 'Client')),
+            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : (_isPt ? 'Nova mensagem' : 'Nouveau message'),
             () => onNavigate('calendar')
           )
         }

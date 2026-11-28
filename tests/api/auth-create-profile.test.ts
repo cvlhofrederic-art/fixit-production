@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const USER_ID = '550e8400-e29b-41d4-a716-446655440000'
 
@@ -94,7 +94,7 @@ describe('POST /api/auth/create-profile — spécialités BTP', () => {
   it("n'envoie pas specialty_slugs dans la fiche profiles_artisan", async () => {
     const { POST } = await import('@/app/api/auth/create-profile/route')
     await POST(requete({ user_id: USER_ID, company_name: 'X', specialty_slugs: ['gros-oeuvre'] }) as never)
-    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X' })
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
 
   it('complète les spécialités même si la fiche existe déjà', async () => {
@@ -137,9 +137,9 @@ describe('POST /api/auth/create-profile — spécialités BTP', () => {
 describe('POST /api/auth/create-profile — gérant de la société BTP', () => {
   it('ajoute le gérant à son équipe, sans session', async () => {
     mocks.authUser = {
-      email: 'Secretariat.ProvencePro@gmail.com',
+      email: 'Secretariat.Exemple@exemple.fr',
       app_metadata: { role: 'pro_societe' },
-      user_metadata: { full_name: ' Hasni BOUHALI ', phone: '06 13 84 22 89' },
+      user_metadata: { full_name: ' Camille MARTIN ', phone: '06 12 34 56 78' },
     }
     const { POST } = await import('@/app/api/auth/create-profile/route')
     const res = await POST(requete({ user_id: USER_ID, company_name: 'PROVENCE PRO' }) as never)
@@ -149,9 +149,9 @@ describe('POST /api/auth/create-profile — gérant de la société BTP', () => 
       {
         company_id: USER_ID,
         user_id: USER_ID,
-        email: 'secretariat.provencepro@gmail.com',
-        full_name: 'Hasni BOUHALI',
-        phone: '06 13 84 22 89',
+        email: 'secretariat.exemple@exemple.fr',
+        full_name: 'Camille MARTIN',
+        phone: '06 12 34 56 78',
         role: 'GERANT',
         assigned_chantiers: [],
         invite_token: null,
@@ -227,6 +227,7 @@ describe('POST /api/auth/create-profile — inscription artisan sans session', (
       user_id: USER_ID,
       company_name: 'Eletricidade Silva',
       siret: '501964843',
+      verified: false,
       kyc_status: 'pending',
       kyc_market: 'pt_artisan',
       language: 'pt',
@@ -238,5 +239,74 @@ describe('POST /api/auth/create-profile — inscription artisan sans session', (
       { onConflict: 'user_id,specialty_id', ignoreDuplicates: true },
     )
     expect(mocks.teamUpsert).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/auth/create-profile — champs fixés par le serveur', () => {
+  it('ignore verified et kyc_status envoyés par le client (route sans session)', async () => {
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    const res = await POST(requete({ user_id: USER_ID, company_name: 'Faux artisan', verified: true, kyc_status: 'approved' }) as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'Faux artisan', verified: false, kyc_status: 'pending' })
+  })
+
+  it('ignore un marché KYC inconnu', async () => {
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'marche_sans_controle' }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
+  })
+
+  it.each(['fr_artisan', 'fr_btp', 'pt_artisan'])('garde le marché KYC %s, quel que soit le compte (comme avant)', async (marche) => {
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: marche }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({
+      user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending', kyc_market: marche,
+    })
+  })
+
+  // pt_btp : société BTP inscrite en portugais (22/11/2026). Sans lui, la fiche partait sans marché et le KYC la
+  // contrôlait en fr_artisan (NIPC lu comme un SIRET). Réservé à un compte société : rôle lu dans app_metadata.
+  it('garde le marché pt_btp d’un compte société (rôle pro_societe d’app_metadata)', async () => {
+    mocks.authUser = { email: 'geral@exemplo.pt', app_metadata: { role: 'pro_societe' }, user_metadata: {} }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'pt_btp' }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({
+      user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending', kyc_market: 'pt_btp',
+    })
+  })
+
+  it.each([
+    ['un compte artisan', { app_metadata: { role: 'artisan' }, user_metadata: {} }],
+    ['un compte sans rôle, société seulement déclarée dans user_metadata', { app_metadata: {}, user_metadata: { role: 'pro_societe' } }],
+  ])('retire le marché pt_btp envoyé pour %s', async (_cas, compte) => {
+    mocks.authUser = { email: 'x@exemplo.pt', ...compte }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'pt_btp' }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
+  })
+})
+
+describe('POST /api/auth/create-profile — compte créé il y a plus de 10 minutes', () => {
+  // Horloge figée : la limite de 10 minutes de la route se compare à une date fixe, jamais à l'heure de la machine.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-17T12:00:00Z'))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('refus 403 avec le message que reconnaît l’inscription d’une société (app/(commun)/pro/register)', async () => {
+    mocks.authUser = { created_at: '2026-11-17T11:49:00Z' }
+    mocks.existingProfile = { id: 'profil-existant' }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    const res = await POST(requete({ user_id: USER_ID, company_name: 'X' }) as never)
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Profile creation window expired' })
+    expect(mocks.profileInsert).not.toHaveBeenCalled()
   })
 })

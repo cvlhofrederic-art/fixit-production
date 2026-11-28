@@ -1,7 +1,7 @@
 // ── Tenders Scanner — Main orchestrator ─────────────────────────────────────
 
 import type { Tender, ScanResult } from './types'
-import { SCANNER_CONFIG, DEPARTMENTS } from './config'
+import { SCANNER_CONFIG, DEPARTMENTS, assertKnownDepartment } from './config'
 import { loadCommunes, resolveWebsites } from './communes'
 import { scanBOAMP } from './sources/boamp'
 import { scanAllMairies } from './sources/mairies'
@@ -14,6 +14,7 @@ import { type SyncedMarche, upsertMarches } from '@/lib/marches-sync'
 import { supabaseAdmin as supabase } from '@/lib/supabase-server'
 import { readFile, writeFile } from 'fs/promises'
 import path from 'path'
+import { resolveInside } from '@/lib/security/safe-fs-path'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -21,8 +22,10 @@ function dataDir(): string {
   return path.join(process.cwd(), 'data')
 }
 
+// Le code de département entre dans le nom du fichier : liste fermée (DEPARTMENTS) puis confinement
+// du chemin dans data/ (lot 7 du brief Aikido du 28/10/2026, issue 9).
 function dataFilePath(department: string): string {
-  return path.join(dataDir(), `tenders-${department}.json`)
+  return resolveInside(dataDir(), `tenders-${assertKnownDepartment(department)}.json`)
 }
 
 function tenderToSyncedMarche(tender: Tender): SyncedMarche {
@@ -55,10 +58,9 @@ export async function scanDepartment(department: string): Promise<ScanResult> {
   const start = Date.now()
   const errors: string[] = []
 
+  // Liste fermée : « 99 » comme « ../13 » ou « constructor » sont refusés avant tout accès fichier ou réseau
+  assertKnownDepartment(department)
   const deptConfig = DEPARTMENTS[department]
-  if (!deptConfig) {
-    throw new Error(`Unknown department: ${department}. Available: ${Object.keys(DEPARTMENTS).join(', ')}`)
-  }
 
   logger.info(`[scanner] Starting scan for department ${department} (${deptConfig.name})`)
 
@@ -148,6 +150,8 @@ export async function scanDepartment(department: string): Promise<ScanResult> {
 // ── Storage ─────────────────────────────────────────────────────────────────
 
 export async function storeTenders(department: string, result: ScanResult): Promise<void> {
+  // Refusé avant l'écriture en base : le code sert aussi de nom de fichier (voir dataFilePath)
+  assertKnownDepartment(department)
   const { tenders } = result
 
   // Upsert into Supabase

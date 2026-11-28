@@ -3,6 +3,9 @@
 // Respects cookie consent (localStorage 'vitfix_cookie_consent' performance flag).
 // No external dependencies.
 
+import { isAnalyticsAllowed } from '@/lib/consentement-cookies'
+import { safeGet, safeSet } from '@/lib/safe-storage'
+
 export const AnalyticsEventType = {
   PAGE_VIEW: 'page_view',
   SIGNUP_STARTED: 'signup_started',
@@ -33,30 +36,25 @@ export interface AnalyticsEvent {
 }
 
 // ── Consent check ────────────────────────────────────────────────────────────
+// Même lecture que le bandeau (choix en mémoire compris quand le stockage est bloqué).
 
 function isConsentGiven(): boolean {
   if (typeof window === 'undefined') return false
-  try {
-    const raw = localStorage.getItem('vitfix_cookie_consent')
-    if (!raw) return false
-    const consent = JSON.parse(raw)
-    return consent?.performance === true
-  } catch {
-    return false
-  }
+  return isAnalyticsAllowed()
 }
 
 // ── Session ID (persisted per tab) ───────────────────────────────────────────
+// sessionStorage peut être bloqué comme localStorage (SecurityError) : accès sûrs, identifiant gardé en mémoire.
 
 let _sessionId: string | null = null
 
 function getSessionId(): string {
   if (_sessionId) return _sessionId
   if (typeof window !== 'undefined') {
-    _sessionId = sessionStorage.getItem('vitfix_session_id')
+    _sessionId = safeGet('vitfix_session_id', 'session')
     if (!_sessionId) {
       _sessionId = crypto.randomUUID()
-      sessionStorage.setItem('vitfix_session_id', _sessionId)
+      safeSet('vitfix_session_id', _sessionId, 'session')
     }
   } else {
     _sessionId = crypto.randomUUID()

@@ -1,5 +1,5 @@
 import './fuseau-paris'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { joursAvantDateFr } from '@/lib/administrateur-judiciaire/domain/dates'
@@ -72,7 +72,7 @@ describe('T00 — Suivi des dossiers : plus de 19/06/2026 figé en mode réel', 
 
 describe('T00 — aucune date littérale ailleurs que dans les constantes de démonstration nommées', () => {
   const RACINE = join(__dirname, '..', '..')
-  const DOSSIERS = ['lib/administrateur-judiciaire', 'components/administrateur-judiciaire', 'app/administrateur-judiciaire']
+  const DOSSIERS = ['lib/administrateur-judiciaire', 'components/administrateur-judiciaire', 'app/(commun)/administrateur-judiciaire']
   /** Constantes de démonstration autorisées, une par fichier. */
   const AUTORISEES: Record<string, RegExp> = {
     'lib/administrateur-judiciaire/mode.ts': /export const DATE_DEMO_ISO = '2026-06-04'/,
@@ -93,12 +93,9 @@ describe('T00 — aucune date littérale ailleurs que dans les constantes de dé
   it('seules les constantes de démonstration nommées (et les dates de relevé des référentiels) contiennent une date en dur', () => {
     const fautifs: string[] = []
     for (const dossier of DOSSIERS) {
-      let fichiers: string[] = []
-      try {
-        fichiers = lister(join(RACINE, dossier))
-      } catch {
-        continue // dossier absent : rien à vérifier
-      }
+      // Un dossier déplacé ou renommé doit faire échouer le test, pas le rendre muet.
+      expect(existsSync(join(RACINE, dossier)), dossier).toBe(true)
+      const fichiers = lister(join(RACINE, dossier))
       for (const fichier of fichiers) {
         const rel = relative(RACINE, fichier).replaceAll('\\', '/')
         readFileSync(fichier, 'utf8')

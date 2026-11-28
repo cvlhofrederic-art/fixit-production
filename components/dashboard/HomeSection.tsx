@@ -6,6 +6,15 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
+import {
+  alertesChantiers, chiffresChantiers, clientsAvecDevis, finDepassee, libelleDevisBrouillon, type DocumentAccueil,
+} from '@/lib/btp/accueil'
+import { nomDocumentPt } from '@/lib/wallet-conformite-pt'
+import { docRevenueHT } from '@/lib/stats-doc-total'
+import {
+  documentsPourSynthese, estAnnule, estDevisRefuse, estDevisSigne, estDocumentEmis, estDuType, estFacturePayee,
+} from '@/lib/documents/liste-effective'
 
 interface HomeSectionProps {
   artisan: Artisan
@@ -27,6 +36,8 @@ interface HomeSectionProps {
   setActivePage: (page: string) => void
   setSidebarOpen: (v: boolean) => void
   openNewMotif: () => void
+  /** Devis et factures chargés par la page (navigateur + base) : source des alertes de l'accueil BTP. */
+  documentsEnregistres?: ReadonlyArray<DocumentAccueil>
 }
 
 function extractClientName(booking: Booking): string {
@@ -57,6 +68,10 @@ function formatRelativeTime(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / 86400000)
+  // Un écart NÉGATIF arrive pour de bon : la date d'un document est saisie à la main (elle peut être à venir),
+  // et `new Date('2026-11-26')` vaut minuit UTC, donc un document du jour consulté avant 1 h du matin en France
+  // donne un écart négatif. Sans cette garde, l'alerte affichait « il y a -1j ».
+  if (diffDays < 0) return date.toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: '2-digit' })
   if (diffDays === 0) return locale === 'pt' ? 'Hoje' : "Aujourd'hui"
   if (diffDays === 1) return locale === 'pt' ? 'Ontem' : 'Hier'
   if (diffDays < 7) return locale === 'pt' ? `${diffDays}d atrás` : `il y a ${diffDays}j`
@@ -81,6 +96,7 @@ export default function HomeSection({
   setActivePage,
   setSidebarOpen,
   openNewMotif,
+  documentsEnregistres,
 }: HomeSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -106,10 +122,11 @@ export default function HomeSection({
 
   // BTP data for pro_societe — pulled from Supabase tables
   const userId = artisan?.user_id || artisan?.id || ''
-  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; dateDebut: string; dateFin: string; adresse?: string; ville?: string; codePostal?: string; latitude?: number; longitude?: number; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId })
-  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId })
-  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
-  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
+  // orgRole : un chargement en échec n'est annoncé qu'au BTP pro ; l'accueil de l'artisan reste celui d'avant.
+  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; dateDebut: string; dateFin: string; adresse?: string; ville?: string; codePostal?: string; latitude?: number; longitude?: number; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId, orgRole })
+  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId, orgRole })
+  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId, orgRole })
+  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId, orgRole })
 
   // One-shot cleanup: purge fake data injected by the now-removed Démo button.
   // Demo entries have stable signatures (id prefix `demo-conv-`/`demo-devis-` for
@@ -154,43 +171,86 @@ export default function HomeSection({
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
     try {
-      const raw = localStorage.getItem(`fixit_docs_${artisan.id}`)
-      if (raw) {
-        const docs = JSON.parse(raw)
-        const devisList = (docs || [])
-          .filter((d: SavedDocument) => d.type === 'devis')
-          .sort((a: SavedDocument, b: SavedDocument) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime())
+      // Les documents chargés par la page (navigateur ET base), avec repli sur le stockage pour un écran monté
+      // avant la réponse du serveur. Pour un salarié invité, ce sont ceux de sa SOCIÉTÉ.
+      //
+      // Jusqu'au 26/11/2026 ce bloc lisait `fixit_docs_<id>` — une clé que plus aucun écran n'écrit depuis que
+      // lib/btp/accueil.ts a repris les alertes. « Devis récents » et les deux alertes ci-dessous étaient donc
+      // VIDES pour tout le monde, artisan comme société, et personne ne pouvait le voir : un bloc sans données
+      // ressemble à un bloc sans sujet.
+      //
+      // Les filtres passent par les primitives partagées : ils testaient `d.type` (que la mise en forme ne pose
+      // pas), le statut « payée » accentué (jamais écrit) et, pour un devis, « pending » ou « en_attente » (deux
+      // statuts qui n'existent pas non plus). Même réveillé, ce bloc n'aurait rien montré de juste.
+      {
+        const docs = documentsPourSynthese<SavedDocument>(
+          documentsEnregistres as readonly SavedDocument[] | undefined,
+          artisan.id,
+          true,
+        )
+        // Tri sur les champs que les documents portent VRAIMENT : `docDate` (posé par les formulaires et par la
+        // relecture depuis la base), puis `savedAt` et `sentAt`. Jusqu'au 26/11/2026 le tri lisait `date` et
+        // `created_at`, qu'aucune écriture ne pose : le comparateur rendait toujours 0, le tri était inopérant, et
+        // « Devis récents » montrait le PLUS ANCIEN devis (le tri de JavaScript étant stable). Le bloc étant vide,
+        // personne ne pouvait le voir.
+        const quand = (d: SavedDocument) => d.docDate || d.savedAt || d.sentAt || d.date || d.created_at || ''
+        // `docDate` est une JOURNÉE (« YYYY-MM-DD ») : pour deux devis du même jour — le quotidien d'une société —
+        // la comparaison rend 0 et le tri, stable, laisserait le premier de la liste, c'est-à-dire le plus ancien.
+        // D'où le départage par l'horodatage d'enregistrement ou d'envoi.
+        const quandPrecis = (d: SavedDocument) => d.savedAt || d.sentAt || ''
+        // Les brouillons sont écartés, comme pour les deux alertes plus bas : un brouillon n'est pas un devis
+        // « récent » au sens de ce bloc, et le tableau de la mise en page V22 le rangerait en « Attente », ce qui
+        // signifie « en attente de réponse du client ».
+        const devisList = docs
+          .filter((d) => estDuType(d, 'devis') && estDocumentEmis(d) && !estAnnule(d))
+          .sort((a, b) => {
+            const parJour = new Date(quand(b) || 0).getTime() - new Date(quand(a) || 0).getTime()
+            if (parJour !== 0) return parJour
+            return new Date(quandPrecis(b) || 0).getTime() - new Date(quandPrecis(a) || 0).getTime()
+          })
           .slice(0, 5)
         setRecentDevis(devisList)
 
         // Generate alerts from data
         const alertItems: Array<{ type: string; title: string; sub: string; time: string }> = []
-        // Unpaid invoices
-        const unpaidInvoices = (docs || []).filter((d: SavedDocument) => d.type === 'facture' && d.status !== 'paid' && d.status !== 'payée')
+        // Factures émises, non annulées et non réglées.
+        const unpaidInvoices = docs.filter((d) => estDuType(d, 'facture') && estDocumentEmis(d) && !estAnnule(d) && !estFacturePayee(d.status))
         unpaidInvoices.slice(0, 2).forEach((inv: SavedDocument) => {
           alertItems.push({
             type: 'red',
-            title: `${locale === 'pt' ? 'Fatura não paga' : 'Facture impayée'} — ${inv.client || inv.clientName || 'Client'}`,
-            sub: `${inv.ref || inv.number || '—'} · ${formatPrice(inv.total || inv.amount || 0)}`,
-            time: formatRelativeTime(inv.date || inv.created_at || '', locale),
+            title: locale === 'pt'
+              ? `Fatura não paga: ${inv.client || inv.clientName || 'Cliente'}`
+              : `Facture impayée — ${inv.client || inv.clientName || 'Client'}`,
+            // `docNumber` d'abord : c'est la référence que les formulaires et la relecture depuis la base posent.
+            // `ref` et `number` ne subsistent que sur de très anciens documents, et le montant se calcule depuis
+            // les lignes — `total` et `amount` n'étaient posés par aucune écriture, donc cette ligne affichait
+            // « — · 0 € » pour toute facture.
+            sub: `${inv.docNumber || inv.ref || inv.number || '—'} · ${formatPrice(docRevenueHT(inv))}`,
+            time: formatRelativeTime(quand(inv), locale),
           })
         })
-        // Pending devis without response
-        const pendingDevis = (docs || []).filter((d: SavedDocument) => d.type === 'devis' && (!d.status || d.status === 'pending' || d.status === 'en_attente'))
+        // Devis envoyés qui n'ont reçu ni acceptation ni refus. Un brouillon n'attend pas de réponse : il
+        // n'a jamais été envoyé.
+        const pendingDevis = docs.filter(
+          (d) => estDuType(d, 'devis') && estDocumentEmis(d) && !estAnnule(d) && !estDevisSigne(d.status) && !estDevisRefuse(d.status),
+        )
         pendingDevis.slice(0, 2).forEach((dv: SavedDocument) => {
           alertItems.push({
             type: 'amber',
-            title: `${locale === 'pt' ? 'Orçamento pendente' : 'Devis en attente'} — ${dv.client || dv.clientName || 'Client'}`,
-            sub: `${dv.ref || dv.number || '—'} · ${locale === 'pt' ? 'sem resposta' : 'sans réponse'}`,
-            time: formatRelativeTime(dv.date || dv.created_at || '', locale),
+            title: locale === 'pt'
+              ? `Orçamento pendente: ${dv.client || dv.clientName || 'Cliente'}`
+              : `Devis en attente — ${dv.client || dv.clientName || 'Client'}`,
+            sub: `${dv.docNumber || dv.ref || dv.number || '—'} · ${locale === 'pt' ? 'sem resposta' : 'sans réponse'}`,
+            time: formatRelativeTime(quand(dv), locale),
           })
         })
         setAlerts(alertItems)
       }
-    } catch {
-      // ignore parse errors
+    } catch (erreur) {
+      // Plus aucune lecture brute du navigateur ici : une erreur serait un défaut de calcul, pas un JSON abîmé.
+      console.error('[accueil] devis récents et alertes documents non calculés', erreur)
     }
-  }, [artisan?.id, locale])
+  }, [artisan?.id, locale, documentsEnregistres])
 
   // ── Aggregate BTP alerts from various sources (pro_societe only) ──
   useEffect(() => {
@@ -211,7 +271,7 @@ export default function HomeSection({
             level: 'info',
             icon: '💬',
             text: isPt
-              ? (unreadTotal === 1 ? `1 nova mensagem — ${name}` : `${unreadTotal} novas mensagens (incl. ${name})`)
+              ? (unreadTotal === 1 ? `1 nova mensagem de ${name}` : `${unreadTotal} novas mensagens (incl. ${name})`)
               : (unreadTotal === 1 ? `1 nouveau message — ${name}` : `${unreadTotal} nouveaux messages (dont ${name})`),
             page: 'messages',
           })
@@ -219,70 +279,45 @@ export default function HomeSection({
       }
     } catch { /* ignore */ }
 
-    // 2. Chantiers finis (deadline dépassée) mais pas validés "Terminé"
+    // 2. Chantiers finis (deadline dépassée) mais pas validés "Terminé" — ni annulés, et pas le dernier jour.
+    // Les alertes 2, 2b, 2c et 2d se calculent sur les documents chargés par la page (lib/btp/accueil.ts) :
+    // l'ancienne clé `fixit_docs_<id>` du navigateur n'est plus écrite par aucun écran.
     const now = Date.now()
-    const finisNonValides = btpChantiers.filter(c => c.dateFin && c.statut !== 'Terminé' && new Date(c.dateFin).getTime() < now)
-    finisNonValides.slice(0, 2).forEach(c => {
-      collected.push({
-        level: 'warn',
-        icon: '🏁',
-        text: isPt
-          ? `${c.titre} — prazo excedido, validar como "Terminado"`
-          : `${c.titre} — deadline dépassée, à valider "Terminé"`,
-        page: 'chantiers',
-      })
-    })
-
-    // 2b. Chantiers terminés mais aucune facture émise pour ce client
-    // 2c. Devis en brouillon (faits mais pas envoyés)
-    // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
+    const documents = documentsEnregistres ?? []
     try {
-      const rawDocs = localStorage.getItem(`fixit_docs_${artisan.id}`)
-      const allDocs = rawDocs ? (JSON.parse(rawDocs) as SavedDocument[]) : []
-      const factureClients = new Set(
-        allDocs
-          .filter(d => d.type === 'facture')
-          .map(d => (d.client || d.clientName || d.client_name || '').toLowerCase().trim())
-          .filter(Boolean)
-      )
-      const chantiersTermines = btpChantiers.filter(c => c.statut === 'Terminé')
-      const sansFacture = chantiersTermines.filter(c => {
-        const clientKey = (c.client || '').toLowerCase().trim()
-        return clientKey && !factureClients.has(clientKey)
+      const alertesBtp = alertesChantiers(btpChantiers, documents, new Date(now))
+      alertesBtp.enRetard.slice(0, 2).forEach(c => {
+        collected.push({
+          level: 'warn',
+          icon: '🏁',
+          text: isPt
+            ? `${c.titre}: prazo excedido, validar como "Terminado"`
+            : `${c.titre} — deadline dépassée, à valider "Terminé"`,
+          page: 'chantiers',
+        })
       })
-      sansFacture.slice(0, 2).forEach(c => {
+
+      // 2b. Chantiers terminés mais aucune facture émise pour ce client
+      // 2c. Devis en brouillon (faits mais pas envoyés)
+      // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
+      alertesBtp.terminesSansFacture.slice(0, 2).forEach(c => {
         collected.push({
           level: 'err',
           icon: '🧾',
           text: isPt
-            ? `${c.titre} — obra terminada, fatura não enviada (${c.client})`
+            ? `${c.titre}: obra terminada, fatura não enviada (${c.client})`
             : `${c.titre} — chantier terminé, facture non envoyée (${c.client})`,
           page: 'factures',
         })
       })
 
-      // 2c. Devis en statut brouillon (faits mais pas encore envoyés)
-      const devisBrouillon = allDocs.filter(d => d.type === 'devis' && (d.status === 'brouillon' || d.status === 'draft' || d.status === 'pending' || d.status === 'en_attente'))
-      devisBrouillon.slice(0, 2).forEach(d => {
-        const ref = d.ref || d.number || d.docNumber || d.id.slice(-6)
-        const client = d.client || d.clientName || d.client_name || 'client'
-        collected.push({
-          level: 'warn',
-          icon: '📝',
-          text: isPt
-            ? `Orçamento ${ref} em rascunho — a enviar (${client})`
-            : `Devis ${ref} en brouillon — à envoyer (${client})`,
-          page: 'devis',
-        })
+      // 2c. Devis en statut brouillon (faits mais pas encore envoyés) ; sans numéro, aucune référence affichée
+      alertesBtp.devisBrouillon.slice(0, 2).forEach(d => {
+        collected.push({ level: 'warn', icon: '📝', text: libelleDevisBrouillon(d, isPt), page: 'devis' })
       })
 
       // 2d. Demandes client en attente sans aucun devis associé (par nom client)
-      const devisClients = new Set(
-        allDocs
-          .filter(d => d.type === 'devis')
-          .map(d => (d.client || d.clientName || d.client_name || '').toLowerCase().trim())
-          .filter(Boolean)
-      )
+      const devisClients = clientsAvecDevis(documents)
       const demandesSansDevis = pendingBookings.filter(b => {
         const clientKey = extractClientName(b).toLowerCase().trim()
         return clientKey && clientKey !== 'client' && !devisClients.has(clientKey)
@@ -294,12 +329,16 @@ export default function HomeSection({
           level: 'info',
           icon: '📋',
           text: isPt
-            ? `Orçamento a fazer — ${service} (${clientName})`
+            ? `Orçamento a fazer: ${service} (${clientName})`
             : `Devis à faire — ${service} (${clientName})`,
           page: 'devis',
         })
       })
-    } catch { /* ignore */ }
+    } catch (erreur) {
+      // Plus aucune lecture du navigateur ici : une erreur serait un défaut de calcul. Elle est journalisée, et les
+      // autres alertes (messages, conformité) restent affichées au lieu de faire tomber tout l'accueil.
+      console.error('[accueil BTP] alertes chantiers et documents non calculées', erreur)
+    }
 
     // 3. Documents conformité qui expirent (< 60 jours) ou déjà expirés
     try {
@@ -316,21 +355,22 @@ export default function HomeSection({
         })
         expiring.sort((a, b) => a.days - b.days)
         expiring.slice(0, 2).forEach(d => {
-          const label = d.key.replace(/_/g, ' ')
+          // En portugais, le nom du document de la Conformidade ; sinon (et en français) l'identifiant, comme avant.
+          const label = (isPt ? nomDocumentPt(d.key) : null) ?? d.key.replace(/_/g, ' ')
           collected.push({
             level: d.expired ? 'err' : 'warn',
             icon: '📁',
             text: d.expired
-              ? (isPt ? `${label} — expirou há ${Math.abs(d.days)}d` : `${label} — expiré depuis ${Math.abs(d.days)}j`)
-              : (isPt ? `${label} — expira em ${d.days}d` : `${label} — expire dans ${d.days}j`),
-            page: 'wallet-conformite',
+              ? (isPt ? `${label}: expirou há ${Math.abs(d.days)} ${Math.abs(d.days) === 1 ? 'dia' : 'dias'}` : `${label} — expiré depuis ${Math.abs(d.days)}j`)
+              : (isPt ? `${label}: expira em ${d.days} ${d.days === 1 ? 'dia' : 'dias'}` : `${label} — expire dans ${d.days}j`),
+            page: 'wallet',
           })
         })
       }
     } catch { /* ignore */ }
 
     setBtpAlerts(collected)
-  }, [artisan?.id, orgRole, btpChantiers, pendingBookings, locale])
+  }, [artisan?.id, orgRole, btpChantiers, pendingBookings, locale, documentsEnregistres])
 
   // ═══════════════════════════════════════════════════════
   // V5 RENDER — pro_societe + artisan use the v5 design system
@@ -357,11 +397,14 @@ export default function HomeSection({
       if (n >= e) return 100
       return Math.round(((n - s) / (e - s)) * 100)
     }
-    const totalBudget = isSociete ? btpChantiers.reduce((s, c) => s + (c.montant_facture || c.budget || 0), 0) : totalRevenue
-    const totalAcomptes = isSociete ? btpChantiers.reduce((s, c) => s + (c.acompte_recu || 0), 0) : 0
-    const totalDepenses = isSociete ? btpDepenses.reduce((s, d) => s + (d.amount || 0), 0) : 0
+    // BTP : budgets convertis en nombres avant l'addition (le hook les livre en texte), chantiers annulés écartés ;
+    // acomptes et marge valent null quand aucun chantier n'en porte, et s'affichent « — » (lib/btp/accueil.ts).
+    const chiffresBtp = chiffresChantiers(isSociete ? btpChantiers : [])
+    const totalBudget = isSociete ? chiffresBtp.caTotal : totalRevenue
+    const totalAcomptes = chiffresBtp.acomptes
+    const totalDepenses = isSociete ? btpDepenses.reduce((s, d) => s + (Number(d.amount) || 0), 0) : 0
     const membresActifs = btpMembres.filter(m => m.actif !== false)
-    const margeMoyenne = isSociete && btpChantiers.length > 0 ? Math.round(btpChantiers.reduce((s, c) => s + (c.marge_prevue_pct || 0), 0) / btpChantiers.length) : 0
+    const margeMoyenne = chiffresBtp.margeMoyenne
 
     const urgentCount = isSociete ? chantiersAttente.length : pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length
 
@@ -370,7 +413,7 @@ export default function HomeSection({
         <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1 }}>
             <h1>{locale === 'pt' ? 'Painel' : 'Tableau de bord'}</h1>
-            <p>{artisan?.company_name || 'Entreprise'} — {locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum}, {monthYear}</p>
+            <p>{locale === 'pt' ? `${artisan?.company_name || 'Empresa'} · Semana ${weekNum}, ${monthYear}` : <>{artisan?.company_name || 'Entreprise'} — Semaine {weekNum}, {monthYear}</>}</p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => openDevisForm(), 50) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
@@ -385,20 +428,26 @@ export default function HomeSection({
               <div className="v5-kpi-v">{chantiersActifs.length}</div>
               <div className="v5-kpi-s">{chantiersAttente.length > 0 ? `+ ${chantiersAttente.length} ${locale === 'pt' ? 'em espera' : 'en attente'}` : `${btpChantiers.length} total`}</div>
             </div>
-            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('comptabilite-btp')}>
-              <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação total obras' : 'CA total chantiers'}</div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('compta_btp')} onKeyDown={surActivationClavier(() => navigateTo('compta_btp'))}>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação total das obras' : 'CA total chantiers'}</div>
               <div className="v5-kpi-v">{formatPrice(totalBudget)}</div>
-              <div className="v5-kpi-s">{locale === 'pt' ? 'Adiantamentos' : 'Acomptes'} : {formatPrice(totalAcomptes)}</div>
+              <div className="v5-kpi-s">{locale === 'pt' ? 'Adiantamentos:' : 'Acomptes :'} {totalAcomptes === null ? '—' : formatPrice(totalAcomptes)}</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('rentabilite')}>
               <div className="v5-kpi-l">{locale === 'pt' ? 'Margem média' : 'Marge moyenne'}</div>
-              <div className="v5-kpi-v">{margeMoyenne}%</div>
-              <div className="v5-kpi-s">{locale === 'pt' ? 'Objetivo' : 'Objectif'} : 25%</div>
+              <div className="v5-kpi-v">{margeMoyenne === null ? '—' : `${margeMoyenne}%`}</div>
+              <div className="v5-kpi-s">{locale === 'pt' ? 'Objetivo:' : 'Objectif :'} 25%</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('equipes')}>
-              <div className="v5-kpi-l">{locale === 'pt' ? 'Efetivo' : 'Effectif'}</div>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Colaboradores' : 'Effectif'}</div>
               <div className="v5-kpi-v">{membresActifs.length}</div>
-              <div className="v5-kpi-s">{membresActifs.filter(m => m.type_compte === 'chef_chantier').length} {locale === 'pt' ? 'chefes' : 'chefs'} + {membresActifs.filter(m => m.type_compte === 'ouvrier').length} {locale === 'pt' ? 'operários' : 'ouvriers'}</div>
+              <div className="v5-kpi-s">{(() => {
+                const chefs = membresActifs.filter(m => m.type_compte === 'chef_chantier').length
+                const ouvriers = membresActifs.filter(m => m.type_compte === 'ouvrier').length
+                return locale === 'pt'
+                  ? `${chefs} ${chefs === 1 ? 'encarregado' : 'encarregados'} + ${ouvriers} ${ouvriers === 1 ? 'operário' : 'operários'}`
+                  : `${chefs} chefs + ${ouvriers} ouvriers`
+              })()}</div>
             </div>
           </>) : (<>
             <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
@@ -417,7 +466,7 @@ export default function HomeSection({
               <div className="v5-kpi-s">{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
-              <div className="v5-kpi-l">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Taxa de conversão' : 'Taux conversion'}</div>
               <div className="v5-kpi-v">{conversionRate}%</div>
               <div className="v5-kpi-s">{completedBookings.length}/{totalReceived}</div>
             </div>
@@ -437,12 +486,13 @@ export default function HomeSection({
                 <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Sem obras em curso' : 'Aucun chantier en cours'}</div>
               ) : (
                 <table className="v5-dt">
-                  <thead><tr><th>{locale === 'pt' ? 'Obra' : 'Chantier'}</th><th>{locale === 'pt' ? 'Chefe' : 'Chef'}</th><th>{locale === 'pt' ? 'Progresso' : 'Avancement'}</th><th>{locale === 'pt' ? 'Prazo' : 'Deadline'}</th></tr></thead>
+                  <thead><tr><th>{locale === 'pt' ? 'Obra' : 'Chantier'}</th><th>{locale === 'pt' ? 'Encarregado' : 'Chef'}</th><th>{locale === 'pt' ? 'Progresso' : 'Avancement'}</th><th>{locale === 'pt' ? 'Prazo' : 'Deadline'}</th></tr></thead>
                   <tbody>
                     {chantiersActifs.slice(0, 5).map(c => {
                       const color = colorForChantierId(c.id)
                       const avc = computeAvancement(c.dateDebut, c.dateFin)
-                      const isRetard = c.dateFin && new Date(c.dateFin) < new Date()
+                      // Même règle que l'alerte « deadline dépassée » : le dernier jour n'est pas un retard.
+                      const isRetard = finDepassee(c.dateFin, now)
                       const deadlineLabel = c.dateFin ? new Date(c.dateFin).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) : '—'
                       return (
                         <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
@@ -511,18 +561,18 @@ export default function HomeSection({
               btpChantiers.forEach(c => {
                 if (c.dateDebut) {
                   const d = new Date(c.dateDebut); d.setHours(0, 0, 0, 0)
-                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${locale === 'pt' ? 'Arranque' : 'Démarrage'} — ${c.titre}` })
+                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: locale === 'pt' ? `Arranque: ${c.titre}` : `Démarrage — ${c.titre}` })
                 }
                 if (c.dateFin) {
                   const d = new Date(c.dateFin); d.setHours(0, 0, 0, 0)
-                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${locale === 'pt' ? 'Entrega' : 'Livraison'} — ${c.titre}` })
+                  if (d >= today && d < weekEnd) items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: locale === 'pt' ? `Entrega: ${c.titre}` : `Livraison — ${c.titre}` })
                 }
               })
               bookings.forEach(b => {
                 if (!b.booking_date) return
                 const d = new Date(b.booking_date); d.setHours(0, 0, 0, 0)
                 if (d >= today && d < weekEnd) {
-                  items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: `${b.services?.name || (locale === 'pt' ? 'Agendamento' : 'RDV')} — ${extractClientName(b)}` })
+                  items.push({ date: d, day: d.getDay(), label: DAY_LABELS[d.getDay()], text: locale === 'pt' ? `${b.services?.name || 'Marcação'} · ${extractClientName(b)}` : `${b.services?.name || 'RDV'} — ${extractClientName(b)}` })
                 }
               })
               items.sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -551,7 +601,7 @@ export default function HomeSection({
                     return (
                       <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
                         <div style={{ background: '#E3F2FD', color: '#1565C0', padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'capitalize' as const }}>{dayName}</div>
-                        <div style={{ fontSize: 11 }}>{b.services?.name || 'RDV'} — {clientName}</div>
+                        <div style={{ fontSize: 11 }}>{locale === 'pt' ? `${b.services?.name || 'Marcação'} · ${clientName}` : <>{b.services?.name || 'RDV'} — {clientName}</>}</div>
                       </div>
                     )
                   })}
@@ -562,7 +612,7 @@ export default function HomeSection({
 
           {/* Alertes BTP / Alertes */}
           <div className="v5-card">
-            <div className="v5-st">{isSociete ? (locale === 'pt' ? 'Alertas Obras' : 'Alertes BTP') : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
+            <div className="v5-st">{isSociete ? (locale === 'pt' ? 'Alertas de obra' : 'Alertes BTP') : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
             {isSociete ? (
               btpAlerts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
@@ -596,16 +646,16 @@ export default function HomeSection({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           {isSociete ? (<>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('situations')}>
-              <div className="v5-st">{locale === 'pt' ? 'Situações de obra' : 'Situations de travaux'}</div>
+              <div className="v5-st">{locale === 'pt' ? 'Autos de medição' : 'Situations de travaux'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpSituations.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{btpSituations.filter(s => s.statut === 'validée' || s.statut === 'payée').length} {locale === 'pt' ? 'validadas / pagas' : 'validées / payées'}</div>
             </div>
-            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('pointage')}>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('rentabilite')} onKeyDown={surActivationClavier(() => navigateTo('rentabilite'))}>
               <div className="v5-st">{locale === 'pt' ? 'Despesas' : 'Dépenses'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpDepenses.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{formatPrice(totalDepenses)} total</div>
             </div>
-            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('portail-client')}>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('portail_client')} onKeyDown={surActivationClavier(() => navigateTo('portail_client'))}>
               <div className="v5-st">{locale === 'pt' ? 'Clientes' : 'Clients'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{new Set(btpChantiers.map(c => c.client)).size}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{btpChantiers.length} {locale === 'pt' ? 'obras' : 'chantiers'}</div>
@@ -619,12 +669,12 @@ export default function HomeSection({
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('messages')}>
               <div className="v5-st">{locale === 'pt' ? 'Mensagens' : 'Messagerie'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{pendingBookings.length}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>conversations</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{locale === 'pt' ? 'conversas' : 'conversations'}</div>
             </div>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('devis')}>
               <div className="v5-st">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''} — ${formatPrice(recentDevis[0].total || recentDevis[0].amount || 0)}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].docNumber || recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''}${locale === 'pt' ? ' · ' : ' — '}${formatPrice(docRevenueHT(recentDevis[0]))}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
             </div>
           </>)}
         </div>
@@ -687,7 +737,7 @@ export default function HomeSection({
           <div className="v22-stat-delta" style={{ color: tv.textMuted }}>{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
         </div>
         <div className="v22-stat" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
-          <div className="v22-stat-label">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
+          <div className="v22-stat-label">{locale === 'pt' ? 'Taxa de conversão' : 'Taux conversion'}</div>
           <div className="v22-stat-val">{conversionRate}%</div>
           <div className="v22-stat-delta v22-up">{completedBookings.length}/{totalReceived}</div>
         </div>
@@ -903,8 +953,18 @@ export default function HomeSection({
                 </thead>
                 <tbody>
                   {recentDevis.map((d, i) => {
-                    const statusClass = d.status === 'accepted' || d.status === 'accepté' ? 'v22-tag-green' : d.status === 'rejected' || d.status === 'refusé' ? 'v22-tag-red' : 'v22-tag-amber'
-                    const statusLabel = d.status === 'accepted' || d.status === 'accepté' ? (locale === 'pt' ? 'Aceite' : 'Accepté') : d.status === 'rejected' || d.status === 'refusé' ? (locale === 'pt' ? 'Recusado' : 'Refusé') : (locale === 'pt' ? 'Pendente' : 'Attente')
+                    // Les statuts réels, par les primitives partagées. Ce bloc cherchait « accepted » et
+                    // « accepté » accentué, « rejected » et « refusé » : il ignorait donc « accepte », « signe »,
+                    // « signed » et « refuse », c'est-à-dire presque tout ce que le dépôt écrit. Tout devis
+                    // s'affichait « Attente ».
+                    const gagne = estDevisSigne(d.status)
+                    const refuse = estDevisRefuse(d.status)
+                    const statusClass = gagne ? 'v22-tag-green' : refuse ? 'v22-tag-red' : 'v22-tag-amber'
+                    const statusLabel = gagne
+                      ? (locale === 'pt' ? 'Aceite' : 'Accepté')
+                      : refuse
+                        ? (locale === 'pt' ? 'Recusado' : 'Refusé')
+                        : (locale === 'pt' ? 'Pendente' : 'Attente')
                     return (
                       <tr
                         key={d.id || i}
@@ -913,9 +973,9 @@ export default function HomeSection({
                         onMouseLeave={e => { e.currentTarget.querySelectorAll('td').forEach(td => (td as HTMLElement).style.background = '') }}
                         onClick={() => navigateTo('devis')}
                       >
-                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className="v22-ref">{d.ref || d.number || `${i + 1}`}</span></td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className="v22-ref">{d.docNumber || d.ref || d.number || `${i + 1}`}</span></td>
                         <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', fontWeight: 500 }}>{d.client || d.clientName || '—'}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(d.total || d.amount || 0)}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(docRevenueHT(d))}</td>
                         <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className={`v22-tag ${statusClass}`}>{statusLabel}</span></td>
                       </tr>
                     )

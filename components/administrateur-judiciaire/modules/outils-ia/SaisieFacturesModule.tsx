@@ -15,16 +15,19 @@ import {
 } from '@/components/administrateur-judiciaire/modules/outils-ia/appelOutilIA'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast, type ValeursFormulaireToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useDonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import {
   TAILLE_MAX_FICHIER_FACTURE,
   TYPES_FICHIER_FACTURE,
@@ -36,6 +39,17 @@ import {
 
 /** Choix « copropriété non reconnue » du formulaire de vérification. */
 const COPROPRIETE_A_PRECISER = 'À préciser'
+
+/**
+ * Copropriété des factures de démonstration, par numéro (reprise des documents d'intervention et des contrats de
+ * démonstration : plomberie, ascenseur et multirisque au Méridien, électricité au Clos des Vignes).
+ */
+const CODES_COPRO_FACTURES_DEMO: Readonly<Record<string, string>> = {
+  'FAC-2026-051': 'LM',
+  'FAC-2026-044': 'LM',
+  'FAC-2026-038': 'LM',
+  'FAC-2026-029': 'CV',
+}
 
 /** Détail d'une facture importée, affiché dans sa fiche (les factures de démonstration n'en ont pas). */
 interface DetailFactureImportee {
@@ -54,6 +68,19 @@ const montantSaisi = (montant: number | null): string => (montant === null ? '' 
 /** Montant affiché : « 1 234,56 € » (Intl fr-FR), ou « — » si illisible. */
 const montantAffiche = (montant: number | null): string => (montant === null ? '—' : formatEurosCentimes(montant))
 
+/**
+ * Copropriété d'une facture : celle choisie à l'import (`detail`, retrouvée parmi `copros` de la base), sinon celle
+ * de la facture de démonstration ; null pour une facture « À préciser » ou sans copropriété connue.
+ */
+function codeCoproFacture(
+  facture: FactureSaisieDemo,
+  detail: DetailFactureImportee | undefined,
+  copros: readonly { code: string; nom: string }[],
+): string | null {
+  if (detail) return codeDeNomCopro(detail.copropriete, copros)
+  return CODES_COPRO_FACTURES_DEMO[facture[0]] ?? null
+}
+
 /** Date AAAA-MM-JJ lue par l'IA → « JJ/MM/AAAA » ; toute autre forme est reprise telle quelle. */
 const dateSaisie = (date: string | null): string => (date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? dateIsoVersFr(date) : (date ?? ''))
 
@@ -63,17 +90,29 @@ const dateSaisie = (date: string | null): string => (date && /^\d{4}-\d{2}-\d{2}
  * l'assistant IA lit (Claude, vision, via /api/administrateur-judiciaire/outils) ; les informations lues
  * pré-remplissent le formulaire d'import, à vérifier, puis la facture rejoint la liste « à valider » (« anomalie » si
  * HT + TVA ≠ TTC). Indicateurs et pastilles suivent la liste. Onglets autonomes (« Importer » par défaut).
+ * Affiché selon la copropriété choisie dans le sélecteur du haut de page : factures de cette copropriété et factures
+ * encore « À préciser » (visibles partout, pour être rattachées) ; la liste complète reste en mémoire. Le formulaire
+ * propose la copropriété choisie quand l'IA n'en reconnaît aucune ; toutes les copropriétés restent envoyées à l'IA.
  */
 export function SaisieFacturesModule() {
   const { push } = useToast()
   const { copros } = useDonneesLocales()
+  const { code, nom } = useCoproChoisie()
   const [factures, setFactures] = useState<FactureSaisieDemo[]>(DEMO_FACTURES_SAISIE_IA)
   const [factureOuverte, setFactureOuverte] = useState<FactureSaisieDemo | null>(null)
   const [lecture, setLecture] = useState(false)
   const champFichier = useRef<HTMLInputElement>(null)
   const details = useRef(new WeakMap<FactureSaisieDemo, DetailFactureImportee>())
 
-  const compter = (statut: StatutFactureSaisie) => factures.filter((facture) => facture[4] === statut).length
+  // Une facture sans copropriété (« À préciser ») reste visible quelle que soit la copropriété choisie.
+  const facturesAffichees = filtrerParCopro(
+    factures,
+    code,
+    (facture) => codeCoproFacture(facture, details.current.get(facture), copros) ?? code,
+  )
+
+  const compter = (statut: StatutFactureSaisie) =>
+    facturesAffichees.filter((facture) => facture[4] === statut).length
 
   /** Ajoute la facture vérifiée dans le formulaire ; renvoie son statut (message du toast). */
   const ajouterFacture = (valeurs: ValeursFormulaireToast, fichier: string): StatutFactureSaisie => {
@@ -102,11 +141,16 @@ export function SaisieFacturesModule() {
     return statut
   }
 
-  /** Formulaire d'import pré-rempli avec les informations lues par l'IA. */
+  /**
+   * Formulaire d'import pré-rempli avec les informations lues par l'IA ; copropriété : celle reconnue par l'IA, sinon
+   * celle choisie dans le sélecteur du haut de page, sinon « À préciser ».
+   */
   const verifierFacture = (facture: FactureExtraite, fichier: string) => {
     const noms = copros.map((copro) => copro.nom)
     const coproprieteReconnue =
-      facture.copropriete_probable && noms.includes(facture.copropriete_probable) ? facture.copropriete_probable : COPROPRIETE_A_PRECISER
+      [facture.copropriete_probable, nom].find(
+        (candidate): candidate is string => typeof candidate === 'string' && noms.includes(candidate),
+      ) ?? COPROPRIETE_A_PRECISER
     const alerte = montantsIncoherents(facture) ? ' Attention : HT + TVA ne correspond pas au TTC.' : ''
     push({
       kind: 'form',
@@ -248,7 +292,7 @@ export function SaisieFacturesModule() {
         items={[
           {
             icon: 'doc',
-            num: factures.length,
+            num: facturesAffichees.length,
             lbl: 'Total factures',
           },
           {
@@ -299,36 +343,40 @@ export function SaisieFacturesModule() {
         ]}
       />
       <Panel title="Factures" icon="doc" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Facture',
-              render: (facture) => <span className="mono">{facture[0]}</span>,
-            },
-            {
-              h: 'Fournisseur',
-              render: (facture) => <b>{facture[1]}</b>,
-            },
-            {
-              h: 'Montant',
-              render: (facture) => <span className="mono">{facture[2]}</span>,
-            },
-            {
-              h: 'Poste',
-              render: (facture) => <Pill noDot>{facture[3]}</Pill>,
-            },
-            {
-              h: 'Statut',
-              render: (facture) => (
-                <Pill kind={PILL_PAR_STATUT_FACTURE_SAISIE[facture[4]]} noDot>
-                  {facture[4]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={factures}
-          onRow={setFactureOuverte}
-        />
+        {facturesAffichees.length === 0 ? (
+          <EmptyState icon="doc" title={titreListeVide('Aucune facture', nom)} />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                h: 'Facture',
+                render: (facture) => <span className="mono">{facture[0]}</span>,
+              },
+              {
+                h: 'Fournisseur',
+                render: (facture) => <b>{facture[1]}</b>,
+              },
+              {
+                h: 'Montant',
+                render: (facture) => <span className="mono">{facture[2]}</span>,
+              },
+              {
+                h: 'Poste',
+                render: (facture) => <Pill noDot>{facture[3]}</Pill>,
+              },
+              {
+                h: 'Statut',
+                render: (facture) => (
+                  <Pill kind={PILL_PAR_STATUT_FACTURE_SAISIE[facture[4]]} noDot>
+                    {facture[4]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={facturesAffichees}
+            onRow={setFactureOuverte}
+          />
+        )}
       </Panel>
       <DetailModal
         open={!!factureOuverte}

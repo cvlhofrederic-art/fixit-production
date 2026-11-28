@@ -1,10 +1,20 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
+import { adresseComplete, geocoderAdresse, type AdresseChantier } from '@/lib/btp/geocodage'
+import {
+  avertissementPositionGardee, champsModifies, porteLaPositionEnregistree, questionGarderPosition, questionPositionNecessaire,
+  questionRetirerPosition,
+} from '@/lib/btp/fiche-chantier'
+import { confirmationRelocaliser } from '@/components/dashboard/btp/pointage/textes'
+import { COLONNES_LIEU_DEVIS, champsAdresseDuLieu, libelleChoixDevis, lieuDuDevis, messageAdresseImportee } from '@/lib/btp/lieu-devis'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
+import { lierDevisAuChantierSociete, lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import { toast } from 'sonner'
 import {
   PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
@@ -35,18 +45,81 @@ const EMPTY_FORM: ChantierForm = {
   devis_id: null, membres_ids: [],
 }
 
+/**
+ * Adresse modifiée : une position calculée pendant la saisie (bouton GPS, devis importé) ne correspond plus (le bouton
+ * GPS la recalcule). La position enregistrée du chantier, elle, reste jusqu'à l'enregistrement (lib/btp/fiche-chantier.ts).
+ */
+const SANS_POSITION = { latitude: null, longitude: null } as const
+
 interface DevisSummary {
   id: string; numero: string; client_name: string; client_address: string
   total_ht_cents: number; items: Array<{ description: string; [k: string]: unknown }>; created_at: string; status: string
   execution_delay_days?: number; prestation_date?: string
+  /** Lieu d'intervention et adresse du client tirés du contenu du devis (COLONNES_LIEU_DEVIS, lib/btp/lieu-devis.ts). */
+  lieu_intervention?: string | null; adresse_client_devis?: string | null
 }
+
+/**
+ * Colonnes des devis proposés à l'import, avec COLONNES_LIEU_DEVIS. Repli, si la base n'a pas la colonne raw_data :
+ * l'ancienne colonne client_address (que la synchronisation n'écrit plus : demandée seulement là).
+ */
+const COLONNES_DEVIS_IMPORT = 'id, numero, client_name, total_ht_cents, items, created_at, status'
 
 interface MembreSummary {
   id: string; prenom: string; nom: string; role: string
   daily_cost: number; actif: boolean
 }
 
+type DocLie = { id: string; type: 'devis' | 'facture'; numero: string; client_name: string; total_ht: number | null; status: string }
+type LigneDocument = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Devis et factures rattachés, rangés par chantier (lignes de la table, lues par le navigateur ou par le serveur). */
+function grouperDocumentsLies(devis: readonly LigneDocument[], factures: readonly LigneDocument[]): Record<string, DocLie[]> {
+  const grouped: Record<string, DocLie[]> = {}
+  const ranger = (d: LigneDocument, type: DocLie['type']) => {
+    const cid = d.chantier_id as string
+    if (!cid) return
+    if (!grouped[cid]) grouped[cid] = []
+    grouped[cid].push({ id: d.id, type, numero: d.numero || '', client_name: d.client_name || '', total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null, status: d.status || '' })
+  }
+  for (const d of devis) ranger(d, 'devis')
+  for (const f of factures) ranger(f, 'facture')
+  return grouped
+}
+
+/** Devis proposés par « Lier un devis » (au plus 50, dans l'ordre reçu : les plus récents d'abord). */
+function devisALier(lignes: readonly LigneDocument[]) {
+  return lignes.slice(0, 50).map(d => ({
+    id: d.id as string,
+    numero: d.numero || '',
+    client_name: d.client_name || '',
+    total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null,
+    status: d.status || '',
+  }))
+}
+
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
+
+/**
+ * Statut enregistré d'un devis ou d'une facture (anglais ou français selon l'origine), affiché en portugais :
+ * [orçamento (masculin), fatura (féminin)]. La valeur enregistrée ne change pas ; un statut inconnu s'affiche tel quel.
+ */
+const STATUT_DOCUMENT_PT: Record<string, [string, string]> = {
+  draft: ['Rascunho', 'Rascunho'], brouillon: ['Rascunho', 'Rascunho'],
+  sent: ['Enviado', 'Enviada'], envoye: ['Enviado', 'Enviada'], envoyé: ['Enviado', 'Enviada'],
+  pending: ['Pendente', 'Pendente'],
+  accepted: ['Aceite', 'Aceite'], accepte: ['Aceite', 'Aceite'], accepté: ['Aceite', 'Aceite'],
+  signed: ['Assinado', 'Assinada'], signe: ['Assinado', 'Assinada'], signé: ['Assinado', 'Assinada'],
+  rejected: ['Recusado', 'Recusada'], refuse: ['Recusado', 'Recusada'], refusé: ['Recusado', 'Recusada'],
+  cancelled: ['Anulado', 'Anulada'], annule: ['Anulado', 'Anulada'], annulé: ['Anulado', 'Anulada'],
+  paid: ['Pago', 'Paga'], payee: ['Pago', 'Paga'], payée: ['Pago', 'Paga'],
+  overdue: ['Em atraso', 'Em atraso'], en_retard: ['Em atraso', 'Em atraso'],
+  refunded: ['Reembolsado', 'Reembolsada'], rembourse: ['Reembolsado', 'Reembolsada'],
+}
+const statutDocumentPt = (statut: string, type: 'devis' | 'facture') => STATUT_DOCUMENT_PT[statut]?.[type === 'facture' ? 1 : 0] ?? statut
+
+/** Fonction par défaut d'un membre lu sans rôle (« Ouvrier »), affichée en portugais. */
+const ROLE_PT: Record<string, string> = { Ouvrier: 'Operário' }
 
 // ── Status badge mapping ──
 const STATUS_BADGE: Record<string, string> = {
@@ -66,11 +139,51 @@ function progressColor(pct: number, statut: string): string {
   return '#FFCA28'
 }
 
-export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole?: string }) {
+const STATUTS_CHANTIER = ['En attente', 'En cours', 'Terminé', 'Annulé'] as const
+const STATUTS_PT: Record<string, string> = { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
+/** Libellé d'un statut de chantier (valeur enregistrée en français, affichée en portugais sur /pt). */
+function libelleStatut(statut: string, isPt: boolean): string {
+  return isPt ? STATUTS_PT[statut] ?? statut : statut
+}
+
+/** Sous-titre de l'écran : « gestion » pour qui gère les chantiers, simple liste pour qui les consulte. */
+function sousTitreChantiers(actifs: number, isPt: boolean, lectureSeule: boolean): string {
+  if (lectureSeule) return isPt ? `As suas obras: ${actifs} ativa(s)` : `Vos chantiers — ${actifs} actif(s)`
+  return isPt ? `Gestão das suas obras: ${actifs} ativa(s)` : `Gestion de vos chantiers — ${actifs} actif(s)`
+}
+
+/**
+ * `lectureSeule` : salarié sans droit d'écriture sur les chantiers (ouvrier, chef de chantier, conducteur de travaux
+ * par défaut, 25/11/2026). Il consulte les chantiers qui lui sont affectés — /api/btp ne lui rend que ceux-là, sans
+ * client ni montant — sans aucun bouton de création, de modification, de statut, de suppression ni de liaison de
+ * devis : le serveur les lui refuserait tous (403).
+ */
+export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { artisan: Artisan; orgRole?: string; lectureSeule?: boolean }) {
   const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dl = isPt ? 'pt-PT' : 'fr-FR'
+  // Compte invité dans la société : ses devis sont ceux de l'entreprise, que la RLS ne lui rend pas. Lus et liés par le
+  // serveur (app/api/pro/documents/chantiers), qui vérifie son rôle ; le titulaire garde ses lectures directes.
+  const sousCompte = estSousCompteSociete(artisan)
+  // Une seule lecture du serveur pour les deux chargements du montage (devis à importer, documents liés). L'ouverture
+  // d'une fiche, « Lier un devis » et la relecture après une liaison la refont. Une lecture en échec n'est pas gardée :
+  // la suivante réessaie (elle servait sinon à chaque ouverture de « Nouveau chantier », tant que l'écran restait ouvert).
+  const lectureSocieteRef = useRef<ReturnType<typeof lireDocumentsDesChantiers> | null>(null)
+  const documentsDeLaSociete = useCallback(async (relire = false) => {
+    if (relire || !lectureSocieteRef.current) lectureSocieteRef.current = lireDocumentsDesChantiers()
+    const lecture = lectureSocieteRef.current
+    const lu = await lecture
+    if (!lu.ok && lectureSocieteRef.current === lecture) lectureSocieteRef.current = null
+    return lu
+  }, [])
+  /**
+   * Une lecture des documents de la société en échec se dit : la liste restait vide, « aucun document lié », « aucun
+   * devis trouvé ». Un rôle sans droit sur les devis (salarié de terrain) n'a rien à y voir : pas de message.
+   */
+  const signalerLectureEnEchec = useCallback((lu: { message: string; code?: string }) => {
+    if (lu.code !== 'aucun_droit') toast.error(messageRefusDocuments(lu, isPt), { id: 'chantiers-documents-societe' })
+  }, [isPt])
 
   const { items: chantiers, loading, add, update, remove } = useBTPData({
     table: 'chantiers',
@@ -83,6 +196,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [editId, setEditId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'Tous' | 'En cours' | 'En attente' | 'Terminés'>('Tous')
   const [form, setForm] = useState<ChantierForm>(EMPTY_FORM)
+  /** Fiche telle qu'ouverte pour modification : repère des champs modifiés et de la position enregistrée. */
+  const ficheOuverteRef = useRef<ChantierForm | null>(null)
+  /** Numéro de la dernière demande de géocodage : une réponse dépassée (adresse retouchée, autre fiche ouverte) est ignorée. */
+  const demandeGeoRef = useRef(0)
   const [saving, setSaving] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
 
@@ -90,6 +207,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [devisList, setDevisList] = useState<DevisSummary[]>([])
   const [membresList, setMembresList] = useState<MembreSummary[]>([])
   const [loadingDevis, setLoadingDevis] = useState(false)
+  /** Liste des devis ouverte sous « Adresse du chantier » (bouton « Importer depuis un devis »). */
+  const [choixAdresseOuvert, setChoixAdresseOuvert] = useState(false)
+  /** Adresse posée par le dernier import d'un devis : retouchée depuis à la main, elle n'est plus celle du devis. */
+  const adresseImporteeRef = useRef<{ adresse: string; codePostal: string; ville: string } | null>(null)
 
   // Alerte fin de chantier
   const [prolongModal, setProlongModal] = useState<{ chantier: ChantierForm & { id: string; statut?: string } } | null>(null)
@@ -107,17 +228,29 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [search, setSearch] = useState('')
 
   // ── Fetch devis + membres quand le modal s'ouvre ──
-  const loadDevisAndMembres = useCallback(async () => {
+  const loadDevisAndMembres = useCallback(async (relire = false) => {
     setLoadingDevis(true)
     try {
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = {}
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-      const [devisRes, membresRes] = await Promise.all([
-        supabase.from('devis').select('id, numero, client_name, client_address, total_ht_cents, items, created_at, status').eq('artisan_id', artisan?.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50),
+      const devisRequete = (colonnes: string) => supabase.from('devis').select(colonnes).eq('artisan_id', artisan?.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50)
+      const lireDevis = async (): Promise<DevisSummary[] | null> => {
+        if (sousCompte) {
+          // Un rôle sans droit sur les devis (salarié de terrain) reçoit un refus : aucun devis à proposer.
+          const lu = await documentsDeLaSociete(relire)
+          if (!lu.ok) { signalerLectureEnEchec(lu); return null }
+          return lu.valeur.devis.slice(0, 50) as unknown as DevisSummary[]
+        }
+        const lectureAvecLieu = await devisRequete(`${COLONNES_DEVIS_IMPORT}, ${COLONNES_LIEU_DEVIS}`)
+        const devisRes = lectureAvecLieu.error ? await devisRequete(`${COLONNES_DEVIS_IMPORT}, client_address`) : lectureAvecLieu
+        return devisRes.data ? (devisRes.data as unknown as DevisSummary[]) : null
+      }
+      const [devisLus, membresRes] = await Promise.all([
+        lireDevis(),
         fetch('/api/btp?table=membres', { headers }),
       ])
-      if (devisRes.data) setDevisList(devisRes.data as DevisSummary[])
+      if (devisLus) setDevisList(devisLus)
       if (membresRes.ok) {
         const j = await membresRes.json()
         const membres = (j.membres || []).filter((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; daily_cost?: number }) => m.actif !== false)
@@ -157,32 +290,41 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       }
     } catch (e) { console.error('loadDevisAndMembres:', e) }
     setLoadingDevis(false)
-  }, [artisan?.id, settings])
+  }, [artisan?.id, settings, sousCompte, documentsDeLaSociete, signalerLectureEnEchec])
 
   // ── Géocode ──
-  const geocodeAdresse = useCallback(async (adresse: string) => {
-    if (!adresse.trim()) return
+  // La position GPS déclenche le pointage automatique des employés : seule une position précise de l'adresse (numéro,
+  // rue, commune vérifiée) est retenue. Une adresse trop vague retire une position calculée plutôt que d'en garder une
+  // ancienne ; la position enregistrée du chantier (peut-être placée sur place), elle, est gardée (`garderSiImprecis`).
+  const geocodeAdresse = useCallback(async (adresse: AdresseChantier, garderSiImprecis = false) => {
+    if (!adresseComplete(adresse)) return
+    demandeGeoRef.current += 1
+    const demande = demandeGeoRef.current
     setGeocoding(true)
     try {
-      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`, { signal: AbortSignal.timeout(3000) })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.features?.length > 0) {
-          const [lng, lat] = data.features[0].geometry.coordinates
-          setForm(f => ({ ...f, latitude: lat, longitude: lng }))
-          setGeocoding(false); return
-        }
+      const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
+      if (demande !== demandeGeoRef.current) return
+      if (position?.precise) {
+        setForm(f => ({ ...f, latitude: position.latitude, longitude: position.longitude }))
+      } else if (position && garderSiImprecis) {
+        toast.warning(avertissementPositionGardee(isPt))
+      } else if (position) {
+        // Centre de la commune, rue d'une autre commune : le pointage automatique se déclencherait au mauvais endroit.
+        setForm(f => ({ ...f, latitude: null, longitude: null }))
+        toast.warning(isPt ? 'Morada pouco precisa para o GPS: indique o número, a rua e o código postal.' : 'Adresse trop vague pour le GPS : indiquez le numéro, la rue et le code postal.')
+      } else {
+        toast.warning(isPt ? 'Morada não encontrada (ou serviço indisponível): posição GPS não atualizada.' : 'Adresse introuvable (ou service indisponible) : position GPS non mise à jour.')
       }
-      const nom = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(adresse)}&format=json&limit=1`, {
-        signal: AbortSignal.timeout(3000), headers: { 'User-Agent': 'Fixit/1.0' }
-      })
-      if (nom.ok) {
-        const nomData = await nom.json()
-        if (nomData.length > 0) setForm(f => ({ ...f, latitude: parseFloat(nomData[0].lat), longitude: parseFloat(nomData[0].lon) }))
-      }
-    } catch { /* silent */ }
-    finally { setGeocoding(false) }
-  }, [])
+    } finally {
+      if (demande === demandeGeoRef.current) setGeocoding(false)
+    }
+  }, [isPt])
+
+  /** Géocodage en cours devenu sans objet (adresse retouchée, fiche ouverte ou rouverte) : sa réponse sera ignorée. */
+  const oublierGeocodage = () => {
+    demandeGeoRef.current += 1
+    setGeocoding(false)
+  }
 
   // ── Import devis → form ──
   const importDevis = (devis: DevisSummary) => {
@@ -200,11 +342,25 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       dateFin = end.toISOString().split('T')[0]
     }
 
+    // Adresse : le lieu d'intervention du devis (à défaut l'adresse du client), en rue, code postal et ville. Nouvelle
+    // adresse : la position d'un devis importé avant ne doit pas rester. Un devis sans l'un ni l'autre laisse une adresse
+    // tapée ou retouchée à la main, mais retire celle d'un devis importé avant, inchangée (et sa position) : elle n'est
+    // pas celle de ce devis.
+    const lieu = lieuDuDevis(devis)
+    const champs = lieu ? champsAdresseDuLieu(lieu.texte, isPt ? 'PT' : 'FR') : null
+    const importee = adresseImporteeRef.current
+    const adresseDuDevisPrecedent = !!form.devis_id && !!importee
+      && form.adresse === importee.adresse && form.codePostal === importee.codePostal && form.ville === importee.ville
+    let adresse: Partial<ChantierForm> = {}
+    if (champs) adresse = { ...champs, ...SANS_POSITION }
+    else if (adresseDuDevisPrecedent) adresse = { adresse: '', codePostal: '', ville: '', ...SANS_POSITION }
+    if (Object.keys(adresse).length > 0) oublierGeocodage()
+    adresseImporteeRef.current = champs
     setForm(f => ({
       ...f,
-      titre: firstDesc || `Devis ${devis.numero}`,
+      titre: firstDesc || `${isPt ? 'Orçamento' : 'Devis'} ${devis.numero}`,
       client: devis.client_name || '',
-      adresse: devis.client_address || '',
+      ...adresse,
       budget: String(totalHT),
       devis_id: devis.id,
       dateDebut: (devis as any).prestation_date || today,
@@ -212,34 +368,136 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       description: `${isPt ? 'Ref. orçamento' : 'Réf. devis'}: ${devis.numero}\n${items.map((it: { description: string }) => `• ${it.description}`).join('\n')}`,
     }))
 
-    // Géocoder l'adresse importée
-    if (devis.client_address) geocodeAdresse(devis.client_address)
+    // Géocoder le lieu d'intervention importé. L'adresse du client (peut-être un siège) ne l'est pas d'office : la
+    // position déclenche le pointage ; le gérant la vérifie, puis utilise le bouton GPS.
+    if (lieu && champs) {
+      toast.success(messageAdresseImportee(devis.numero, lieu, champs, isPt))
+      if (lieu.source === 'intervention') void geocodeAdresse(champs)
+    } else {
+      toast.warning(isPt
+        ? 'Este orçamento não tem local de intervenção nem morada do cliente: indique a morada da obra.'
+        : 'Ce devis n’a ni lieu d’intervention ni adresse du client : indiquez l’adresse du chantier.')
+    }
+  }
+
+  // ── Bouton « Importer l'adresse depuis un devis » (création et modification) ──
+  const devisAvecLieu = useMemo(() => devisList.filter(d => lieuDuDevis(d)), [devisList])
+
+  /** Devis rattachés à la fiche ouverte : celui qui l'a créée (devis_id) et ceux liés au chantier (bouton Lier). */
+  const devisDeLaFiche = (f: ChantierForm): Set<string> => new Set([
+    ...(f.devis_id ? [f.devis_id] : []),
+    ...(editId ? (linkedDocs[editId] ?? []).filter(d => d.type === 'devis').map(d => d.id) : []),
+  ])
+
+  /**
+   * Reprend dans la fiche l'adresse d'un devis, rien d'autre. Comme une saisie dans l'adresse : la position enregistrée
+   * du chantier reste (l'enregistrement demandera quoi en faire), sinon la position est recalculée pour un lieu
+   * d'intervention (pas pour l'adresse du client, voir importDevis).
+   */
+  const importerAdresseDevis = (devis: DevisSummary) => {
+    const lieu = lieuDuDevis(devis)
+    if (!lieu) return
+    const champs = champsAdresseDuLieu(lieu.texte, isPt ? 'PT' : 'FR')
+    const garde = portePositionEnregistree(form)
+    oublierGeocodage()
+    adresseImporteeRef.current = champs
+    setForm({ ...form, ...(garde ? {} : SANS_POSITION), ...champs })
+    setChoixAdresseOuvert(false)
+    toast.success(messageAdresseImportee(devis.numero, lieu, champs, isPt))
+    if (!garde && lieu.source === 'intervention') void geocodeAdresse(champs)
+  }
+
+  /** Devis proposés par le bouton, ceux rattachés à la fiche en tête (tri stable : le plus récent d'abord ensuite). */
+  const choixDevisAdresse = (f: ChantierForm) => {
+    const rattaches = devisDeLaFiche(f)
+    return devisAvecLieu
+      .flatMap(devis => {
+        const lieu = lieuDuDevis(devis)
+        return lieu ? [{ devis, lieu, rattache: rattaches.has(devis.id) }] : []
+      })
+      .sort((a, b) => Number(b.rattache) - Number(a.rattache))
+  }
+
+  /**
+   * Adresse vide et un seul devis rattaché à la fiche, avec un lieu : import direct. Sinon la liste des devis s'ouvre
+   * (devis rattachés en tête) : une adresse déjà là ne se remplace pas sans choix, et un autre devis reste possible.
+   */
+  const clicImporterAdresse = () => {
+    if (choixAdresseOuvert) { setChoixAdresseOuvert(false); return }
+    const rattaches = devisDeLaFiche(form)
+    const lies = devisAvecLieu.filter(d => rattaches.has(d.id))
+    const adresseVide = [form.adresse, form.codePostal, form.ville].every(v => !(v ?? '').trim())
+    if (adresseVide && lies.length === 1) { importerAdresseDevis(lies[0]); return }
+    if (devisAvecLieu.length === 0) {
+      toast.warning(isPt ? 'Nenhum orçamento com local de intervenção ou morada do cliente.' : 'Aucun devis avec un lieu d’intervention ou une adresse du client.')
+      return
+    }
+    setChoixAdresseOuvert(true)
+  }
+
+  /** La fiche porte encore la position enregistrée du chantier (fiche ouverte pour modification seulement). */
+  const portePositionEnregistree = (f: ChantierForm) => porteLaPositionEnregistree(editId ? ficheOuverteRef.current : null, f)
+
+  /**
+   * Saisie dans l'adresse (rue, code postal, ville) : un géocodage en cours devient sans objet ; la position enregistrée
+   * reste (l'enregistrement demandera quoi en faire), une position calculée pendant la saisie part.
+   */
+  const saisirAdresse = (champ: Pick<ChantierForm, 'adresse'> | Pick<ChantierForm, 'codePostal'> | Pick<ChantierForm, 'ville'>) => {
+    oublierGeocodage()
+    setForm({ ...form, ...(portePositionEnregistree(form) ? {} : SANS_POSITION), ...champ })
+  }
+
+  /** Bouton GPS de la fiche : remplacer la position enregistrée (peut-être posée sur place) se confirme d'abord. */
+  const localiserFiche = () => {
+    const garde = portePositionEnregistree(form)
+    if (garde && !window.confirm(confirmationRelocaliser(form.titre.trim() || '—', isPt))) return
+    void geocodeAdresse(form, garde)
   }
 
   // ── Save ──
   const handleSave = async () => {
     if (!form.titre.trim()) return
-    setSaving(true)
-    if (editId) {
-      await update(editId, form)
-    } else {
-      await add(form)
+    const ouverte = editId ? ficheOuverteRef.current : null
+    let fiche = form
+    // Adresse corrigée alors que la fiche porte la position enregistrée (peut-être placée sur le chantier) : la garder ?
+    // La retirer demande un second OK ; fermer une boîte (Échap, Retour) ramène à la fiche sans rien enregistrer.
+    if (questionPositionNecessaire(ouverte, form) && !window.confirm(questionGarderPosition(form.titre, isPt))) {
+      if (!window.confirm(questionRetirerPosition(form.titre, isPt))) return
+      fiche = { ...form, ...SANS_POSITION }
     }
-    setSaving(false); setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
+    setSaving(true)
+    // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
+    let enregistre: boolean
+    if (editId) {
+      // Seuls les champs modifiés depuis l'ouverture : une fiche ouverte avant un changement fait ailleurs (position
+      // placée sur place, rayon ou employés de l'onglet Affectations) ne le défait plus.
+      // Rien de modifié : rien à envoyer, la fenêtre se ferme.
+      const modifies = ouverte ? champsModifies(ouverte, fiche) : fiche
+      enregistre = Object.keys(modifies).length === 0 || await update(editId, modifies)
+    } else {
+      enregistre = (await add(fiche)) !== null
+    }
+    setSaving(false)
+    if (!enregistre) return
+    setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
   }
 
   const handleEdit = (c: ChantierForm & { id: string }) => {
+    oublierGeocodage()
     setEditId(c.id)
-    setForm({
+    const fiche: ChantierForm = {
       titre: c.titre, client: c.client, adresse: c.adresse,
       ville: c.ville || '', codePostal: c.codePostal || '',
       dateDebut: c.dateDebut, dateFin: c.dateFin, budget: c.budget,
       statut: c.statut, description: c.description, equipe: c.equipe,
       latitude: c.latitude, longitude: c.longitude, geoRayonM: c.geoRayonM || 100,
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
-    })
+    }
+    ficheOuverteRef.current = fiche
+    setForm(fiche)
+    setChoixAdresseOuvert(false)
     setShowModal(true)
-    loadDevisAndMembres()
+    void loadDevisAndMembres(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -247,8 +505,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     setDeleteConfirm(null)
   }
 
-  const changeStatut = async (id: string, statut: string) => {
-    await update(id, { statut } as any)
+  const changeStatut = async (id: string, statut: string): Promise<boolean> => {
+    return update(id, { statut } as any)
   }
 
   // ── Prolongation ──
@@ -257,8 +515,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     const c = prolongModal.chantier
     const newEnd = new Date(c.dateFin)
     newEnd.setDate(newEnd.getDate() + prolongDays)
-    await update(c.id, { dateFin: newEnd.toISOString().split('T')[0] } as any)
-    setProlongModal(null)
+    // Fenêtre gardée si la prolongation n'est pas enregistrée (le hook en affiche la raison).
+    if (await update(c.id, { dateFin: newEnd.toISOString().split('T')[0] } as any)) setProlongModal(null)
   }
 
   // ── Rentabilité par chantier ──
@@ -335,62 +593,63 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
 
   // ── Fetch linked docs (devis + factures with chantier_id set) ──
-  const loadLinkedDocs = useCallback(async () => {
+  const loadLinkedDocs = useCallback(async (relire = false) => {
     if (!artisan?.id) return
     try {
+      if (sousCompte) {
+        const lu = await documentsDeLaSociete(relire)
+        if (lu.ok) setLinkedDocs(grouperDocumentsLies(lu.valeur.devis, lu.valeur.factures))
+        else signalerLectureEnEchec(lu)
+        return
+      }
       const [devisRes, facturesRes] = await Promise.all([
         supabase.from('devis').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null).is('deleted_at', null),
         supabase.from('factures').select('id, numero, client_name, total_ht_cents, status, chantier_id').eq('artisan_id', artisan.id).not('chantier_id', 'is', null).is('deleted_at', null),
       ])
-      const grouped: Record<string, Array<{id: string, type: 'devis'|'facture', numero: string, client_name: string, total_ht: number|null, status: string}>> = {}
-      for (const d of (devisRes.data || [])) {
-        const cid = (d as any).chantier_id as string
-        if (!grouped[cid]) grouped[cid] = []
-        grouped[cid].push({ id: d.id, type: 'devis', numero: d.numero || '', client_name: d.client_name || '', total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null, status: d.status || '' })
-      }
-      for (const f of (facturesRes.data || [])) {
-        const cid = (f as any).chantier_id as string
-        if (!grouped[cid]) grouped[cid] = []
-        grouped[cid].push({ id: f.id, type: 'facture', numero: (f as any).numero || '', client_name: f.client_name || '', total_ht: f.total_ht_cents != null ? f.total_ht_cents / 100 : null, status: f.status || '' })
-      }
-      setLinkedDocs(grouped)
+      setLinkedDocs(grouperDocumentsLies(devisRes.data || [], facturesRes.data || []))
     } catch (e) { console.error('loadLinkedDocs:', e) }
-  }, [artisan?.id])
+  }, [artisan?.id, sousCompte, documentsDeLaSociete, signalerLectureEnEchec])
 
-  useEffect(() => { loadLinkedDocs() }, [loadLinkedDocs])
+  useEffect(() => { void loadLinkedDocs() }, [loadLinkedDocs])
 
   // ── Open link modal: fetch unlinked devis ──
   const openLinkModal = useCallback(async (chantierId: string) => {
     setShowLinkModal(chantierId)
     try {
+      if (sousCompte) {
+        const lu = await documentsDeLaSociete(true)
+        if (!lu.ok) { toast.error(messageRefusDocuments(lu, isPt)); setAvailableDevis([]); return }
+        setAvailableDevis(devisALier(lu.valeur.devis.filter(d => !d.chantier_id)))
+        return
+      }
       const { data } = await supabase
         .from('devis')
         .select('id, numero, client_name, total_ht_cents, status')
         .eq('artisan_id', artisan?.id)
         .is('chantier_id', null)
+        // Un devis supprimé n'est plus proposé (la liste des documents liés les écarte déjà).
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(50)
-      setAvailableDevis((data || []).map((d: any) => ({
-        id: d.id,
-        numero: d.numero || '',
-        client_name: d.client_name || '',
-        total_ht: d.total_ht_cents != null ? d.total_ht_cents / 100 : null,
-        status: d.status || '',
-      })))
+      setAvailableDevis(devisALier(data || []))
     } catch (e) { console.error('openLinkModal:', e) }
-  }, [artisan?.id])
+  }, [artisan?.id, sousCompte, isPt, documentsDeLaSociete])
 
   // ── Link a devis to a chantier ──
   const linkDevis = useCallback(async (devisId: string, chantierId: string) => {
-    const { error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId)
-    if (error) {
-      toast.error('Erreur lors de la liaison')
+    const echec = isPt ? 'Erro ao associar o orçamento' : 'Erreur lors de la liaison'
+    if (sousCompte) {
+      const envoye = await lierDevisAuChantierSociete(devisId, chantierId)
+      if (!envoye.ok) { toast.error(envoye.code ? messageRefusDocuments(envoye, isPt) : echec); return }
     } else {
-      toast.success('Devis lié au chantier')
-      setShowLinkModal(null)
-      await loadLinkedDocs()
+      // `.select` : une mise à jour que la RLS filtre ne renvoie pas d'erreur, seulement aucune ligne.
+      const { data, error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId).select('id')
+      if (error || !data || data.length === 0) { toast.error(echec); return }
     }
-  }, [loadLinkedDocs])
+    toast.success(isPt ? 'Orçamento associado à obra' : 'Devis lié au chantier')
+    setShowLinkModal(null)
+    await loadLinkedDocs(true)
+  }, [loadLinkedDocs, isPt, sousCompte])
 
   // ── Filter + search ──
   const filtered = useMemo(() => {
@@ -451,7 +710,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       {/* ── Page header ── */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
-        <p>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
+        <p>{sousTitreChantiers(activeCount, isPt, lectureSeule)}</p>
       </div>
 
       {/* ── Search bar ── */}
@@ -472,12 +731,14 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <option value="En attente">{isPt ? 'Pendentes' : 'En attente'} ({pendingCount})</option>
           <option value="Terminés">{isPt ? 'Concluídas' : 'Terminés'} ({doneCount})</option>
         </select>
-        <button
-          className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-          onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
-        >
-          + {isPt ? 'Nova obra' : 'Nouveau chantier'}
-        </button>
+        {!lectureSeule && (
+          <button
+            className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
+            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres(true) }}
+          >
+            + {isPt ? 'Nova obra' : 'Nouveau chantier'}
+          </button>
+        )}
       </div>
 
       {/* ── Table ── */}
@@ -487,31 +748,42 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
             {isPt ? 'Nenhuma obra' : 'Aucun chantier'}
           </div>
-          <p style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
-            {isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}
-          </p>
-          <button
-            className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-            onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
-          >
-            + {isPt ? 'Criar obra' : 'Créer un chantier'}
-          </button>
+          {lectureSeule ? (
+            <p style={{ fontSize: 12, color: '#999' }}>
+              {isPt
+                ? 'Não lhe está atribuída nenhuma obra em curso. Se achar que é um erro, avise o seu responsável.'
+                : 'Aucun chantier en cours ne vous est affecté. Si vous pensez que c’est une erreur, prévenez votre responsable.'}
+            </p>
+          ) : (
+            <>
+              <p style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
+                {isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}
+              </p>
+              <button
+                className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
+                onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres(true) }}
+              >
+                + {isPt ? 'Criar obra' : 'Créer un chantier'}
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className={isV5 ? "v5-card" : "v22-card"} style={{ overflowX: 'auto' }}>
           <table className={isV5 ? "v5-dt" : "v22-table"}>
             <thead>
               <tr>
-                <th>{isPt ? 'Réf' : 'Réf'}</th>
+                <th>{isPt ? 'Ref.' : 'Réf'}</th>
                 <th>{isPt ? 'Obra' : 'Chantier'}</th>
-                <th>{isPt ? 'Cliente' : 'Client'}</th>
-                <th>{isPt ? 'Responsável' : 'Chef'}</th>
+                {!lectureSeule && <th>{isPt ? 'Cliente' : 'Client'}</th>}
+                {/* Chef : lu dans les fiches employés, que le salarié ne reçoit pas (il n'y verrait que « — »). */}
+                {!lectureSeule && <th>{isPt ? 'Encarregado' : 'Chef'}</th>}
                 <th>{isPt ? 'Início' : 'Début'}</th>
                 <th>{isPt ? 'Fim' : 'Fin'}</th>
                 <th>{isPt ? 'Avanço' : 'Avanc.'}</th>
                 <th>{isPt ? 'Estado' : 'Statut'}</th>
-                <th>Budget</th>
-                <th></th>
+                {!lectureSeule && <th>{isPt ? 'Valor' : 'Budget'}</th>}
+                {!lectureSeule && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -536,8 +808,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         </div>
                       )}
                     </td>
-                    <td>{c.client || '—'}</td>
-                    <td>
+                    {!lectureSeule && <td>{c.client || '—'}</td>}
+                    {!lectureSeule && <td>
                       <div>{getChef(c)}</div>
                       {(c.membres_ids?.length ?? 0) > 1 && (
                         <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
@@ -551,7 +823,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                           })}
                         </div>
                       )}
-                    </td>
+                    </td>}
                     <td>{fmtDate(c.dateDebut)}</td>
                     <td>{fmtDate(c.dateFin)}</td>
                     <td>
@@ -566,41 +838,44 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                       </div>
                     </td>
                     <td>
-                      <select
-                        className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
-                        style={{ fontSize: 10, padding: '2px 6px', fontWeight: 600, minWidth: 90 }}
-                        value={c.statut || 'En attente'}
-                        onChange={e => changeStatut(c.id, e.target.value)}
-                      >
-                        {['En attente', 'En cours', 'Terminé', 'Annulé'].map(s => {
-                          const sl: Record<string, string> = isPt
-                            ? { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
-                            : { 'En attente': 'En attente', 'En cours': 'En cours', 'Terminé': 'Terminé', 'Annulé': 'Annulé' }
-                          return <option key={s} value={s}>{sl[s]}</option>
-                        })}
-                      </select>
+                      {lectureSeule ? (
+                        <span style={{ fontSize: 10, fontWeight: 600 }}>{libelleStatut(c.statut || 'En attente', isPt)}</span>
+                      ) : (
+                        <select
+                          className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
+                          style={{ fontSize: 10, padding: '2px 6px', fontWeight: 600, minWidth: 90 }}
+                          value={c.statut || 'En attente'}
+                          onChange={e => changeStatut(c.id, e.target.value)}
+                        >
+                          {STATUTS_CHANTIER.map(s => <option key={s} value={s}>{libelleStatut(s, isPt)}</option>)}
+                        </select>
+                      )}
                     </td>
-                    <td style={{ fontWeight: 600 }}>
-                      {c.budget ? `${Number(c.budget).toLocaleString(dl)} €` : '—'}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => handleEdit(c)} aria-label={isPt ? 'Editar' : 'Modifier'}>
-                          <Pencil size={12} />
-                        </button>
-                        <button className={isV5 ? "v5-btn v5-btn-sm v5-btn-d" : "v22-btn v22-btn-sm v22-btn-danger"} onClick={() => setDeleteConfirm(c.id)} aria-label={isPt ? 'Eliminar' : 'Supprimer'}>
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
+                    {!lectureSeule && (
+                      <td style={{ fontWeight: 600 }}>
+                        {c.budget ? `${Number(c.budget).toLocaleString(dl)} €` : '—'}
+                      </td>
+                    )}
+                    {!lectureSeule && (
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => handleEdit(c)} aria-label={isPt ? 'Editar' : 'Modifier'}>
+                            <Pencil size={12} />
+                          </button>
+                          <button className={isV5 ? "v5-btn v5-btn-sm v5-btn-d" : "v22-btn v22-btn-sm v22-btn-danger"} onClick={() => setDeleteConfirm(c.id)} aria-label={isPt ? 'Eliminar' : 'Supprimer'}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 )
               })}
             </tbody>
           </table>
 
-          {/* ── Devis et factures liés ── */}
-          <div style={{ marginTop: 12 }}>
+          {/* ── Devis et factures liés (pas en lecture seule : ni devis lisibles, ni liaison permise) ── */}
+          {!lectureSeule && <div style={{ marginTop: 12 }}>
             {filtered.map((c: ChantierForm & { id: string; statut?: string }) => {
               const docs = linkedDocs[c.id] || []
               return (
@@ -612,19 +887,19 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     padding: '7px 12px', background: '#F5F5F5', borderBottom: docs.length > 0 ? '1px solid #E0E0E0' : undefined,
                   }}>
                     <span style={{ fontWeight: 600, color: '#444', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <FileText size={12} /> {c.titre} — {isPt ? 'Documentos ligados' : 'Devis et factures liés'}
+                      <FileText size={12} /> {c.titre}{isPt ? ': ' : ' — '}{isPt ? 'Documentos associados' : 'Devis et factures liés'}
                     </span>
                     <button
                       className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"}
                       style={{ fontSize: 10 }}
                       onClick={() => openLinkModal(c.id)}
                     >
-                      + {isPt ? 'Ligar orçamento' : 'Lier un devis'}
+                      + {isPt ? 'Associar orçamento' : 'Lier un devis'}
                     </button>
                   </div>
                   {docs.length === 0 ? (
                     <div style={{ padding: '6px 12px', color: '#999', fontStyle: 'italic' }}>
-                      {isPt ? 'Nenhum documento ligado' : 'Aucun document lié'}
+                      {isPt ? 'Nenhum documento associado' : 'Aucun document lié'}
                     </div>
                   ) : (
                     <div style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -641,7 +916,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                             background: doc.status === 'sent' || doc.status === 'accepted' ? '#E8F5E9' : doc.status === 'draft' ? '#FFF8E1' : '#E3F2FD',
                             color: doc.status === 'sent' || doc.status === 'accepted' ? '#2E7D32' : doc.status === 'draft' ? '#F57F17' : '#1565C0',
                           }}>
-                            {doc.status}
+                            {isPt ? statutDocumentPt(doc.status, doc.type) : doc.status}
                           </span>
                         </div>
                       ))}
@@ -650,10 +925,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 </div>
               )
             })}
-          </div>
+          </div>}
 
-          {/* ── Rentabilité details below table ── */}
-          {filtered.some((c: ChantierForm & { id: string; statut?: string }) => getRenta(c) !== null) && (
+          {/* ── Rentabilité details below table (montants : jamais en lecture seule) ── */}
+          {!lectureSeule && filtered.some((c: ChantierForm & { id: string; statut?: string }) => getRenta(c) !== null) && (
             <div style={{ marginTop: 12 }}>
               {filtered.map((c: ChantierForm & { id: string; statut?: string }) => {
                 const renta = getRenta(c)
@@ -676,7 +951,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevu}%)
                       </span>
                       <span style={{ color: '#666' }}>
-                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? 'j' : 'j'}
+                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? ' dias' : 'j'}
                       </span>
                     </div>
 
@@ -723,20 +998,20 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
             <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Clock size={14} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}
+                  <Clock size={14} /> {isPt ? 'A sua obra terminou?' : 'Votre chantier est-il fini ?'}
                 </span>
                 <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setProlongModal(null)}>✕</button>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', fontSize: 13 }}>
-                  <strong>{c.titre}</strong> — {isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
+                  <strong>{c.titre}</strong>{isPt ? ' · ' : ' — '}{isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
                 </div>
 
                 {/* Option 1: Clôturer */}
                 <button
                   className={isV5 ? "v5-btn v5-btn-s" : "v22-btn v22-btn-secondary"}
                   style={{ width: '100%', padding: '10px 14px', justifyContent: 'center' }}
-                  onClick={async () => { await changeStatut(c.id, 'Terminé'); setProlongModal(null) }}
+                  onClick={async () => { if (await changeStatut(c.id, 'Terminé')) setProlongModal(null) }}
                 >
                   <CheckCircle2 size={14} /> {isPt ? 'Sim, encerrar a obra' : 'Oui, clôturer le chantier'}
                 </button>
@@ -781,7 +1056,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     style={{ width: '100%', marginTop: 10, padding: '8px 14px', justifyContent: 'center' }}
                     onClick={handleProlong}
                   >
-                    <Calendar size={14} /> {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
+                    <Calendar size={14} /> {isPt ? `Prolongar por ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
                   </button>
                 </div>
               </div>
@@ -796,20 +1071,20 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 400 }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Trash2 size={14} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}
+                <Trash2 size={14} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setDeleteConfirm(null)}>✕</button>
             </div>
             <div style={{ padding: 16, textAlign: 'center' }}>
               <p style={{ fontSize: 13, marginBottom: 12 }}>
-                {isPt ? 'Tem a certeza que pretende remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
+                {isPt ? 'Tem a certeza de que pretende eliminar esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className={isV5 ? "v5-btn" : "v22-btn"} style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
                   {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
                 <button className={isV5 ? "v5-btn v5-btn-d" : "v22-btn v22-btn-danger"} style={{ flex: 1, fontWeight: 600 }} onClick={() => handleDelete(deleteConfirm)}>
-                  {isPt ? 'Remover' : 'Supprimer'}
+                  {isPt ? 'Eliminar' : 'Supprimer'}
                 </button>
               </div>
             </div>
@@ -851,10 +1126,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         if (devis) importDevis(devis)
                       }}
                     >
-                      <option value="">{isPt ? '— Selecionar um orçamento —' : '— Sélectionner un devis —'}</option>
+                      <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
                       {devisList.map(d => (
                         <option key={d.id} value={d.id}>
-                          {d.numero} — {d.client_name} — {(d.total_ht_cents / 100).toLocaleString(dl)} € ({d.status})
+                          {/* « ?? '' » : une valeur absente ne s'écrit pas, comme avant dans le JSX d'origine. */}
+                          {isPt
+                            ? `${d.numero ?? ''} · ${d.client_name ?? ''} · ${(d.total_ht_cents / 100).toLocaleString(dl)} € (${statutDocumentPt(d.status ?? '', 'devis')})`
+                            : `${d.numero ?? ''} — ${d.client_name ?? ''} — ${(d.total_ht_cents / 100).toLocaleString(dl)} € (${d.status ?? ''})`}
                         </option>
                       ))}
                     </select>
@@ -865,7 +1143,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
                 <input className={isV5 ? "v5-fi" : "v22-input"} value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
-                  placeholder={isPt ? 'ex: Immeuble R+3 — Gros oeuvre' : 'ex: Immeuble R+3 — Gros oeuvre'} />
+                  placeholder={isPt ? 'ex.: Edifício R/C+3, estrutura' : 'ex: Immeuble R+3 — Gros oeuvre'} />
               </div>
 
               <div className={isV5 ? "v5-fr" : "v22-form-row"}>
@@ -874,31 +1152,59 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>Budget HT (€)</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Valor s/ IVA (€)' : 'Budget HT (€)'}</label>
                   <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
                 </div>
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
-                <input className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
-                  onChange={e => setForm({ ...form, adresse: e.target.value })}
-                  placeholder={isPt ? 'N°, rua...' : 'N°, rue...'} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <label htmlFor="chantier-adresse" className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+                  <button type="button" className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={clicImporterAdresse}
+                    disabled={loadingDevis} aria-expanded={choixAdresseOuvert}
+                    title={isPt ? 'Local de intervenção do orçamento associado à obra, ou de outro orçamento' : 'Lieu d’intervention du devis rattaché au chantier, ou d’un autre devis'}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                    {loadingDevis ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                    {isPt ? 'Importar morada de um orçamento' : 'Importer l’adresse depuis un devis'}
+                  </button>
+                </div>
+                {choixAdresseOuvert && (
+                  <select
+                    aria-label={isPt ? 'Orçamento cuja morada importar' : 'Devis dont reprendre l’adresse'}
+                    className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
+                    style={{ width: '100%', fontSize: 11, margin: '4px 0 6px' }}
+                    value=""
+                    onChange={e => {
+                      const devis = devisAvecLieu.find(d => d.id === e.target.value)
+                      if (devis) importerAdresseDevis(devis)
+                    }}
+                  >
+                    <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
+                    {choixDevisAdresse(form).map(({ devis, lieu, rattache }) => (
+                      <option key={devis.id} value={devis.id} title={lieu.texte}>
+                        {rattache ? (isPt ? '★ Associado · ' : '★ Rattaché · ') : ''}{libelleChoixDevis(devis, lieu, isPt)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <input id="chantier-adresse" className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
+                  onChange={e => saisirAdresse({ adresse: e.target.value })}
+                  placeholder={isPt ? 'Rua, n.º...' : 'N°, rue...'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Código postal' : 'Code postal'}</label>
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.codePostal}
-                    onChange={e => setForm({ ...form, codePostal: e.target.value })}
-                    placeholder="13001" maxLength={10} />
+                    onChange={e => saisirAdresse({ codePostal: e.target.value })}
+                    placeholder={isPt ? '4000-123' : '13001'} maxLength={10} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cidade *' : 'Ville *'}</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.ville}
-                      onChange={e => setForm({ ...form, ville: e.target.value })}
-                      placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
-                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(form.ville || form.adresse)}
+                      onChange={e => saisirAdresse({ ville: e.target.value })}
+                      placeholder={isPt ? 'Porto, Lisboa...' : 'Marseille, Lyon...'} />
+                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={localiserFiche}
                       disabled={geocoding || (!form.ville.trim() && !form.adresse.trim())}>
                       {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
                       {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
@@ -906,19 +1212,19 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   </div>
                   {form.latitude && (
                     <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <CheckCircle2 size={10} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
+                      <CheckCircle2 size={10} /> {isPt ? 'GPS:' : 'GPS :'} {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
                     </div>
                   )}
                 </div>
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio do registo de ponto (GPS)' : 'Rayon pointage GPS'}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
                     onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })}
                     style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}m</span>
+                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}{isPt ? ' m' : 'm'}</span>
                 </div>
               </div>
 
@@ -935,7 +1241,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
               {/* ── Équipe / Employés assignés ── */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Colaboradores atribuídos' : 'Employés assignés'}</label>
                 {membresList.length === 0 ? (
                   <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Nenhum colaborador. Adicione-os em "Equipas".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
@@ -956,7 +1262,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                               setForm({ ...form, membres_ids: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] })
                             }} />
                           <span style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</span>
-                          <span style={{ color: '#999' }}>{m.role}</span>
+                          <span style={{ color: '#999' }}>{isPt ? ROLE_PT[m.role] ?? m.role : m.role}</span>
                           <span style={{ color: '#C62828', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
                         </label>
                       )
@@ -965,8 +1271,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 )}
                 {(form.membres_ids || []).length > 0 && (
                   <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
-                    — {isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
+                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'colaborador(es) selecionado(s)' : 'employé(s) sélectionné(s)'}
+                    {isPt ? ' · ' : '— '}{isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
                   </div>
                 )}
               </div>
@@ -1002,14 +1308,14 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <FileText size={14} /> {isPt ? 'Ligar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
+                <FileText size={14} /> {isPt ? 'Associar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowLinkModal(null)}>✕</button>
             </div>
             <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
               {availableDevis.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '20px 0' }}>
-                  {isPt ? 'Nenhum orçamento disponível (sem chantier associado)' : 'Aucun devis disponible (non liés à un chantier)'}
+                  {isPt ? 'Nenhum orçamento disponível (sem obra associada)' : 'Aucun devis disponible (non liés à un chantier)'}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1030,7 +1336,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, flex: '0 0 auto',
                         background: '#E3F2FD', color: '#1565C0',
                       }}>
-                        {d.status}
+                        {isPt ? statutDocumentPt(d.status, 'devis') : d.status}
                       </span>
                     </button>
                   ))}

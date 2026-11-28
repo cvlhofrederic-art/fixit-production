@@ -59,10 +59,10 @@ const TYPE_LABELS_FR: Record<TypeCompte, string> = {
 }
 const TYPE_LABELS_PT: Record<TypeCompte, string> = {
   ouvrier: 'Operário',
-  chef_chantier: 'Chefe de obra',
-  conducteur_travaux: 'Director de obra',
-  secretaire: 'Secretário/a',
-  gerant: 'Gerente / Patrão',
+  chef_chantier: 'Encarregado',
+  conducteur_travaux: 'Diretor de obra',
+  secretaire: 'Administrativo(a)',
+  gerant: 'Gerente',
 }
 function getTypeLabels(isPt: boolean): Record<TypeCompte, string> {
   return isPt ? TYPE_LABELS_PT : TYPE_LABELS_FR
@@ -180,7 +180,7 @@ function classifyGerant(params: {
     return {
       statut: 'moe_pt',
       label_fr: 'Gérant — Membre Organe Statutaire (MOE)',
-      label_pt: 'Gerente — Membro de Órgão Estatutário (MOE)',
+      label_pt: 'Gerente: membro de órgão estatutário (MOE)',
       fiche_de_paie: true,
       eligibilite_chomage: false,
       charges_estimees: '23,75% patronal + 11% salarial',
@@ -194,7 +194,7 @@ function classifyGerant(params: {
     return {
       statut: 'assimile_salarie',
       label_fr: 'Président / DG — Assimilé salarié',
-      label_pt: 'Presidente / DG — Assimilado a assalariado',
+      label_pt: 'Presidente / DG: equiparado a assalariado',
       fiche_de_paie: true,
       eligibilite_chomage: false,
       charges_estimees: '60-80%',
@@ -208,12 +208,12 @@ function classifyGerant(params: {
     return {
       statut: 'tns',
       label_fr: 'Gérant majoritaire — TNS (SSI)',
-      label_pt: 'Gerente maioritário — Trabalhador Independente',
+      label_pt: 'Gerente maioritário: trabalhador independente',
       fiche_de_paie: false,
       eligibilite_chomage: false,
       charges_estimees: '40-45%',
       alerte: 'Un gérant majoritaire ne peut pas avoir de contrat de travail dans sa société (art. L223-18 C.com).',
-      alerte_pt: 'Um gerente maioritário não pode ter contrato de trabalho na sua própria sociedade (art. L223-18 C.com).',
+      alerte_pt: 'Um gerente maioritário não pode ter contrato de trabalho na sua própria sociedade (art. L223-18 do Código Comercial francês).',
     }
   }
 
@@ -221,12 +221,12 @@ function classifyGerant(params: {
     return {
       statut: 'tns',
       label_fr: 'Gérant égalitaire — TNS (SSI)',
-      label_pt: 'Gerente igualitário — Trabalhador Independente',
+      label_pt: 'Gerente com 50% do capital: trabalhador independente',
       fiche_de_paie: false,
       eligibilite_chomage: false,
       charges_estimees: '40-45%',
       alerte: '50% = égalitaire → traité comme majoritaire par l\'URSSAF.',
-      alerte_pt: '50% = igualitário → tratado como maioritário pela URSSAF.',
+      alerte_pt: '50% do capital: tratado como maioritário pela segurança social francesa.',
     }
   }
 
@@ -234,7 +234,7 @@ function classifyGerant(params: {
   return {
     statut: 'assimile_salarie',
     label_fr: 'Gérant minoritaire — Assimilé salarié',
-    label_pt: 'Gerente minoritário — Assimilado a assalariado',
+    label_pt: 'Gerente minoritário: equiparado a assalariado',
     fiche_de_paie: true,
     eligibilite_chomage: false,
     charges_estimees: '60-80%',
@@ -245,6 +245,19 @@ function classifyGerant(params: {
 
 const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Métallerie / Ferronnerie', 'Multi-corps']
 const METIERS_PT = ['Alvenaria', 'Canalização', 'Eletricidade', 'Carpintaria', 'Pintura', 'Cerâmica / Azulejos', 'Estrutura de madeira', 'Cobertura / Telhado', 'Isolamento', 'Demolição', 'Infraestruturas / VRD', 'Impermeabilização', 'Serralharia', 'Climatização / AVAC', 'Metalurgia / Ferraria', 'Multi-ofícios']
+
+// La spécialité choisie est enregistrée telle quelle (libellé de la liste de la langue du moment) : les valeurs ne
+// changent pas, seul l'affichage portugais est corrigé (sigle français « VRD », calque « Metalurgia / Ferraria ») et une
+// valeur de la liste française s'affiche en portugais.
+const METIERS_PT_CORRIGES: Record<string, string> = {
+  'Infraestruturas / VRD': 'Infraestruturas e redes',
+  'Metalurgia / Ferraria': 'Estruturas metálicas / Ferro forjado',
+}
+const METIERS_PT_AFFICHES: Record<string, string> = {
+  ...Object.fromEntries(METIERS_FR.map((fr, i) => [fr, METIERS_PT_CORRIGES[METIERS_PT[i]] ?? METIERS_PT[i]])),
+  ...METIERS_PT_CORRIGES,
+}
+const libelleMetier = (metier: string, isPt: boolean) => (isPt ? METIERS_PT_AFFICHES[metier] ?? metier : metier)
 
 // Salary calculation now uses /lib/payroll/engine.ts
 // Local wrappers for the form auto-calc (accept percentages, not fractions)
@@ -375,13 +388,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
       actif: mForm.actif,
     }
 
-    if (editingMembre) {
-      await updateMembre(editingMembre.id, data)
-    } else {
-      await addMembre(data)
-    }
-
+    // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
+    const enregistre = editingMembre ? await updateMembre(editingMembre.id, data) : (await addMembre(data)) !== null
     setSaving(false)
+    if (!enregistre) return
+
     setShowMembreModal(false)
     setEditingMembre(null)
     setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo })
@@ -427,12 +438,9 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   const submitEquipe = async () => {
     if (!eForm.nom.trim()) return
     setSaving(true)
-    if (editingEquipe) {
-      await updateEquipe(editingEquipe.id, eForm as any)
-    } else {
-      await addEquipe(eForm as any)
-    }
+    const enregistre = editingEquipe ? await updateEquipe(editingEquipe.id, eForm as any) : (await addEquipe(eForm as any)) !== null
     setSaving(false)
+    if (!enregistre) return
     setShowEquipeModal(false)
     setEditingEquipe(null)
     setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] })
@@ -459,7 +467,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
       {/* Header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>{isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <h1>{isPt ? 'Equipas e colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p>{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -488,7 +496,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
         </div>
         <div className={isV5 ? 'v5-kpi hl' : 'v22-stat v22-stat-yellow'} style={{ textAlign: 'center' }}>
           <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Custo médio real' : 'Coût moyen réel'}</div>
-          <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{coutMoyenH}€/h</div>
+          <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{coutMoyenH}{isPt ? ' €/h' : '€/h'}</div>
         </div>
       </div>
 
@@ -555,14 +563,14 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                                     return CONTRAT_LABELS[contrat]
                                   })()
                                 }</span>
-                                <div style={{ fontSize: 10, color: '#999' }}>{m.heures_hebdo || 35}h/sem</div>
+                                <div style={{ fontSize: 10, color: '#999' }}>{m.heures_hebdo || 35}{isPt ? ' h/sem.' : 'h/sem'}</div>
                               </td>
-                              <td style={{ textAlign: 'right', fontWeight: 600 }}>{m.coutHoraire || 25}€</td>
-                              <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--v5-primary-yellow-dark)' }}>{m.coutReelH}€</td>
-                              <td style={{ textAlign: 'right', fontWeight: 700 }}>{m.coutReelJour}€</td>
+                              <td style={{ textAlign: 'right', fontWeight: 600 }}>{m.coutHoraire || 25}{isPt ? ' €' : '€'}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--v5-primary-yellow-dark)' }}>{m.coutReelH}{isPt ? ' €' : '€'}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700 }}>{m.coutReelJour}{isPt ? ' €' : '€'}</td>
                               <td style={{ textAlign: 'right', fontSize: 11 }}>
-                                {(m.panier_repas_jour || 0) > 0 && <div>{m.panier_repas_jour}€ {isPt ? 'refeição' : 'repas'}</div>}
-                                {(m.indemnite_trajet_jour || 0) > 0 && <div>{m.indemnite_trajet_jour}€ {isPt ? 'deslocação' : 'trajet'}</div>}
+                                {(m.panier_repas_jour || 0) > 0 && <div>{m.panier_repas_jour}{isPt ? ' € refeição' : '€ repas'}</div>}
+                                {(m.indemnite_trajet_jour || 0) > 0 && <div>{m.indemnite_trajet_jour}{isPt ? ' € deslocação' : '€ trajet'}</div>}
                                 {(m.panier_repas_jour || 0) === 0 && (m.indemnite_trajet_jour || 0) === 0 && <span style={{ color: '#BBB' }}>—</span>}
                               </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
@@ -610,7 +618,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
               <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><HardHat size={40} color="#BBB" /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
-              <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
+              <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Crie equipas e atribua-as às suas obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
               <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => setShowEquipeModal(true)}>+ {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
@@ -631,12 +639,12 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{eq.nom}</div>
                         <div style={{ fontSize: 10, color: '#999' }}>
-                          {chef ? `${chef.prenom} ${chef.nom}, ${isPt ? 'chefe' : 'chef'}` : ''}{eqMembres.length > 0 ? ` — ${eqMembres.length} ${isPt ? 'membros' : 'personnes'}` : ''}
+                          {chef ? `${chef.prenom} ${chef.nom}, ${isPt ? 'encarregado' : 'chef'}` : ''}{eqMembres.length > 0 ? `${isPt ? ' · ' : ' — '}${eqMembres.length} ${isPt ? 'membros' : 'personnes'}` : ''}
                         </div>
                       </div>
                     </div>
-                    {eq.metier && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{eq.metier}</div>}
-                    {eqCost > 0 && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{isPt ? 'Custo/h' : 'Coût/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(eqCost * 100) / 100}€</strong></div>}
+                    {eq.metier && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{libelleMetier(eq.metier, isPt)}</div>}
+                    {eqCost > 0 && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{isPt ? 'Custo/h:' : 'Coût/h :'} <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(eqCost * 100) / 100}{isPt ? ' €' : '€'}</strong></div>}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span className={isV5 ? `v5-badge ${eqMembres.length > 0 ? 'v5-badge-green' : 'v5-badge-orange'}` : `v22-tag ${eqMembres.length > 0 ? 'v22-tag-green' : 'v22-tag-orange'}`}>{eqMembres.length > 0 ? (isPt ? 'Operacional' : 'Déployée') : (isPt ? 'Em repouso' : 'En repos')}</span>
                       <button className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm v22-btn-danger'} onClick={(e) => { e.stopPropagation(); deleteEquipe(eq.id) }} aria-label={isPt ? 'Remover' : 'Supprimer'}><Trash2 size={12} /></button>
@@ -757,7 +765,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       </span>
                       {!classification.fiche_de_paie && (
                         <span style={{ fontSize: 11, color: '#B71C1C', background: '#FFEBEE', borderRadius: 6, padding: '2px 8px' }}>
-                          {isPt ? 'Sem ficha de vencimento' : 'Pas de fiche de paie'}
+                          {isPt ? 'Sem recibo de vencimento' : 'Pas de fiche de paie'}
                         </span>
                       )}
                     </div>
@@ -781,7 +789,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
               <div>
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Equipa' : 'Équipe'}</label>
                 <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.equipeId} onChange={e => setMForm({ ...mForm, equipeId: e.target.value })}>
-                  <option value="">{isPt ? '— Sem equipa' : '— Sans équipe'}</option>
+                  <option value="">{isPt ? 'Sem equipa' : '— Sans équipe'}</option>
                   {equipes.map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
                 </select>
               </div>
@@ -792,7 +800,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder={isPt ? '912 345 678' : '06 12 34 56 78'} />
                 </div>
                 <div>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> {isPt ? 'E-mail' : 'Email'}</label>
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder={isPt ? 'joao@exemplo.com' : 'jean@example.com'} />
                 </div>
               </div>
@@ -832,14 +840,14 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                   {calcMode === 'auto' && (
                     <div style={{ fontSize: 11, color: '#999', marginTop: -8, padding: '6px 10px', background: '#FFFDE7', borderRadius: 6, border: '1px solid #FFF9C4' }}>
                       {isPt
-                        ? 'Modo automático : preencha o NET ou o BRUTO, tudo o resto calcula-se sozinho.'
+                        ? 'Modo automático: preencha o LÍQUIDO ou o BRUTO; tudo o resto é calculado automaticamente.'
                         : 'Mode auto : remplissez le NET ou le BRUT, tout le reste se calcule tout seul.'}
                     </div>
                   )}
                   {calcMode === 'manuel' && (
                     <div style={{ fontSize: 11, color: '#999', marginTop: -8, padding: '6px 10px', background: '#fff', borderRadius: 6, border: '1px solid #E8E8E8' }}>
                       {isPt
-                        ? 'Modo manual : preencha cada campo livremente, sem cálculo automático.'
+                        ? 'Modo manual: preencha cada campo livremente, sem cálculo automático.'
                         : 'Mode manuel : remplissez chaque champ librement, aucun calcul automatique.'}
                     </div>
                   )}
@@ -984,18 +992,21 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       const diff = Math.abs(net - expectedNet)
                       if (diff > 50) {
                         warnings.push(isPt
-                          ? `Incoerência: com ${mForm.charges_salariales_pct}% de encargos, bruto ${brut}€ deveria dar líquido ~${expectedNet}€ (diferença: ${diff}€)`
+                          ? `Incoerência: com ${mForm.charges_salariales_pct}% de encargos, bruto ${brut} € deveria dar líquido ~${expectedNet} € (diferença: ${diff} €)`
                           : `Incohérence : avec ${mForm.charges_salariales_pct}% de charges salariales, brut ${brut}€ devrait donner net ~${expectedNet}€ (écart : ${diff}€)`)
                       }
                     }
                     if (brut > 0 && net > 0 && net >= brut) {
-                      warnings.push(isPt ? 'O líquido não pode ser >= ao bruto !' : 'Le net ne peut pas être supérieur ou égal au brut !')
+                      warnings.push(isPt ? 'O líquido não pode ser igual ou superior ao bruto!' : 'Le net ne peut pas être supérieur ou égal au brut !')
                     }
-                    if (brut > 0 && brut < 1747) {
-                      warnings.push(isPt ? 'Salário abaixo do salário mínimo bruto 2025 (1 747€)' : 'Salaire en dessous du SMIC brut 2025 (1 747€)')
+                    // Seuils du SMIC français (2025) : seulement pour une entreprise française (réglage « pays » du
+                    // module). Une entreprise portugaise n'a pas à être comparée au salaire minimum français ; en
+                    // interface portugaise avec le pays « France », le texte dit bien qu'il s'agit du minimum français.
+                    if (country === 'FR' && brut > 0 && brut < 1747) {
+                      warnings.push(isPt ? 'Salário abaixo do salário mínimo francês bruto de 2025 (1 747 €)' : 'Salaire en dessous du SMIC brut 2025 (1 747€)')
                     }
-                    if (mForm.coutHoraire > 0 && mForm.coutHoraire < 11.52) {
-                      warnings.push(isPt ? 'Custo horário abaixo do salário mínimo por hora (11,52€)' : 'Coût horaire en dessous du SMIC horaire (11,52€)')
+                    if (country === 'FR' && mForm.coutHoraire > 0 && mForm.coutHoraire < 11.52) {
+                      warnings.push(isPt ? 'Custo horário abaixo do salário mínimo francês por hora (11,52 €)' : 'Coût horaire en dessous du SMIC horaire (11,52€)')
                     }
 
                     if (warnings.length === 0) return null
@@ -1036,36 +1047,36 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: '#999' }}>{isPt ? 'Líquido (o que recebe)' : 'Net (ce qu\'il reçoit)'}</span>
-                              <span style={{ fontWeight: 700, color: '#2E7D32' }}>{preview.net_salary}€</span>
+                              <span style={{ fontWeight: 700, color: '#2E7D32' }}>{preview.net_salary}{isPt ? ' €' : '€'}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: '#999' }}>+ {isPt ? 'Encargos salariais' : 'Charges salariales'} ({Math.round(preview.employee_charge_rate * 100)}%)</span>
-                              <span style={{ color: '#C0392B' }}>+{preview.employee_charges}€</span>
+                              <span style={{ color: '#C0392B' }}>+{preview.employee_charges}{isPt ? ' €' : '€'}</span>
                             </div>
                             <div style={{ borderTop: '1px dashed #E8E8E8', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 600 }}>{isPt ? '= Bruto' : '= Brut'}</span>
-                              <span style={{ fontWeight: 700 }}>{preview.gross_salary}€</span>
+                              <span style={{ fontWeight: 700 }}>{preview.gross_salary}{isPt ? ' €' : '€'}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: '#999' }}>+ {isPt ? 'Encargos patronais' : 'Charges patronales'} ({Math.round(preview.employer_charge_rate * 100)}%)</span>
-                              <span style={{ color: '#C0392B' }}>+{preview.employer_charges}€</span>
+                              <span style={{ color: '#C0392B' }}>+{preview.employer_charges}{isPt ? ' €' : '€'}</span>
                             </div>
                             {/* BTP-specific cost lines */}
                             {preview.btp_lines.map(line => (
                               <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ color: '#8B6914' }}>+ {isPt ? line.label_pt : line.label_fr} ({(line.rate * 100).toFixed(2)}%)</span>
-                                <span style={{ color: '#C0392B' }}>+{line.amount}€</span>
+                                <span style={{ color: '#C0392B' }}>+{line.amount}{isPt ? ' €' : '€'}</span>
                               </div>
                             ))}
                             {preview.prime_mensuelle > 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ color: '#999' }}>+ {isPt ? 'Prémio mensal' : 'Prime mensuelle'}</span>
-                                <span style={{ color: '#C0392B' }}>+{preview.prime_mensuelle}€</span>
+                                <span style={{ color: '#C0392B' }}>+{preview.prime_mensuelle}{isPt ? ' €' : '€'}</span>
                               </div>
                             )}
                             <div style={{ borderTop: '2px solid var(--v5-primary-yellow)', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 700 }}>= {isPt ? 'Custo total empregador' : 'Coût total employeur'}</span>
-                              <span style={{ fontWeight: 700, color: 'var(--v5-primary-yellow)', fontSize: 14 }}>{preview.total_employer_cost_mensuel}€{isPt ? '/mês' : '/mois'}</span>
+                              <span style={{ fontWeight: 700, color: 'var(--v5-primary-yellow)', fontSize: 14 }}>{preview.total_employer_cost_mensuel}{isPt ? ' €/mês' : '€/mois'}</span>
                             </div>
                             {/* Engine warnings */}
                             {warnings.length > 0 && (
@@ -1083,11 +1094,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                     </div>
                   )}
 
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#999', marginTop: 4, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={14} /> {isPt ? 'Indemnizações diárias' : 'Indemnités journalières'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#999', marginTop: 4, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={14} /> {isPt ? 'Subsídios diários' : 'Indemnités journalières'}</div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Refeição/dia (€)' : 'Panier repas/jour (€)'}</label>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Subsídio de refeição/dia (€)' : 'Panier repas/jour (€)'}</label>
                       <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="0.5" value={mForm.panier_repas_jour}
                         onChange={e => setMForm({ ...mForm, panier_repas_jour: parseFloat(e.target.value) || 0 })} />
                     </div>
@@ -1126,22 +1137,22 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                       })
                       return (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
-                          <div>{isPt ? 'Custo/hora (total)' : 'Coût/heure (total)'} :</div>
-                          <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v5-primary-yellow)' }}>{p.cost_per_hour}€</div>
-                          <div>{isPt ? 'Custo/dia' : 'Coût/jour'} :</div>
-                          <div style={{ fontWeight: 700, textAlign: 'right' }}>{p.cost_per_day}€</div>
+                          <div>{isPt ? 'Custo/hora (total):' : 'Coût/heure (total) :'}</div>
+                          <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v5-primary-yellow)' }}>{p.cost_per_hour}{isPt ? ' €' : '€'}</div>
+                          <div>{isPt ? 'Custo/dia:' : 'Coût/jour :'}</div>
+                          <div style={{ fontWeight: 700, textAlign: 'right' }}>{p.cost_per_day}{isPt ? ' €' : '€'}</div>
                           {p.indemnites_jour > 0 && <>
-                            <div style={{ fontSize: 11, color: '#999' }}>  {isPt ? 'dos quais subsídios' : 'dont indemnités'} :</div>
-                            <div style={{ fontSize: 11, color: '#999', textAlign: 'right' }}>{p.indemnites_jour}€/{isPt ? 'dia' : 'jour'}</div>
+                            <div style={{ fontSize: 11, color: '#999' }}>  {isPt ? 'dos quais subsídios:' : 'dont indemnités :'}</div>
+                            <div style={{ fontSize: 11, color: '#999', textAlign: 'right' }}>{p.indemnites_jour}{isPt ? ' €/dia' : '€/jour'}</div>
                           </>}
                           {p.btp_total > 0 && <>
-                            <div style={{ fontSize: 11, color: '#8B6914' }}>  {isPt ? 'dos quais encargos construção' : 'dont BTP spécifique'} :</div>
-                            <div style={{ fontSize: 11, color: '#8B6914', textAlign: 'right' }}>{p.btp_total}€/{isPt ? 'mês' : 'mois'}</div>
+                            <div style={{ fontSize: 11, color: '#8B6914' }}>  {isPt ? 'dos quais encargos específicos da construção:' : 'dont BTP spécifique :'}</div>
+                            <div style={{ fontSize: 11, color: '#8B6914', textAlign: 'right' }}>{p.btp_total}{isPt ? ' €/mês' : '€/mois'}</div>
                           </>}
-                          <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal' : 'Coût mensuel'} :</div>
-                          <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v5-primary-yellow)' }}>{p.cost_per_month}€</div>
-                          <div>{isPt ? 'Custo anual' : 'Coût annuel'} :</div>
-                          <div style={{ fontWeight: 600, textAlign: 'right' }}>{p.cost_per_year.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}€</div>
+                          <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal:' : 'Coût mensuel :'}</div>
+                          <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v5-primary-yellow)' }}>{p.cost_per_month}{isPt ? ' €' : '€'}</div>
+                          <div>{isPt ? 'Custo anual:' : 'Coût annuel :'}</div>
+                          <div style={{ fontWeight: 600, textAlign: 'right' }}>{p.cost_per_year.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}{isPt ? ' €' : '€'}</div>
                         </div>
                       )
                     })()}
@@ -1186,7 +1197,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Especialidade' : 'Corps de métier'}</label>
                 <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={eForm.metier} onChange={e => setEForm({ ...eForm, metier: e.target.value })}>
                   <option value="">—</option>
-                  {(isPt ? METIERS_PT : METIERS_FR).map(m => <option key={m} value={m}>{m}</option>)}
+                  {(isPt ? METIERS_PT : METIERS_FR).map(m => <option key={m} value={m}>{libelleMetier(m, isPt)}</option>)}
                 </select>
               </div>
               <div>
@@ -1217,7 +1228,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
                   {(() => {
                     const sel = membres.filter(m => eForm.membreIds.includes(m.id))
                     const totalH = sel.reduce((s, m) => s + (m.coutHoraire || 25) * (1 + (m.charges_patronales_pct || m.chargesPct || 45) / 100), 0)
-                    return <div>{isPt ? 'Total custo real/h' : 'Total coût réel/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(totalH * 100) / 100}€</strong></div>
+                    return <div>{isPt ? 'Custo real total/h:' : 'Total coût réel/h :'} <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(totalH * 100) / 100}{isPt ? ' €' : '€'}</strong></div>
                   })()}
                 </div>
               )}

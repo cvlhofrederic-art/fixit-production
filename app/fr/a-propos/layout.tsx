@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { buildAboutPageSchema } from '@/lib/schemas'
+import { titreAvecMarque } from '@/lib/seo/titre-avec-marque'
 
 export const metadata: Metadata = {
-  title: 'À propos de VITFIX | Notre mission',
+  title: titreAvecMarque('À propos de VITFIX | Notre mission'),
   description: 'Découvrez VITFIX, la plateforme qui connecte particuliers et artisans vérifiés. Notre mission : simplifier la réservation de services à domicile.',
   alternates: {
     canonical: 'https://vitfix.io/fr/a-propos/',

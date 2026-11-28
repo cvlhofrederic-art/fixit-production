@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Espaces Verts Copropriété Marseille : Élagage, Entretien Jardins | VITFIX',
+  title: 'Espaces Verts Copropriété Marseille : Élagage, Entretien Jardins',
   description: 'Entretien espaces verts de copropriété à Marseille : tonte, taille, élagage, débroussaillage anti-incendie (obligation PACA). Contrat syndic, devis gratuit.',
   alternates: { canonical: 'https://vitfix.io/fr/copropriete/espaces-verts/' },
 }

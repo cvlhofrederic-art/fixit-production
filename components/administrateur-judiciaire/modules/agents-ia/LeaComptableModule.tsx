@@ -1,10 +1,14 @@
 'use client'
 
-import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { AgentChatPage } from '@/components/administrateur-judiciaire/modules/agents-ia/AgentChatPage'
+import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
 
-/** Léa — Comptable (agent IA, réponses simulées du domaine « compta ») : bouton Documents, sans alerte. */
+/**
+ * Léa — Comptable (agent IA, réponses simulées du domaine « compta ») : bouton Documents, sans alerte. Copropriétés du
+ * sélecteur selon le mode, pour suivre la copropriété choisie en haut de page, en mode réel aussi.
+ */
 export function LeaComptableModule() {
+  const nomsCoproprietes = useNomsCoproprietesSelonMode()
   return (
     <AgentChatPage
       mascot="lea"
@@ -32,7 +36,7 @@ export function LeaComptableModule() {
       introDetail="Je contrôle les écritures du compte bancaire séparé, prépare la reddition de comptes et détecte les anomalies."
       contextSelector={{
         label: 'Copropriété',
-        options: DEMO_NOMS_COPROPRIETES,
+        options: nomsCoproprietes,
       }}
       showDocsBtn
       suggestions={[

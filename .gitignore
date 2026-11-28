@@ -18,6 +18,9 @@
 # next.js
 /.next/
 /out/
+# OpenNext et wrangler en local (build, copie des pages pré-rendues, wrangler dev : plus d'1 Go)
+/.open-next/
+/.wrangler/
 
 # production
 /build
@@ -35,8 +38,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-# secrets locaux wrangler (Cloudflare Workers)
+# secrets locaux wrangler (Cloudflare Workers) — le modèle sans valeur reste versionné
 .dev.vars*
+!.dev.vars.example
 
 # vercel
 .vercel
@@ -74,3 +78,21 @@ scripts/gen-*.cjs
 
 # Audit SEO PT : le JSON complet est volumineux, seuls le CSV et le résumé sont versionnés
 reports/seo/*.json
+
+# Sorties de build OpenNext / wrangler (lot 7 : entrée worker/index.ts, build local possible)
+.open-next/
+.wrangler/
+
+# Annuaires d'artisans récupérés (données personnelles de tiers) : hors du dépôt public, gardés dans un
+# dossier privé (~/.claude/donnees-privees/artisans-pt ou ANNUAIRES_ARTISANS_DIR), lus par scripts/*artisans-PT*.mjs
+data/artisans-PT-*.json
+
+# Matériel de signature des applis mobiles : clé d'envoi Android, clé d'API App Store Connect, et leurs
+# formes encodées. Il n'a rien à faire dans un dépôt public — il vit dans les secrets GitHub et dans un
+# dossier privé hors du dépôt (MOBILE_GUIDE.md, « Publication sur les stores »).
+*.p12
+*.jks
+*.keystore
+*.p8
+*.key
+*.base64

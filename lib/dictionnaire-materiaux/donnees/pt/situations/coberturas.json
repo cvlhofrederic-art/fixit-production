@@ -1,0 +1,1724 @@
+{
+  "domaine": {
+    "id": "coberturas",
+    "nom": "Coberturas, telhados e caleiras",
+    "icone": "🏠"
+  },
+  "situations": [
+    {
+      "id": "telha-partida-ou-deslocada",
+      "domaine": "coberturas",
+      "titre": "Telha partida ou deslocada",
+      "motsCles": [
+        "telha rachada",
+        "telha fora do sítio",
+        "telha levantada pelo vento",
+        "telha solta",
+        "pinga do telhado",
+        "goteira no teto",
+        "substituir telha",
+        "telha escorregou"
+      ],
+      "description": "Uma ou várias telhas cerâmicas partidas, rachadas ou saídas do encaixe, por vento, queda de ramos ou por terem sido pisadas. Nota-se por uma pinga no teto ou uma mancha de humidade por baixo dessa zona.",
+      "aVerifier": [
+        "Modelo da telha (lusa, marselha, canudo...): levar uma de amostra, porque os modelos não encaixam uns nos outros.",
+        "Quantas telhas estão partidas ou apenas deslocadas, e se as vizinhas têm fissuras finas.",
+        "Estado das ripas e da subtelha por baixo: ripa podre ou subtelha furada têm de ser tratadas na mesma altura.",
+        "Inclinação e acesso ao telhado, para decidir escada, pranchas de apoio e linha de vida."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Sempre ligado à linha de vida e a um ponto de ancoragem firme: sozinho não protege."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo e deixá-la passar acima do beirado, para entrar no telhado em segurança."
+            },
+            {
+              "id": "calcado-seguranca-s3",
+              "note": "Não subir com a telha molhada, com geada ou com vento."
+            },
+            {
+              "id": "luvas-obra-nitrilo",
+              "note": "Os cacos de telha cortam."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escovao-de-obra",
+              "note": "Limpar cacos, musgo e terra dos encaixes antes de pousar a telha nova."
+            },
+            {
+              "id": "sacos-de-entulho",
+              "note": "Descer os cacos em saco, nunca os atirar do telhado."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "telha-cobertura",
+              "note": "Mesmo modelo e mesmo encaixe da existente: levar uma telha de amostra à loja."
+            },
+            {
+              "id": "ripa-madeira-telha",
+              "note": "Só se a ripa por baixo da telha estiver podre ou partida.",
+              "optionnel": true
+            },
+            {
+              "id": "prego-construcao",
+              "note": "Prego de telhar: só se for preciso pregar uma ripa nova.",
+              "optionnel": true
+            },
+            {
+              "id": "subtelha",
+              "note": "Só se a placa por baixo estiver furada ou partida.",
+              "optionnel": true
+            },
+            {
+              "id": "espuma-poliuretano-telhas",
+              "note": "Só nas telhas que o vento levanta (beirado, empena): cordão pequeno, sem tapar a ventilação",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-cor-telha",
+              "note": "Só para fissura fina numa telha difícil de trocar: reparação pontual, em telha limpa e seca.",
+              "optionnel": true
+            },
+            {
+              "id": "selante-emergencia-coberturas",
+              "note": "Só para estancar de urgência, com chuva, até se conseguir trocar a telha.",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Só para o cartucho de cola e veda, que é espesso.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura: a telha cerâmica parte e escorrega. Pisar junto ao encaixe, por cima da ripa, e usar pranchas de apoio; não subir com chuva, vento ou telha molhada.",
+        "Coberturas e subtelhas antigas de fibrocimento podem conter amianto: não cortar, furar nem partir. A remoção é para empresa habilitada.",
+        "Se a água entrou durante muito tempo, verificar a madeira do telhado (ripas e varas) e o isolamento antes de fechar.",
+        "Cola e veda e selante de emergência são reparações pontuais: a telha partida tem de ser substituída."
+      ]
+    },
+    {
+      "id": "infiltracao-telhado-remates-cumeeira",
+      "domaine": "coberturas",
+      "titre": "Infiltração no telhado (remates, larós e rincões)",
+      "motsCles": [
+        "água entra pelo telhado",
+        "mancha no teto do sótão",
+        "telhado a meter água",
+        "infiltração no laró",
+        "remate do telhado com a parede",
+        "pinga quando chove com vento",
+        "rincão a verter",
+        "humidade no teto do último andar",
+        "laró a meter água"
+      ],
+      "description": "Entrada de água nos pontos singulares do telhado: cumeeira, rincões, larós e encontros com paredes e empenas. A mancha aparece muitas vezes longe do ponto por onde a água entra.",
+      "aVerifier": [
+        "Por onde entra a água: ver por dentro (sótão) quando chove ou depois de molhar o telhado com mangueira, zona a zona.",
+        "Tipo de remate existente (argamassa, rufo metálico, fita autoadesiva ou tela) e o estado em que está.",
+        "Estado do laró e das telhas à volta: folhas, sujidade ou telhas partidas desviam a água para dentro.",
+        "Se existe subtelha ou membrana por baixo da telha e se está inteira."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Sempre ligado à linha de vida e a um ponto de ancoragem firme: sozinho não protege."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo e deixá-la passar acima do beirado."
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "A argamassa fresca queima a pele."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar a argamassa velha saltam lascas."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Retirar a argamassa solta dos remates, sem partir as telhas."
+            },
+            {
+              "id": "maceta",
+              "note": "Pancadas leves: a telha ao lado racha com facilidade."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar musgo e pó: fitas e mástiques só colam em suporte limpo e seco."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-telha",
+              "note": "Refazer cumeeira e rincões sem encher o vazio todo: o telhado precisa de ventilar."
+            },
+            {
+              "id": "cumeeira",
+              "note": "Só se houver telhões partidos; têm de ser do mesmo modelo da telha.",
+              "optionnel": true
+            },
+            {
+              "id": "telha-cobertura",
+              "note": "Só se houver telhas partidas junto ao remate; levar amostra.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-remate-aluminio-autoadesiva",
+              "note": "Encontros da telha com paredes e empenas: colar na telha e subir na parede, bem calcada."
+            },
+            {
+              "id": "cola-veda-poliuretano",
+              "note": "Fechar o bordo de cima da fita contra a parede, em suporte seco; pode ser pintado depois de curado."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouca argamassa de cada vez, para a levar para o telhado."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O poliuretano e a cola e veda são espessos: pedem pistola reforçada."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura: linha de vida, pranchas de apoio e nunca com telha molhada ou vento.",
+        "Fitas e mástiques são remates: um laró furado, um rufo metálico corroído ou uma subtelha rasgada têm de ser substituídos.",
+        "Madeira do telhado molhada há muito tempo pode estar podre: verificar varas e ripas antes de fechar.",
+        "Fibrocimento antigo pode conter amianto: não cortar nem furar.",
+        "Aplicar argamassa, fitas e mástiques com tempo seco; para tempos de secagem, ver a embalagem."
+      ]
+    },
+    {
+      "id": "cumeeira-solta-argamassa-degradada",
+      "domaine": "coberturas",
+      "titre": "Cumeeira solta ou com argamassa degradada",
+      "motsCles": [
+        "telhão solto",
+        "cume do telhado a desfazer-se",
+        "argamassa da cumeeira a cair",
+        "telhões levantados pelo vento",
+        "cumeeira rachada",
+        "refazer cumeeira",
+        "massa do cume estalada",
+        "rincão solto"
+      ],
+      "description": "Os telhões da cumeeira ou dos rincões estão soltos, ou a argamassa que os segura está fissurada e a cair aos bocados. O vento pode levantá-los e a chuva entra pelo ponto mais alto do telhado.",
+      "aVerifier": [
+        "Quantos telhões estão soltos ou partidos e se o modelo ainda se encontra (levar uma amostra).",
+        "Como estavam fixados: argamassa, espuma ou a seco, com grampos e banda ventilada.",
+        "Estado das telhas de topo e da madeira da cumeeira por baixo dos telhões.",
+        "Exposição ao vento: em zonas muito ventosas, prever fixação mecânica além da argamassa."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Sempre ligado à linha de vida e a um ponto de ancoragem firme: sozinho não protege."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo e deixá-la passar acima do beirado."
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "A argamassa fresca queima a pele."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar a argamassa velha saltam lascas."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "martelo-de-pedreiro",
+              "note": "Picar a argamassa velha com pancadas leves, sem partir as telhas de topo."
+            },
+            {
+              "id": "escopro"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar pó e musgo das telhas de topo, para a argamassa nova agarrar."
+            },
+            {
+              "id": "sacos-de-entulho",
+              "note": "Descer a argamassa velha em saco, nunca a atirar do telhado."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cumeeira",
+              "note": "Só para repor telhões partidos; têm de ser do mesmo modelo da telha.",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-telha",
+              "note": "Humedecer as telhas e assentar em cordões laterais, sem encher o vazio do meio: tem de ventilar."
+            },
+            {
+              "id": "espuma-poliuretano-telhas",
+              "note": "Só se quiser reforçar a fixação ao vento ou assentar sem argamassa; cordão pequeno.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "cola-veda-cor-telha",
+              "note": "Só para fechar fissuras finas entre telhão e argamassa; não substitui a fixação.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouca argamassa de cada vez, para a levar para o cume."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Só se for usado o cartucho de cola e veda, que é espesso.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho na parte mais alta do telhado: linha de vida obrigatória, pranchas de apoio, sem vento nem chuva.",
+        "Não aplicar argamassa com geada, chuva prevista ou sol forte; ver na embalagem as condições de aplicação.",
+        "Cumeeira toda cheia de argamassa não ventila e acaba por fissurar: deixar o vazio do meio livre.",
+        "Se vários telhões se soltaram ao mesmo tempo, verificar a madeira da cumeeira e o apoio das telhas de topo.",
+        "Fibrocimento antigo pode conter amianto: não cortar nem furar."
+      ]
+    },
+    {
+      "id": "caleira-verter-juntas",
+      "domaine": "coberturas",
+      "titre": "Caleira a verter nas juntas",
+      "motsCles": [
+        "caleira a pingar",
+        "caleira a escorrer na união",
+        "fuga na caleira",
+        "algeroz a verter",
+        "água a cair da caleira para a parede",
+        "junta da caleira descolada",
+        "caleira a pingar na esquina",
+        "vedar caleira"
+      ],
+      "description": "A caleira deixa cair água nas uniões, nos ângulos, nos tampões ou na saída para o tubo de queda. A água escorre pela fachada ou cai em fio sempre no mesmo sítio.",
+      "aVerifier": [
+        "Material da caleira: PVC, zinco, alumínio lacado ou chapa galvanizada. Muda o vedante e as peças a comprar.",
+        "Onde verte (união, ângulo, tampão ou saída) e se a junta de borracha está ressequida ou fora do sítio.",
+        "Pendente e suportes: uma caleira descaída ou com barriga deixa a água parada em cima da junta.",
+        "Modelo e medida da caleira, para os acessórios encaixarem."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Apoiar em piso firme e prender no topo; nunca a apoiar na própria caleira."
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "A sujidade da caleira cai para a cara de quem trabalha por baixo."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar todo o vedante velho da junta: o novo não adere sobre restos."
+            },
+            {
+              "id": "esfregao-fibra-verde",
+              "note": "Esfregar o lodo e o verdete na zona da junta."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar e deixar secar antes de vedar ou de colar a fita."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "uniao-caleira",
+              "note": "Só em PVC: trocar a união de borracha gasta, do mesmo modelo, com folga para a dilatação.",
+              "optionnel": true
+            },
+            {
+              "id": "tampao-caleira",
+              "note": "Só se a fuga for no topo da caleira; ver se é o esquerdo ou o direito.",
+              "optionnel": true
+            },
+            {
+              "id": "angulo-caleira",
+              "note": "Só se a fuga for na esquina e o ângulo estiver rachado.",
+              "optionnel": true
+            },
+            {
+              "id": "suporte-caleira",
+              "note": "Só se a caleira estiver descaída: repor suportes partidos e corrigir a pendente para a saída.",
+              "optionnel": true
+            },
+            {
+              "id": "rebite-aluminio",
+              "note": "Só em caleira metálica: refazer a união rebitada antes de vedar.",
+              "optionnel": true
+            },
+            {
+              "id": "rebitadora-manual",
+              "note": "Só para rebitar a união de caleira metálica.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Vedar por dentro as juntas de caleira metálica ou as de PVC que não se conseguem trocar."
+            },
+            {
+              "id": "fita-butilica-aluminio",
+              "note": "Só em junta que não se troca: reforço por dentro, limpa e seca; calcar bem, sem bolhas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O cola e veda é espesso: a pistola simples falha."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Confirmar que a caleira tem pendente para a saída."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura: escada em piso firme e presa no topo, nunca apoiada na caleira; mudar a escada de sítio em vez de se debruçar.",
+        "Vedante e fita não resolvem uma caleira rachada, empenada ou sem pendente: nesse caso substitui-se o troço.",
+        "Em caleira de zinco soldada, a reparação duradoura é refazer a soldadura (trabalho de funileiro).",
+        "Caleiras e tubos antigos de fibrocimento podem conter amianto: não cortar, lixar nem escovar."
+      ]
+    },
+    {
+      "id": "caleira-tubo-queda-entupido",
+      "domaine": "coberturas",
+      "titre": "Caleira ou tubo de queda entupido",
+      "motsCles": [
+        "caleira a transbordar",
+        "caleira cheia de folhas",
+        "tubo de queda não escoa",
+        "água a cair por cima da caleira",
+        "algeroz entupido",
+        "limpar caleiras",
+        "plantas a nascer na caleira",
+        "tubo da chuva entupido"
+      ],
+      "description": "A caleira enche e transborda quando chove, ou o tubo de queda não deixa passar a água, por causa de folhas, musgo, areia das telhas ou ninhos. A água cai em cortina pela fachada.",
+      "aVerifier": [
+        "Onde está o entupimento: na caleira, na boca de saída, numa curva ou na caixa no pé do tubo de queda.",
+        "O que está a entupir: folhas, musgo e areia das telhas, ninhos ou argamassa caída do telhado.",
+        "Se o tubo descarrega para uma caixa ou coletor enterrado: o entupimento pode estar abaixo do solo.",
+        "Estado de suportes, uniões e abraçadeiras depois do peso da água acumulada."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Apoiar em piso firme e prender no topo; nunca a apoiar na própria caleira."
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "Lodo, folhas podres e dejetos de pássaros: luva impermeável."
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro",
+              "note": "Soltar o lodo colado ao fundo da caleira, sem a riscar nem forçar."
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Recolher o lixo para o balde, começando pelo lado mais afastado da saída."
+            },
+            {
+              "id": "sacos-de-entulho"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "desentupidor-manual-ventosa-mola",
+              "note": "Modelo de mola: desfazer o tampão dentro do tubo de queda, rodando sempre no mesmo sentido."
+            },
+            {
+              "id": "serra-de-arco",
+              "note": "Só se a mola não chegar ao tampão: cortar o tubo de PVC no ponto entupido.",
+              "optionnel": true
+            },
+            {
+              "id": "uniao-tubo-queda",
+              "note": "Só se o tubo foi cortado: voltar a ligar os dois troços.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-pvc-tubos",
+              "note": "Só se as uniões do tubo de queda forem de colar.",
+              "optionnel": true
+            },
+            {
+              "id": "curva-tubo-queda",
+              "note": "Só se a curva estiver rachada ou cheia de argamassa que não sai.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-queda-pvc",
+              "note": "Só se houver um troço rachado ou esmagado.",
+              "optionnel": true
+            },
+            {
+              "id": "abracadeira-tubo-queda",
+              "note": "Só para repor as que cederam com o peso da água.",
+              "optionnel": true
+            },
+            {
+              "id": "suporte-caleira",
+              "note": "Só se a caleira descaiu com o peso: repor suportes e pendente.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "para-folhas-caleira",
+              "note": "Na boca de saída, para as folhas não voltarem a entrar no tubo; limpar com regularidade."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura: escada firme e presa; não se debruçar para os lados, mudar a escada de sítio.",
+        "Não usar desentupidor químico em caleiras e tubos de queda: não desfaz folhas e vai parar ao solo e às águas pluviais.",
+        "Se a água não escoa na caixa do pé do tubo, o problema está no coletor enterrado e não na caleira.",
+        "Tubos e caleiras antigos de fibrocimento podem conter amianto: não cortar.",
+        "No fim, testar com água e confirmar que não ficou nenhuma união aberta."
+      ]
+    },
+    {
+      "id": "remate-chamine-infiltracao",
+      "domaine": "coberturas",
+      "titre": "Remate de chaminé com infiltração",
+      "motsCles": [
+        "água entra junto à chaminé",
+        "mancha de humidade ao pé da chaminé",
+        "chaminé a meter água",
+        "rufo da chaminé solto",
+        "pinga na lareira quando chove",
+        "vedar chaminé no telhado",
+        "infiltração à volta do tubo da salamandra",
+        "remate da chaminé rachado"
+      ],
+      "description": "A água entra no encontro entre a chaminé e o telhado, por remates de argamassa fissurados, rufos soltos ou falta de chapéu. A mancha aparece no teto ou na parede junto à chaminé.",
+      "aVerifier": [
+        "Por onde entra: remate entre telha e chaminé, fissuras no reboco da chaminé, topo sem chapéu ou o próprio tubo.",
+        "Tipo de remate existente (argamassa, rufo metálico, tela ou fita) e se o lado de cima da chaminé desvia a água.",
+        "Chaminé de alvenaria rebocada, de tijolo à vista ou tubo metálico: muda o remate a fazer.",
+        "Se a chaminé está em uso e se a zona do remate aquece."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Sempre ligado à linha de vida e a um ponto de ancoragem firme: sozinho não protege."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo e deixá-la passar acima do beirado."
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar o remate velho saltam lascas."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Retirar a argamassa e os remates soltos, sem partir as telhas."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar musgo, pó e tinta solta: a fita e o mástique só colam em suporte limpo e seco."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-telha",
+              "note": "Refazer o apoio das telhas contra a chaminé onde a argamassa caiu."
+            },
+            {
+              "id": "chapa-passagem-tubo-telhado",
+              "note": "Só em chaminé de tubo metálico: escolher pelo diâmetro do tubo e pela inclinação do telhado.",
+              "optionnel": true
+            },
+            {
+              "id": "chapeu-chamine-inox",
+              "note": "Só se a água entra pelo topo de um tubo sem chapéu; escolher pelo diâmetro do tubo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-remate-aluminio-autoadesiva",
+              "note": "A toda a volta: colar na telha e subir na chaminé, começando por baixo e sobrepondo para cima."
+            },
+            {
+              "id": "cola-veda-poliuretano",
+              "note": "Fechar o bordo de cima da fita e fissuras estabilizadas do reboco, em suporte seco."
+            },
+            {
+              "id": "silicone-alta-temperatura",
+              "note": "Só na junta junto a um tubo de fumos que aquece; ver na embalagem a temperatura admitida.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "hidrofugante-incolor-fachadas",
+              "note": "Só em chaminé de tijolo à vista ou reboco poroso, depois da fita e fora dela; não tapa fissuras.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O poliuretano é espesso: pede pistola reforçada."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura junto à chaminé: linha de vida e pranchas de apoio. Não se apoiar nem prender à chaminé, que pode estar solta.",
+        "Mástiques e fitas correntes não aguentam o calor junto a tubos de fumos: nessa zona, só produto de alta temperatura.",
+        "Não tapar saídas de fumo nem ventilações. Chaminés de aparelhos a gás são para técnico habilitado.",
+        "Chaminé fissurada de alto a baixo, inclinada ou com tijolos soltos precisa de avaliação antes de qualquer remate.",
+        "Tubos e chapéus antigos de fibrocimento podem conter amianto: não cortar nem furar."
+      ]
+    },
+    {
+      "id": "terraco-cobertura-plana-infiltracao",
+      "domaine": "coberturas",
+      "titre": "Terraço ou cobertura plana com infiltração",
+      "motsCles": [
+        "terraço a meter água",
+        "teto com manchas por baixo do terraço",
+        "laje a pingar",
+        "impermeabilizar terraço",
+        "água empoçada no terraço",
+        "varanda a verter para o vizinho de baixo",
+        "cobertura plana com fuga",
+        "infiltração pela placa"
+      ],
+      "description": "A água da chuva atravessa o terraço ou a cobertura plana e aparece no teto do piso de baixo, em manchas, bolhas na tinta ou pingas. Entra quase sempre pelos remates, ralos, juntas e fissuras.",
+      "aVerifier": [
+        "Acabamento existente (tela à vista, cerâmica, betonilha ou membrana pintada) e se o terraço é para andar por cima.",
+        "Pendentes e ralos: água empoçada, ralos entupidos ou remate do ralo descolado.",
+        "Estado dos remates nos muretes, soleiras e juntas de dilatação, onde quase sempre começa a entrada de água.",
+        "Se o suporte está seco: humidade presa por baixo faz bolhas na membrana nova."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Membranas e removedor de musgo: confirmar na luva a resistência ao produto."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "joelheiras",
+              "note": "Trabalho demorado de joelhos nos remates e cantos."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-larga-75-125mm",
+              "note": "Raspar tinta e membrana velha que esteja solta ou com bolhas."
+            },
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Matar musgo e verdete; depois enxaguar e deixar secar bem antes de impermeabilizar."
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Varrer areias e pó: a membrana não agarra em suporte sujo."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "cola-veda-poliuretano",
+              "note": "Selar fissuras e o encontro com muretes e soleiras antes da membrana; suporte seco."
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "primario-membranas-impermeabilizantes",
+              "note": "O indicado pelo fabricante da membrana para o suporte (betão, cerâmica, tela); suporte seco."
+            },
+            {
+              "id": "membrana-liquida-poliuretano-transitavel",
+              "note": "Terraço onde se anda: demãos cruzadas em suporte seco; demãos e intervalos, ver a embalagem."
+            },
+            {
+              "id": "membrana-liquida-acrilica-com-fibras",
+              "note": "Só em cobertura onde não se anda, com boa pendente e sem água empoçada, em vez da de poliuretano.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-impermeabilizante-cantos-juntas",
+              "note": "Cantos, meias-canas, juntas e ralos, entre duas demãos; confirmar que serve para a membrana."
+            },
+            {
+              "id": "rede-fibra-vidro-armadura-membranas",
+              "note": "Armar a membrana sobre fissuras e zonas fracas, na primeira demão ainda fresca."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "rolo-pelo-medio-paredes-irregulares",
+              "note": "Demãos cruzadas; confirmar que o rolo resiste ao produto da membrana."
+            },
+            {
+              "id": "cabo-extensivel-rolo"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Cantos, ralos, muretes e embeber a banda de reforço."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O poliuretano é espesso: pede pistola reforçada."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Uma membrana líquida não resolve falta de pendente nem suporte fissurado e húmido: corrigir primeiro.",
+        "Por cima de tela asfáltica ou de cerâmica vidrada nem todas as membranas aderem: confirmar na embalagem a compatibilidade e se pede primário.",
+        "Fissuras largas, que continuam a abrir, ou ferros à vista na laje pedem diagnóstico estrutural antes de impermeabilizar.",
+        "Em cobertura sem platibanda ou guarda, trabalhar longe do bordo ou com linha de vida.",
+        "Aplicar com tempo seco e sem chuva prevista; número de demãos, tempos de secagem e consumo: ver a embalagem.",
+        "Em terraço com cerâmica muito degradada, a solução duradoura é levantar o pavimento e impermeabilizar por baixo."
+      ]
+    },
+    {
+      "id": "tela-asfaltica-rasgada-ou-com-bolhas",
+      "domaine": "coberturas",
+      "titre": "Tela asfáltica rasgada ou com bolhas",
+      "motsCles": [
+        "tela do terraço rasgada",
+        "bolhas na tela",
+        "tela levantada",
+        "tela descolada no murete",
+        "tela a estalar",
+        "remendar tela asfáltica",
+        "tela de alumínio furada",
+        "juntas da tela abertas"
+      ],
+      "description": "A tela betuminosa da cobertura tem rasgos, furos, sobreposições abertas ou bolhas que levantam com o calor. A água passa por esses pontos para a laje.",
+      "aVerifier": [
+        "Acabamento da tela existente, em ardósia (xisto) ou em alumínio: o remendo deve ser igual.",
+        "Extensão: rasgo ou bolha pontual, ou tela ressequida e estalada em toda a área.",
+        "Se há água debaixo da tela (bolha mole, a chapinhar): tem de secar antes de fechar.",
+        "Estado das sobreposições, dos remates nos muretes e da volta dos ralos."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-pele-crute",
+              "note": "Trabalho com chama e betume quente."
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escovao-de-obra",
+              "note": "Varrer areias, folhas e ardósia solta à volta da zona a remendar."
+            },
+            {
+              "id": "x-ato",
+              "note": "Abrir a bolha em cruz e cortar a tela solta ou rasgada; depois deixar secar o interior."
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "emulsao-betuminosa-primario",
+              "note": "No suporte à vista e na zona do remendo; deixar secar por completo antes do maçarico."
+            },
+            {
+              "id": "tela-asfaltica-ardosia",
+              "note": "Remendo com sobreposição larga a toda a volta do rasgo, soldado a maçarico."
+            },
+            {
+              "id": "tela-asfaltica-aluminio",
+              "note": "Só se a tela existente for de alumínio, em vez da de ardósia.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "mastique-betuminoso-cartucho",
+              "note": "Fechar os bordos do remendo e pequenas fendas; é preto e não se pinta por cima."
+            },
+            {
+              "id": "fita-betuminosa-autoadesiva",
+              "note": "Só para rasgo pequeno, a frio e sem maçarico: suporte limpo e seco, tempo ameno.",
+              "optionnel": true
+            },
+            {
+              "id": "selante-emergencia-coberturas",
+              "note": "Só para estancar de urgência, até se fazer o remendo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "macarico-gas-telas",
+              "note": "Aquecer a tela e o suporte até o betume fundir; garrafa de pé e longe da chama."
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Aplicar a emulsão betuminosa; depois fica só para produtos betuminosos."
+            },
+            {
+              "id": "colher-pedreiro",
+              "note": "Calcar o remendo ainda quente e alisar o betume que sai nos bordos."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "diluente-sintetico",
+              "note": "Limpar as ferramentas sujas de betume; inflamável, longe do maçarico."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Maçarico: risco de incêndio em coberturas com madeira, isolamento ou folhas secas. Ter um extintor à mão e vigiar a zona depois do trabalho.",
+        "Garrafa de gás sempre de pé, longe da chama e do sol; verificar mangueira e regulador antes de acender.",
+        "Nunca fechar a tela sobre suporte molhado: a humidade presa volta a fazer bolhas.",
+        "Tela ressequida e estalada em toda a área não se remenda: é para refazer com uma camada nova.",
+        "Em cobertura sem platibanda ou guarda, trabalhar longe do bordo ou com linha de vida.",
+        "Não pisar nem arrastar materiais por cima de tela com acabamento em alumínio."
+      ]
+    },
+    {
+      "id": "janela-telhado-claraboia-entrada-agua",
+      "domaine": "coberturas",
+      "titre": "Janela de telhado ou claraboia com entrada de água",
+      "motsCles": [
+        "janela de sótão a pingar",
+        "claraboia a meter água",
+        "água escorre pelo aro da janela do telhado",
+        "mancha à volta da claraboia",
+        "janela do telhado com infiltração",
+        "rufo da janela de telhado",
+        "pinga na janela das águas-furtadas",
+        "vedar claraboia"
+      ],
+      "description": "Entra água à volta ou através da janela de telhado ou da claraboia, quase sempre pelo rufo, pelas telhas em redor ou pelos vedantes. Aparece como pingas no aro ou manchas no remate interior.",
+      "aVerifier": [
+        "Distinguir infiltração de condensação: gotas no vidro e no aro por dentro, com tempo frio, são condensação.",
+        "Por onde entra: rufo e telhas à volta, junta entre vidro e caixilho ou vedantes da folha.",
+        "Marca, modelo e medida da janela (chapa de identificação no aro), para o rufo e as peças serem compatíveis.",
+        "Estado do rufo: folhas acumuladas no canal de cima, avental de baixo levantado ou furado."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Só para o trabalho por fora: sempre ligado à linha de vida e a ancoragem firme.",
+              "optionnel": true
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Só para o trabalho por fora: liga o arnês ao ponto de ancoragem.",
+              "optionnel": true
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Só se for preciso aceder por fora; prender no topo.",
+              "optionnel": true
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detergente-ph-neutro",
+              "note": "Lavar rufo, canais e vedantes: folhas e musgo fazem a água transbordar para dentro."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar todo o vedante velho: o novo não adere sobre restos."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar e deixar secar antes de colar a fita ou vedar."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "rufo-janela-telhado",
+              "note": "Só se o rufo estiver corroído, furado ou não for o do modelo: da medida exata da janela.",
+              "optionnel": true
+            },
+            {
+              "id": "telha-cobertura",
+              "note": "Só se houver telhas partidas ou mal cortadas à volta da janela; levar amostra.",
+              "optionnel": true
+            },
+            {
+              "id": "janela-sotao",
+              "note": "Só se o caixilho estiver podre ou sem reparação; montar com o rufo da medida correspondente.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-butilica-aluminio",
+              "note": "Só se o avental de baixo ou o rufo tiverem falhas: moldar bem à onda da telha.",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Junta entre vidro e caixilho e pontos do aro; neutro e na cor certa, porque não se pinta."
+            },
+            {
+              "id": "cola-veda-cor-telha",
+              "note": "Só para fissuras finas nas telhas junto ao rufo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar logo a seguir, antes de o silicone formar pele."
+            },
+            {
+              "id": "x-ato",
+              "note": "Cortar a fita à medida e o cordão de silicone velho."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não encher de silicone nem de espuma os canais do rufo: são eles que escoam a água.",
+        "Trabalho em altura: sempre que possível trabalhar por dentro, com a folha rodada, e nunca pisar o vidro nem a cúpula.",
+        "Se for condensação, a solução é ventilação e isolamento do remate interior, não vedante.",
+        "Vidro duplo embaciado por dentro ou cúpula acrílica rachada substituem-se pela peça do fabricante, não se colam.",
+        "Aplicar fitas e silicone com tempo seco; para tempos de cura, ver a embalagem."
+      ]
+    },
+    {
+      "id": "chapa-cobertura-fuga-fixacoes",
+      "domaine": "coberturas",
+      "titre": "Chapa de cobertura com fuga nas fixações",
+      "motsCles": [
+        "chapa a pingar nos parafusos",
+        "telhado de chapa a meter água",
+        "parafusos da cobertura a verter",
+        "anilhas ressequidas",
+        "painel sandwich com fuga",
+        "pinga no armazém",
+        "chapa com ferrugem nos furos",
+        "telheiro de chapa a pingar"
+      ],
+      "description": "A cobertura em chapa metálica, painel sandwich ou placa ondulada deixa passar água pelos parafusos, porque as anilhas de vedação envelheceram ou os furos alargaram. As pingas alinham com as filas de fixações.",
+      "aVerifier": [
+        "Tipo de cobertura: chapa metálica, painel sandwich, placa betuminosa ou fibrocimento antigo (neste não se mexe).",
+        "Estado das fixações: borracha da anilha ressequida, parafuso solto, torto ou apertado de mais.",
+        "Ferrugem à volta dos furos e furos alargados pela dilatação da chapa.",
+        "Se as pingas são mesmo fuga ou condensação por baixo da chapa, e a que estrutura apertam os parafusos (madeira ou metal)."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Sempre ligado à linha de vida e a um ponto de ancoragem firme: sozinho não protege."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo e deixá-la passar acima do bordo da cobertura."
+            },
+            {
+              "id": "calcado-seguranca-s3",
+              "note": "A chapa molhada ou com orvalho escorrega muito: só subir com ela seca."
+            },
+            {
+              "id": "luvas-anticorte",
+              "note": "As arestas da chapa cortam."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao escovar a ferrugem saltam partículas e arames."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar a ferrugem solta à volta dos furos; nunca em fibrocimento."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Limpar e deixar secar antes de vedar ou de colar a fita."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "conversor-ferrugem",
+              "note": "Só onde houver ferrugem agarrada à volta do furo, depois de escovar a que está solta.",
+              "optionnel": true
+            },
+            {
+              "id": "spray-zinco-galvanizacao-frio",
+              "note": "Só em chapa galvanizada riscada ou escovada até ao metal limpo e seco.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "parafuso-cobertura-com-anilha",
+              "note": "Trocar os de anilha gasta; furo alargado pede parafuso mais grosso. Anilha encostada, sem esmagar."
+            },
+            {
+              "id": "ponteira-sextavada-aparafusadora",
+              "note": "Apertar com a aparafusadora em velocidade baixa; parar quando a anilha encosta."
+            },
+            {
+              "id": "parafuso-placa-betuminosa",
+              "note": "Só em placa betuminosa ondulada, sempre na crista da onda.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Vedar furos alargados por baixo da anilha e à volta da cabeça do parafuso."
+            },
+            {
+              "id": "fita-butilica-aluminio",
+              "note": "Tapar furos abandonados e sobreposições de chapa que deixam passar água; calcar bem."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O cola e veda é espesso: a pistola simples falha."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Nunca pisar chapas translúcidas, placas betuminosas ou fibrocimento: partem. Andar por cima das madres, com pranchas de apoio.",
+        "Fibrocimento antigo pode conter amianto: não furar, cortar, escovar nem lavar à pressão. A remoção é para empresa habilitada.",
+        "Chapa molhada ou com orvalho escorrega muito: só subir com a cobertura seca e com linha de vida.",
+        "Muitas pingas em chapa simples são condensação por baixo e não fuga: confirmar antes de vedar.",
+        "Chapa muito corroída ou já furada pela ferrugem substitui-se; vedante e fita não a recuperam."
+      ]
+    },
+    {
+      "id": "telhado-com-musgo-limpar-hidrofugar",
+      "domaine": "coberturas",
+      "titre": "Telhado com musgo (limpar e hidrofugar)",
+      "motsCles": [
+        "telhado verde",
+        "telhas com musgo",
+        "líquenes nas telhas",
+        "telhado preto e sujo",
+        "lavar telhado",
+        "tratar telhado",
+        "telhas a absorver água",
+        "hidrofugar telhas"
+      ],
+      "description": "As telhas estão cobertas de musgo, líquenes e verdete, que retêm humidade, entopem os encaixes e as caleiras e deixam a telha mais porosa. Limpa-se, trata-se e protege-se com hidrofugante.",
+      "aVerifier": [
+        "Tipo e idade da telha: telha antiga e porosa não aguenta lavagem agressiva nem ser pisada.",
+        "Telhas partidas, cumeeiras soltas e remates a refazer antes de hidrofugar.",
+        "Para onde escorrem as águas da lavagem: caleiras, depósitos de água da chuva, jardim, linhas de água.",
+        "Se o objetivo é só hidrofugar (incolor) ou também pintar as telhas."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "arnes-antiqueda",
+              "note": "Telha com musgo escorrega muito: sempre ligado à linha de vida e a ancoragem firme."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo e deixá-la passar acima do beirado."
+            },
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Removedor de musgo e hidrofugante: confirmar na luva a resistência ao produto."
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "Salpicos de produto ao aplicar e ao escovar."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Poeira ao escovar musgo seco; ver na embalagem dos produtos a proteção pedida."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-fino",
+              "note": "Só se houver plantas, caixilharia ou viaturas por baixo das escorrências.",
+              "optionnel": true
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Escovar o musgo grosso a seco, de cima para baixo, sem levantar as telhas."
+            },
+            {
+              "id": "para-folhas-caleira",
+              "note": "Segurar o musgo solto à entrada do tubo de queda durante a limpeza."
+            },
+            {
+              "id": "sacos-de-entulho",
+              "note": "Recolher o musgo do telhado e das caleiras."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Com tempo seco e sem chuva prevista; deixar atuar o tempo indicado na embalagem."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "telha-cobertura",
+              "note": "Só se houver telhas partidas: trocar antes de hidrofugar, o produto não as tapa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "hidrofugante-telhados",
+              "note": "Sobre telha limpa e bem seca; modo de aplicação e número de demãos, ver a embalagem."
+            },
+            {
+              "id": "tinta-telhas",
+              "note": "Só se quiser renovar a cor das telhas, depois de limpar e tratar os fungos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pulverizador-pressao-manual",
+              "note": "Aplicar o removedor e o hidrofugante por igual, sem pisar a telha tratada."
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Só para zonas pequenas e junto aos remates.",
+              "optionnel": true
+            },
+            {
+              "id": "maquina-lavar-alta-pressao",
+              "note": "Só em telha sã: pouca pressão, jato de cima para baixo, nunca contra o encaixe.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura sobre telha com musgo, muito escorregadia: linha de vida, pranchas de apoio e avançar sempre a partir de zona seca.",
+        "Lavagem à pressão: jato sempre de cima para baixo e com pouca pressão. Ao contrário, mete água por baixo das telhas e desgasta-as.",
+        "Fibrocimento antigo pode conter amianto: nunca escovar, raspar nem lavar à pressão.",
+        "Desligar a recolha de água da chuva (depósitos, cisternas) e evitar escorrências para plantas, relvados e linhas de água.",
+        "O hidrofugante não tapa telhas partidas nem fissuras: reparar primeiro.",
+        "Não misturar produtos de limpeza entre si (lixívia com ácidos ou com outros produtos)."
+      ]
+    },
+    {
+      "id": "beirado-telhas-soltas",
+      "domaine": "coberturas",
+      "titre": "Beirado com telhas soltas",
+      "motsCles": [
+        "telhas do beiral a cair",
+        "beirado à portuguesa solto",
+        "telha da beira descolada",
+        "argamassa do beirado caída",
+        "beiral partido",
+        "água a escorrer pela parede por baixo do telhado",
+        "telhas da frente escorregaram",
+        "refazer beirado"
+      ],
+      "description": "As telhas do beirado (capa e caleira) estão descoladas, escorregaram ou perderam a argamassa de assentamento. A água escorre pela parede e podem cair peças para a rua.",
+      "aVerifier": [
+        "Tipo de beirado: à portuguesa, com telha de canudo assente em argamassa, ou telha comum apoiada em ripa.",
+        "Quantas peças estão soltas ou partidas e se o modelo ainda se encontra (levar amostra).",
+        "Estado do apoio: cornija fissurada, ripa de beirado ou tábua de testa podre.",
+        "Se há passagem de pessoas por baixo: é preciso vedar a zona enquanto se trabalha."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "fita-balizagem",
+              "note": "Vedar a passagem por baixo do beirado enquanto se trabalha."
+            },
+            {
+              "id": "arnes-antiqueda",
+              "note": "Trabalho à beira do telhado: sempre ligado à linha de vida e a ancoragem firme."
+            },
+            {
+              "id": "linha-vida-antiqueda",
+              "note": "Liga o arnês ao ponto de ancoragem; vigiar a corda e os mosquetões antes de subir."
+            },
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Prender no topo; para refazer um beirado comprido usar andaime."
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "A argamassa fresca queima a pele."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar a argamassa velha saltam lascas."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "martelo-de-pedreiro",
+              "note": "Picar a argamassa velha com pancadas leves e levantar as peças soltas inteiras."
+            },
+            {
+              "id": "escopro"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar o apoio e as telhas a reaproveitar, para a argamassa nova agarrar."
+            },
+            {
+              "id": "sacos-de-entulho",
+              "note": "Descer o entulho em saco, nunca o atirar para a rua."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "beiral-telha",
+              "note": "Só para repor peças partidas: capa e caleira do mesmo modelo.",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-telha",
+              "note": "Assentar as peças do beirado, humedecendo antes a telha e o apoio."
+            },
+            {
+              "id": "ripa-madeira-telha",
+              "note": "Só se a ripa de beirado estiver podre ou partida.",
+              "optionnel": true
+            },
+            {
+              "id": "espuma-poliuretano-telhas",
+              "note": "Só em beirado de telha sobre ripa: segurar as telhas ao vento, com cordão pequeno.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "fio-de-pedreiro",
+              "note": "Esticar pela frente do beirado para alinhar as peças."
+            },
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Peças de beirado soltas podem cair para a via pública: vedar a zona por baixo e tratar com urgência.",
+        "Trabalho à beira do telhado: andaime ou plataforma e linha de vida; nunca se apoiar nas telhas do beirado.",
+        "Cornija fissurada ou tábua de testa podre: reparar o apoio antes de assentar as telhas.",
+        "Não aplicar argamassa com geada, chuva prevista ou sol forte; ver na embalagem as condições de aplicação.",
+        "Em prédio à face da rua, a ocupação do passeio com andaime pode exigir licença da câmara municipal."
+      ]
+    },
+    {
+      "id": "caleira-partida-ou-descaida",
+      "domaine": "coberturas",
+      "titre": "Caleira partida ou descaída",
+      "motsCles": [
+        "caleira caída",
+        "caleira rachada",
+        "caleira empenada",
+        "suportes da caleira partidos",
+        "substituir caleira",
+        "caleira com barriga",
+        "caleira arrancada pelo vento",
+        "montar caleira nova"
+      ],
+      "description": "A caleira de PVC está rachada, ressequida ou descaiu por falta de suportes, e já não leva a água até ao tubo de queda. Resolve-se substituindo o troço e acertando suportes e pendente.",
+      "aVerifier": [
+        "Modelo, secção e cor da caleira existente: os acessórios só encaixam no mesmo modelo.",
+        "Se basta trocar um troço e os suportes ou se toda a caleira está ressequida e empenada.",
+        "Onde fixam os suportes (tábua de testa, parede ou varas) e o estado desse apoio.",
+        "Posição da saída e do tubo de queda, para marcar a pendente."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Apoiar em piso firme e prender no topo; nunca a apoiar na caleira."
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "fita-metrica"
+            },
+            {
+              "id": "fio-de-pedreiro",
+              "note": "Esticar do ponto alto até à saída, para marcar a pendente dos suportes."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Confirmar que o fio desce para o lado da saída."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "suporte-caleira",
+              "note": "Alinhados pelo fio; para o afastamento entre suportes, ver a embalagem."
+            },
+            {
+              "id": "parafuso-inox-madeira",
+              "note": "Fixar os suportes à tábua de testa; inox, porque fica no exterior."
+            },
+            {
+              "id": "bucha-nylon-expansao",
+              "note": "Só se os suportes fixarem em parede de alvenaria ou betão.",
+              "optionnel": true
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Só para os furos das buchas na parede.",
+              "optionnel": true
+            },
+            {
+              "id": "caleira-pvc",
+              "note": "Mesmo modelo dos acessórios, com pendente para a saída."
+            },
+            {
+              "id": "uniao-caleira",
+              "note": "Deixar folga entre varas para a dilatação do PVC."
+            },
+            {
+              "id": "tampao-caleira",
+              "note": "Ver se o modelo tem tampão esquerdo e direito."
+            },
+            {
+              "id": "angulo-caleira",
+              "note": "Só se a caleira der a volta a uma esquina.",
+              "optionnel": true
+            },
+            {
+              "id": "uniao-descarga-caleira",
+              "note": "No ponto mais baixo, alinhada com o tubo de queda."
+            },
+            {
+              "id": "para-folhas-caleira",
+              "note": "Na boca de saída, para as folhas não entupirem o tubo de queda."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "serra-de-arco",
+              "note": "Cortar a caleira à medida e tirar a rebarba do corte."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura: escada presa no topo, nunca apoiada na caleira; para toda a frente da casa, usar andaime.",
+        "Tábua de testa podre não segura os suportes: substituir antes de montar a caleira.",
+        "Caleiras metálicas (zinco, alumínio lacado, chapa galvanizada) têm acessórios e uniões próprios, que não encaixam nos de PVC.",
+        "Caleiras e tubos antigos de fibrocimento podem conter amianto: não cortar; a remoção é para empresa habilitada.",
+        "No fim, testar com água: não pode ficar água parada em nenhum troço."
+      ]
+    },
+    {
+      "id": "cobertura-policarbonato-partida-ou-a-verter",
+      "domaine": "coberturas",
+      "titre": "Cobertura de policarbonato partida ou a verter",
+      "motsCles": [
+        "telheiro a pingar",
+        "placa de policarbonato rachada",
+        "cobertura da marquise a meter água",
+        "acrílico do telheiro partido",
+        "pérgola com fuga",
+        "placa transparente partida",
+        "policarbonato com verdete por dentro",
+        "cobertura do alpendre a verter"
+      ],
+      "description": "A cobertura de um telheiro, alpendre ou marquise em placas de policarbonato tem placas rachadas ou deixa passar água pelas fixações, pelos perfis de união ou pelo remate contra a parede.",
+      "aVerifier": [
+        "Tipo de placa: alveolar (plana, com canais por dentro) ou ondulada/trapezoidal, e a espessura.",
+        "Por onde entra a água: placa rachada, fixações, perfis de união ou remate contra a parede.",
+        "Estado da estrutura (madeira ou alumínio) e a pendente: sem pendente a água fica parada nas juntas.",
+        "Se os topos dos alvéolos estão fechados: abertos, enchem-se de água, verdete e insetos."
+      ],
+      "etapes": [
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "escada-aluminio-extensivel",
+              "note": "Trabalhar da escada ou de pranchas apoiadas na estrutura; nunca pisar as placas."
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar e cortar a placa saltam aparas."
+            }
+          ]
+        },
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detergente-ph-neutro",
+              "note": "Lavar só com água e detergente neutro: os solventes atacam o policarbonato; secar bem."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "policarbonato-alveolar",
+              "note": "Só se a placa alveolar estiver rachada: mesma espessura, alvéolos no sentido da pendente, face UV para cima.",
+              "optionnel": true
+            },
+            {
+              "id": "policarbonato-ondulado",
+              "note": "Só se a cobertura for de chapa ondulada ou trapezoidal: mesmo perfil de onda.",
+              "optionnel": true
+            },
+            {
+              "id": "perfil-policarbonato",
+              "note": "Só em placa alveolar: H para unir placas e U para fechar os topos, pela espessura.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-aluminio",
+              "note": "Só em placa alveolar: fechar o topo de cima dos alvéolos antes do perfil U.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-anti-po-policarbonato",
+              "note": "Só em placa alveolar: no topo de baixo, deixa sair a condensação.",
+              "optionnel": true
+            },
+            {
+              "id": "anilha-fixacao-policarbonato",
+              "note": "Furo com folga para a dilatação e aperto leve, para a placa não rachar."
+            },
+            {
+              "id": "parafuso-inox-madeira",
+              "note": "Só em estrutura de madeira; inox, porque fica no exterior.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-neutro-construcao",
+              "note": "Vedar perfis e remates; só neutro e compatível com policarbonato (ver a embalagem)."
+            },
+            {
+              "id": "fita-remate-aluminio-autoadesiva",
+              "note": "Remate contra a parede: colar na placa e subir na parede limpa e seca, bem calcada."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "broca-metal-hss",
+              "note": "Furar a placa sem percussão, com furo mais largo do que o parafuso."
+            },
+            {
+              "id": "x-ato",
+              "note": "Cortar placa alveolar fina e as fitas; nas placas grossas usar serra de dente fino."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Nunca pisar o policarbonato: não aguenta o peso de uma pessoa. Trabalhar da escada ou de pranchas apoiadas na estrutura.",
+        "Não usar solventes, acetona nem diluentes na limpeza, nem espumas ou mástiques com solvente em contacto com a placa.",
+        "Deixar folga para a dilatação nos furos e dentro dos perfis: placa presa racha e dá estalidos com o sol.",
+        "Placa amarelada e quebradiça em toda a área está no fim de vida: substitui-se, não se remenda."
+      ]
+    }
+  ]
+}

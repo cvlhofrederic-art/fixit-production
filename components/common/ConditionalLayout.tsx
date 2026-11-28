@@ -5,6 +5,7 @@ import Header from '@/components/common/Header'
 import Footer from '@/components/common/Footer'
 import SiteProtection from '@/components/common/SiteProtection'
 import WhatsAppFloatingButton from '@/components/common/WhatsAppFloatingButton'
+import { estEspaceCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 /**
  * Routes qui rendent leur propre shell (header/footer custom ou aucun) et
@@ -27,7 +28,7 @@ const DASHBOARD_PATH_PREFIXES = [
   '/syndic/register',
   /**
    * Sandbox de validation visuelle du redesign syndic v54 (Phase 1).
-   * Gated `notFound()` en production via app/syndic/dev/layout.tsx —
+   * Gated `notFound()` en production via app/(commun)/syndic/dev/layout.tsx —
    * inclus ici pour que le rendu dev affiche le namespace `#syndic-dashboard-v54`
    * isolé, sans pollution par la nav marketing publique.
    */
@@ -41,6 +42,8 @@ const DASHBOARD_PATH_PREFIXES = [
   '/syndic/v54',
   // Succursale Administrateur Judiciaire (son propre shell, flag ADMINISTRATEUR_JUDICIAIRE_LIVE)
   '/administrateur-judiciaire',
+  // Espace AJ Signalement du super admin (son propre shell) ; la page publique du QR code est /signalement/<jeton>/.
+  '/aj-signalement',
   // Copropriétaire (dormant)
   '/coproprietaire/',
   // Admin
@@ -49,7 +52,9 @@ const DASHBOARD_PATH_PREFIXES = [
 
 function isDashboardRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false
-  return DASHBOARD_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  // Espace d'un cabinet client AJ Signalement (vitfix.io/<identifiant>/connexion/ et /suivi/, son propre shell, comme
+  // l'espace global) : prédicat pur, l'identifiant étant variable (lib/aj-signalement/chemin-cabinet.ts).
+  return DASHBOARD_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || estEspaceCabinetQr(pathname)
 }
 
 /**

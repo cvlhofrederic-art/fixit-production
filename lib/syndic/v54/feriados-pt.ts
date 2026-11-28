@@ -63,7 +63,8 @@ export function feriadosObrigatorios(annee: number): string[] {
     return jourIso(d)
   })
   const fixos = FERIADOS_FIXOS.map((mmjj) => `${String(annee).padStart(4, '0')}-${mmjj}`)
-  return [...new Set([...fixos, ...moveis])].sort()
+  // Jours AAAA-MM-JJ : ordre des caractères, identique au tri par défaut (comparateur explicite, SonarCloud S2871).
+  return [...new Set([...fixos, ...moveis])].sort((a, b) => { if (a === b) return 0; return a < b ? -1 : 1 })
 }
 
 /** Jour civil « AAAA-MM-JJ » qui est un feriado obrigatório ; false pour toute autre valeur. */

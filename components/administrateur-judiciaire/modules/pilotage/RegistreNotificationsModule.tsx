@@ -2,6 +2,7 @@
 
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
@@ -10,11 +11,16 @@ import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useEcheancesMandat } from '@/lib/administrateur-judiciaire/db/use-echeances'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { badgeStatutEcheance } from '@/lib/administrateur-judiciaire/domain/echeances-affichage'
+import { codeLigneDemo, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /** Notification inscrite au registre : voie, envoi, accusé de réception, délai de recours et fondement. */
 export interface LigneRegistreNotifications {
+  /** Code de la copropriété concernée (filtre selon la copropriété choisie). */
+  code: string
   objet: string
   dest: string
   /** Voie de notification (LRAR, signification, voie électronique). */
@@ -30,9 +36,13 @@ export interface LigneRegistreNotifications {
   pill: string
 }
 
-/** Les quatre premières lignes du registre (données de démonstration figées). */
+/**
+ * Les quatre premières lignes du registre (données de démonstration figées), rattachées à leur copropriété : ordonnance
+ * et PV d'AG du Méridien, mise en demeure des Tilleuls, convocation de l'AG élective du Clos des Vignes.
+ */
 export const NOTIFICATIONS_REGISTRE_DEMO: LigneRegistreNotifications[] = [
   {
+    code: 'LM',
     objet: 'Ordonnance de désignation',
     dest: 'Tous les copropriétaires',
     type: 'LRAR',
@@ -43,6 +53,7 @@ export const NOTIFICATIONS_REGISTRE_DEMO: LigneRegistreNotifications[] = [
     pill: 'sage',
   },
   {
+    code: 'LM',
     objet: "Procès-verbal de l'AG du 18/05",
     dest: 'Tous les copropriétaires',
     type: 'LRAR',
@@ -54,6 +65,7 @@ export const NOTIFICATIONS_REGISTRE_DEMO: LigneRegistreNotifications[] = [
     pill: 'amber',
   },
   {
+    code: 'TL',
     objet: 'Mise en demeure de payer',
     dest: 'SCI Belvédère',
     type: 'Signification',
@@ -64,6 +76,7 @@ export const NOTIFICATIONS_REGISTRE_DEMO: LigneRegistreNotifications[] = [
     pill: 'amber',
   },
   {
+    code: 'CV',
     objet: 'Convocation AG élective',
     dest: 'Tous les copropriétaires',
     type: 'LRAR',
@@ -76,35 +89,45 @@ export const NOTIFICATIONS_REGISTRE_DEMO: LigneRegistreNotifications[] = [
   },
 ]
 
+/** Envoi de la notification de l'ordonnance selon le moteur : « Délai échu le … », « Avant le … » ou « À envoyer ». */
+function envoiNotificationOrdonnance(echeance: EcheanceCalculee | undefined): string {
+  if (!echeance?.dateRetenue) return 'À envoyer'
+  const date = dateIsoVersFr(echeance.dateRetenue)
+  return badgeStatutEcheance(echeance, AUJOURDHUI_ISO).kind === 'rust' ? `Délai échu le ${date}` : `Avant le ${date}`
+}
+
 /**
- * Registre des notifications (statut partiel). Seule donnée calculée : l'envoi de la notification de l'ordonnance
- * de Villa Montaigne (code « VM » en dur), tiré du moteur de délais légaux (« À envoyer » tant que les échéances ne
- * sont pas disponibles). « Nouvelle notification » est simulée.
+ * Registre des notifications (statut partiel) de la copropriété choisie. Seule donnée calculée : l'envoi de la
+ * notification de l'ordonnance, tiré du moteur de délais légaux (« À envoyer » tant que les échéances ne sont pas
+ * disponibles), inscrit tant que le moteur ne la donne pas pour accomplie. Sans sélection (écran rendu seul) : tout le
+ * registre de démonstration et la notification de Villa Montaigne, comme avant. « Nouvelle notification » est simulée.
  */
 export function RegistreNotificationsModule() {
   const { push } = useToast()
-  const notificationVillaMontaigne = useEcheancesMandat('VM').echeances.find(
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante('VM')
+  const notificationOrdonnance = useEcheancesMandat(code || 'VM').echeances.find(
     (echeance) => echeance.regleId === 'notification-ordonnance-46-47',
   )
-  const envoiVillaMontaigne =
-    notificationVillaMontaigne && notificationVillaMontaigne.dateRetenue
-      ? badgeStatutEcheance(notificationVillaMontaigne, AUJOURDHUI_ISO).kind === 'rust'
-        ? `Délai échu le ${dateIsoVersFr(notificationVillaMontaigne.dateRetenue)}`
-        : `Avant le ${dateIsoVersFr(notificationVillaMontaigne.dateRetenue)}`
-      : 'À envoyer'
+  const notificationAInscrire = !code || (!!notificationOrdonnance && !notificationOrdonnance.accomplie)
   const notifications: LigneRegistreNotifications[] = [
-    ...NOTIFICATIONS_REGISTRE_DEMO,
-    {
-      objet: 'Notification ordonnance — Villa Montaigne',
-      dest: 'Tous les copropriétaires',
-      type: 'Voie électronique',
-      envoi: envoiVillaMontaigne,
-      aEnvoyer: true,
-      ar: '—',
-      recours: '—',
-      base: 'art. 59 décret · 1 mois',
-      pill: 'rust',
-    },
+    ...filtrerParCopro(NOTIFICATIONS_REGISTRE_DEMO, code, (ligne) => codeLigneDemo(ligne.code)),
+    ...(notificationAInscrire
+      ? [
+          {
+            code: copro.code,
+            objet: `Notification ordonnance — ${copro.nom}`,
+            dest: 'Tous les copropriétaires',
+            type: 'Voie électronique',
+            envoi: envoiNotificationOrdonnance(notificationOrdonnance),
+            aEnvoyer: true,
+            ar: '—',
+            recours: '—',
+            base: 'art. 59 décret · 1 mois',
+            pill: 'rust',
+          },
+        ]
+      : []),
   ]
   return (
     <>
@@ -156,11 +179,13 @@ export function RegistreNotificationsModule() {
           },
         ]}
       />
-      <Alert kind="warn" icon="clock" title="Fenêtre de recours ouverte — PV de l'AG du 18/05">
-        {
-          'Le procès-verbal a été envoyé le 24/05/2026 : chaque copropriétaire opposant ou défaillant dispose de deux mois (art. 42 al. 2) à compter du lendemain de la première présentation de sa lettre, soit au plus tôt fin juillet 2026. La date de présentation de chaque lettre fixe sa propre échéance.'
-        }
-      </Alert>
+      {notifications.some((notification) => notification.fenetreOuverte) && (
+        <Alert kind="warn" icon="clock" title="Fenêtre de recours ouverte — PV de l'AG du 18/05">
+          {
+            'Le procès-verbal a été envoyé le 24/05/2026 : chaque copropriétaire opposant ou défaillant dispose de deux mois (art. 42 al. 2) à compter du lendemain de la première présentation de sa lettre, soit au plus tôt fin juillet 2026. La date de présentation de chaque lettre fixe sa propre échéance.'
+          }
+        </Alert>
+      )}
       <Panel
         title="Registre"
         sub="Chaque notification, son accusé de réception et son délai de recours"
@@ -231,6 +256,7 @@ export function RegistreNotificationsModule() {
           ]}
           rows={notifications}
         />
+        {notifications.length === 0 && <EmptyState icon="mail" title={`Aucune notification pour ${copro.nom}`} />}
       </Panel>
     </>
   )

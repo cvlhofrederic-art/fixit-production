@@ -21,19 +21,19 @@ const nonIndexee = (metadata: Metadata) => {
 
 describe('pages privées rendues joignables', () => {
   it('« Mes données » (export et suppression du compte) : non indexée, canonical sur elle-même', async () => {
-    const { metadata } = await import('@/app/confidentialite/mes-donnees/layout')
+    const { metadata } = await import('@/app/(commun)/confidentialite/mes-donnees/layout')
     nonIndexee(metadata)
     // Sans ce layout, la page héritait de la canonical de la politique de confidentialité.
     expect(metadata.alternates?.canonical).toBe('https://vitfix.io/fr/confidentialite/mes-donnees/')
   })
 
   it('parrainage /rejoindre?ref=… : non indexée', async () => {
-    const { metadata } = await import('@/app/rejoindre/layout')
+    const { metadata } = await import('@/app/(commun)/rejoindre/layout')
     nonIndexee(metadata)
   })
 
   it('réponse fournisseur à jeton /rfq/repondre/<jeton> : non indexée', async () => {
-    const { metadata } = await import('@/app/rfq/repondre/[token]/layout')
+    const { metadata } = await import('@/app/(commun)/rfq/repondre/[token]/layout')
     nonIndexee(metadata)
   })
 })

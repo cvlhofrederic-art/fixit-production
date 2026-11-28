@@ -8,12 +8,14 @@ import {
 import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { ListeEcheancesLegales } from '@/components/administrateur-judiciaire/ui/ListeEcheancesLegales'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useEcheancesPortefeuille } from '@/lib/administrateur-judiciaire/db/use-echeances'
 import {
@@ -22,6 +24,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/calendrier-reglementaire'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /** Ligne du tableau des échéances réglementaires, avec le statut recalculé au jour courant de l'application. */
@@ -36,12 +39,16 @@ export type LigneEcheanceReglementaire = [
 /**
  * Calendrier réglementaire (statut « partiel ») : échéances réglementaires de démonstration, dont le statut est recalculé
  * selon la date du jour, et échéances légales des mandats calculées par le moteur de délais depuis la base locale.
- * L'export est simulé (même document « Export de données » que plusieurs autres écrans).
+ * Affiché selon la copropriété choisie dans le sélecteur du haut de page : échéances réglementaires à son nom et
+ * échéances de son seul mandat (filtrées ici, le hook restant celui de tout le portefeuille, partagé avec
+ * « Aujourd'hui »), indicateurs calculés sur elles. L'export est simulé (même document « Export de données » que
+ * plusieurs autres écrans).
  */
 export function CalendrierReglementaireModule() {
   const { push } = useToast()
   const [ligneOuverte, setLigneOuverte] = useState<LigneEcheanceReglementaire | null>(null)
-  const lignes = DEMO_ECHEANCES_REGLEMENTAIRES.map(
+  const { code, nom } = useCoproChoisie()
+  const lignes = filtrerParCopro(DEMO_ECHEANCES_REGLEMENTAIRES, code, (echeance) => codeDeNomCopro(echeance[2])).map(
     (echeance): LigneEcheanceReglementaire => [
       echeance[0],
       echeance[1],
@@ -51,14 +58,18 @@ export function CalendrierReglementaireModule() {
     ],
   )
   const portefeuille = useEcheancesPortefeuille()
-  const echeancesDatees = portefeuille.items.filter((item) => item.echeance.dateRetenue)
+  const echeancesDatees = filtrerParCopro(portefeuille.items, code, (item) => item.copro.code).filter(
+    (item) => item.echeance.dateRetenue,
+  )
+  const porteeMandats = nom ?? 'tous les mandats'
+  const portee = nom ? `de ${nom}` : 'des copropriétés sous mandat'
 
   return (
     <>
       <PageHead
         eyebrow="Conformité"
         title="Calendrier réglementaire"
-        lede="Échéances légales et réglementaires des copropriétés sous mandat."
+        lede={`Échéances légales et réglementaires ${portee}.`}
         actions={
           <button className="btn gold" onClick={() => push(DOCUMENT_EXPORT_DONNEES)}>
             <Icon name="download" />
@@ -95,49 +106,53 @@ export function CalendrierReglementaireModule() {
         ]}
       />
       <Panel title="Échéances réglementaires" icon="calendar" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Obligation',
-              render: (ligne) => <b>{ligne[0]}</b>,
-            },
-            {
-              h: 'Base légale',
-              render: (ligne) => (
-                <span
-                  style={{
-                    color: 'var(--navy-500)',
-                    fontSize: 12,
-                  }}
-                >
-                  {ligne[1]}
-                </span>
-              ),
-            },
-            {
-              h: 'Copropriété',
-              render: (ligne) => ligne[2],
-            },
-            {
-              h: 'Échéance',
-              render: (ligne) => <span className="mono">{ligne[3]}</span>,
-            },
-            {
-              h: 'Statut',
-              render: (ligne) => (
-                <Pill kind={PILL_PAR_STATUT_ECHEANCE_REGLEMENTAIRE[ligne[4]]} noDot>
-                  {ligne[4]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={lignes}
-          onRow={setLigneOuverte}
-        />
+        {lignes.length === 0 ? (
+          <EmptyState icon="calendar" title={titreListeVide('Aucune échéance réglementaire', nom)} />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                h: 'Obligation',
+                render: (ligne) => <b>{ligne[0]}</b>,
+              },
+              {
+                h: 'Base légale',
+                render: (ligne) => (
+                  <span
+                    style={{
+                      color: 'var(--navy-500)',
+                      fontSize: 12,
+                    }}
+                  >
+                    {ligne[1]}
+                  </span>
+                ),
+              },
+              {
+                h: 'Copropriété',
+                render: (ligne) => ligne[2],
+              },
+              {
+                h: 'Échéance',
+                render: (ligne) => <span className="mono">{ligne[3]}</span>,
+              },
+              {
+                h: 'Statut',
+                render: (ligne) => (
+                  <Pill kind={PILL_PAR_STATUT_ECHEANCE_REGLEMENTAIRE[ligne[4]]} noDot>
+                    {ligne[4]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={lignes}
+            onRow={setLigneOuverte}
+          />
+        )}
       </Panel>
       <Panel
         title="Échéances légales des mandats"
-        sub={`Moteur de délais légaux · tous les mandats · date de référence ${dateIsoVersFr(AUJOURDHUI_ISO)}`}
+        sub={`Moteur de délais légaux · ${porteeMandats} · date de référence ${dateIsoVersFr(AUJOURDHUI_ISO)}`}
         icon="clock"
         flush
       >

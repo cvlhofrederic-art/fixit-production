@@ -1,6 +1,17 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { safeOpen } from '@/lib/security/safe-url'
+
+// Liens utiles (secção « Links Úteis ») : le tableau sert à l'affichage et la liste des origines que
+// safeOpen accepte en est dérivée, pour qu'un lien ajouté ici reste toujours ouvrable.
+const LINKS_UTEIS = [
+  { emoji: '🌐', nome: 'MOBI.E', desc: 'Rede nacional de mobilidade elétrica', url: 'https://www.mobie.pt' },
+  { emoji: '⚡', nome: 'DGEG', desc: 'Direção-Geral de Energia e Geologia', url: 'https://www.dgeg.gov.pt' },
+  { emoji: '🌿', nome: 'Fundo Ambiental', desc: 'Incentivos para mobilidade elétrica', url: 'https://www.fundoambiental.pt' },
+  { emoji: '📜', nome: 'DRE — DL 101-D/2020', desc: 'Legislação no Diário da República', url: 'https://dre.pt' },
+] as const
+const ORIGENS_LINKS_UTEIS = LINKS_UTEIS.map(link => new URL(link.url).origin)
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -1403,15 +1414,10 @@ export default function CarregamentoVESection({ user }: Props) {
               Links Úteis
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
-              {[
-                { emoji: '🌐', nome: 'MOBI.E', desc: 'Rede nacional de mobilidade elétrica', url: 'https://www.mobie.pt' },
-                { emoji: '⚡', nome: 'DGEG', desc: 'Direção-Geral de Energia e Geologia', url: 'https://www.dgeg.gov.pt' },
-                { emoji: '🌿', nome: 'Fundo Ambiental', desc: 'Incentivos para mobilidade elétrica', url: 'https://www.fundoambiental.pt' },
-                { emoji: '📜', nome: 'DRE — DL 101-D/2020', desc: 'Legislação no Diário da República', url: 'https://dre.pt' },
-              ].map((link, i) => (
+              {LINKS_UTEIS.map((link, i) => (
                 <div
                   key={i}
-                  onClick={() => window.open(link.url, '_blank', 'noopener,noreferrer')}
+                  onClick={() => safeOpen(link.url, { allowedOrigins: ORIGENS_LINKS_UTEIS })}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 12, padding: 16,
                     background: 'var(--sd-cream, #F7F4EE)', borderRadius: 12, cursor: 'pointer',

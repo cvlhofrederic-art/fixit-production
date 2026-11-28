@@ -1,0 +1,1400 @@
+{
+  "domaine": {
+    "id": "canalizacao",
+    "nom": "Canalização",
+    "icone": "🚰"
+  },
+  "situations": [
+    {
+      "id": "fuga-tubo-pvc-esgoto",
+      "domaine": "canalizacao",
+      "titre": "Fuga em tubo de PVC de esgoto",
+      "motsCles": [
+        "tubo de esgoto a verter",
+        "cano de PVC rachado",
+        "união de esgoto a pingar",
+        "tubo de esgoto descolado",
+        "junta de PVC a verter",
+        "curva de PVC partida",
+        "tubo de esgoto partido",
+        "esgoto a pingar para o teto de baixo",
+        "colar tubo de esgoto"
+      ],
+      "description": "Tubo ou acessório de PVC de esgoto a verter por uma racha, uma colagem falhada ou um o-ring fora do sítio. Vê-se como pingos, escorridos ou mancha de humidade junto à tubagem.",
+      "aVerifier": [
+        "Sistema de colar ou de encaixe com o-ring: os acessórios novos têm de ser do mesmo tipo.",
+        "Diâmetro exterior do tubo e local da fuga: numa união ou a meio do tubo.",
+        "Se o tubo é mesmo PVC rígido: a cola de PVC não serve para outros plásticos.",
+        "Pendente e apoios do tubo: água parada ou tubo descaído voltam a abrir a união."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Aparar a água que ainda está no tubo ao cortar ou desencaixar."
+            },
+            {
+              "id": "pano-do-chao"
+            },
+            {
+              "id": "fita-metrica",
+              "note": "Medir o diâmetro exterior do tubo e o comprimento do troço a trocar."
+            },
+            {
+              "id": "serra-de-arco",
+              "note": "Cortar o troço rachado com cortes direitos, à esquadria."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão médio: tirar a rebarba do corte e despolir as pontas que levam cola."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar e secar bem as pontas e o interior dos acessórios."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "tubo-pvc-esgoto",
+              "note": "Troço novo do mesmo diâmetro e do mesmo sistema (colar ou encaixe com o-ring)."
+            },
+            {
+              "id": "acessorios-pvc-esgoto",
+              "note": "Uniões para emendar o troço novo, ou acessório igual ao que rachou."
+            },
+            {
+              "id": "limpador-pvc-tubos",
+              "note": "Só no sistema de colar: limpar as pontas e o interior dos acessórios logo antes da cola.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-pvc-tubos",
+              "note": "Só no sistema de colar, nas duas faces; as peças com o-ring encaixam-se sem cola.",
+              "optionnel": true
+            },
+            {
+              "id": "abracadeira-tubo-com-borracha",
+              "note": "Se o tubo estiver mal apoiado: prendê-lo à parede para não forçar as uniões.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-epoxi-reparadora",
+              "note": "Recurso numa racha pequena, com o tubo seco, até se trocar a peça.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "Águas residuais: não mexer no tubo de mãos nuas."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos de água suja e de cola ao trabalhar por baixo do tubo."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não deixar correr água no tubo antes de a cola curar: ver o tempo na embalagem.",
+        "A cola e o limpador de PVC têm solventes inflamáveis: arejar e afastar chamas e cigarros.",
+        "Tubos antigos de fibrocimento podem conter amianto: não cortar nem lixar, chamar uma empresa habilitada.",
+        "Se a fuga for na coluna (prumada) do prédio, é parte comum: avisar o condomínio antes de intervir.",
+        "Fuga que volta à mesma união pode vir de entupimento a jusante ou de falta de pendente: resolver a causa."
+      ]
+    },
+    {
+      "id": "fuga-ligacao-roscada-vedar-roscas",
+      "domaine": "canalizacao",
+      "titre": "Fuga em ligação roscada",
+      "motsCles": [
+        "rosca a pingar",
+        "vedar roscas",
+        "casquilho a verter",
+        "joelho de latão a pingar",
+        "união roscada com fuga",
+        "pôr teflon na rosca",
+        "linho e pasta na rosca",
+        "rosca a ressumar",
+        "fuga na rosca do tubo"
+      ],
+      "description": "Ligação roscada de água (casquilho, joelho, tê, torneira) que pinga ou ressuma pela rosca. Resolve-se desmontando, limpando e vedando de novo a rosca.",
+      "aVerifier": [
+        "Rosca metálica ou de plástico: em plástico usa-se só fita PTFE.",
+        "Se a ligação veda pela rosca ou por junta plana ou assento cónico (estes não levam vedante).",
+        "Medida da rosca em polegadas e estado da peça: rosca moída ou corpo rachado obrigam a trocar.",
+        "Água fria, quente ou de aquecimento: confirmar na embalagem que o vedante serve."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Aparar a água que fica na tubagem depois de fechar a torneira de corte."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Secar a ligação para ver se a água sai mesmo pela rosca ou por uma junta."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar da rosca os restos de linho, fita velha e calcário antes de vedar."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "acessorios-latao-roscados",
+              "note": "Trocar a peça se a rosca estiver moída ou o corpo rachado: o vedante não resolve.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-ptfe-vedante-roscas",
+              "note": "Enrolar no sentido do aperto; é a escolha em roscas de plástico e de pequeno diâmetro."
+            },
+            {
+              "id": "linho-canalizador",
+              "note": "Em roscas metálicas largas ou já gastas, sempre com pasta por cima.",
+              "optionnel": true
+            },
+            {
+              "id": "pasta-vedante-roscas",
+              "note": "Só com o linho, em roscas metálicas; em água de consumo, a que indica água potável.",
+              "optionnel": true
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Se a ligação veda por junta plana (porca louca): troca-se a junta, sem fita.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chave-inglesa",
+              "note": "Apertar firme sem forçar, com a abertura bem ajustada à porca."
+            },
+            {
+              "id": "alicate-bomba-agua",
+              "note": "Segurar a contra-peça para a tubagem não rodar nem torcer."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Pode saltar água sob pressão ao desapertar a ligação."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Ligações de gás não se vedam por esta ficha: são trabalho de técnico credenciado, com vedantes próprios para gás.",
+        "Fechar a água e abrir uma torneira para tirar a pressão antes de desapertar.",
+        "Aperto a mais racha as roscas fêmeas de plástico e de latão fino: apertar firme, sem forçar.",
+        "Depois de vedada com fita PTFE, não desapertar para acertar a posição: refazer a vedação."
+      ]
+    },
+    {
+      "id": "fuga-uniao-multicamada-pex",
+      "domaine": "canalizacao",
+      "titre": "Fuga em tubo multicamada ou PEX",
+      "motsCles": [
+        "união de multicamada a pingar",
+        "acessório de cravar a verter",
+        "tubo PEX a verter",
+        "fuga no coletor",
+        "furei o tubo multicamada com o berbequim",
+        "tubo multicamada furado",
+        "tubo multicamada vincado",
+        "acessório de aperto a pingar",
+        "tubo PEX furado na parede"
+      ],
+      "description": "Fuga numa união de tubo multicamada ou PEX, ou no próprio tubo depois de um furo ou de um vinco. Repara-se cortando a parte danificada e montando uniões novas do mesmo sistema.",
+      "aVerifier": [
+        "Tipo de tubo (multicamada ou PEX) e medida gravada no tubo: diâmetro e espessura.",
+        "Acessório de cravar ou de aperto: o de cravar exige alicate com mordentes compatíveis.",
+        "Fuga na união ou no próprio tubo (furo de berbequim, vinco, corte).",
+        "Tubo à vista, em manga corrugada ou embutido na parede ou no pavimento."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Aparar a água do tubo ao cortar, depois de fechar o corte geral ou o do coletor."
+            },
+            {
+              "id": "escopro",
+              "note": "Só com tubo embutido: abrir o roço à volta da fuga sem ferir o tubo.",
+              "optionnel": true
+            },
+            {
+              "id": "maceta",
+              "note": "Só com tubo embutido, para trabalhar com o escopro.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "acessorios-multicamada",
+              "note": "Tubo multicamada: união do mesmo diâmetro; sem alicate de cravar, usar a de aperto.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-multicamada",
+              "note": "Multicamada vincado ou furado: troço novo entre duas uniões.",
+              "optionnel": true
+            },
+            {
+              "id": "acessorios-pex",
+              "note": "Tubo PEX: união própria para PEX, do mesmo diâmetro e espessura do tubo.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-pex",
+              "note": "PEX furado ou vincado: troço novo entre duas uniões.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "corta-tubos-multicamada",
+              "note": "Corte direito, à esquadria, sem esmagar nem ovalizar o tubo."
+            },
+            {
+              "id": "calibrador-multicamada",
+              "note": "Multicamada: calibrar a boca após cada corte e confirmar que o tubo entra até ao fundo.",
+              "optionnel": true
+            },
+            {
+              "id": "chave-inglesa",
+              "note": "Acessórios de aperto: apertar a porca firme, sem forçar.",
+              "optionnel": true
+            },
+            {
+              "id": "alicate-bomba-agua",
+              "note": "Acessórios de aperto: segurar o corpo enquanto se aperta a porca.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tubo-isolamento-polietileno",
+              "note": "Repor o isolamento cortado em tubo de água quente.",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Fechar o roço só depois de testar a ligação com a água aberta e sob pressão.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao abrir o roço saltam lascas; ao cortar o tubo pode saltar água."
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Só ao abrir roço: pó de reboco e de tijolo.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Um acessório de cravar que verte não se reaperta: corta-se o tubo e monta-se um acessório novo.",
+        "Acessórios de PEX e de multicamada não são intermutáveis.",
+        "Uniões de aperto devem ficar acessíveis; em tubo embutido, testar sempre com pressão antes de fechar a parede.",
+        "Em circuitos de aquecimento, desligar a caldeira, deixar arrefecer e tirar a pressão antes de cortar.",
+        "Antes de abrir roço, ver por onde passam os cabos; se a água chegou a tomadas ou caixas, desligar o quadro."
+      ]
+    },
+    {
+      "id": "sifao-a-verter-ou-mau-cheiro",
+      "domaine": "canalizacao",
+      "titre": "Sifão a verter ou com mau cheiro",
+      "motsCles": [
+        "sifão a pingar",
+        "porca do sifão a verter",
+        "trocar sifão",
+        "copo do sifão rachado",
+        "cheiro a esgoto no lavatório",
+        "cheiro a esgoto no lava-loiça",
+        "água debaixo do lava-loiça",
+        "móvel do lavatório molhado",
+        "válvula do lavatório a pingar"
+      ],
+      "description": "Sifão de lavatório, bidé ou lava-loiça que pinga pelas porcas ou pelo corpo, ou que deixa passar cheiro a esgoto. Quase sempre são juntas gastas, sujidade acumulada ou a ligação à parede mal vedada.",
+      "aVerifier": [
+        "Lavatório, bidé ou lava-loiça (as roscas são diferentes) e, no lava-loiça, uma ou duas cubas.",
+        "De onde sai a água: porcas e juntas, corpo rachado, válvula por cima ou ligação à parede.",
+        "Mau cheiro: sifão sem água, sujidade acumulada ou entrada do esgoto na parede sem vedação.",
+        "Diâmetro do tubo de esgoto na parede e se o sifão alinha com ele."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Por baixo do sifão ao desapertar: o copo está cheio de água suja."
+            },
+            {
+              "id": "pano-do-chao"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "desengordurante",
+              "note": "Lavar o sifão desmontado: a gordura e os resíduos agarrados dão mau cheiro."
+            },
+            {
+              "id": "esfregao-fibra-verde",
+              "note": "Esfregar o interior do copo e os assentos das juntas."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Trocar as juntas ressequidas; a cónica vai com a parte fina virada para o encaixe."
+            },
+            {
+              "id": "sifao-lavatorio",
+              "note": "Lavatório ou bidé, se o corpo estiver rachado ou as roscas moídas.",
+              "optionnel": true
+            },
+            {
+              "id": "sifao-lava-loica",
+              "note": "Lava-loiça com sifão rachado; com ligação para máquina, se houver uma por perto.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-extensivel-esgoto",
+              "note": "Só quando o sifão não alinha com o esgoto da parede; usar o comprimento mínimo.",
+              "optionnel": true
+            },
+            {
+              "id": "valvula-clic-clac-lavatorio",
+              "note": "Se a água escorre pela válvula do lavatório, por cima do sifão.",
+              "optionnel": true
+            },
+            {
+              "id": "valvula-lava-loica-cesto",
+              "note": "Se a fuga for entre a válvula e a cuba do lava-loiça.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "acessorios-pvc-esgoto",
+              "note": "Redução com borracha na entrada do esgoto da parede, se o tubo ficar folgado e passar cheiro.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Parafuso central da válvula, para a desmontar ou reapertar."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "As porcas de plástico apertam-se à mão: com ferramenta racham ou esmagam a junta.",
+        "Se alguém deitou desentupidor químico, a água do sifão é cáustica: luvas próprias e óculos ao desmontar.",
+        "Cheiro que continua com o sifão cheio e bem vedado aponta para falta de ventilação do esgoto: chamar um canalizador.",
+        "Sifão de peça pouco usada seca e deixa passar cheiro: basta deitar água de vez em quando."
+      ]
+    },
+    {
+      "id": "autoclismo-a-correr",
+      "domaine": "canalizacao",
+      "titre": "Autoclismo a correr",
+      "motsCles": [
+        "autoclismo sempre a correr",
+        "sanita a perder água",
+        "fio de água na sanita",
+        "autoclismo não para de encher",
+        "autoclismo não enche",
+        "autoclismo não veda",
+        "barulho de água no autoclismo",
+        "boia do autoclismo avariada",
+        "botão do autoclismo preso"
+      ],
+      "description": "A água não para de correr para a sanita ou o autoclismo não acaba de encher. A falha está na válvula de descarga (membrana que já não veda) ou na torneira de boia (que já não fecha).",
+      "aVerifier": [
+        "Nível da água: se chega ao tubo ladrão, a falha é da torneira de boia; se fica abaixo, é da válvula de descarga.",
+        "Autoclismo exterior ou embutido na parede (peças próprias do modelo).",
+        "Entrada de água lateral ou por baixo, e a rosca.",
+        "Altura interior do autoclismo e diâmetro do furo do botão na tampa."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "pano-do-chao",
+              "note": "Tirar a água que fica no fundo depois de fechar a torneira e descarregar."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "desincrustante",
+              "note": "Tirar o calcário do assento da válvula e da boia; enxaguar. Nunca misturar com lixívia."
+            },
+            {
+              "id": "esfregao-fibra-verde",
+              "note": "Limpar o assento onde a membrana veda."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "mecanismo-descarga-autoclismo",
+              "note": "Se a água corre para a sanita com o nível abaixo do ladrão; às vezes basta a membrana.",
+              "optionnel": true
+            },
+            {
+              "id": "torneira-boia-autoclismo",
+              "note": "Se o nível sobe até ao tubo ladrão: a boia já não fecha a entrada de água.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-flexivel-inox",
+              "note": "Trocar se estiver oxidada, rígida ou com a malha desfiada.",
+              "optionnel": true
+            },
+            {
+              "id": "torneira-esquadria",
+              "note": "Se a torneira de esquadria do autoclismo estiver presa ou não fechar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Junta nova na ligação da bicha, se se aproveitar a bicha existente.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-ptfe-vedante-roscas",
+              "note": "Só na rosca da torneira de esquadria à parede; ligações com junta não levam fita.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Desmontar o botão e a tampa, conforme o modelo."
+            },
+            {
+              "id": "chave-inglesa",
+              "note": "Bicha e torneira de esquadria; a porca de plástico da boia aperta-se à mão.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Autoclismo embutido na parede: as peças são próprias de cada modelo e entram pela placa de comando; não forçar.",
+        "Aperto a mais racha a louça e as roscas de plástico.",
+        "Para trocar a torneira de esquadria, fechar primeiro a água no corte geral."
+      ]
+    },
+    {
+      "id": "torneira-a-pingar-ou-substituir",
+      "domaine": "canalizacao",
+      "titre": "Torneira a pingar ou a substituir",
+      "motsCles": [
+        "torneira a pingar",
+        "torneira não fecha bem",
+        "misturadora a verter",
+        "monocomando a pingar",
+        "água pela base da torneira",
+        "manípulo da torneira duro",
+        "trocar torneira do lavatório",
+        "trocar torneira da cozinha",
+        "torneira da cozinha a verter"
+      ],
+      "description": "Torneira que pinga pela bica, verte pela base ou pelo manípulo, ou que já não compensa reparar e se substitui, com bichas flexíveis novas.",
+      "aVerifier": [
+        "Tipo de torneira: monocomando (cartucho) ou de dois manípulos (castelos).",
+        "Por onde verte: pela bica, pela base, pelo manípulo ou pelas bichas.",
+        "Roscas e comprimento das bichas, e se existem torneiras de esquadria que fechem.",
+        "Para substituir: torneira de bancada (um furo) ou de parede, e as medidas da existente."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Debaixo das bichas ao desapertar: fica sempre água na tubagem."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Tapar o ralo, para não perder parafusos, e proteger o cromado da ferramenta."
+            },
+            {
+              "id": "desincrustante",
+              "note": "Se houver calcário agarrado ao cartucho ou ao castelo. Enxaguar bem.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "cartucho-misturadora",
+              "note": "Monocomando que pinga pela bica ou tem o manípulo duro: levar o cartucho antigo à loja.",
+              "optionnel": true
+            },
+            {
+              "id": "castelo-torneira",
+              "note": "Torneira de dois manípulos que não fecha: levar o castelo antigo à loja.",
+              "optionnel": true
+            },
+            {
+              "id": "o-rings",
+              "note": "Fuga pela base da bica giratória: trocar pelos da mesma medida.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "torneira-misturadora",
+              "note": "Só para substituir: bancada ou parede, com furo e medidas iguais aos da antiga.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-flexivel-inox",
+              "note": "Ao trocar a torneira, bichas novas; confirmar roscas e comprimento.",
+              "optionnel": true
+            },
+            {
+              "id": "torneira-esquadria",
+              "note": "Se não houver corte por baixo da louça ou se a de esquadria já não fechar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Juntas novas nas ligações das bichas: vedam pela junta, sem fita.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-ptfe-vedante-roscas",
+              "note": "Só em roscas sem junta: excêntricas de torneira de parede ou torneira de esquadria.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Parafuso do manípulo, debaixo da tampa ou do botão azul e vermelho."
+            },
+            {
+              "id": "chaves-sextavadas-allen",
+              "note": "Monocomando: o manípulo prende muitas vezes por um parafuso sextavado interior.",
+              "optionnel": true
+            },
+            {
+              "id": "chave-inglesa",
+              "note": "Porca do cartucho ou do castelo e porcas das bichas, com um pano a proteger o cromado."
+            },
+            {
+              "id": "alicate-bomba-agua",
+              "note": "Porca de fixação da torneira por baixo da bancada, onde a chave não chega.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fechar a água e abrir a torneira para tirar a pressão antes de desmontar.",
+        "As bichas apertam-se à mão e pouco mais, sem as torcer nem dobrar em ângulo.",
+        "Torneira muito corroída ou com o corpo rachado não compensa reparar: substituir.",
+        "Depois de abrir a água, purgar sem o arejador para sair a sujidade e verificar as ligações com papel seco."
+      ]
+    },
+    {
+      "id": "desentupir-lavatorio-lava-loica-sanita",
+      "domaine": "canalizacao",
+      "titre": "Desentupir lavatório, lava-loiça ou sanita",
+      "motsCles": [
+        "cano entupido",
+        "água não escoa",
+        "lavatório a escoar devagar",
+        "sanita entupida",
+        "lava-loiça com água parada",
+        "ralo entupido",
+        "base de duche não escoa",
+        "água a subir na sanita",
+        "esgoto a borbulhar"
+      ],
+      "description": "A água escoa devagar ou fica parada no lavatório, no lava-loiça, na base de duche ou na sanita. Começa-se sempre pelo método mecânico (ventosa, mola, limpeza do sifão) antes de qualquer produto químico.",
+      "aVerifier": [
+        "Uma só peça entupida ou várias ao mesmo tempo (várias apontam para o ramal ou a coluna).",
+        "Se já foi deitado algum produto químico: muda a forma segura de trabalhar.",
+        "Que peça é e o que a entope: cabelos no lavatório, gordura no lava-loiça, objeto na sanita.",
+        "Se o sifão é desmontável e está acessível."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Por baixo do sifão, se for preciso desmontá-lo para tirar o que o entope."
+            },
+            {
+              "id": "pano-do-chao"
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Húmido, a tapar o avisador (ladrão) do lavatório enquanto se usa a ventosa."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "desentupidor-manual-ventosa-mola",
+              "note": "Começar sempre por aqui: ventosa primeiro, mola se o entupimento estiver mais fundo."
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Juntas novas ao remontar o sifão, se as antigas estiverem deformadas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "desentupidor-quimico",
+              "note": "Só se o método manual não resultar; confirmar na embalagem onde pode ser usado.",
+              "optionnel": true
+            },
+            {
+              "id": "desengordurante",
+              "note": "Lava-loiça: lavar o sifão desmontado, cheio de gordura.",
+              "optionnel": true
+            },
+            {
+              "id": "esfregao-fibra-verde",
+              "note": "Limpar o copo do sifão e a grelha do ralo."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Desmontar a grelha do ralo ou a válvula para chegar aos cabelos e resíduos."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Obrigatórias com desentupidor químico; servem também para as águas sujas."
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "Salpicos de água suja ou de produto cáustico, sobretudo ao usar a mola."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Nunca misturar desentupidor químico com lixívia nem com outro desentupidor.",
+        "Depois de deitar o produto químico, não usar a ventosa nem desmontar o sifão sem luvas e óculos.",
+        "Várias peças entupidas, ou água a subir noutra peça, indicam entupimento no ramal ou na coluna: chamar uma empresa de desentupimentos.",
+        "Sanita entupida por um objeto pode obrigar a retirá-la: não forçar a mola contra a louça."
+      ]
+    },
+    {
+      "id": "substituir-torneira-esquadria",
+      "domaine": "canalizacao",
+      "titre": "Substituir torneira de esquadria",
+      "motsCles": [
+        "torneira de esquadria a pingar",
+        "torneira de esquadria presa",
+        "torneira de segurança não fecha",
+        "trocar torneira debaixo do lavatório",
+        "esquadria a verter na parede",
+        "esquadria com calcário",
+        "torneira de corte do autoclismo",
+        "fuga na rosca da esquadria"
+      ],
+      "description": "Torneira de esquadria (a pequena torneira de corte na parede, por baixo do lavatório, do autoclismo ou do lava-loiça) presa, a pingar ou que já não fecha, e que se troca por uma nova.",
+      "aVerifier": [
+        "Onde se corta a água (contador ou corte geral) e se esse corte fecha por completo.",
+        "Rosca da parede e saída necessária: para bicha ou para máquina.",
+        "Estado da rosca na parede e se ficou recuada em relação ao azulejo.",
+        "Estado da bicha existente: aproveitar ou trocar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Aparar a água que sai da parede ao tirar a torneira antiga."
+            },
+            {
+              "id": "pano-do-chao"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar a rosca da parede dos restos de linho, fita e calcário."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-ptfe-vedante-roscas",
+              "note": "Na rosca que entra na parede, no sentido do aperto; não recuar depois de apertada."
+            },
+            {
+              "id": "linho-canalizador",
+              "note": "Em vez da fita, em rosca de parede metálica já gasta; sempre com pasta.",
+              "optionnel": true
+            },
+            {
+              "id": "pasta-vedante-roscas",
+              "note": "Só com o linho; escolher a que indica água potável.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "torneira-esquadria",
+              "note": "Entrada igual à rosca da parede; saída conforme a bicha, ou de máquina se for o caso."
+            },
+            {
+              "id": "acessorios-latao-roscados",
+              "note": "Prolongador, se a rosca da parede ficou recuada em relação ao azulejo.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-flexivel-inox",
+              "note": "Trocar a bicha se estiver oxidada ou se a rosca da torneira nova for diferente.",
+              "optionnel": true
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Junta nova, se se aproveitar a bicha existente.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chave-inglesa",
+              "note": "Pelo sextavado do corpo, com um pano; parar com a saída na posição certa."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Trabalha-se agachado, com a rosca à altura dos olhos: pode saltar água."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Torneira antiga com calcário pode partir e deixar a rosca dentro da parede: desapertar sem pancadas e, se não ceder, chamar um canalizador.",
+        "Confirmar que o corte geral fecha mesmo antes de tirar a torneira: sem ele não há como parar a água.",
+        "Abrir a água devagar no fim e verificar a rosca da parede com papel seco."
+      ]
+    },
+    {
+      "id": "ligar-maquina-de-lavar",
+      "domaine": "canalizacao",
+      "titre": "Ligar máquina de lavar",
+      "motsCles": [
+        "instalar máquina de lavar roupa",
+        "ligar máquina da loiça",
+        "tubo de descarga da máquina",
+        "torneira da máquina",
+        "máquina de lavar a verter atrás",
+        "esgoto da máquina a cheirar",
+        "água suja volta para a máquina",
+        "tubo de carga da máquina curto",
+        "ligar máquina ao esgoto"
+      ],
+      "description": "Ligação de uma máquina de lavar roupa ou loiça à água (torneira de máquina e tubo de carga) e ao esgoto (tubo de descarga para sifão ou ponto de esgoto próprio).",
+      "aVerifier": [
+        "Se existe torneira de máquina e a que distância fica.",
+        "Esgoto: ponto próprio com sifão ou ligação ao sifão do lava-loiça.",
+        "Comprimento dos tubos de carga e de descarga e altura de descarga pedida no manual.",
+        "Tomada com terra perto da máquina e fora do alcance de salpicos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Purgar a torneira para o balde antes de ligar, para sair areia e sujidade."
+            },
+            {
+              "id": "pano-do-chao"
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "torneira-esquadria",
+              "note": "Se não existir torneira de máquina; o modelo duplo serve a máquina e outra peça.",
+              "optionnel": true
+            },
+            {
+              "id": "tubos-maquina-lavar",
+              "note": "Se os tubos da máquina não chegarem ou estiverem ressequidos.",
+              "optionnel": true
+            },
+            {
+              "id": "sifao-lava-loica",
+              "note": "Com ligação para máquina, quando a descarga vai para o sifão do lava-loiça.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-pvc-esgoto",
+              "note": "Para fazer um ponto de esgoto próprio, quando não há sifão de lava-loiça por perto.",
+              "optionnel": true
+            },
+            {
+              "id": "acessorios-pvc-esgoto",
+              "note": "Curvas e sifão para o ponto de esgoto próprio.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-pvc-tubos",
+              "note": "Só se o ponto de esgoto for feito em PVC de colar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-ptfe-vedante-roscas",
+              "note": "Só na rosca da torneira à parede; o tubo de carga veda pela anilha, sem fita.",
+              "optionnel": true
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Anilhas novas no tubo de carga, se se reutilizar um tubo antigo.",
+              "optionnel": true
+            },
+            {
+              "id": "abracadeira-metalica-fita",
+              "note": "Apertar o tubo de descarga no bico do sifão, para não saltar com a pressão da bomba."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "abracadeira-serrilha-nylon",
+              "note": "Prender o tubo de descarga em arco, à altura indicada no manual da máquina."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Nivelar a máquina pelos pés reguláveis depois de ligada."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Apertar a abraçadeira metálica do tubo de descarga."
+            },
+            {
+              "id": "chave-inglesa",
+              "note": "Só para montar a torneira de máquina na parede; o tubo de carga aperta-se à mão.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "A tomada tem de ter terra e ficar a salvo de salpicos; qualquer alteração elétrica é para técnico habilitado.",
+        "O tubo de descarga não pode ficar enfiado até ao fundo nem vedado no tubo de esgoto: a máquina esvazia-se sozinha ou recebe água suja de volta.",
+        "O tubo de carga aperta-se à mão: com ferramenta a porca de plástico racha.",
+        "Na máquina de roupa, retirar os parafusos de transporte antes da primeira lavagem.",
+        "Fazer um ciclo curto e verificar todas as ligações antes de encostar a máquina."
+      ]
+    },
+    {
+      "id": "fuga-pequena-tubo-reparacao-emergencia",
+      "domaine": "canalizacao",
+      "titre": "Fuga pequena em tubo, reparação de emergência",
+      "motsCles": [
+        "tubo furado",
+        "furo no cano",
+        "tapar furo no cano",
+        "estancar fuga de água",
+        "remendo em tubo",
+        "tubo de cobre com poro",
+        "cano de ferro com ferrugem a pingar",
+        "aguentar a fuga até vir o canalizador",
+        "cano rebentou"
+      ],
+      "description": "Poro, pequena racha ou furo num tubo de água ou de esgoto que é preciso estancar de imediato, à espera da reparação definitiva.",
+      "aVerifier": [
+        "Material e medida do tubo: ferro galvanizado, cobre, PVC, multicamada.",
+        "Tubo sob pressão (água da rede, aquecimento) ou de esgoto.",
+        "Furo pontual, racha ou fuga numa união: muda o remendo que serve.",
+        "Se é possível fechar a água e secar o tubo antes de reparar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Aparar a água enquanto não se consegue fechar o corte."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Secar bem o tubo: nenhum remendo agarra em superfície molhada."
+            },
+            {
+              "id": "lixa-ferro-folha",
+              "note": "Tirar ferrugem, tinta e calcário à volta do furo, até ao material são."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar a zona antes da massa ou da fita; evapora sem deixar resíduo."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "abracadeira-tapa-furos",
+              "note": "Em tubo metálico sob pressão é o remendo mais seguro; escolher pela medida do tubo.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-epoxi-reparadora",
+              "note": "Poros e pequenas rachas, com a água fechada e o tubo seco; cura conforme a embalagem."
+            },
+            {
+              "id": "fita-auto-soldante",
+              "note": "Esticar bem e sobrepor as voltas; sob pressão aguenta só provisoriamente.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-reparacao-impermeavel",
+              "note": "Em tubos de esgoto ou sem pressão, sobre superfície limpa.",
+              "optionnel": true
+            },
+            {
+              "id": "abracadeira-metalica-fita",
+              "note": "Apertada por cima da fita auto-soldante, reforça o remendo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chave-inglesa",
+              "note": "Parafusos da abraçadeira tapa-furos, apertados por igual dos dois lados.",
+              "optionnel": true
+            },
+            {
+              "id": "chaves-de-fendas",
+              "note": "Parafuso sem-fim da abraçadeira metálica de fita.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "Para amassar a massa epóxi e mexer em tubo ferrugento."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Um furo sob pressão projeta água; ao lixar saltam partículas de ferrugem."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "É um remendo provisório: marcar logo a substituição do troço ou da peça.",
+        "Tubo de ferro galvanizado com um poro costuma ter outros a caminho: prever a troca do troço.",
+        "Nunca remendar tubos de gás: fechar o gás, arejar e chamar um técnico credenciado.",
+        "Se a água atingiu tomadas, caixas ou o quadro, desligar a eletricidade antes de mexer.",
+        "Fuga numa coluna ou parte comum do prédio: avisar o condomínio.",
+        "Em tubos de água quente ou de aquecimento, confirmar na embalagem a temperatura que o produto suporta."
+      ]
+    },
+    {
+      "id": "valvula-seguranca-termoacumulador-a-pingar",
+      "domaine": "canalizacao",
+      "titre": "Válvula do termoacumulador a pingar",
+      "motsCles": [
+        "termoacumulador a pingar",
+        "cilindro a verter água",
+        "válvula de segurança a pingar",
+        "água por baixo do cilindro",
+        "trocar válvula do termoacumulador",
+        "termoacumulador sempre a verter",
+        "grupo de segurança do cilindro",
+        "bichas do termoacumulador a pingar"
+      ],
+      "description": "A válvula de segurança na entrada de água fria do termoacumulador pinga sem parar ou está presa pelo calcário, ou as ligações por baixo do aparelho vertem. Pingar apenas durante o aquecimento é o funcionamento normal.",
+      "aVerifier": [
+        "Se pinga só enquanto aquece (normal) ou continuamente.",
+        "Se a água sai da válvula, das ligações ou do próprio aparelho.",
+        "Rosca das ligações do termoacumulador.",
+        "Se existe válvula redutora de pressão e se a descarga está conduzida a um esgoto."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Aparar a água do aparelho ao desapertar a válvula."
+            },
+            {
+              "id": "pano-do-chao"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "valvula-seguranca-termoacumulador",
+              "note": "Mesma rosca da entrada de água fria do aparelho."
+            },
+            {
+              "id": "valvula-redutora-pressao",
+              "note": "Se a válvula pinga sempre por pressão alta da rede; montar no sentido da seta.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-flexivel-inox",
+              "note": "Trocar se estiverem oxidadas; confirmar que servem para água quente.",
+              "optionnel": true
+            },
+            {
+              "id": "acessorios-latao-roscados",
+              "note": "Casquilho ou tê, se for preciso adaptar a rosca ou a posição da válvula.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fita-ptfe-vedante-roscas",
+              "note": "Nas roscas sem junta da válvula e dos acessórios."
+            },
+            {
+              "id": "linho-canalizador",
+              "note": "Alternativa à fita em roscas metálicas, sempre com pasta.",
+              "optionnel": true
+            },
+            {
+              "id": "pasta-vedante-roscas",
+              "note": "Só com o linho; escolher a que indica água potável.",
+              "optionnel": true
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Juntas novas nas ligações das bichas, se as houver.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chave-inglesa",
+              "note": "Válvula e porcas das bichas, com um pano para não marcar as peças."
+            },
+            {
+              "id": "alicate-bomba-agua",
+              "note": "Segurar o tubo de entrada enquanto se aperta a válvula, sem torcer a ligação do aparelho."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Água quente sob pressão ao desapertar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o termoacumulador no quadro antes de mexer; a parte elétrica é para técnico habilitado.",
+        "Fechar a água fria e deixar arrefecer ou esvaziar o aparelho: a água pode queimar.",
+        "Pingar durante o aquecimento é normal: a saída da válvula nunca se tapa e deve ir para um esgoto.",
+        "Nunca montar uma torneira de corte entre a válvula de segurança e o aparelho.",
+        "Água a sair da cuba ou da tampa da resistência não é da válvula: o aparelho precisa de assistência ou de substituição."
+      ]
+    },
+    {
+      "id": "torneira-pouca-pressao-calcario",
+      "domaine": "canalizacao",
+      "titre": "Torneira ou chuveiro com pouca pressão",
+      "motsCles": [
+        "pouca água na torneira",
+        "torneira fraca",
+        "jato torto",
+        "espumador entupido",
+        "calcário na torneira",
+        "chuveiro com pouca pressão",
+        "filtro da torneira sujo",
+        "água sai aos salpicos",
+        "arejador com calcário"
+      ],
+      "description": "Uma torneira ou um chuveiro deita pouca água ou um jato torto, quando o resto da casa tem pressão normal. Em regra é calcário ou areia no arejador, no filtro ou na bicha.",
+      "aVerifier": [
+        "Uma só torneira ou a casa toda; água fria e quente ou só a quente.",
+        "Estado do arejador e medida da rosca da bica.",
+        "Torneiras de esquadria totalmente abertas e com ou sem filtro.",
+        "Bichas vincadas ou muito antigas."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "pano-microfibra",
+              "note": "Tapar o ralo e proteger o cromado ao desapertar o arejador."
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Purgar a bicha para o balde, para ver se o caudal chega bem até à torneira."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "desincrustante",
+              "note": "Deixar o arejador ou o chuveiro de molho e enxaguar bem. Nunca misturar com lixívia."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "arejador-torneira",
+              "note": "Trocar se a rede estiver rota ou o calcário não sair; confirmar a rosca da bica.",
+              "optionnel": true
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Junta nova no arejador e nas bichas que se desapertarem.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-flexivel-inox",
+              "note": "Se a bicha estiver vincada ou estrangulada por dentro.",
+              "optionnel": true
+            },
+            {
+              "id": "torneira-esquadria",
+              "note": "Se a de esquadria não abrir toda ou tiver o filtro tapado sem limpeza possível.",
+              "optionnel": true
+            },
+            {
+              "id": "cartucho-misturadora",
+              "note": "Monocomando: se o caudal continua fraco com o arejador limpo e a bicha boa.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-chuveiro",
+              "note": "No duche, se o tubo estiver dobrado ou desfeito por dentro.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "alicate-bomba-agua",
+              "note": "Com o pano, para desapertar o arejador sem o marcar."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "Para mexer no desincrustante."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos de desincrustante."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Pouca pressão em toda a casa não é da torneira: ver a válvula redutora e o contador e falar com a entidade gestora da água.",
+        "Só na água quente: o problema está no esquentador, na caldeira ou no termoacumulador; aparelhos a gás são para técnico credenciado.",
+        "Testar o desincrustante numa zona escondida dos cromados e respeitar o tempo de atuação da embalagem."
+      ]
+    }
+  ]
+}

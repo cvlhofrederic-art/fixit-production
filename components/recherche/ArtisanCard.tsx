@@ -40,7 +40,7 @@ export interface Artisan {
   latitude?: number | null
   longitude?: number | null
   distance_km?: number | null
-  org_role?: string | null
+  legal_form?: string | null // société PT (Lda…) → fiche /pt/empresa/ (getProfilePath)
   source?: 'registered' | 'catalogue' | 'vitfix' // 'vitfix' : fiche VITFIX épinglée sur /pt/pesquisar/ (lib/recherche/vitfix-destaque.ts)
   telephone_pro?: string | null
   adresse?: string | null
@@ -71,15 +71,6 @@ export interface Availability {
   start_time: string
   end_time: string
   is_available: boolean
-}
-
-export interface Booking {
-  id: string
-  artisan_id: string
-  booking_date: string
-  booking_time: string
-  duration_minutes: number | null
-  status: string
 }
 
 // ------------------------------------------------------------------
@@ -129,14 +120,12 @@ function StarsRow({ rating, reviewCount, locale = 'fr' }: { rating: number; revi
 export interface ArtisanCardProps {
   artisan: Artisan
   availability: Availability[]
-  bookings: Booking[]
   locale: 'fr' | 'pt'
 }
 
 export function ArtisanCard({
   artisan,
   availability,
-  bookings,
   locale,
 }: ArtisanCardProps) {
   // Normalise les noms ALL CAPS issus de SIRENE → "FREDERIC NEIVA CARVALHO" → "Frédéric Neiva Carvalho"

@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
     choices: [{ message: { content: 'Réponse de Fixy' } }],
     model: 'claude-sonnet-5-5',
   })),
+  traceAgent: vi.fn((_params: Record<string, unknown>, fn: () => Promise<unknown>) => fn()),
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn(), withScope: vi.fn() }))
@@ -31,7 +32,7 @@ vi.mock('@/lib/claude', () => ({
   callClaudeWithRetry: h.claude,
   hasAnthropicKey: vi.fn(async () => !!(await h.getSecret('ANTHROPIC_API_KEY'))),
 }))
-vi.mock('@/lib/langfuse', () => ({ traceAgent: (_p: unknown, fn: () => Promise<unknown>) => fn() }))
+vi.mock('@/lib/langfuse', () => ({ traceAgent: h.traceAgent }))
 
 const { POST } = await import('@/app/api/administrateur-judiciaire/agent/route')
 
@@ -53,6 +54,7 @@ describe('/api/administrateur-judiciaire/agent', () => {
   beforeEach(() => {
     h.utilisateur = { id: 'u-aj', email: 'admin@exemple.fr', app_metadata: { role: 'super_admin' } }
     h.claude.mockClear()
+    h.traceAgent.mockClear()
   })
 
   it('refuse un visiteur non connecté ou sans rôle syndic', async () => {
@@ -114,6 +116,36 @@ describe('/api/administrateur-judiciaire/agent', () => {
     })
     const res = await POST(requete({ agent: 'fixy', message: 'Comment joindre M. Durand ?', contexte: CONTEXTE }))
     expect((await res.json()).text).toBe('Écrire à durand@exemple.fr')
+  })
+
+  it('trace Langfuse sans contenu : ni la question, ni l’historique, ni le contexte, seulement des métadonnées', async () => {
+    const message = 'Le RIB de M. Durand : FR76 3000 6000 0112 3456 7890 189, il doit 9 200 €. Écrire à durand@exemple.fr'
+    const historique = [{ role: 'user', content: 'Bonjour, M. Durand a appelé' }, { role: 'assistant', content: 'Bonjour !' }]
+    const res = await POST(requete({ agent: 'lea', message, historique, contexte: CONTEXTE }))
+
+    // Ce que voient l'utilisateur et le modèle ne change pas : question masquée pour le modèle, réponse en clair.
+    expect(await res.json()).toEqual({ text: 'Réponse de Fixy', modele: 'claude-sonnet-5-5' })
+    const question = h.claude.mock.calls[0][0].messages[3].content
+    expect(question).toContain('M. Durand')
+    expect(question).toMatch(/<iban:[0-9a-f]{8}>/)
+    expect(question).not.toContain('durand@exemple.fr')
+
+    expect(h.traceAgent).toHaveBeenCalledTimes(1)
+    const [params] = h.traceAgent.mock.calls[0]
+    expect(params).toEqual({
+      agent_id: 'aj-lea',
+      user_id: 'u-aj',
+      metadonneesSeules: true,
+      metadata: {
+        succursale: 'administrateur-judiciaire',
+        agent: 'lea',
+        longueurQuestion: message.length,
+        echangesPrecedents: 2,
+        tailleContexte: JSON.stringify(CONTEXTE).length,
+        elementsContexte: 2,
+      },
+    })
+    expect(JSON.stringify(params)).not.toMatch(/Durand|FR76|9 200|exemple\.fr|Clos des Vignes|Bonjour/)
   })
 
   it('503 si aucune clé IA n’est configurée', async () => {

@@ -6,6 +6,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import MarkdownIA from '@/components/common/MarkdownIA'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { AVATARS_AGENTS, type IdAgentAvatar } from '@/components/administrateur-judiciaire/ui/avatars'
+import { optionsAvecNom, useNomCoproSuivi } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useAgentIA } from '@/components/administrateur-judiciaire/modules/agents-ia/useAgentIA'
@@ -30,7 +31,11 @@ export interface AlerteAgent {
   title: string
 }
 
-/** Sélecteur de contexte (ex. copropriété) : la valeur choisie est transmise à l'agent IA. */
+/**
+ * Sélecteur de contexte (ex. copropriété) : la valeur choisie est transmise à l'agent IA. Il suit le sélecteur du haut
+ * de page (useNomCoproSuivi) : la copropriété choisie est affichée (ajoutée aux options si elle n'y figure pas) et
+ * transmise ; en choisir une sur la page la choisit partout. Sans copropriété choisie, choix local, comme avant.
+ */
 export interface SelecteurContexteAgent {
   label: string
   options: readonly string[]
@@ -140,7 +145,7 @@ export function AgentChatPage({
   donneesEcran,
 }: AgentChatPageProps) {
   const [question, setQuestion] = useState('')
-  const [contexte, setContexte] = useState(contextSelector?.options?.[0] || '')
+  const [contexte, changerContexte] = useNomCoproSuivi(contextSelector?.options?.[0] || '')
   const [messages, setMessages] = useState<MessageAgent[]>([])
   const [panneauVisible, setPanneauVisible] = useState(true)
   const { push } = useToast()
@@ -348,9 +353,9 @@ export function AgentChatPage({
                   id="agent-ctx-sel"
                   aria-label="Contexte"
                   value={contexte}
-                  onChange={(evenement) => setContexte(evenement.target.value)}
+                  onChange={(evenement) => changerContexte(evenement.target.value)}
                 >
-                  {contextSelector.options.map((option) => (
+                  {optionsAvecNom(contextSelector.options, contexte).map((option) => (
                     <option value={option} key={option}>
                       {option}
                     </option>

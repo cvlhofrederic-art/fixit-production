@@ -45,6 +45,18 @@ export interface Artisan {
   insurance_scan_data?: Record<string, unknown> | null
   is_active?: boolean
   verified?: boolean
+  legal_form?: string | null
+  /**
+   * Salarié invité d'une société BTP seulement : identifiant de la fiche `profiles_artisan` de SA société.
+   *
+   * Son compte n'a pas de fiche à lui. Le tableau de bord lui donne l'identité de la société — raison sociale,
+   * SIRET ou NIPC, adresse, logo, assurance, langue — tout en laissant `id` sur SON compte, pour que les clés du
+   * navigateur (`fixit_documents_<id>`, `fixit_drafts_<id>`) restent les siennes et n'écrasent jamais celles du
+   * gérant sur un poste partagé. Ce champ porte donc l'identifiant de la fiche là où il faut vraiment celui de la
+   * société : gabarit du document, relecture de la fiche au téléchargement, propriétaire enregistré en base.
+   * Lire par `idFicheDocuments` (lib/documents/identite-documents.ts), jamais directement.
+   */
+  fiche_societe_id?: string
 }
 
 export interface Service {
@@ -145,7 +157,15 @@ export interface ChatMessage {
 
 export interface SavedDocument {
   id: string
-  type: 'devis' | 'facture' | 'avoir'
+  /**
+   * @deprecated Champ des documents enregistrés par d'anciens écrans. La mise en forme du tableau de bord et
+   * `fetchDocumentsFromSupabase` ne posent que `docType` : un filtre écrit sur `type` ne retient donc RIEN des
+   * documents d'aujourd'hui. Il était obligatoire jusqu'au 26/11/2026, ce qui laissait `tsc` valider
+   * `doc.type === 'facture'` partout — le CA par chantier a vécu huit mois ainsi, et « Devis récents » depuis sa
+   * création. Pour tester le type d'un document : `estDuType` (lib/documents/liste-effective.ts), qui lit les deux.
+   */
+  type?: 'devis' | 'facture' | 'avoir'
+  /** Type posé par les formulaires et par la relecture depuis la base. Un avoir porte « facture » + `factureSubType`. */
   docType?: string
   docNumber?: string
   clientName?: string
@@ -163,7 +183,19 @@ export interface SavedDocument {
   amount?: number
   status?: string
   signatureData?: string | null
+  /** Date du document, saisie dans le formulaire. C'est elle qui sert à trier et à datter un document. */
+  docDate?: string
+  /** Horodatage de l'enregistrement local (`DevisFactureForm`, `DevisFactureFormBTP`). */
+  savedAt?: string
+  /** Horodatage de l'émission (« Marquer envoyée », envoi au client). */
+  sentAt?: string
+  /**
+   * @deprecated Comme `type` : ces deux champs ne sont posés par AUCUNE écriture du dépôt. Un tri ou un affichage
+   * écrit sur eux rend toujours la même valeur — c'est ce qui laissait « Devis récents » montrer le plus ancien
+   * devis, le comparateur rendant 0 pour toute paire. Utiliser `docDate`, puis `savedAt` ou `sentAt`.
+   */
   date?: string
+  /** @deprecated Voir `date`. */
   created_at?: string
 }
 

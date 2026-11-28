@@ -25,15 +25,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
+
+      # tsx n'est pas dans le lockfile : version épinglée, comme @axe-core/playwright dans tests.yml.
+      # « npx tsx » téléchargeait la dernière version publiée à chaque passage, avec les secrets ci-dessous
+      # dans l'environnement du script.
+      - name: Installer tsx (version épinglée)
+        run: npm install --no-save --ignore-scripts tsx@4.23.15
 
       - name: Run renew script
         env:
@@ -42,4 +50,4 @@ jobs:
           OAUTH_TOKENS_ENCRYPTION_KEY: ${{ secrets.OAUTH_TOKENS_ENCRYPTION_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GMAIL_PUSH_TOPIC: ${{ secrets.GMAIL_PUSH_TOPIC }}
-        run: npx tsx scripts/renew-gmail-watches.ts
+        run: node_modules/.bin/tsx scripts/renew-gmail-watches.ts

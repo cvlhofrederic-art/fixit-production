@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { ficheSocieteDuSousCompte } from '@/lib/btp/fiche-societe'
+import { niveauSur } from '@/lib/btp/perimetre-compte'
+import { famillesLisibles } from '@/lib/btp/titulaire-documents'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { formatSiegeAddress } from '@/lib/sirene-address'
@@ -68,8 +71,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Artisan introuvable' }, { status: 404 })
   }
 
-  // SÉCURITÉ : vérifier que l'utilisateur connecté est le propriétaire du profil artisan
-  if (artisan.user_id !== user.id) {
+  // SÉCURITÉ : vérifier que l'utilisateur connecté est le propriétaire du profil artisan. Compte invité dans une
+  // société BTP (sans fiche à lui) : la fiche de SA société, s'il imprime un document qui porte son identité — un
+  // rapport de chantier (module rapports, que le gérant accorde employé par employé depuis le 26/11/2026), un devis
+  // ou une facture.
+  // Il ne fait que la lire : la mise à jour de la fiche plus bas est réservée au propriétaire.
+  const lecteurDeLaSociete = artisan.user_id !== user.id && getUserRole(user) === 'pro_societe'
+    && await ficheSocieteDuSousCompte(user, supabaseAdmin, (perimetre) =>
+      niveauSur(perimetre, 'rapports') !== 'NONE' || famillesLisibles(perimetre).length > 0)
+      .then((fiche) => !!fiche?.ok && fiche.ficheId === artisan.id)
+  if (artisan.user_id !== user.id && !lecteurDeLaSociete) {
     return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
   }
 
@@ -101,8 +112,10 @@ export async function GET(request: NextRequest) {
         address: artisan.company_address,
         city: artisan.company_city || '',
         postalCode: artisan.company_postal_code || '',
-        phone: userMeta.phone || artisan.phone || '',
-        email: authEmail || artisan.email || '',
+        // Coordonnées de « Mon profil » d'abord. Les valeurs du compte (téléphone saisi à l'inscription, adresse de
+        // connexion) ne servent que si le profil n'en a pas : elles ne suivent pas les changements faits dans le profil.
+        phone: artisan.phone || userMeta.phone || '',
+        email: artisan.email || authEmail || '',
         insuranceNumber: userMeta.insurance_number || '',
         insuranceName: userMeta.insurance_name || '',
       }
@@ -192,26 +205,29 @@ export async function GET(request: NextRequest) {
       address: formatSiegeAddress(entreprise.siege),
       city: entreprise.siege?.libelle_commune || '',
       postalCode: entreprise.siege?.code_postal || '',
-      phone: userMeta.phone || artisan.phone || '',
-      email: userMeta.email || artisan.email || '',
+      phone: artisan.phone || userMeta.phone || '',
+      email: artisan.email || authEmail || '',
     }
 
-    // Try to update the artisan profile with verified data (best effort)
-    try {
-      await supabaseAdmin
-        .from('profiles_artisan')
-        .update({
-          legal_form: companyData.legalForm,
-          siren: companyData.siren,
-          naf_code: companyData.nafCode,
-          naf_label: companyData.nafLabel,
-          company_address: companyData.address,
-          company_city: companyData.city,
-          company_postal_code: companyData.postalCode,
-        })
-        .eq('id', artisanId)
-    } catch (updateErr) {
-      logger.warn('[artisan-company] Profile update failed (columns may not exist):', updateErr instanceof Error ? updateErr.message : updateErr)
+    // Try to update the artisan profile with verified data (best effort). Pas pour un compte invité, qui ne fait que lire
+    // la fiche de sa société.
+    if (!lecteurDeLaSociete) {
+      try {
+        await supabaseAdmin
+          .from('profiles_artisan')
+          .update({
+            legal_form: companyData.legalForm,
+            siren: companyData.siren,
+            naf_code: companyData.nafCode,
+            naf_label: companyData.nafLabel,
+            company_address: companyData.address,
+            company_city: companyData.city,
+            company_postal_code: companyData.postalCode,
+          })
+          .eq('id', artisanId)
+      } catch (updateErr) {
+        logger.warn('[artisan-company] Profile update failed (columns may not exist):', updateErr instanceof Error ? updateErr.message : updateErr)
+      }
     }
 
     // Ajouter les infos d'assurance depuis user_metadata

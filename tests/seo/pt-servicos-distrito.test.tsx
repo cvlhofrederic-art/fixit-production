@@ -1,11 +1,12 @@
 // Pages de service à l'échelle du district (lib/data/pt-servicos-distrito.ts, gel A0 levé par le propriétaire le
 // 20/10/2026 pour limpeza de telhados, renovação de fachadas et trabalhos verticais). Garde-fous tirés du guide
 // docs/seo/porto-palavras-chave/consignes-google-2026-10-19.md et des règles internes :
-// - une page par service pour tout le distrito, sans liste de concelhos (keyword stuffing) ;
+// - une page par service pour toute sa zone (distritos do Porto, Braga e Aveiro depuis le 28/10/2026), sans liste de
+//   concelhos (keyword stuffing) ;
 // - prix, délais et chantiers seulement depuis data/seo/local-proof.json (règle 0.2) : blocs absents sans donnée ;
-// - JSON-LD : Service fourni par #business sur le distrito + fil d'Ariane, jamais FAQPage, LocalBusiness ni avis ;
+// - JSON-LD : Service fourni par #business sur ses distritos + fil d'Ariane, jamais FAQPage, LocalBusiness ni avis ;
 // - la page est dans un seul sitemap avec un lastmod réel, et liée depuis /pt/servicos/, le plan du site, les hubs
-//   et les pages métier x ville des métiers liés dans le même distrito.
+//   et les pages métier x ville des métiers liés dans les distritos couverts.
 
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
@@ -25,17 +26,18 @@ import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/se
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { sitemapsPt, getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_AGUEDA } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_AGUEDA, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
 import { precosPara, prazoDistritoPara, dataIsoValida } from '@/lib/seo/pt-provas-locais'
 import { chantiersExibidosDistrito, dataModificacaoDistrito, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
-import { dataLigacoesConcelho } from '@/lib/sitemap-pt-pages'
+import { dataLigacoesGrelhaConcelho } from '@/lib/sitemap-pt-pages'
 import provas from '@/data/seo/local-proof.json'
 import { classer, SERVICOS_DISTRITO_SLUGS } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
 const BASE = 'https://vitfix.io'
 const url = (s: { slug: string }) => `/pt/servicos/${s.slug}/`
-const CIDADES_PORTO = CITIES.filter((c) => c.distrito === 'Porto').map((c) => c.slug)
+// Villes de la grille dans la zone de la page : les 18 concelhos du distrito do Porto, Braga, Aveiro, Ovar et Águeda.
+const CIDADES_ZONA = CITIES.filter((c) => LIMPEZA_DE_TELHADOS.distritos.includes(c.distrito)).map((c) => c.slug)
 
 async function htmlLimpeza() {
   const { container } = render(LimpezaDeTelhadosPage())
@@ -75,7 +77,9 @@ describe('données des pages de district', () => {
   })
 
   it('les textes ne contiennent ni prix, ni délai chiffré, ni pourcentage (règle 0.2) ; seules années citées : 2005 et 2007 (amianto)', () => {
-    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => !['dataModificacao', 'dataModificacaoLigacoes', 'dataLigacoes'].includes(k))))
+    // `condicoesLocais` cite des normales climatiques (jours de gel, mm de pluie, période 1991-2020) et un règlement daté :
+    // chiffres sourcés, vérifiés à part (tests/seo/pt-telhados-condicoes-zona.test.tsx), ni prix ni délai de l'équipe.
+    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => !['dataModificacao', 'dataModificacaoLigacoes', 'dataLigacoes', 'dataLigacoesGrelha', 'condicoesLocais'].includes(k))))
     expect(textes).not.toMatch(/€|\beuros?\b|%/i)
     expect(textes).not.toMatch(/\b\d+\s*(h|horas?|dias?|semanas?|minutos?|anos?|m2|m²)\b/i)
     expect(textes.match(/\b(19|20)\d{2}\b/g)).toEqual(['2005', '2007'])
@@ -103,10 +107,10 @@ describe('données des pages de district', () => {
 
   it('prix, délais et chantiers fournis seulement s’ils sont valides (règle 0.2), quel que soit le contenu de local-proof.json', () => {
     for (const p of precosPara(LIMPEZA_DE_TELHADOS.slug)) expect(p.max > 0 && p.min >= 0 && Boolean(p.unite)).toBe(true)
-    const prazo = prazoDistritoPara('Porto', LIMPEZA_DE_TELHADOS.slug)
+    const prazo = prazoDistritoPara(LIMPEZA_DE_TELHADOS.distritos, LIMPEZA_DE_TELHADOS.slug)
     if (prazo) expect(prazo.visita_dias > 0 && Boolean(prazo.fonte)).toBe(true)
     for (const c of chantiersExibidosDistrito(LIMPEZA_DE_TELHADOS)) {
-      expect(CIDADES_PORTO).toContain(c.cidade)
+      expect(CIDADES_ZONA).toContain(c.cidade)
       expect(c.mes).toMatch(/^\d{4}-\d{2}$/)
     }
   })
@@ -180,7 +184,7 @@ describe('/pt/servicos/limpeza-de-telhados/ : rendu', () => {
       expect(c.querySelector('#precos')).toBeNull()
       expect(c.textContent).not.toMatch(/€/)
     }
-    expect(Boolean(c.querySelector('#prazos'))).toBe(Boolean(prazoDistritoPara('Porto', LIMPEZA_DE_TELHADOS.slug)))
+    expect(Boolean(c.querySelector('#prazos'))).toBe(Boolean(prazoDistritoPara(LIMPEZA_DE_TELHADOS.distritos, LIMPEZA_DE_TELHADOS.slug)))
     expect(Boolean(c.querySelector('#chantiers'))).toBe(chantiersExibidosDistrito(LIMPEZA_DE_TELHADOS).length > 0)
   })
 
@@ -190,21 +194,33 @@ describe('/pt/servicos/limpeza-de-telhados/ : rendu', () => {
     expect(intro).toMatch(/Não limpamos telhados de fibrocimento/)
   })
 
-  it('aucune liste de concelhos : au plus deux noms de concelho dans le texte hors chantiers réels (siège et distrito)', async () => {
+  it('aucune liste de concelhos : hors chantiers réels et conditions par zone, le siège et les trois distritos (« Porto, Braga e Aveiro », trois fois au plus)', async () => {
     const c = (await htmlLimpeza()).cloneNode(true) as HTMLElement
     c.querySelector('#chantiers')?.remove()
+    // Conditions par zone (28/10/2026) : concelhos nommés en exemples là où le fait les concerne, vérifiés à part
+    // (tests/seo/pt-telhados-condicoes-zona.test.tsx).
+    c.querySelector('#condicoes')?.remove()
+    c.querySelector('script')?.remove()
     const texte = c.textContent ?? ''
-    const cites = CITIES.filter((city) => texte.includes(city.name)).map((city) => city.name)
-    expect(cites.sort()).toEqual(['Marco de Canaveses', 'Porto'])
+    // Porto, Braga et Aveiro sont aussi des concelhos de la grille : ils ne paraissent que dans la zone, dite d'un seul tenant.
+    expect(texte.split('Porto, Braga e Aveiro').length - 1).toBeGreaterThanOrEqual(1)
+    expect(texte.split('Porto, Braga e Aveiro').length - 1).toBeLessThanOrEqual(3)
+    const horsZona = texte.split('Porto, Braga e Aveiro').join(' ')
+    expect(CITIES.filter((city) => horsZona.includes(city.name)).map((city) => city.name)).toEqual(['Marco de Canaveses'])
+    expect(texte).not.toMatch(/distrito do Porto/)
   })
 
-  it('JSON-LD : Service fourni par #business sur le Distrito do Porto, fil d’Ariane visible, rien d’interdit', async () => {
+  it('JSON-LD : Service fourni par #business sur les distritos do Porto, de Braga et de Aveiro, fil d’Ariane visible, rien d’interdit', async () => {
     const c = await htmlLimpeza()
     const graphe = jsonLd(c)['@graph']
     expect(graphe.map((n) => n['@type'])).toEqual(['Service', 'BreadcrumbList'])
     const service = graphe[0]
     expect(service.provider).toEqual({ '@id': ENTITE_PT.id })
-    expect(service.areaServed).toEqual({ '@type': 'AdministrativeArea', name: 'Distrito do Porto' })
+    expect(service.areaServed).toEqual([
+      { '@type': 'AdministrativeArea', name: 'Distrito do Porto' },
+      { '@type': 'AdministrativeArea', name: 'Distrito de Braga' },
+      { '@type': 'AdministrativeArea', name: 'Distrito de Aveiro' },
+    ])
     expect(service.url).toBe(`${BASE}/pt/servicos/limpeza-de-telhados/`)
     expect(JSON.stringify(graphe)).not.toMatch(/FAQPage|HowTo|LocalBusiness|EmergencyService|AggregateRating|"Review"|Offer|PriceSpecification/)
     const fil = graphe[1] as { itemListElement: Array<{ item: string }> }
@@ -246,22 +262,26 @@ describe('sitemap et maillage', () => {
       expect(s.dataModificacao).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     }
     // Les pages qui reçoivent un lien portent la date de ce lien (Google : un changement de liens est significatif) ; une
-    // page qui lie plusieurs pages de district prend la plus récente, une page qui ne lie que limpeza garde la sienne.
+    // page qui lie plusieurs pages de district prend la plus récente, une page qui ne lie que limpeza garde la sienne. Le
+    // 28/10/2026, le titre des pages (texte des liens des hubs, de /pt/servicos/ et du plan) change avec la zone.
     const date = (chemin: string) => Object.values(groupes).flat().find((u) => u.url === `${BASE}${chemin}`)?.lastModified
-    expect(date('/pt/perto-de-mim/telhador/')).toBe(DATA_LIGACOES_DISTRITO)
-    for (const chemin of ['/pt/servicos/', '/pt/perto-de-mim/impermeabilizacao/', '/pt/perto-de-mim/pintor/']) {
-      expect(date(chemin), chemin).toBe(DATA_LIGACOES_FACHADAS_TV)
+    for (const chemin of ['/pt/perto-de-mim/telhador/', '/pt/servicos/', '/pt/perto-de-mim/impermeabilizacao/', '/pt/perto-de-mim/pintor/']) {
+      expect(date(chemin), chemin).toBe(DATA_ZONA_DISTRITOS)
     }
     // Le plan du site lie aussi les pages de service d'Águeda : la plus récente des dates, jamais une date antérieure.
-    expect(date('/pt/mapa-do-site/')! >= DATA_LIGACOES_FACHADAS_TV).toBe(true)
+    expect(date('/pt/mapa-do-site/')! >= DATA_ZONA_DISTRITOS).toBe(true)
     expect(date('/pt/mapa-do-site/')! >= DATA_PAGINAS_AGUEDA).toBe(true)
-    expect(date('/pt/servicos/telhador-porto/')).toBe(dataLigacoesConcelho('porto', ['limpeza-de-telhados']))
+    // Grille du distrito do Porto : lien et ancre inchangés le 28/10/2026, date d'ajout du lien gardée.
+    expect(date('/pt/servicos/telhador-porto/')).toBe(dataLigacoesGrelhaConcelho('porto', ['limpeza-de-telhados']))
     expect(date('/pt/servicos/telhador-porto/')).toBe(DATA_LIGACOES_DISTRITO)
-    expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(dataLigacoesConcelho('baiao', ['limpeza-de-telhados', 'renovacao-de-fachadas', 'trabalhos-verticais']))
+    expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(dataLigacoesGrelhaConcelho('baiao', ['limpeza-de-telhados', 'renovacao-de-fachadas', 'trabalhos-verticais']))
     expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(DATA_LIGACOES_FACHADAS_TV)
-    for (const chemin of ['/pt/perto-de-mim/eletricista/', '/pt/servicos/telhador-braga/', '/pt/servicos/canalizador-porto/', '/pt/servicos/pintor-braga/']) {
-      expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_DISTRITO)
-      expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_FACHADAS_TV)
+    // Grille des distritos de Braga et de Aveiro : liens ajoutés le 28/10/2026.
+    for (const chemin of ['/pt/servicos/telhador-braga/', '/pt/servicos/pintor-braga/', '/pt/servicos/telhador-aveiro/', '/pt/servicos/pedreiro-ovar/']) {
+      expect(date(chemin), chemin).toBe(DATA_ZONA_DISTRITOS)
+    }
+    for (const chemin of ['/pt/perto-de-mim/eletricista/', '/pt/servicos/canalizador-porto/', '/pt/servicos/canalizador-braga/']) {
+      for (const d of [DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_ZONA_DISTRITOS]) expect(date(chemin), chemin).not.toBe(d)
     }
     // Plus les pages de service du concelho d'Águeda (lib/data/pt-servicos-concelho.ts), même fichier servicos.
     expect(getAllPtSitemapUrls(BASE)).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length + SERVICOS_CONCELHO.length)
@@ -283,16 +303,19 @@ describe('sitemap et maillage', () => {
     expect(liens(container)).not.toContain('/pt/servicos/limpeza-de-telhados/')
   })
 
-  it('liée depuis les pages telhador et impermeabilização du distrito do Porto, jamais depuis un autre distrito', async () => {
+  it('liée depuis les pages telhador et impermeabilização des trois distritos (Braga, Aveiro, Ovar, Águeda comprises), jamais depuis un autre métier', async () => {
     const lienVers = async (slug: string) => {
       const { container } = render(await ServiceCityPage({ params: Promise.resolve({ slug }) }))
       return liens(container).includes('/pt/servicos/limpeza-de-telhados/')
     }
-    expect(await lienVers('telhador-porto')).toBe(true)
-    expect(await lienVers('impermeabilizacao-penafiel')).toBe(true)
-    expect(await lienVers('telhador-braga')).toBe(false)
-    expect(await lienVers('telhador-aveiro')).toBe(false)
+    for (const slug of ['telhador-porto', 'impermeabilizacao-penafiel', 'telhador-braga', 'telhador-aveiro', 'impermeabilizacao-ovar', 'telhador-agueda']) {
+      expect(await lienVers(slug), slug).toBe(true)
+    }
     expect(await lienVers('canalizador-porto')).toBe(false)
-    expect(servicosDistritoLigados('telhador', 'Porto').map((s) => s.slug)).toEqual(['limpeza-de-telhados'])
+    expect(await lienVers('canalizador-braga')).toBe(false)
+    for (const distrito of ['Porto', 'Braga', 'Aveiro']) {
+      expect(servicosDistritoLigados('telhador', distrito).map((s) => s.slug), distrito).toEqual(['limpeza-de-telhados'])
+    }
+    expect(servicosDistritoLigados('telhador', 'Lisboa')).toEqual([])
   })
 })

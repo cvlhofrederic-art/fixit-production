@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import { supabase } from '@/lib/supabase'
 
 interface Message {
@@ -269,7 +270,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
 
       // F05: utiliser safeMarkdownToHTML au lieu du regex inline non-securise
       return (
-        <div key={i} className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(part) }} />
+        <div key={i} className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(part)) }} />
       )
     })
   }

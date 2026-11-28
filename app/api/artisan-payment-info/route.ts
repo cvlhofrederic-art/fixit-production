@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { ficheSocieteOuRefus, peutLireModesPaiement, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, artisanPaymentInfoSchema } from '@/lib/validation'
+
+// Compte invité dans une société BTP, sans fiche à lui : les modes de paiement sont ceux de SA société — ceux que
+// portent les devis et les factures qu'il imprime (DevisFactureFormBTP, lib/rib-profil.ts). Lus par qui les modifie
+// ou imprime des documents, écrits par le seul module settings en FULL (lib/btp/fiche-societe.ts).
 
 // GET — Récupérer les infos paiement de l'artisan
 export async function GET(request: NextRequest) {
@@ -11,11 +16,18 @@ export async function GET(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    const { data: artisan, error } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('paiement_modes, paiement_mention_devis, paiement_mention_facture')
-      .eq('user_id', user.id)
-      .single()
+    const ficheSociete = await ficheSocieteOuRefus(
+      user, supabaseAdmin, peutLireModesPaiement, 'id, paiement_modes, paiement_mention_devis, paiement_mention_facture', 'aucun_droit_paiement',
+    )
+    if (ficheSociete instanceof NextResponse) return ficheSociete
+
+    const { data: artisan, error } = ficheSociete
+      ? { data: ficheSociete.fiche as { paiement_modes?: unknown; paiement_mention_devis?: boolean | null; paiement_mention_facture?: boolean | null }, error: null }
+      : await supabaseAdmin
+        .from('profiles_artisan')
+        .select('paiement_modes, paiement_mention_devis, paiement_mention_facture')
+        .eq('user_id', user.id)
+        .single()
 
     if (error || !artisan) {
       return NextResponse.json({ error: 'Profil introuvable' }, { status: 404 })
@@ -41,11 +53,16 @@ export async function POST(request: NextRequest) {
     const allowed = await checkRateLimit(`artisan_payment_${user.id}`, 10, 60_000)
     if (!allowed) return rateLimitResponse()
 
-    const { data: artisan, error: fetchError } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    const ficheSociete = await ficheSocieteOuRefus(user, supabaseAdmin, peutModifierFicheSociete)
+    if (ficheSociete instanceof NextResponse) return ficheSociete
+
+    const { data: artisan, error: fetchError } = ficheSociete
+      ? { data: { id: ficheSociete.ficheId }, error: null }
+      : await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
 
     if (fetchError || !artisan) {
       return NextResponse.json({ error: 'Profil introuvable' }, { status: 404 })
@@ -66,8 +83,9 @@ export async function POST(request: NextRequest) {
       .eq('id', artisan.id)
 
     if (updateError) {
+      // Le détail (message de la base) reste dans le journal : le navigateur reçoit un message générique.
       logger.error('savePaymentInfo error:', updateError)
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Enregistrement impossible pour le moment. Réessayez dans quelques instants.' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

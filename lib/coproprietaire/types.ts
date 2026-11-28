@@ -1,6 +1,6 @@
 // ── Espace copropriétaire : vues servies au portail ───────────────────────────
 //
-// Une seule forme de données pour le portail (app/coproprietaire/dashboard), qu'elle
+// Une seule forme de données pour le portail (app/(commun)/coproprietaire/dashboard), qu'elle
 // vienne de la base du syndic (GET /api/coproprietaire/espace, lib/coproprietaire/filtrage.ts)
 // ou du jeu de démonstration (lib/coproprietaire/demo.ts). Les écrans ne connaissent
 // que ces types : aucune colonne Supabase, aucune donnée d'un autre copropriétaire.
@@ -8,8 +8,11 @@
 // Montants en euros (nombre), dates en ISO (AAAA-MM-JJ ou horodatage ISO complet),
 // chaînes vides plutôt que null pour les textes absents.
 
-/** Provenance des données affichées. */
-export type SourceEspace = 'reel' | 'demo'
+/**
+ * Provenance des données affichées : base du syndic, démonstration, ou copropriété de l'Administrateur judiciaire
+ * (vue super admin reliée à l'AJ dans le même navigateur : lib/coproprietaire/source-aj.ts).
+ */
+export type SourceEspace = 'reel' | 'demo' | 'aj'
 
 /** Lien du compte connecté avec le lot : propriétaire du lot ou son locataire. */
 export type RoleOccupant = 'proprietaire' | 'locataire'
@@ -353,6 +356,11 @@ export interface EspaceCopro {
   vueSuperAdmin: boolean
   /** Horodatage ISO du chargement. */
   chargeLe: string
+  /**
+   * Jour courant de l'espace (AAAA-MM-JJ) quand il n'est pas celui du navigateur : date figée de la démonstration de
+   * l'Administrateur judiciaire. Absent : aujourd'hui.
+   */
+  dateDuJour?: string
   profil: ProfilCopro
   /** Autres lots du même compte, hors celui affiché. */
   autresLots: LotCopro[]

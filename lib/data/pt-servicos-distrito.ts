@@ -1,9 +1,16 @@
 // Pages de service à l'échelle du district (plan de pages du 19/10/2026,
-// docs/seo/porto-palavras-chave/plano-paginas.md) : une page forte par service pour tout le distrito do
-// Porto, au lieu d'une série de pages par concelho (politiques Google « doorway abuse » et « scaled
-// content abuse », guide docs/seo/porto-palavras-chave/consignes-google-2026-10-19.md). Le gel A0
-// (aucun nouveau métier avant la fin de la phase 3) a été levé par le propriétaire le 20/10/2026 pour
-// trois pages : limpeza de telhados, renovação de fachadas, trabalhos verticais.
+// docs/seo/porto-palavras-chave/plano-paginas.md) : une page forte par service pour toute la zone de l'équipe, au lieu
+// d'une série de pages par concelho (politiques Google « doorway abuse » et « scaled content abuse », guide
+// docs/seo/porto-palavras-chave/consignes-google-2026-10-19.md). Le gel A0 (aucun nouveau métier avant la fin de la
+// phase 3) a été levé par le propriétaire le 20/10/2026 pour trois pages : limpeza de telhados, renovação de fachadas,
+// trabalhos verticais, d'abord pour le distrito do Porto.
+//
+// Zone étendue le 28/10/2026 (confirmée par le propriétaire) : l'équipe VITFIX, partie de Marco de Canaveses, intervient
+// dans TOUS les concelhos des distritos do Porto, de Braga et de Aveiro pour les trois services (et pour le capoto neuf),
+// visite en 48 heures au maximum partout, mêmes prix partout. Les trois pages gardent leur URL et couvrent les trois
+// distritos (champ `distritos`) : la zone est dite en clair (« nos distritos do Porto, Braga e Aveiro »), jamais par une
+// liste de concelhos ou de villages (keyword stuffing), et les pages concelho ne s'ouvrent toujours que sur chantier
+// réel documenté, désormais dans toutes les villes de la grille de ces distritos (Braga, Aveiro, Ovar, Águeda comprises).
 //
 // Règle 0.2 : aucun prix, délai, chantier ni avis dans ces textes. Les prestations citées sont celles que
 // le propriétaire a confirmées le 20/10/2026 (lavagem e tratamento antimusgo, hidrofugação, pintura de
@@ -14,12 +21,13 @@
 // qu'ils sont vides. Textes à relire par le propriétaire.
 //
 // Renovação de fachadas et trabalhos verticais (23/10/2026) : faits confirmés par le propriétaire du 20 au 23/10/2026,
-// les seuls affirmés ici. Travaux faits par l'équipe VITFIX, partie de Marco de Canaveses, dans tout le distrito do Porto ;
+// les seuls affirmés ici. Travaux faits par l'équipe VITFIX, partie de Marco de Canaveses, dans tout le distrito do Porto
+// (zone étendue aux distritos de Braga et de Aveiro le 28/10/2026) ;
 // accès par andaimes ou par técnicos de acesso por corda certificados IRATA ; tous les travaux en hauteur sur les
 // bâtiments, prédios et moradias : pintura de fachadas et pintura em altura, renovação de fachadas, tratamento de
 // infiltrações, impermeabilização, reparação de fissuras, reboco e betão (varandas), lavagem de fachadas, capoto existant
 // (reparar, limpar, pintar), selagem de juntas de dilatação, caleiras inacessíveis ; aucun prix publié ; visite en 48 heures
-// au maximum (data/seo/local-proof.json, prazo « distrito-porto »). Non confirmés, donc jamais écrits : linhas de vida,
+// au maximum (data/seo/local-proof.json, entrée de zone `distritos`). Non confirmés, donc jamais écrits : linhas de vida,
 // vidros em altura, drone, graffitis, fachada ventilada, azulejos, estruturas metálicas, inspeção ou relatório, ANETVA, ISO,
 // assurances, garanties, marques, années ou taille de l'équipe. Règles légales citées, vérifiées le 23/10/2026 sur le texte
 // officiel : RJUE (DL 555/99 republié par le DL 108/2026, en vigueur le 01/10/2026) art. 2.º d) et f), 4.º n.º 2 d) et i),
@@ -31,7 +39,7 @@
 // (docs/seo/journal-pt.md, 23/10/2026). Ordre des étapes des deux méthodes et méthode des juntas validés par le
 // propriétaire le 23/10/2026 (« Oui, c'est ça »).
 
-import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_DISTRITO, DATA_PAGINAS_FACHADAS_TV } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
 import { CITIES, type CityData } from '@/lib/data/seo-pages-data'
 import { dataIsoValida, notasConcelhoDetalhadas, revisaoConcelhoPara, todosChantiersPara, type Chantier } from '@/lib/seo/pt-provas-locais'
 
@@ -62,10 +70,20 @@ export interface ServicoDistrito {
   /** `serviceType` du nœud `Service`. */
   tipoServico: string
   icon: string
-  /** Distrito servi (valeur de `CityData.distrito`). */
-  distrito: string
+  /**
+   * Distritos servis (valeurs de `CityData.distrito`), dans l'ordre où la page les nomme : JSON-LD `areaServed`, pages ville
+   * et de la grille qui lient la page, chantiers affichés et pages concelho possibles. Le titre, le H1 et le résumé les
+   * nomment en toutes lettres (test : même zone partout).
+   */
+  distritos: readonly string[]
   /** Titre sans marque (le template `%s | VITFIX` l'ajoute) et h1. */
   titulo: string
+  /**
+   * Titre sans la zone (`titulo` = « {tituloSemZona}: {distritos} », test) : texte des liens vers la page là où un
+   * intertitre ou une phrase dit déjà la zone (/pt/servicos/, hubs qui lient plusieurs pages de district, plan du site),
+   * pour ne pas répéter les noms des distritos dans chaque ancre (keyword stuffing).
+   */
+  tituloSemZona: string
   h1: string
   /** Première phrase de la description (la phrase de contact suit, voir descricaoServicoDistrito). */
   resumo: string
@@ -84,15 +102,26 @@ export interface ServicoDistrito {
   frequencia: string
   fatoresPreco: string[]
   aviso?: PassoServico
+  /**
+   * Ce qui change pour le travail d'un endroit à l'autre de la zone (climat, environnement), rendu dans la section « Onde
+   * trabalhamos » de la page de district (pas sur les pages concelho) : faits vérifiés sur une source publique citée dans
+   * le commentaire des données, concelhos nommés seulement là où le fait les concerne, jamais plus de deux d'affilée (test).
+   */
+  condicoesLocais?: { titulo: string; intro: string; zonas: PassoServico[] }
   faqs: PerguntaServico[]
   ligacoes: LigacaoServico[]
-  /** Métiers de la grille dont les pages du même distrito et le hub lient cette page. */
+  /** Métiers de la grille dont les pages des `distritos` et le hub lient cette page. */
   metiersLigados: string[]
   /** Phrase qui précède le lien sur un hub métier qui ne lie que cette page de district (sinon, phrase commune). */
   chamadaHub: string
   /** Début du message WhatsApp prérempli (le lieu suit, voir mensagemLocal). */
   mensagemWhatsapp: string
-  /** Dernière modification significative des textes repris sur les pages concelho (lastmod), jour de la mise en production. */
+  /**
+   * Dernière modification significative des textes repris sur les pages concelho (lastmod), jour de la mise en production,
+   * y compris un prix ou un délai de data/seo/local-proof.json (dataModificacaoDistrito ne lit aucune date dans `precos` ni
+   * `prazos`). Pour une nouvelle modification, une nouvelle constante de lib/seo/pt-datas.ts, mise ici pour les seuls
+   * services touchés : jamais DATA_ZONA_DISTRITOS avancée, qui date aussi les liens et d'autres pages.
+   */
   dataModificacao: string
   /**
    * Dernière modification des cartes de liens (`ligacoes`) de la page de district, quand elle est postérieure à
@@ -101,23 +130,45 @@ export interface ServicoDistrito {
    */
   dataModificacaoLigacoes?: string
   /**
-   * Jour où les liens vers cette page ont été ajoutés aux pages qui la lient (hubs et grille des metiersLigados, pages ville
-   * du distrito, /pt/servicos/, plan du site) : leur lastmod, la plus récente si elles lient plusieurs pages de district.
+   * Dernière modification des liens vers cette page ou de leur texte (titre, titre sans la zone ou résumé de la page,
+   * phrase de zone) sur les pages qui les affichent : hubs des metiersLigados, pages ville des `distritos`, /pt/servicos/,
+   * plan du site. C'est leur lastmod, la plus récente si elles lient plusieurs pages de district.
    */
   dataLigacoes: string
+  /**
+   * Jour où les liens vers cette page sont apparus sur les pages de la grille des metiersLigados, par distrito (clé : valeur
+   * de `CityData.distrito`, une par entrée de `distritos`) : leur lastmod. Leur ancre ne reprend que le nom du service et le
+   * distrito de la page qui lie (« Limpeza de telhados no distrito de Braga »), d'où une date par distrito : un changement de
+   * titre ou de zone ne les modifie pas.
+   */
+  dataLigacoesGrelha: Readonly<Record<string, string>>
 }
+
+/** Zone de l'équipe VITFIX confirmée par le propriétaire le 28/10/2026 : tous les concelhos de ces distritos. */
+export const DISTRITOS_EQUIPA: readonly string[] = ['Porto', 'Braga', 'Aveiro']
+
+/**
+ * Liens des pages de la grille vers une page de district : dans le distrito do Porto depuis `desdePorto` (jour de la
+ * publication de la page), dans les distritos de Braga et de Aveiro depuis l'extension de la zone (DATA_ZONA_DISTRITOS).
+ */
+const ligacoesGrelha = (desdePorto: string): Readonly<Record<string, string>> => ({ Porto: desdePorto, Braga: DATA_ZONA_DISTRITOS, Aveiro: DATA_ZONA_DISTRITOS })
 
 export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   slug: 'limpeza-de-telhados',
   nome: 'Limpeza de telhados',
   tipoServico: 'Limpeza de telhados e caleiras',
   icon: '🏠',
-  distrito: 'Porto',
-  titulo: 'Limpeza de telhados e caleiras no distrito do Porto',
-  h1: 'Limpeza de telhados e caleiras no distrito do Porto',
-  resumo: 'Lavagem, impermeabilização e pintura de telhados, tratamento antimusgo e limpeza de caleiras no distrito do Porto.',
+  distritos: DISTRITOS_EQUIPA,
+  // Titre gardé (requêtes de l'autocomplétion Google du 28/10/2026 : « limpeza de telhados e caleiras porto », « limpeza de
+  // telhados braga », « limpeza de telhados aveiro ») ; H1 et résumé avec « lavagem » et « impermeabilização » (« lavagem de
+  // telhados aveiro », « lavagem de telhados braga », « lavagem de telhados preço m2 »), sans perdre « limpeza de telhados » ;
+  // description de 154 caractères avec le numéro (test).
+  titulo: 'Limpeza de telhados e caleiras: Porto, Braga e Aveiro',
+  tituloSemZona: 'Limpeza de telhados e caleiras',
+  h1: 'Limpeza de telhados e caleiras: lavagem e impermeabilização nos distritos do Porto, Braga e Aveiro',
+  resumo: 'Limpeza de telhados e caleiras: lavagem, impermeabilização e pintura de telhas nos distritos do Porto, Braga e Aveiro.',
   intro:
-    'A equipa VITFIX limpa telhados e caleiras em todo o distrito do Porto, a partir de Marco de Canaveses: lavagem do telhado com tratamento contra o musgo e os líquenes, impermeabilização das telhas (hidrofugação), pintura de telhas e limpeza de caleiras e algerozes. Não limpamos telhados de fibrocimento (lusalite). O orçamento é grátis e sem compromisso.',
+    'A equipa VITFIX limpa telhados e caleiras em todos os concelhos destes três distritos, a partir de Marco de Canaveses: lavagem do telhado com tratamento contra o musgo e os líquenes, impermeabilização das telhas (hidrofugação), pintura de telhas e limpeza de caleiras e algerozes. Não limpamos telhados de fibrocimento (lusalite). O orçamento é grátis e sem compromisso.',
   titulos: {
     preco: 'Quanto custa a limpeza de um telhado',
     metodo: 'Como fazemos a limpeza de um telhado',
@@ -178,7 +229,7 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     'Telhas que continuam molhadas muito depois da chuva, sobretudo nas águas viradas a norte ou à sombra de árvores.',
   ],
   frequencia:
-    'Não há um intervalo fixo: depende da exposição do telhado, das árvores à volta e da humidade. Com os invernos chuvosos do distrito do Porto, vale a pena verificar o telhado e as caleiras todos os anos, de preferência antes das chuvas de outono.',
+    'Não há um intervalo fixo: depende da exposição do telhado, das árvores à volta e da humidade. Com os invernos chuvosos da zona onde trabalhamos, vale a pena verificar o telhado e as caleiras todos os anos, de preferência antes das chuvas de outono.',
   fatoresPreco: [
     'A área do telhado.',
     'A inclinação, a altura e o acesso: andaime ou acesso por corda.',
@@ -191,6 +242,59 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     titulo: 'Telhados de fibrocimento (lusalite): não fazemos a limpeza',
     texto:
       'As placas de fibrocimento instaladas até 2005 podem conter amianto, e só uma análise em laboratório o confirma. Lavar, escovar ou raspar estas placas pode libertar fibras perigosas para a saúde; por isso, não limpamos telhados de fibrocimento. Em Portugal, a remoção de materiais com amianto está sujeita, em regra, a autorização prévia da ACT (Autoridade para as Condições do Trabalho), que aprova o plano de trabalhos, nos termos do Decreto-Lei n.º 266/2007. Se não sabe de que material é o seu telhado, envie-nos uma fotografia antes de marcar.',
+  },
+  // Demande du propriétaire du 28/10/2026 : toucher Águeda, Aveiro et tout le distrito de Aveiro sans liste de villes ni page
+  // satellite. Faits vérifiés le 28/10/2026, seuls écrits ici :
+  // - IPMA, normais climatológicas 1991-2020 (fiches de 2024, versão 1.0) : Aveiro / Universidade (estação 702, 3,6 m),
+  //   https://www.ipma.pt/bin/file.data/climate-normal/cn_91-20_AVEIRO.pdf : 975,5 mm, 97,2 dias com P >= 1 mm, 0,3 dias
+  //   com TN < 0 °C ; Porto / Pedras Rubras (545, 67,7 m),
+  //   https://www.ipma.pt/opencms/bin/file.data/climate-normal/cn_91-20_PORTO_PEDRAS_RUBRAS.pdf : 1146,9 mm, 105,4 dias,
+  //   1,4 dias ; Braga / Merelim (622, 68,4 m), https://www.ipma.pt/bin/file.data/climate-normal/cn_91-20_BRAGA_MERELIM.pdf :
+  //   1387,3 mm, 113,5 dias, 24,3 dias. « Dias de geada » = TN < 0 °C (légende des fiches). Normales calculées sur des séries
+  //   hybrides (données observées complétées par le modèle WRF ; Braga / Merelim : données depuis 1999) : le texte dit « a
+  //   normal 1991-2020 do IPMA dá », jamais « a estação regista ».
+  // - APA, Plano Nacional da Água (2002), vol. 1, cap. II, 1.2.1.1,
+  //   https://apambiente.pt/sites/default/files/_SNIAMB_Agua/DRH/PlaneamentoOrdenamento/PNA/2002/Volume1_Capitulo2_T01.pdf :
+  //   précipitation moyenne annuelle « próximos de 4000 mm » en certains points de la serra do Gerês. Source et période
+  //   différentes des normales IPMA : le texte nomme le Plano Nacional da Água, et l'introduction ne parle que des stations.
+  // - ISO 9223:2012, tableau C.1 (exemples d'environnements), C4 (corrosividade alta) en climat tempéré : « coastal areas
+  //   without spray of salt water », sans distance (reproductions du tableau lues par la relecture du 28/10/2026 ; texte de la
+  //   norme, payant, non lu). Le « < one kilometre of the ocean » de la fiche n° 8 de la Hot Dip Galvanizers Association
+  //   Southern Africa (https://www.hdgasa.org.za/wp-content/uploads/2015/12/HDGA-Info-Sheet-No8-Corrosion-of-Zinc-Corrosivity-of-Atmospheres.pdf)
+  //   est une adaptation du tableau, non reprise ; la même fiche dit les chlorures apportés par les vents de mer.
+  // - Regulamento Delegado (UE) 2017/1475 da Comissão, de 26 de janeiro de 2017 (classes de résistance au gel des tuiles en
+  //   terre cuite de la EN 1304, essai EN 539-2), https://apcmc.pt/legislacao/telhas-ceramica-uso-exterior-resistencia-ao-gelo/
+  // - Águeda : forêt sur près des trois quarts du concelho, eucalyptus dominant (PMDFCI 2021-2030, caderno I, déjà cité par
+  //   lib/data/pt-servicos-concelho.ts).
+  // Non vérifié, donc non écrit : fréquence du brouillard (nevoeiro) sur la côte (aucune normale récente publiée par l'IPMA
+  // trouvée) ; humidité plus forte sur la côte, et donc mousse et lichens qui y repousseraient plus vite (PNA 2002, 1.2.1.4,
+  // normales 1951-1980 : « não apresenta tendências claras » ; humidité relative à 9 h des normales IPMA 1971-2000, fiches
+  // cn_71-00_ANADIA et cn_71-00_AVEIRO lues par la relecture du 28/10/2026 : 81 % à Anadia, dans l'intérieur, contre 80 % à
+  // Aveiro, sur la côte) ; pluie ou gel chiffrés dans les serras du distrito do Porto et de Aveiro ; durée de vie des
+  // caleiras. Côté propriétaire, un conseil (« vale a pena vigiar ») et non un contrôle de l'équipe : la méthode confirmée ne
+  // couvre que l'« estado das caleiras » à l'avaliação. Fréquence conseillée : celle de la FAQ et de « Quando limpar »
+  // (vérifier tous les ans, avant les pluies d'automne), aucune promesse nouvelle de l'équipe.
+  condicoesLocais: {
+    titulo: 'O que muda no telhado de uma zona para outra',
+    intro:
+      'Os três distritos não têm o mesmo clima, e isso vê-se nas telhas e nas caleiras. Os valores das estações do IPMA são médias anuais das normais climatológicas 1991-2020; os dias de geada são os dias com temperatura mínima abaixo de 0 °C.',
+    zonas: [
+      {
+        titulo: 'Junto ao mar e à Ria de Aveiro',
+        texto:
+          'Perto da costa quase nunca gela: 0,3 dias de geada por ano na estação da Universidade de Aveiro, junto à ria, e 1,4 na de Pedras Rubras, no aeroporto do Porto. Em contrapartida, o vento do mar traz sal, que ataca o metal: a norma internacional sobre a corrosividade da atmosfera (ISO 9223) dá as zonas costeiras sem salpicos de água do mar como exemplo de corrosividade alta para os metais, em clima temperado. Numa casa perto da praia, em Vila do Conde ou em Espinho, vale a pena vigiar as caleiras metálicas, os rufos e os remates de chapa: corrosão, furos e uniões abertas.',
+      },
+      {
+        titulo: 'No interior: mais geada e mais chuva',
+        texto:
+          'À medida que nos afastamos da costa, a geada passa a contar: a normal 1991-2020 do IPMA para Braga (Merelim) dá 24,3 dias de geada e 1387,3 mm de chuva por ano, contra 0,3 dias e 975,5 mm em Aveiro. Uma telha que passa o inverno encharcada sofre com o gelo e o degelo, e é por isso que as telhas cerâmicas têm uma classe europeia de resistência ao gelo (Regulamento Delegado (UE) 2017/1475). Antes do inverno, troque as telhas partidas ou fissuradas: a lavagem e o hidrofugante não as reparam.',
+      },
+      {
+        titulo: 'Na serra e entre árvores',
+        texto:
+          'Nas serras chove ainda mais: em alguns locais da serra do Gerês, o Plano Nacional da Água indica médias perto de 4000 mm por ano. Quando a casa está rodeada de árvores, as folhas, as agulhas dos pinheiros e a casca dos eucaliptos enchem as caleiras e os algerozes, e a sombra deixa as telhas húmidas mais tempo. Em Águeda, por exemplo, a floresta ocupa perto de três quartos do concelho e o eucalipto domina os povoamentos. Nestas casas, as caleiras entopem mais depressa, e a verificação de todos os anos, antes das chuvas de outono, conta ainda mais.',
+      },
+    ],
   },
   faqs: [
     {
@@ -270,10 +374,14 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   metiersLigados: ['telhador', 'impermeabilizacao'],
   chamadaHub: 'Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:',
   mensagemWhatsapp: 'Olá! Gostaria de um orçamento para a limpeza de um telhado.',
-  dataModificacao: DATA_PAGINAS_DISTRITO,
+  // Contenu : DATA_PAGINAS_DISTRITO (22/10/2026) jusqu'à l'extension de la zone aux distritos de Braga et de Aveiro ; H1,
+  // résumé et `condicoesLocais` changés le même jour, dans le même lot (voir DATA_ZONA_DISTRITOS).
+  dataModificacao: DATA_ZONA_DISTRITOS,
   // Cartes vers renovação de fachadas et trabalhos verticais, ajoutées le jour des liens vers ces deux pages.
   dataModificacaoLigacoes: DATA_LIGACOES_FACHADAS_TV,
-  dataLigacoes: DATA_LIGACOES_DISTRITO,
+  // Titre et résumé repris par les hubs, les pages ville, /pt/servicos/ et le plan du site : changés avec la zone.
+  dataLigacoes: DATA_ZONA_DISTRITOS,
+  dataLigacoesGrelha: ligacoesGrelha(DATA_LIGACOES_DISTRITO),
 }
 
 // Page FACH-PILAR du plan du 19/10/2026 (docs/seo/porto-palavras-chave/plano-paginas.md, section 2.2) : deux parcours dans
@@ -284,12 +392,13 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
   nome: 'Renovação de fachadas',
   tipoServico: 'Reparação, impermeabilização e pintura de fachadas',
   icon: '🏢',
-  distrito: 'Porto',
-  titulo: 'Reparação e pintura de fachadas no distrito do Porto',
-  h1: 'Renovação de fachadas de prédios e moradias no distrito do Porto',
-  resumo: 'Fissuras, reboco, infiltrações, impermeabilização e pintura de fachadas de prédios e moradias no distrito do Porto.',
+  distritos: DISTRITOS_EQUIPA,
+  titulo: 'Reparação e pintura de fachadas: Porto, Braga e Aveiro',
+  tituloSemZona: 'Reparação e pintura de fachadas',
+  h1: 'Renovação de fachadas de prédios e moradias nos distritos do Porto, Braga e Aveiro',
+  resumo: 'Reparação, impermeabilização e pintura de fachadas de prédios e moradias nos distritos do Porto, Braga e Aveiro.',
   intro:
-    'A equipa VITFIX repara, impermeabiliza, lava e pinta fachadas de prédios e de moradias em todo o distrito do Porto: fissuras, reboco solto, betão das varandas, infiltrações e capoto já aplicado. Para chegar à parede, montamos andaime ou trabalhamos em acesso por corda, com técnicos que têm certificação IRATA. O orçamento é gratuito e não o obriga a nada.',
+    'A equipa VITFIX repara, impermeabiliza, lava e pinta fachadas de prédios e de moradias em todos os concelhos destes três distritos: fissuras, reboco solto, betão das varandas, infiltrações e capoto já aplicado. Para chegar à parede, montamos andaime ou trabalhamos em acesso por corda, com técnicos que têm certificação IRATA. O orçamento é gratuito e não o obriga a nada.',
   titulos: {
     preco: 'Quanto custa renovar uma fachada',
     metodo: 'Como trabalhamos numa fachada',
@@ -473,15 +582,17 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
   // OBRAS-HUB (réhabilitation d'une maison entière, arbitrage 257). Article BLOG-HUMIDADE retiré le 23/10/2026 : il publie
   // des fourchettes de prix non sourcées pour les prestations de cette page (impermeabilização, reparação e pintura,
   // capoto), comme l'article capoto déjà écarté.
-  // Grille du même distrito et hubs qui lient cette page (prestations de lib/data/seo-pages-data.ts, arbitrages de la
+  // Grille des distritos de la page et hubs qui la lient (prestations de lib/data/seo-pages-data.ts, arbitrages de la
   // section 4 du plan) : pintor (« Pintura exterior de fachadas »), impermeabilizacao (« Tratamento de fachadas contra
   // infiltrações »), pedreiro (« Reparação de fachadas exteriores »), isolamento-termico (entretien d'un capoto existant)
   // et limpeza-condominio (« Lavagem de fachadas », « Fachada com manchas ou musgo »).
   metiersLigados: ['pintor', 'impermeabilizacao', 'pedreiro', 'isolamento-termico', 'limpeza-condominio'],
   chamadaHub: 'Reparação, impermeabilização, lavagem e pintura de fachadas feitas pela equipa VITFIX:',
   mensagemWhatsapp: 'Olá! Queria pedir um orçamento para renovar uma fachada.',
-  dataModificacao: DATA_PAGINAS_FACHADAS_TV,
-  dataLigacoes: DATA_LIGACOES_FACHADAS_TV,
+  // Contenu : DATA_PAGINAS_FACHADAS_TV (23/10/2026) jusqu'à l'extension de la zone ; liens : voir LIMPEZA_DE_TELHADOS.
+  dataModificacao: DATA_ZONA_DISTRITOS,
+  dataLigacoes: DATA_ZONA_DISTRITOS,
+  dataLigacoesGrelha: ligacoesGrelha(DATA_LIGACOES_FACHADAS_TV),
 }
 
 // Page TV-PILAR du plan du 19/10/2026 : une seule page pour les synonymes (trabalhos verticais, trabalhos em altura, acesso
@@ -493,12 +604,14 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
   // « A equipa VITFIX fez um trabalho de reparação, pintura e limpeza em altura … » sur une page concelho éventuelle.
   tipoServico: 'Reparação, pintura e limpeza em altura',
   icon: '🧗',
-  distrito: 'Porto',
-  titulo: 'Trabalhos verticais e em altura no distrito do Porto',
-  h1: 'Trabalhos verticais e em altura no distrito do Porto',
-  resumo: 'Acesso por corda (IRATA) ou andaime: pintura em altura, juntas de dilatação, fissuras e caleiras no distrito do Porto.',
+  distritos: DISTRITOS_EQUIPA,
+  titulo: 'Trabalhos verticais e em altura: Porto, Braga e Aveiro',
+  tituloSemZona: 'Trabalhos verticais e em altura',
+  h1: 'Trabalhos verticais e em altura nos distritos do Porto, Braga e Aveiro',
+  // « juntas de dilatação » (fait confirmé le 23/10/2026), pas « juntas » seul, plus large ; 151 caractères avec le numéro.
+  resumo: 'Corda (IRATA) ou andaime: pintura em altura, juntas de dilatação e fissuras nos distritos do Porto, Braga e Aveiro.',
   intro:
-    'A equipa VITFIX faz trabalhos em altura em prédios e moradias: pintura em altura, selagem de juntas de dilatação, reparação de fissuras, reboco e betão de varandas, tratamento de infiltrações e limpeza de caleiras fora do alcance de uma escada. Saímos de Marco de Canaveses para todo o distrito do Porto. Para chegar aos pontos altos, trabalhamos na corda, com técnicos certificados IRATA, ou montamos andaime, conforme o edifício e o que há a fazer.',
+    'A equipa VITFIX faz trabalhos em altura em prédios e moradias: pintura em altura, selagem de juntas de dilatação, reparação de fissuras, reboco e betão de varandas, tratamento de infiltrações e limpeza de caleiras fora do alcance de uma escada. Saímos de Marco de Canaveses para todos os concelhos destes três distritos. Para chegar aos pontos altos, trabalhamos na corda, com técnicos certificados IRATA, ou montamos andaime, conforme o edifício e o que há a fazer.',
   titulos: {
     preco: 'Quanto custa um trabalho em altura',
     metodo: 'Como preparamos e fazemos o trabalho',
@@ -634,21 +747,39 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
   metiersLigados: ['pintor', 'impermeabilizacao'],
   chamadaHub: 'Pintura, reparações e limpeza em altura, por acesso por corda ou andaime, feitas pela equipa VITFIX:',
   mensagemWhatsapp: 'Olá! Gostaria de um orçamento para um trabalho em altura.',
-  dataModificacao: DATA_PAGINAS_FACHADAS_TV,
-  dataLigacoes: DATA_LIGACOES_FACHADAS_TV,
+  // Contenu : DATA_PAGINAS_FACHADAS_TV (23/10/2026) jusqu'à l'extension de la zone ; liens : voir LIMPEZA_DE_TELHADOS.
+  dataModificacao: DATA_ZONA_DISTRITOS,
+  dataLigacoes: DATA_ZONA_DISTRITOS,
+  dataLigacoesGrelha: ligacoesGrelha(DATA_LIGACOES_FACHADAS_TV),
 }
 
 /** Pages de district publiées (ordre des liens et du sitemap). */
 export const SERVICOS_DISTRITO: ServicoDistrito[] = [LIMPEZA_DE_TELHADOS, RENOVACAO_DE_FACHADAS, TRABALHOS_VERTICAIS]
 
-/** Pages de district à lier depuis les pages d'un métier de la grille (même distrito) et son hub. */
+/** La page de district couvre-t-elle ce distrito (valeur de `CityData.distrito`) ? */
+export const cobreDistrito = (servico: ServicoDistrito, distrito: string) => servico.distritos.includes(distrito)
+
+/** Pages de district à lier depuis les pages d'un métier de la grille (distrito couvert par la page) et son hub. */
 export function servicosDistritoLigados(metier: string, distrito?: string): ServicoDistrito[] {
-  return SERVICOS_DISTRITO.filter((s) => s.metiersLigados.includes(metier) && (!distrito || s.distrito === distrito))
+  return SERVICOS_DISTRITO.filter((s) => s.metiersLigados.includes(metier) && (!distrito || cobreDistrito(s, distrito)))
 }
 
-/** Date des liens d'une page qui lie ces pages de district : la plus récente de leurs `dataLigacoes`. */
+/**
+ * Pages de district qu'une page métier x ville lie en plus de celles de son métier (CityData.serviceCityOverrides[métier]
+ * .servicosDistrito, ex. poda-arvores-agueda → limpeza de telhados), dans un distrito qu'elles couvrent.
+ */
+export function servicosDistritoRelacionados(slugs: readonly string[] | undefined, distrito: string): ServicoDistrito[] {
+  return SERVICOS_DISTRITO.filter((s) => Boolean(slugs?.includes(s.slug)) && cobreDistrito(s, distrito))
+}
+
+/** Date des liens d'une page qui lie ces pages de district (hub, page ville, page statique) : la plus récente de leurs `dataLigacoes`. */
 export function dataLigacoesServicos(servicos: ServicoDistrito[]): string {
   return maisRecente(servicos.map((s) => s.dataLigacoes))
+}
+
+/** Date des liens d'une page de la grille de ce distrito vers ces pages de district : la plus récente de leurs `dataLigacoesGrelha`. */
+export function dataLigacoesGrelha(servicos: ServicoDistrito[], distrito: string): string {
+  return maisRecente(servicos.map((s) => s.dataLigacoesGrelha[distrito] ?? ''))
 }
 
 // ── Pages concelho d'un service de district (/pt/servicos/{servico}-{concelho}/) ──
@@ -705,7 +836,7 @@ function maisRecente(datas: string[]): string {
 /** Pages concelho ouvertes, pour toutes les pages de district. */
 export function paginasConcelhoDistrito(): PaginaConcelhoDistrito[] {
   return SERVICOS_DISTRITO.flatMap((servico) =>
-    CITIES.filter((city) => city.distrito === servico.distrito).flatMap((city) => {
+    CITIES.filter((city) => cobreDistrito(servico, city.distrito)).flatMap((city) => {
       const revisto = revisaoConcelhoPara(servico.slug, city.slug)
       const chantiers = chantiersDocumentados(servico, city.slug)
       if (!revisto || !concelhoDocumentado(servico, city.slug, chantiers)) return []
@@ -738,7 +869,7 @@ export function urlServicoDistrito(servico: ServicoDistrito, cidade?: string): s
  * villes), du plus récent au plus ancien.
  */
 export function chantiersExibidosDistrito(servico: ServicoDistrito): Chantier[] {
-  const todos = CITIES.filter((city) => city.distrito === servico.distrito)
+  const todos = CITIES.filter((city) => cobreDistrito(servico, city.distrito))
     .flatMap((city) => chantiersDocumentados(servico, city.slug))
     .sort((a, b) => b.mes.localeCompare(a.mes))
   const exibidos = todos.slice(0, 6)
