@@ -123,10 +123,11 @@ describe('/api/administrateur-judiciaire/agent', () => {
     const historique = [{ role: 'user', content: 'Bonjour, M. Durand a appelé' }, { role: 'assistant', content: 'Bonjour !' }]
     const res = await POST(requete({ agent: 'lea', message, historique, contexte: CONTEXTE }))
 
-    // Ce que voient l'utilisateur et le modèle ne change pas : question masquée pour le modèle, réponse en clair.
+    // Question masquée et pseudonymisée pour le modèle (le nom devient « Copropriétaire 1 »), réponse en clair.
     expect(await res.json()).toEqual({ text: 'Réponse de Fixy', modele: 'claude-sonnet-5-5' })
     const question = h.claude.mock.calls[0][0].messages[3].content
-    expect(question).toContain('M. Durand')
+    expect(question).toContain('Copropriétaire 1')
+    expect(question).not.toContain('Durand')
     expect(question).toMatch(/<iban:[0-9a-f]{8}>/)
     expect(question).not.toContain('durand@exemple.fr')
 

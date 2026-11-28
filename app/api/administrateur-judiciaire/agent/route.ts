@@ -2,8 +2,9 @@
 //
 // Agents IA de la succursale Administrateur judiciaire (Fixy, Max, Léa, Tempo, Alfredo) sur Claude Sonnet 5.5.
 // L'application est servie depuis la base locale du navigateur : le client envoie la question, l'historique
-// de la conversation et un résumé de ses données (cf. construireContexteAgent). Données personnelles
-// masquées avant l'envoi au modèle, rétablies dans la réponse.
+// de la conversation et un résumé de ses données (cf. construireContexteAgent). Avant l'envoi au modèle, noms des
+// personnes et des prestataires remplacés par des pseudonymes (lib/administrateur-judiciaire/ia/pseudonymes.ts) et
+// autres données personnelles masquées ; vrais noms et données rétablis dans la réponse.
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
@@ -15,6 +16,7 @@ import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { traceAgent } from '@/lib/langfuse'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { construirePromptSystemeAJ } from '@/lib/administrateur-judiciaire/ia/prompts'
+import { pseudonymiserNoms } from '@/lib/administrateur-judiciaire/ia/pseudonymes'
 
 /** Taille maximale du contexte sérialisé (caractères) : au-delà, la requête est refusée. */
 const TAILLE_MAX_CONTEXTE = 60_000
@@ -72,8 +74,12 @@ export async function POST(req: NextRequest) {
   // Contexte, historique et question masqués ensemble (même table de jetons) : les réponses précédentes,
   // démasquées pour l’utilisateur, reviennent dans l’historique.
   const { sanitized, tokenMap } = sanitizeContextForLLM({ contexte, historique, message })
+  // Noms des personnes et des prestataires → pseudonymes (« Copropriétaire 1 »…), dans le contexte, l'historique et la
+  // question (décision du 20/11/2026). La correspondance ne vit que dans `retablirNoms`, le temps de la requête : elle
+  // ne va ni au journal ni à Langfuse, qui ne reçoit que des nombres (metadonneesTrace).
+  const { donnees: envoi, retablir: retablirNoms } = pseudonymiserNoms(sanitized, sanitized.contexte)
   const dateDuJour = typeof contexte.dateDuJour === 'string' ? contexte.dateDuJour : new Date().toISOString().slice(0, 10)
-  const systeme = construirePromptSystemeAJ(agent, JSON.stringify(sanitized.contexte, null, 1), dateDuJour)
+  const systeme = construirePromptSystemeAJ(agent, JSON.stringify(envoi.contexte, null, 1), dateDuJour)
 
   try {
     const reponse = await traceAgent(
@@ -88,8 +94,8 @@ export async function POST(req: NextRequest) {
           {
             messages: [
               { role: 'system', content: systeme },
-              ...sanitized.historique,
-              { role: 'user', content: sanitized.message },
+              ...envoi.historique,
+              { role: 'user', content: envoi.message },
             ],
             max_tokens: 1800,
           },
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
     )
     const brut = reponse.choices?.[0]?.message?.content?.trim() ?? ''
     if (!brut) return NextResponse.json({ error: 'reponse_vide' }, { status: 502 })
-    const texte = resolveSanitizedToken(brut, tokenMap) ?? brut
+    const texte = retablirNoms(resolveSanitizedToken(brut, tokenMap) ?? brut)
     return NextResponse.json({ text: texte, modele: reponse.model ?? null })
   } catch (err) {
     logger.error('[administrateur-judiciaire/agent] échec de l’appel IA', {

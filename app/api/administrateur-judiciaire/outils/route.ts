@@ -5,9 +5,13 @@
 // - « redaction-pv » : projet de procès-verbal d'assemblée générale (Outils IA › Rédaction de PV) ;
 // - « saisie-facture » : lecture d'une facture fournisseur, image ou PDF de 4 Mo au plus (Outils IA › Saisie de factures).
 // Même garde que la route des agents (app/api/administrateur-judiciaire/agent) : session Supabase avec rôle syndic,
-// limite de débit, données personnelles masquées avant le modèle et rétablies dans la réponse. Le fichier de la
-// facture n'est pas masqué (le base64 serait altéré) ; il ne part ni dans les journaux ni dans Langfuse, qui ne
-// reçoit, pour chaque outil, que des métadonnées (tâche, longueurs, nombres, jetons, statut, latence).
+// limite de débit, données personnelles masquées avant le modèle et rétablies dans la réponse ; personnes citées avec
+// leur civilité (« Mme X ») remplacées par des pseudonymes (« Personne 1 », lib/administrateur-judiciaire/ia/pseudonymes.ts,
+// décision du 20/11/2026), vrais noms rétablis dans la réponse. Ces outils ne reçoivent pas les listes de la base : un
+// nom sans civilité (raison sociale de l'entreprise d'un devis, par exemple) reste tel quel. Le fichier de la facture
+// n'est ni masqué ni pseudonymisé (le base64 serait altéré, et le fournisseur est justement ce qu'il faut y lire) ; il
+// ne part ni dans les journaux ni dans Langfuse, qui ne reçoit, pour chaque outil, que des métadonnées (tâche,
+// longueurs, nombres, jetons, statut, latence).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
@@ -19,6 +23,7 @@ import { callClaudeWithRetry, ErreurClaude, hasAnthropicKey, type ClaudeCallConf
 import type { GroqCallOptions } from '@/lib/groq'
 import { traceAgent } from '@/lib/langfuse'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
+import { pseudonymiserNoms } from '@/lib/administrateur-judiciaire/ia/pseudonymes'
 import {
   TAILLE_MAX_TEXTE_DEVIS,
   normaliserFactureExtraite,
@@ -81,17 +86,28 @@ const BodySchema = z.discriminatedUnion('tache', [
 type Corps = z.infer<typeof BodySchema>
 
 /**
- * Requête prête pour Claude : messages, configuration, table des jetons PII et métadonnées de trace (des nombres et
- * des types, aucun texte de la demande).
+ * Requête prête pour Claude : messages, configuration, rétablissement de la réponse et métadonnées de trace (des
+ * nombres et des types, aucun texte de la demande).
  */
 interface Demande {
   opts: GroqCallOptions
   config: ClaudeCallConfig
-  tokenMap: Map<string, string>
+  /** Texte du modèle → données masquées et vrais noms rétablis (tables en mémoire, le temps de la requête). */
+  retablir: (texte: string) => string
   trace: Record<string, string | number>
 }
 
 const erreur = (code: string, status: number) => NextResponse.json({ error: code }, { status })
+
+/**
+ * Données masquées (e-mails, téléphones, IBAN, adresses selon `options`), puis personnes citées avec leur civilité
+ * remplacées par des pseudonymes ; `retablir` défait les deux dans la réponse.
+ */
+function preparer<T extends Record<string, unknown>>(donnees: T, options?: Parameters<typeof sanitizeContextForLLM>[1]) {
+  const { sanitized, tokenMap } = sanitizeContextForLLM(donnees, options)
+  const { donnees: envoi, retablir: retablirNoms } = pseudonymiserNoms(sanitized, {})
+  return { envoi, retablir: (texte: string) => retablirNoms(resolveSanitizedToken(texte, tokenMap) ?? texte) }
+}
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
@@ -142,7 +158,7 @@ export async function POST(req: NextRequest) {
     if (!brut) return erreur('reponse_vide', 502)
 
     if (corps.tache === 'saisie-facture') {
-      const facture = lireFacture(brut, demande.tokenMap)
+      const facture = lireFacture(brut, demande.retablir)
       if (!facture) {
         logger.warn('[administrateur-judiciaire/outils] réponse de saisie illisible', { longueur: brut.length })
         return erreur('reponse_invalide', 502)
@@ -150,7 +166,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ facture, modele: reponse.model ?? null })
     }
 
-    const texte = (resolveSanitizedToken(brut, demande.tokenMap) ?? brut) + (choix?.finish_reason === 'length' ? MENTION_TRONQUEE : '')
+    const texte = demande.retablir(brut) + (choix?.finish_reason === 'length' ? MENTION_TRONQUEE : '')
     return NextResponse.json({ text: texte, modele: reponse.model ?? null })
   } catch (err) {
     if (corps.tache === 'saisie-facture' && err instanceof ErreurClaude && err.statut === 400) {
@@ -173,25 +189,25 @@ function construireDemande(corps: Corps): Demande | NextResponse {
     case 'analyse-devis': {
       // Seuls e-mails, téléphones et IBAN sont masqués : l'indice d'adresse rendrait illisibles des lignes de
       // devis (« 25 chemin de câble… ») et les coordonnées d'une entreprise ne sont pas des données personnelles.
-      const { sanitized, tokenMap } = sanitizeContextForLLM({ texte: corps.texte }, { types: ['email', 'phone', 'iban'] })
+      const { envoi, retablir } = preparer({ texte: corps.texte }, { types: ['email', 'phone', 'iban'] })
       return {
         opts: {
           messages: [
             { role: 'system', content: construirePromptAnalyseDevis(dateDuJour) },
-            { role: 'user', content: construireDemandeAnalyseDevis(sanitized.texte) },
+            { role: 'user', content: construireDemandeAnalyseDevis(envoi.texte) },
           ],
           max_tokens: MAX_TOKENS['analyse-devis'],
         },
         config: { effort: 'medium' },
-        tokenMap,
+        retablir,
         trace: { longueurTexte: corps.texte.length },
       }
     }
     case 'redaction-pv': {
       const tailleContexte = JSON.stringify(corps.contexte).length
       if (tailleContexte > TAILLE_MAX_CONTEXTE) return erreur('contexte_trop_volumineux', 413)
-      // Contexte, copropriété et résolutions masqués ensemble (même table de jetons).
-      const { sanitized, tokenMap } = sanitizeContextForLLM({
+      // Contexte, copropriété et résolutions masqués et pseudonymisés ensemble (mêmes tables).
+      const { envoi, retablir } = preparer({
         contexte: corps.contexte,
         copropriete: corps.copropriete,
         resolutions: corps.resolutions,
@@ -199,13 +215,13 @@ function construireDemande(corps: Corps): Demande | NextResponse {
       return {
         opts: {
           messages: [
-            { role: 'system', content: construirePromptRedactionPv(JSON.stringify(sanitized.contexte, null, 1), dateDuJour) },
-            { role: 'user', content: construireDemandePv(sanitized.copropriete, sanitized.resolutions) },
+            { role: 'system', content: construirePromptRedactionPv(JSON.stringify(envoi.contexte, null, 1), dateDuJour) },
+            { role: 'user', content: construireDemandePv(envoi.copropriete, envoi.resolutions) },
           ],
           max_tokens: MAX_TOKENS['redaction-pv'],
         },
         config: { effort: 'medium' },
-        tokenMap,
+        retablir,
         trace: { resolutions: corps.resolutions.length, tailleContexte },
       }
     }
@@ -215,19 +231,18 @@ function construireDemande(corps: Corps): Demande | NextResponse {
         return fichier.raison === 'taille' ? erreur('fichier_trop_volumineux', 413) : erreur('format_non_pris_en_charge', 400)
       }
       // Adresses d'immeubles en clair : elles servent à reconnaître la copropriété sur la facture (ce ne sont pas des
-      // données personnelles) ; seul le nom du fichier est masqué.
-      const { sanitized: masque, tokenMap } = sanitizeContextForLLM({ nomFichier: corps.nomFichier })
-      const sanitized = { coproprietes: corps.coproprietes, nomFichier: masque.nomFichier }
+      // données personnelles) ; seul le nom du fichier est masqué et pseudonymisé.
+      const { envoi, retablir } = preparer({ nomFichier: corps.nomFichier })
       return {
         opts: {
           messages: [
-            { role: 'system', content: construirePromptSaisieFacture(JSON.stringify(sanitized.coproprietes, null, 1)) },
+            { role: 'system', content: construirePromptSaisieFacture(JSON.stringify(corps.coproprietes, null, 1)) },
             {
               role: 'user',
               content: [
                 // lib/claude convertit la data URL en bloc image (PNG, JPEG, WebP) ou document (PDF).
                 { type: 'image_url', image_url: { url: corps.fichier } },
-                { type: 'text', text: construireDemandeSaisieFacture(sanitized.nomFichier) },
+                { type: 'text', text: construireDemandeSaisieFacture(envoi.nomFichier) },
               ],
             },
           ],
@@ -235,15 +250,15 @@ function construireDemande(corps: Corps): Demande | NextResponse {
           response_format: { type: 'json_object' },
         },
         config: { effort: 'low', disableGroqFallback: true },
-        tokenMap,
+        retablir,
         trace: { typeFichier: fichier.type, octets: fichier.octets, coproprietes: corps.coproprietes.length },
       }
     }
   }
 }
 
-/** JSON de la réponse → facture normalisée, jetons PII rétablis dans les textes ; null si illisible. */
-function lireFacture(brut: string, tokenMap: Map<string, string>): FactureExtraite | null {
+/** JSON de la réponse → facture normalisée, données masquées et vrais noms rétablis dans les textes ; null si illisible. */
+function lireFacture(brut: string, retablir: (texte: string) => string): FactureExtraite | null {
   let objet: unknown
   try {
     objet = JSON.parse(brut)
@@ -255,7 +270,7 @@ function lireFacture(brut: string, tokenMap: Map<string, string>): FactureExtrai
   if (!facture) return null
   const resolue = Object.entries(facture).map(([cle, valeur]) => [
     cle,
-    typeof valeur === 'string' ? (resolveSanitizedToken(valeur, tokenMap) ?? valeur) : valeur,
+    typeof valeur === 'string' ? retablir(valeur) : valeur,
   ])
   return Object.fromEntries(resolue) as FactureExtraite
 }
