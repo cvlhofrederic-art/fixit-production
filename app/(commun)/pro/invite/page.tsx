@@ -3,12 +3,34 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import { supabase } from '@/lib/supabase'
+
+/**
+ * Compte existant rattaché alors qu'une session est déjà ouverte dans ce navigateur : son jeton porte encore l'ancien
+ * app_metadata (sans rôle de société). Le middleware, qui relit le compte, l'enverrait au tableau de bord pro ; le
+ * tableau de bord, qui lit la session locale, le renverrait à la connexion, et ainsi de suite jusqu'au renouvellement
+ * du jeton. On renouvelle donc la session ici, comme après un changement de rôle (admin/dashboard). Sans session : rien.
+ */
+async function renouvelerSessionOuverte(): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession()
+    if (!data.session) return
+    const { error } = await supabase.auth.refreshSession()
+    if (error) console.warn('[pro/invite] session non renouvelée :', error.message)
+  } catch (err) {
+    console.warn('[pro/invite] session non renouvelée :', err instanceof Error ? err.message : err)
+  }
+}
 
 function InvitePageContent() {
   const searchParams = useSearchParams()
   const token = searchParams?.get('token') || ''
 
   const [step, setStep] = useState<'loading' | 'form' | 'error' | 'success'>('loading')
+  // Compte Vitfix déjà ouvert à cette adresse : le serveur l'a rattaché à l'équipe, avec SON mot de passe (celui saisi
+  // dans ce formulaire n'est pas enregistré). L'écran de fin doit le dire, sinon l'invité essaie le mot de passe qu'il
+  // vient de taper et la connexion lui est refusée.
+  const [compteExistant, setCompteExistant] = useState(false)
   const [inviteData, setInviteData] = useState<{
     email: string
     full_name: string
@@ -82,9 +104,13 @@ function InvitePageContent() {
       const data = await res.json()
 
       if (res.ok && data.success) {
+        const existant = data.compte_existant === true
+        if (existant) await renouvelerSessionOuverte()
+        setCompteExistant(existant)
         setStep('success')
       } else {
-        setPasswordErrors([data.error || 'Erreur lors de la création du compte.'])
+        // 207 (compte créé ou rattaché, invitation non validée) n'a pas de champ error, seulement message.
+        setPasswordErrors([data.error || data.message || 'Erreur lors de la création du compte.'])
       }
     } catch {
       setPasswordErrors(['Erreur de connexion.'])
@@ -94,6 +120,7 @@ function InvitePageContent() {
   }
 
   const roleLabels: Record<string, string> = {
+    GERANT: 'Gérant',
     CONDUCTEUR_TRAVAUX: 'Conducteur de travaux',
     CHEF_CHANTIER: 'Chef de chantier',
     SECRETAIRE: 'Secrétaire',
@@ -197,7 +224,7 @@ function InvitePageContent() {
           )}
 
           {/* Success */}
-          {step === 'success' && (
+          {step === 'success' && !compteExistant && (
             <div className="text-center py-8">
               <div className="text-4xl mb-4">✅</div>
               <h2 className="text-lg font-bold text-gray-900 mb-2">Compte créé</h2>
@@ -209,6 +236,33 @@ function InvitePageContent() {
               >
                 Se connecter →
               </a>
+            </div>
+          )}
+
+          {step === 'success' && compteExistant && (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-4">✅</div>
+              <h2 className="text-lg font-bold text-gray-900 mb-2">Compte rattaché à l&apos;équipe</h2>
+              <p className="text-sm text-gray-500 mb-2">
+                Vous aviez déjà un compte Vitfix avec cette adresse : il est maintenant rattaché à{' '}
+                <strong>{inviteData?.company_name}</strong>.
+              </p>
+              <p className="text-sm text-gray-700 mb-6">
+                <strong>Le mot de passe saisi ici n&apos;a pas été enregistré.</strong> Connectez-vous avec votre mot de passe
+                habituel, ou choisissez-en un nouveau avec « Mot de passe oublié ».
+              </p>
+              <a
+                href="/auth/login"
+                className="inline-block px-6 py-3 rounded-lg font-bold text-sm"
+                style={{ background: '#FFC107', color: '#1a1a1a' }}
+              >
+                Se connecter →
+              </a>
+              <div className="mt-4">
+                <a href="/auth/reset-password" className="text-sm font-semibold underline" style={{ color: '#1a1a1a' }}>
+                  Mot de passe oublié
+                </a>
+              </div>
             </div>
           )}
         </div>
