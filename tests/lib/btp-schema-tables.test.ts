@@ -20,9 +20,11 @@ import { SOURCES_DES_COLONNES, colonnesModifiees, mapToSupabase } from '@/lib/ho
 
 // Relevé de production du 11/11/2026 (~/.claude/audits/btp-fondations-2026-11-11/prod-colonnes-2026-11-11.md) :
 // `!` = NOT NULL, `*` = valeur par défaut. Plus chantiers_btp.membres_ids (uuid[] NOT NULL, vide par défaut), ajoutée
-// par la migration 20261116 du pointage géolocalisé (PR #703), appliquée en production le 16/11/2026.
+// par la migration 20261116 du pointage géolocalisé (PR #703), appliquée en production le 16/11/2026, et
+// chantiers_btp.alerte_meteo (boolean NOT NULL, false par défaut), ajoutée par la migration 20261126b de l'alerte météo
+// par chantier (26/11/2026), à appliquer en production AVANT la fusion de la PR qui l'apporte.
 const RELEVE_PRODUCTION: Record<TableEcrivable, string> = {
-  chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*, membres_ids:uuid[]!*',
+  chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*, membres_ids:uuid[]!*, alerte_meteo:boolean!*',
   charges_fixes: 'id:uuid!*, owner_id:uuid!, label:text!, montant:numeric!, frequence:text!, categorie:text!, date_debut:date, date_fin:date, created_at:timestamptz*, updated_at:timestamptz*',
   dc4_btp: 'id:uuid!*, owner_id:uuid!, entreprise:text!*, siret:text*, responsable:text*, email:text*, telephone:text*, adresse:text*, chantier:text*, lot:text*, montant_marche:numeric*, taux_tva:numeric*, statut:text!*, date_agrement:date, dc4_genere:boolean*, created_at:timestamptz*, updated_at:timestamptz*, chantier_id:uuid',
   dce_analyses_btp: 'id:uuid!*, owner_id:uuid!, titre:text!*, country:text*, project_type:text*, status:text!*, result:jsonb*, created_at:timestamptz*',
