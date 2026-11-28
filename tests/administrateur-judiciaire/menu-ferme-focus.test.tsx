@@ -7,7 +7,8 @@ import { monterShellJudiciaire as monterShell, preparerShellJudiciaire } from '.
 /**
  * Focus rendu au bouton ☰ quand le menu latéral se ferme alors que le focus est dans le menu (décision du 26/11/2026) :
  * le menu fermé passe en visibility:hidden (aj-correctifs.css) et le focus tomberait sinon sur le document.
- * Le focus n'est pas déplacé à l'ouverture.
+ * À l'ouverture, le focus va sur la première entrée de navigation visible du menu, et le bouton ☰ désigne le menu
+ * qu'il commande (aria-controls) : décision du 27/11/2026 du référent métier (point 1 de la page de #842).
  */
 
 vi.mock('next/dynamic', () => ({
@@ -67,12 +68,66 @@ describe('menu latéral : focus à la fermeture', () => {
     expect(document.activeElement).toBe(main)
   })
 
-  it('ouverture : le focus n’est pas déplacé', async () => {
+})
+
+describe('menu latéral : focus à l’ouverture et lien avec le bouton ☰', () => {
+  const premiereEntreeVisible = () => menu().querySelector<HTMLElement>('.nav-group:not(.collapsed) .nav-item')
+
+  it('ouverture : le focus va sur la première entrée de navigation visible du menu', async () => {
     await monterShell()
     bouton().focus()
-    fireEvent.click(bouton())
+    await act(async () => {
+      fireEvent.click(bouton())
+    })
+    const entree = premiereEntreeVisible()
+    expect(entree).not.toBeNull()
+    expect(entree).toHaveClass('nav-item')
+    expect(document.activeElement).toBe(entree)
+  })
+
+  it('premier groupe replié : le focus va sur la première entrée d’un groupe déplié', async () => {
+    await monterShell()
+    const premierTitre = within(menu()).getAllByRole('button', { expanded: true }).find((el) => el.tagName === 'H6') as HTMLElement
+    expect(premierTitre).toBeDefined()
+    fireEvent.click(premierTitre)
+    expect(premierTitre.closest('.nav-group')).toHaveClass('collapsed')
+    await act(async () => {
+      fireEvent.click(bouton())
+    })
+    const entree = premiereEntreeVisible()
+    expect(entree).not.toBeNull()
+    expect(premierTitre.closest('.nav-group')?.contains(entree)).toBe(false)
+    expect(document.activeElement).toBe(entree)
+  })
+
+  it('tous les groupes repliés : le focus va sur le premier élément du menu qui le reçoit (« Rechercher »)', async () => {
+    await monterShell()
+    for (const titre of within(menu()).getAllByRole('button', { expanded: true }).filter((el) => el.tagName === 'H6')) fireEvent.click(titre)
+    expect(premiereEntreeVisible()).toBeNull()
+    await act(async () => {
+      fireEvent.click(bouton())
+    })
+    expect(document.activeElement).toBe(within(menu()).getByRole('button', { name: 'Ouvrir la palette de commandes' }))
+  })
+
+  it('le bouton ☰ désigne le menu qu’il commande (aria-controls)', async () => {
+    await monterShell()
+    const id = bouton().getAttribute('aria-controls')
+    expect(id).toBeTruthy()
+    expect(document.getElementById(id as string)).toBe(menu())
+  })
+
+  it('ouverture puis Échap sans toucher au focus : le focus revient au bouton ☰', async () => {
+    await monterShell()
+    bouton().focus()
+    await act(async () => {
+      fireEvent.click(bouton())
+    })
+    expect(menu().contains(document.activeElement)).toBe(true)
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' })
+    })
     expect(document.activeElement).toBe(bouton())
-    expect(menu().contains(document.activeElement)).toBe(false)
   })
 
   it('palette ouverte depuis « Rechercher » du menu, puis Échap : le focus finit sur le bouton ☰, pas sur le document', async () => {

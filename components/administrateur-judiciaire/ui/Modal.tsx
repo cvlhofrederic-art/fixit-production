@@ -2,11 +2,8 @@
 
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { SELECTEUR_FOCUSABLES } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
-
-/** Éléments recevant le focus dans la boîte de dialogue (liste recalculée à chaque appui sur Tab). */
-const SELECTEUR_FOCUSABLES =
-  'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
 /**
  * Modales ouvertes, dans l'ordre d'ouverture : la dernière est celle « du dessus », seule à traiter Échap et Tab.

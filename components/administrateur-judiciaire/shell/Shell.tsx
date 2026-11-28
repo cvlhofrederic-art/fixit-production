@@ -21,7 +21,7 @@ import {
 import { naviguerVers, routeCourante } from '@/components/administrateur-judiciaire/shell/navigation'
 import { RoleCabinetContext } from '@/components/administrateur-judiciaire/shell/RoleCabinetContext'
 import { SelecteurCoproGlobal } from '@/components/administrateur-judiciaire/shell/SelecteurCoproGlobal'
-import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
+import { SELECTEUR_FOCUSABLES, surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { champCoproprieteChoisie, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -581,12 +581,21 @@ export function Shell() {
   }, [route])
 
   useEffect(() => {
-    // Menu refermé avec le focus dedans : le menu fermé est masqué (visibility:hidden, aj-correctifs.css) et le focus
-    // tomberait sur le document ; il revient au bouton ☰. Déclaré après l'effet de la palette : si elle se referme en
-    // même temps, le focus qu'elle vient de rendre à un élément du menu est repris ici. Pas de déplacement à l'ouverture.
+    // Menu ouvert : le focus va sur la première entrée de navigation visible (les entrées des groupes repliés sont
+    // masquées), sinon sur le premier élément du menu qui le reçoit (décision du 27/11/2026 du référent métier, point 1
+    // de la page de #842). Menu refermé avec le focus dedans : le menu fermé est masqué (visibility:hidden,
+    // aj-correctifs.css) et le focus tomberait sur le document ; il revient au bouton ☰. Déclaré après l'effet de la
+    // palette : si elle se referme en même temps, le focus qu'elle vient de rendre à un élément du menu est repris ici.
     const etaitOuvert = menuEtaitOuvertRef.current
     menuEtaitOuvertRef.current = menuMobileOuvert
-    if (etaitOuvert && !menuMobileOuvert && menuRef.current?.contains(document.activeElement)) boutonMenuRef.current?.focus()
+    const menu = menuRef.current
+    if (!etaitOuvert && menuMobileOuvert) {
+      const cible =
+        menu?.querySelector<HTMLElement>('.nav-group:not(.collapsed) .nav-item') ?? menu?.querySelector<HTMLElement>(SELECTEUR_FOCUSABLES)
+      cible?.focus()
+    } else if (etaitOuvert && !menuMobileOuvert && menu?.contains(document.activeElement)) {
+      boutonMenuRef.current?.focus()
+    }
   }, [menuMobileOuvert])
 
   useEffect(() => {
@@ -736,7 +745,12 @@ export function Shell() {
       <DemoBanner />
       <FixyLauncher route={route} fixy={fixy} />
       <div className="app">
-        <aside ref={menuRef} className={`sidebar ${menuMobileOuvert ? 'is-open' : ''}`} aria-label="Navigation principale">
+        <aside
+          ref={menuRef}
+          id="menu-principal"
+          className={`sidebar ${menuMobileOuvert ? 'is-open' : ''}`}
+          aria-label="Navigation principale"
+        >
           <div className="brand">
             <div className="mark">V</div>
             <div>
@@ -869,6 +883,7 @@ export function Shell() {
               ref={boutonMenuRef}
               className="hamburger"
               aria-label="Ouvrir le menu"
+              aria-controls="menu-principal"
               aria-expanded={menuMobileOuvert}
               onClick={() => setMenuMobileOuvert(true)}
             >
