@@ -45,7 +45,10 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  *   calcul (arrêté affiché, dernier arrêté, solde, période arrêtée) : leur ligne montre la date et le solde banque
  *   saisi, sans solde compta ni écart (le solde compta enregistré d'un arrêté resté en cours n'est que celui de son
  *   ouverture). La liste est montrée dès qu'un arrêté abandonné existe, même seul. Un arrêté clôturé puis déclôturé
- *   s'abandonne comme tout arrêté en cours ; la confirmation dit alors qu'il perd sa période arrêtée.
+ *   s'abandonne comme tout arrêté en cours ; la confirmation dit alors qu'il perd sa période arrêtée. Quand il ne reste
+ *   que des arrêtés abandonnés, la phrase du panneau dit « Aucun arrêté en cours ni clôturé pour ce compte. » : « Aucun
+ *   arrêté pour ce compte. » contredirait la liste affichée juste en dessous (relecture du 28/11/2026 ; libellé à
+ *   valider par le référent métier).
  * - Décision du 26/11/2026 (rb-01 C et rb-03 A) : le solde compta et l'écart d'un arrêté en cours sont ceux de l'instant,
  *   recalculés sur les écritures affichées (avecSoldeComptaCourant), dans le panneau comme dans la liste ; la clôture
  *   enregistre ce solde et le fige. Même mise en page.
@@ -337,7 +340,7 @@ function ContenuArretes({
         <ArreteAffiche arrete={courant} {...actions} />
       ) : (
         <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          Aucun arrêté pour ce compte.
+          {lus.abandonnes.length > 0 ? 'Aucun arrêté en cours ni clôturé pour ce compte.' : 'Aucun arrêté pour ce compte.'}
         </p>
       )}
       {(arretes.length > 1 || lus.abandonnes.length > 0) && <ListeArretes arretes={arretes} abandonnes={lus.abandonnes} />}

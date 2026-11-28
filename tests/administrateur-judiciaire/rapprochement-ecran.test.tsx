@@ -119,7 +119,10 @@ describe('Rapprochement : panneau et « Nouvel arrêté »', () => {
     const titres = screen.getAllByRole('heading', { level: 3 }).map((titre) => titre.textContent)
     expect(titres.slice(0, 3)).toEqual(['Comptes bancaires du mandat', 'Rapprochement bancaire', 'Importer un relevé'])
     expect(dansPanneau().getByLabelText('Compte rapproché')).toHaveDisplayValue('Compte principal · …0189')
+    // Aucun arrêté, pas même abandonné : la phrase simple, et aucune liste.
     expect(dansPanneau().getByText('Aucun arrêté pour ce compte.')).toBeInTheDocument()
+    expect(dansPanneau().queryByText('Aucun arrêté en cours ni clôturé pour ce compte.')).toBeNull()
+    expect(dansPanneau().queryByRole('table', { name: 'Arrêtés du compte' })).toBeNull()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
   })
 
@@ -276,10 +279,12 @@ describe('Rapprochement : « Abandonner l’arrêté » (rb-01 A, décision du 2
     expect(screen.queryByRole('dialog')).toBeNull()
     // Gardé en base, jamais effacé.
     expect(await ajDb.rapprochements.get(errone.id)).toMatchObject({ statut: 'Abandonné', soldeBanqueCentimes: 40_000 })
-    // Plus d'arrêté en cours : le panneau revient à « aucun arrêté » ; l'arrêté abandonné reste affiché dans « Arrêtés du
-    // compte », statut « Abandonné » (réponse du référent métier du 28/11/2026, cr-01 A).
+    // Plus d'arrêté en cours : le panneau n'en affiche plus en haut ; l'arrêté abandonné reste affiché dans « Arrêtés du
+    // compte », statut « Abandonné » (réponse du référent métier du 28/11/2026, cr-01 A). La phrase ne dit donc pas
+    // « Aucun arrêté pour ce compte. » au-dessus de cette liste : elle dit ce qui manque.
     expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement bancaire' })).toBeInTheDocument()
-    expect(dansPanneau().getByText('Aucun arrêté pour ce compte.')).toBeInTheDocument()
+    expect(dansPanneau().getByText('Aucun arrêté en cours ni clôturé pour ce compte.')).toBeInTheDocument()
+    expect(dansPanneau().queryByText('Aucun arrêté pour ce compte.')).toBeNull()
     const abandonnes = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row').slice(1)
     expect(abandonnes.map((ligne) => within(ligne).getAllByRole('cell').at(-1)?.textContent)).toEqual(['Abandonné'])
     expect(dansPanneau().queryByRole('button', { name: /Abandonner/ })).toBeNull()

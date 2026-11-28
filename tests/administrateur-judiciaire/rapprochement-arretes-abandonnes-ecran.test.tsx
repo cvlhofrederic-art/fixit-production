@@ -30,11 +30,19 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  *   période arrêtée) : seuls sa date et son solde banque saisi sont montrés, sans solde compta ni écart.
  * - Un arrêté clôturé puis déclôturé s'abandonne comme tout arrêté en cours ; la confirmation dit alors qu'il perd sa
  *   période arrêtée.
+ * - Quand il ne reste que des arrêtés abandonnés, la phrase du panneau ne dit plus « Aucun arrêté pour ce compte. »
+ *   au-dessus d'une liste qui en montre un : elle dit « Aucun arrêté en cours ni clôturé pour ce compte. » (relecture du
+ *   28/11/2026 ; libellé à valider par le référent métier).
  * Base de démonstration (date figée au 04/06/2026), comme rapprochement-ecran.test.tsx.
  */
 
 // IBAN de test publié (exemple déjà utilisé par les tests D-BANQUE) : clé valide, aucun compte réel.
 const IBAN_A = 'FR76 3000 6000 0112 3456 7890 189'
+
+/** Compte sans aucun arrêté, pas même abandonné. */
+const AUCUN_ARRETE = 'Aucun arrêté pour ce compte.'
+/** Compte dont il ne reste que des arrêtés abandonnés, affichés dans « Arrêtés du compte ». */
+const AUCUN_ARRETE_QUI_COMPTE = 'Aucun arrêté en cours ni clôturé pour ce compte.'
 
 const DEJA_CLOTURE = 'Cet arrêté a déjà été clôturé une fois : il perd sa période arrêtée.'
 const CONFIRMATION =
@@ -103,14 +111,16 @@ async function cliquerEtAttendre(bouton: HTMLElement) {
 }
 
 describe('Rapprochement : arrêtés abandonnés affichés dans « Arrêtés du compte » (cr-01 A, réponse du 28/11/2026)', () => {
-  it('arrêté abandonné, seul sur le compte : affiché, statut « Abandonné » ; le panneau n’a toujours aucun arrêté et « Nouvel arrêté » reste possible', async () => {
+  it('arrêté abandonné, seul sur le compte : affiché, statut « Abandonné » ; le panneau dit « Aucun arrêté en cours ni clôturé » et « Nouvel arrêté » reste possible', async () => {
     // Faute de frappe dans le solde banque : 400,00 € au lieu de 329,50 €.
     const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
     await abandonnerArreteCompte(errone.id)
     await rendre()
     // Jamais l'arrêté affiché en haut du panneau.
     expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement bancaire' })).toBeInTheDocument()
-    expect(dansPanneau().getByText('Aucun arrêté pour ce compte.')).toBeInTheDocument()
+    // La phrase ne contredit pas la liste, qui montre un arrêté juste en dessous : elle dit ce qui manque.
+    expect(dansPanneau().getByText(AUCUN_ARRETE_QUI_COMPTE)).toBeInTheDocument()
+    expect(dansPanneau().queryByText(AUCUN_ARRETE)).toBeNull()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
     expect(dansPanneau().queryByRole('button', { name: /Abandonner|Déclôturer|Clôturer/ })).toBeNull()
     // Dans la liste : sa date, son solde banque saisi, son statut ; ni solde compta ni écart (hors de tout calcul).
@@ -127,6 +137,7 @@ describe('Rapprochement : arrêtés abandonnés affichés dans « Arrêtés du c
     await rendre()
     // L'arrêté affiché est l'arrêté en cours, avec son écart : l'arrêté abandonné, de même date, n'y change rien.
     expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/05/2026' })).toBeInTheDocument()
+    expect(dansPanneau().queryByText(/^Aucun arrêté/)).toBeNull()
     expect(panneau().textContent).toContain(`Solde banque ${eurosArrete(32_950)}`)
     expect(panneau().textContent).toContain(`Écart ${eurosArrete(0)}`)
     expect(lignesListe()).toEqual([
@@ -160,6 +171,8 @@ describe('Rapprochement : arrêtés abandonnés affichés dans « Arrêtés du c
     await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Abandonner l’arrêté' }))
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Arrêté abandonné' })
     expect(lignesListe()).toEqual([['31/05/2026', eurosArrete(40_000), '—', '—', 'Abandonné']])
+    expect(dansPanneau().getByText(AUCUN_ARRETE_QUI_COMPTE)).toBeInTheDocument()
+    expect(dansPanneau().queryByText(AUCUN_ARRETE)).toBeNull()
   })
 })
 
@@ -190,6 +203,7 @@ describe('Rapprochement : abandon d’un arrêté clôturé puis déclôturé (c
     expect((await ajDb.rapprochements.get(arrete.id))?.statut).toBe('Abandonné')
     // À l'écran : plus d'arrêté affiché en haut, la trace dans la liste.
     expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement bancaire' })).toBeInTheDocument()
+    expect(dansPanneau().getByText(AUCUN_ARRETE_QUI_COMPTE)).toBeInTheDocument()
     expect(lignesListe()).toEqual([['31/05/2026', eurosArrete(32_950), '—', '—', 'Abandonné']])
     // Sa période n'est plus arrêtée : un relevé daté dedans n'est plus refusé, et aucun arrêté ne compte sur le compte.
     await expect(refuserImportSurPeriodeArretee(banqueId, ['2026-05-15'])).resolves.toBeUndefined()
