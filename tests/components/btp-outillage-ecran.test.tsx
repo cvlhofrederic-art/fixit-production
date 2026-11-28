@@ -213,11 +213,11 @@ describe('Inventário por categorias e pesquisa (28/11/2026)', () => {
 
   it('arruma o inventário por categoria, pela ordem fixa, viaturas e « Sem categoria » no fim', async () => {
     await abrirInventario()
-    const titulos = screen.getAllByRole('columnheader').map(c => c.textContent ?? '').filter(t => /\(\d+\)/.test(t))
-    expect(titulos.map(t => t.replace(/\s*·.*$/, '').trim())).toEqual([
+    const titulos = screen.getAllByRole('rowheader').map(c => (c.textContent ?? '').trim())
+    expect(titulos).toEqual([
       '🔨 Ferramentas de mão (1)', '🏗️ Andaimes e escadas (1)', '⚙️ Máquinas e equipamentos (1)', '🚐 Viaturas (1)', '🔧 Sem categoria (1)',
     ])
-    expect(screen.getByText(/Edite cada uma para lhe escolher uma categoria/)).toBeTruthy()
+    expect(screen.getByText('1 ferramenta ainda sem categoria: escolha-a em « Editar ».')).toBeTruthy()
   })
 
   it('filtra por categoria com os botões, e volta a « Tudo »', async () => {
@@ -287,8 +287,8 @@ describe('Verificação de sexta: lista por categoria, pesquisa numa obra grande
     reponses.get = { ...contexteChef(), outils: muitos }
     render(<OutillageSection />)
     fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
-    expect(screen.getByRole('group', { name: 'Ferramentas de mão' })).toBeTruthy()
-    expect(screen.getByRole('group', { name: 'Andaimes e escadas' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Ferramentas de mão (6)' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Andaimes e escadas (3)' })).toBeTruthy()
     const pesquisa = screen.getByRole('searchbox', { name: 'Procurar nesta obra' })
     fireEvent.change(pesquisa, { target: { value: 'andaime 1' } })
     expect(screen.getAllByRole('button', { name: '✔ Presente' })).toHaveLength(1)
@@ -305,6 +305,71 @@ describe('Verificação de sexta: lista por categoria, pesquisa numa obra grande
     render(<OutillageSection />)
     fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
     expect(screen.queryByRole('searchbox')).toBeNull()
-    expect(screen.queryByText(/Sem categoria \(/)).toBeNull()
+    // Uma só categoria: o título fica só para os leitores de ecrã.
+    expect(screen.getByText(/Sem categoria \(/).className).toBe('sr-only')
+  })
+})
+
+describe('Depois da relecture: pesquisa e filtros nunca enganam', () => {
+  const nove = () => Array.from({ length: 9 }, (_, i) => ({
+    id: `6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8f${String(i).padStart(2, '0')}`, type: 'outil' as const,
+    categorie: i < 3 ? 'echafaudage' as const : 'main' as const, nom: i < 3 ? `Andaime ${i}` : `Colher ${i}`,
+    reference: null, quantite: 1, chantierId: VILLA, etat: 'ok' as const, notes: null, surPlaceDepuis: '2026-11-20',
+  }))
+
+  it('durante uma pesquisa, o botão só marca os elementos visíveis', async () => {
+    reponses.get = { ...contexteChef(), outils: nove() }
+    render(<OutillageSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Procurar nesta obra' }), { target: { value: 'andaime' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar os 3 visíveis como presentes' }))
+    expect(screen.getByText('Falta marcar 6 elementos.')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Validar a verificação' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(envois).toHaveLength(0)
+  })
+
+  it('lista recarregada mais curta (lista mudada): já sem campo de pesquisa, nada fica escondido', async () => {
+    reponses.get = { ...contexteChef(), outils: nove() }
+    reponses.post = { status: 409, corps: { error: 'liste_changee' } }
+    render(<OutillageSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar tudo presente' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Procurar nesta obra' }), { target: { value: 'andaime 1' } })
+    reponses.get = { ...contexteChef(), outils: nove().slice(1) }
+    fireEvent.click(screen.getByRole('button', { name: 'Validar a verificação' }))
+    await waitFor(() => expect(screen.queryByRole('searchbox')).toBeNull())
+    expect(screen.getAllByRole('listitem')).toHaveLength(8)
+  })
+
+  it('filtro em « Sem categoria »: classificada a última, o ecrã volta a « Tudo » em vez de ficar vazio', async () => {
+    const semCategoria = { ...contexteChef(), gestion: true, lieux: [{ id: VILLA, titre: 'Moradia Gaia', statut: 'En cours' }] }
+    reponses.get = semCategoria
+    reponses.post = { status: 200, corps: { outil: {} } }
+    render(<OutillageSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Inventário' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sem categoria (2)' }))
+    // As duas já classificadas no servidor quando o ecrã recarrega.
+    reponses.get = { ...semCategoria, outils: semCategoria.outils.map(o => ({ ...o, categorie: 'machines' as const })) }
+    const linha = screen.getAllByRole('row').find(r => r.textContent?.includes('Betoneira')) as HTMLElement
+    fireEvent.click(within(linha).getByRole('button', { name: 'Editar' }))
+    fireEvent.change(screen.getByRole('combobox', { name: /Categoria/ }), { target: { value: 'machines' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Tudo (2)' }).getAttribute('aria-pressed')).toBe('true'))
+    expect(screen.queryByRole('button', { name: /Sem categoria/ })).toBeNull()
+    expect(screen.queryByText('Nenhum elemento corresponde à pesquisa.')).toBeNull()
+  })
+
+  it('uma ferramenta antiga sem categoria pode ser editada (mudar de obra, avariada) sem escolher categoria', async () => {
+    reponses.get = { ...contexteChef(), gestion: true, lieux: [{ id: VILLA, titre: 'Moradia Gaia', statut: 'En cours' }] }
+    reponses.post = { status: 200, corps: { outil: {} } }
+    render(<OutillageSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Inventário' }))
+    const linha = screen.getAllByRole('row').find(r => r.textContent?.includes('Betoneira')) as HTMLElement
+    fireEvent.click(within(linha).getByRole('button', { name: 'Editar' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Estado' }), { target: { value: 'en_panne' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(envois).toHaveLength(1))
+    expect(envois[0]).toMatchObject({ action: 'modifier', id: BETONEIRA, outil: { type: 'outil', categorie: null, etat: 'en_panne' } })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

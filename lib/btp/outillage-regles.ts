@@ -269,7 +269,7 @@ export function parGroupe<T extends Pick<OutilEcran, 'type' | 'categorie' | 'nom
 }
 
 /** Texte sans accents ni majuscules : « maquina » trouve « Máquina », « cofragem » trouve « COFRAGEM ». */
-export const sansAccents = (texte: string): string => texte.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+export const sansAccents = (texte: string): string => texte.normalize('NFD').replaceAll(/\p{M}/gu, '').toLowerCase()
 
 /** Chaque mot de la recherche se trouve dans l'un des textes donnés (nom, référence, notes, catégorie…). */
 export function correspondRecherche(recherche: string, textes: ReadonlyArray<string | null | undefined>): boolean {

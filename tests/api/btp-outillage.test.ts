@@ -399,3 +399,10 @@ describe('catégorie d’un outil (migration 20261128d, 28/11/2026)', () => {
     expect((await envoyer(toutPresent())).status).toBe(201)
   })
 })
+
+describe('colonne absente ailleurs que dans la catégorie : panne ordinaire, pas « migration des catégories »', () => {
+  it('vérification du vendredi qui échoue sur une colonne inconnue : 500, sans message trompeur', async () => {
+    etat.colonnesAbsentes.add('verifications_outillage_btp.observations')
+    expect(await envoyer(toutPresent())).toMatchObject({ status: 500, json: { error: 'Erreur serveur' } })
+  })
+})

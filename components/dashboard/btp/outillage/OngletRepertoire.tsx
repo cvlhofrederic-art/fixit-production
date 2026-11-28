@@ -60,6 +60,15 @@ function derniereMention(outilId: string, verifications: readonly VerificationEc
   return null
 }
 
+type Mention = NonNullable<ReturnType<typeof derniereMention>>
+
+/** Badge de la dernière vérification : manquant (rouge), en panne (orange), présent (vert). */
+function badgeMention(mention: Mention, isPt: boolean): { couleur: string; texte: string } {
+  if (mention.manque) return { couleur: 'red', texte: `${isPt ? 'Em falta' : 'Manquant'}${mention.compte}` }
+  if (mention.enPanne) return { couleur: 'orange', texte: isPt ? 'Avariada' : 'En panne' }
+  return { couleur: 'green', texte: isPt ? 'Presente' : 'Présent' }
+}
+
 interface Props {
   contexte: ContexteOutillage
   isPt: boolean
@@ -88,15 +97,20 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
     .filter(o => !filtreLieu || (filtreLieu === 'depot' ? !o.chantierId : o.chantierId === filtreLieu))
     .filter(o => correspondRecherche(recherche, [o.nom, o.reference, o.notes, libelleGroupe(groupeDe(o), isPt)])),
   [contexte.outils, filtreLieu, recherche, isPt])
-  const groupes = useMemo(() => parGroupe(trouves.filter(o => !filtreGroupe || groupeDe(o) === filtreGroupe)), [trouves, filtreGroupe])
+  // Boutons de catégorie : celles qui ont au moins un élément au répertoire. Une catégorie choisie qui s'est vidée
+  // (dernier outil « Sem categoria » classé, dernier andaime retiré) ne filtre plus : l'écran revient à « Tudo ».
+  const groupesDuRepertoire = ORDRE_GROUPES.filter(g => contexte.outils.some(o => groupeDe(o) === g))
+  const groupeActif: '' | GroupeOutil = filtreGroupe && groupesDuRepertoire.includes(filtreGroupe) ? filtreGroupe : ''
+  const groupes = useMemo(() => parGroupe(trouves.filter(o => !groupeActif || groupeDe(o) === groupeActif)), [trouves, groupeActif])
   const affiches = groupes.reduce((n, g) => n + g.outils.length, 0)
-  // Boutons de catégorie : celles qui ont au moins un élément au répertoire (et celle choisie, pour pouvoir la quitter).
-  const groupesDuRepertoire = ORDRE_GROUPES.filter(g => g === filtreGroupe || contexte.outils.some(o => groupeDe(o) === g))
   const nombreDans = (g: GroupeOutil) => trouves.filter(o => groupeDe(o) === g).length
+  const sansCategorie = contexte.outils.filter(o => groupeDe(o) === 'sans').length
 
   async function enregistrer() {
     if (!edition || envoi) return
-    if (edition.brouillon.type === 'outil' && !edition.brouillon.categorie) {
+    // Obligatoire pour une ferramenta nouvelle ; un outil saisi avant les catégories se modifie (déplacement, panne)
+    // sans être forcé de la choisir.
+    if (edition.id === null && edition.brouillon.type === 'outil' && !edition.brouillon.categorie) {
       toast.error(isPt ? 'Escolha a categoria da ferramenta.' : 'Choisissez la catégorie de l’outil.')
       return
     }
@@ -152,24 +166,32 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
           <option value="depot">{isPt ? 'Armazém' : 'Dépôt'}</option>
           {contexte.lieux.map(l => <option key={l.id} value={l.id}>{l.titre || '—'}</option>)}
         </select>
-        <button type="button" className="v5-btn v5-btn-p" disabled={edition !== null} onClick={() => setEdition({ id: null, brouillon: nouveauBrouillon(filtreGroupe, filtreLieu) })}>
+        <button type="button" className="v5-btn v5-btn-p" disabled={edition !== null} onClick={() => setEdition({ id: null, brouillon: nouveauBrouillon(groupeActif, filtreLieu) })}>
           {isPt ? '+ Adicionar' : '+ Ajouter'}
         </button>
       </div>
 
       {contexte.outils.length > 0 && (
-        <div role="group" aria-label={isPt ? 'Filtrar por categoria' : 'Filtrer par catégorie'} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button type="button" className={`v5-btn v5-btn-sm${filtreGroupe === '' ? ' v5-btn-p' : ''}`} aria-pressed={filtreGroupe === ''} onClick={() => setFiltreGroupe('')}>
+        <fieldset style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <legend className="sr-only">{isPt ? 'Filtrar por categoria' : 'Filtrer par catégorie'}</legend>
+          <button type="button" className={`v5-btn v5-btn-sm${groupeActif === '' ? ' v5-btn-p' : ''}`} aria-pressed={groupeActif === ''} onClick={() => setFiltreGroupe('')}>
             {isPt ? `Tudo (${trouves.length})` : `Tout (${trouves.length})`}
           </button>
           {groupesDuRepertoire.map(g => (
             <button
-              key={g} type="button" className={`v5-btn v5-btn-sm${filtreGroupe === g ? ' v5-btn-p' : ''}`} aria-pressed={filtreGroupe === g}
-              onClick={() => setFiltreGroupe(filtreGroupe === g ? '' : g)}
+              key={g} type="button" className={`v5-btn v5-btn-sm${groupeActif === g ? ' v5-btn-p' : ''}`} aria-pressed={groupeActif === g}
+              onClick={() => setFiltreGroupe(groupeActif === g ? '' : g)}
             >
               <span aria-hidden="true">{iconeGroupe(g)} </span>{`${libelleGroupe(g, isPt)} (${nombreDans(g)})`}
             </button>
           ))}
+        </fieldset>
+      )}
+      {sansCategorie > 0 && (
+        <div style={{ fontSize: 12, color: GRIS }}>
+          {isPt
+            ? `${sansCategorie} ferramenta${sansCategorie > 1 ? 's' : ''} ainda sem categoria: escolha-a em « Editar ».`
+            : `${sansCategorie} outil${sansCategorie > 1 ? 's' : ''} encore sans catégorie : choisissez-la dans « Modifier ».`}
         </div>
       )}
 
@@ -244,12 +266,9 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
             {groupes.map(g => (
               <tbody key={g.groupe}>
                 <tr style={{ background: '#fafafa', borderBottom: '1px solid #eee' }}>
-                  <th colSpan={5} scope="colgroup" style={{ padding: '6px 8px', textAlign: 'left', fontSize: 12 }}>
+                  <th colSpan={5} scope="rowgroup" style={{ padding: '6px 8px', textAlign: 'left', fontSize: 12 }}>
                     <span aria-hidden="true">{iconeGroupe(g.groupe)} </span>{libelleGroupe(g.groupe, isPt)}
-                    <span style={{ color: GRIS, fontWeight: 400 }}>
-                      {` (${g.outils.length})`}
-                      {g.groupe === 'sans' && (isPt ? ' · Edite cada uma para lhe escolher uma categoria.' : ' · Modifiez chacun pour lui choisir une catégorie.')}
-                    </span>
+                    <span style={{ color: GRIS, fontWeight: 400 }}>{` (${g.outils.length})`}</span>
                   </th>
                 </tr>
                 {g.outils.map(o => {
@@ -271,9 +290,8 @@ export function OngletRepertoire({ contexte, isPt, envoyer, recharger }: Readonl
                       <td style={{ padding: 8 }}>
                         {mention === null && <span style={{ color: GRIS }}>—</span>}
                         {mention && (
-                          <span className={`v5-badge v5-badge-${mention.manque ? 'red' : mention.enPanne ? 'orange' : 'green'}`}>
-                            {mention.manque ? `${isPt ? 'Em falta' : 'Manquant'}${mention.compte}` : mention.enPanne ? (isPt ? 'Avariada' : 'En panne') : (isPt ? 'Presente' : 'Présent')}
-                            {` · ${jourEtDate(mention.vendredi, isPt)}`}
+                          <span className={`v5-badge v5-badge-${badgeMention(mention, isPt).couleur}`}>
+                            {`${badgeMention(mention, isPt).texte} · ${jourEtDate(mention.vendredi, isPt)}`}
                           </span>
                         )}
                       </td>

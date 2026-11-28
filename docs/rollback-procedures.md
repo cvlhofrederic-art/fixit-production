@@ -340,7 +340,8 @@ DROP TABLE IF EXISTS public.outillage_btp;
 
 Retire la colonne `categorie` d'`outillage_btp`. ATTENTION : cela EFFACE la catégorie choisie pour chaque outil (les
 outils eux-mêmes, leur emplacement et les vérifications du vendredi restent). Le code continue de marcher sans elle :
-l'écran range tous les outils sous « Sem categoria », et `/api/btp/outillage` refuse alors toute création ou
+l'écran range toutes les ferramentas sous « Sem categoria » (les viaturas restent sous « Viaturas »), et
+`/api/btp/outillage` refuse alors toute création ou
 modification (409 `migration_categorie`, l'écran le dit) ; la vérification du vendredi et le retrait d'un outil
 marchent toujours. Aucune autre table n'est touchée.
 

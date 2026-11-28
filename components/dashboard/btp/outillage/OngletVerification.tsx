@@ -37,9 +37,13 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: Readonly<{
   const [observations, setObservations] = useState('')
   const [envoi, setEnvoi] = useState(false)
   const [recherche, setRecherche] = useState('')
-  // Rangée par catégorie ; la recherche ne fait que masquer (réponses gardées, validation sur toute la liste).
-  const groupes = parGroupe(outils.filter(o => correspondRecherche(recherche, [o.nom, o.reference, libelleGroupe(groupeDe(o), isPt)])))
+  // Rangée par catégorie ; la recherche ne fait que masquer (réponses gardées, validation sur toute la liste). Sans
+  // champ de recherche (liste rechargée plus courte après un « liste changée »), plus rien n'est masqué.
+  const filtre = outils.length > SEUIL_RECHERCHE ? recherche : ''
+  const visibles = outils.filter(o => correspondRecherche(filtre, [o.nom, o.reference, libelleGroupe(groupeDe(o), isPt)]))
+  const groupes = parGroupe(visibles)
   const avecTitres = parGroupe(outils).length > 1
+  const rechercheActive = filtre.trim() !== ''
 
   const reponse = (id: string): Reponse => reponses[id] ?? { presents: null, enPanne: false, remarque: '' }
   const changer = (id: string, valeur: Partial<Reponse>) => setReponses(r => ({ ...r, [id]: { ...reponse(id), ...valeur } }))
@@ -48,7 +52,13 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: Readonly<{
   const observationManquante = outils.length === 0 && !observations.trim()
   const bloque = restants > 0 || observationManquante
 
-  const toutPresent = () => setReponses(r => Object.fromEntries(outils.map(o => [o.id, { ...(r[o.id] ?? { enPanne: false, remarque: '' }), presents: o.quantite }])))
+  // Pendant une recherche, seuls les éléments affichés : jamais un élément que le responsable n'a pas sous les yeux.
+  const toutPresent = () => setReponses(r => ({
+    ...r,
+    ...Object.fromEntries(visibles.map(o => [o.id, { ...(r[o.id] ?? { enPanne: false, remarque: '' }), presents: o.quantite }])),
+  }))
+  let libelleToutPresent = isPt ? 'Marcar tudo presente' : 'Tout marquer présent'
+  if (rechercheActive) libelleToutPresent = isPt ? `Marcar os ${visibles.length} visíveis como presentes` : `Marquer les ${visibles.length} affichés présents`
 
   async function valider() {
     if (bloque || envoi) return
@@ -85,7 +95,7 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: Readonly<{
           <span style={{ fontSize: 13, color: GRIS }}>
             {isPt ? 'Para cada elemento: está na obra, ou falta?' : 'Pour chaque élément : est-il sur le chantier, ou manque-t-il ?'}
           </span>
-          <button type="button" className="v5-btn v5-btn-sm" onClick={toutPresent}>{isPt ? 'Marcar tudo presente' : 'Tout marquer présent'}</button>
+          <button type="button" className="v5-btn v5-btn-sm" disabled={visibles.length === 0} onClick={toutPresent}>{libelleToutPresent}</button>
         </div>
       )}
 
@@ -101,12 +111,10 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: Readonly<{
       )}
 
       {groupes.map(g => (
-        <div key={g.groupe} role="group" aria-label={libelleGroupe(g.groupe, isPt)} style={{ marginBottom: 8 }}>
-          {avecTitres && (
-            <div style={{ fontSize: 12, fontWeight: 700, color: GRIS, margin: '4px 0 6px' }}>
-              <span aria-hidden="true">{iconeGroupe(g.groupe)} </span>{`${libelleGroupe(g.groupe, isPt)} (${g.outils.length})`}
-            </div>
-          )}
+        <fieldset key={g.groupe} style={{ border: 0, margin: '0 0 8px', padding: 0, minWidth: 0 }}>
+          <legend className={avecTitres ? undefined : 'sr-only'} style={{ padding: 0, fontSize: 12, fontWeight: 700, color: GRIS, margin: '4px 0 6px' }}>
+            <span aria-hidden="true">{iconeGroupe(g.groupe)} </span>{`${libelleGroupe(g.groupe, isPt)} (${g.outils.length})`}
+          </legend>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
             {g.outils.map(o => {
               const r = reponse(o.id)
@@ -163,7 +171,7 @@ function Formulaire({ chantier, outils, isPt, envoyer, onFini }: Readonly<{
               )
             })}
           </ul>
-        </div>
+        </fieldset>
       ))}
 
       <label className="v5-fl" style={{ display: 'block', marginTop: 10 }}>

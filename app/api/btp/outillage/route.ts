@@ -66,13 +66,15 @@ class MigrationRequise extends Error {
   constructor(quoi: string, readonly code: 'migration_requise' | 'migration_categorie' = 'migration_requise') { super(quoi) }
 }
 
-/** Colonne inconnue de la base (PostgREST, PostgreSQL) : ici, `categorie` tant que la migration 20261128d manque. */
+/**
+ * Colonne inconnue de la base (PostgREST, PostgreSQL). Seule l'écriture d'un outil en attend une nouvelle :
+ * `categorie`, tant que la migration 20261128d manque ; ailleurs, c'est une panne comme une autre.
+ */
 const COLONNE_ABSENTE = new Set(['PGRST204', '42703'])
 
-/** Erreur de lecture ou d'écriture : table ou colonne absente (migration non appliquée) ou autre panne. */
+/** Erreur de lecture ou d'écriture : table absente (migration non appliquée) ou autre panne. */
 function echec(error: { code?: unknown; message?: string }, quoi: string): Error {
   if (TABLE_ABSENTE.has(String(error.code))) return new MigrationRequise(quoi)
-  if (COLONNE_ABSENTE.has(String(error.code))) return new MigrationRequise(quoi, 'migration_categorie')
   return new Error(`${quoi} : ${error.message ?? 'erreur inconnue'}`)
 }
 
@@ -254,6 +256,7 @@ async function enregistrerOutil(acces: Acces, outil: OutilSaisi, id: string | nu
     requete = supabaseAdmin.from('outillage_btp').update(changements).eq('id', id).eq('owner_id', acces.societeId).is('retire_le', null)
   }
   const { data, error } = await requete.select('*')
+  if (error && COLONNE_ABSENTE.has(String(error.code))) throw new MigrationRequise('enregistrement de l’outil', 'migration_categorie')
   if (error) throw echec(error, 'enregistrement de l’outil')
   const ligne = ((data ?? []) as Ligne[])[0]
   if (!ligne) return refus(404, 'outil_introuvable')

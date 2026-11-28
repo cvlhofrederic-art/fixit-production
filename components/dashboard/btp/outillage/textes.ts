@@ -27,12 +27,13 @@ export function libelleType(type: TypeOutil, isPt: boolean, pluriel = false): st
 
 export const iconeType = (type: TypeOutil) => (type === 'vehicule' ? '🚐' : '🔧')
 
-// Catégories (28/11/2026). Icônes des premières versions d'emoji : lisibles aussi sur un vieux téléphone Android.
+// Catégories (28/11/2026). Icônes toutes présentes dès Emoji 1.0 (2015) : lisibles aussi sur un vieux téléphone
+// Android (l'appli accepte Android 7, minSdkVersion 24).
 const GROUPES: Record<GroupeOutil, { icone: string; pt: string; fr: string }> = {
   main: { icone: '🔨', pt: 'Ferramentas de mão', fr: 'Outillage à main' },
   electroportatif: { icone: '🔌', pt: 'Ferramentas elétricas', fr: 'Outillage électroportatif' },
   echafaudage: { icone: '🏗️', pt: 'Andaimes e escadas', fr: 'Échafaudages et échelles' },
-  coffrage: { icone: '🧱', pt: 'Cofragem e escoramento', fr: 'Coffrage et étaiement' },
+  coffrage: { icone: '🔩', pt: 'Cofragem e escoramento', fr: 'Coffrage et étaiement' },
   machines: { icone: '⚙️', pt: 'Máquinas e equipamentos', fr: 'Machines et matériel' },
   mesure: { icone: '📏', pt: 'Medição e nivelamento', fr: 'Mesure et nivellement' },
   securite: { icone: '⛑️', pt: 'Segurança e EPI', fr: 'Sécurité et EPI' },

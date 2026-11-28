@@ -8,12 +8,23 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { randomUUID } from 'crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { ECHAFAUDAGE_SUPABASE_SQL, erreurPg, lireMigrationQr } from '../helpers/pglite-signalements'
 import { CATEGORIES_OUTIL } from '@/lib/btp/outillage-regles'
 
 const OUTILLAGE = lireMigrationQr('20261126_btp_outillage.sql')
 const MIGRATION = lireMigrationQr('20261128d_btp_outillage_categorie.sql')
 const SOCIETE = randomUUID()
+
+/** Le bloc de retour arrière de docs/rollback-procedures.md, tel qu'on le collerait dans l'éditeur SQL. */
+function retourArriere(): string {
+  const doc = readFileSync(join(process.cwd(), 'docs/rollback-procedures.md'), 'utf-8').replace(/\r\n/g, '\n')
+  const section = doc.split('## Migration 20261128d — Catégorie des outils BTP')[1] ?? ''
+  const bloc = /```sql\n(-- Rollback\n[\s\S]*?)\n```/.exec(section)
+  if (!bloc) throw new Error('Retour arrière de la migration 20261128d introuvable dans docs/rollback-procedures.md')
+  return bloc[1]
+}
 
 let db: PGlite
 
@@ -70,10 +81,8 @@ describe('migration 20261128d — catégorie des outils BTP', () => {
   })
 
   it('le retour arrière de docs/rollback-procedures.md retire la colonne et rien d’autre', async () => {
-    await db.exec(`
-      ALTER TABLE public.outillage_btp DROP CONSTRAINT IF EXISTS outillage_btp_categorie_valide;
-      ALTER TABLE public.outillage_btp DROP COLUMN IF EXISTS categorie;
-    `)
+    expect(retourArriere()).toContain('DROP COLUMN IF EXISTS categorie')
+    await db.exec(retourArriere())
     expect((await db.query(`SELECT nom FROM public.outillage_btp`)).rows).toEqual([{ nom: 'Betoneira' }])
     expect((await db.query(`SELECT count(*)::int AS n FROM information_schema.columns WHERE table_name = 'outillage_btp' AND column_name = 'categorie'`)).rows).toEqual([{ n: 0 }])
   })
