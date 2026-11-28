@@ -8,6 +8,7 @@ import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
 import { messagePlafondAtteint } from '@/lib/btp/plafonds-lecture'
 import { RAYON_PAR_DEFAUT_M } from '@/lib/btp/pointage-geo'
+import { lireEquipeParJour } from '@/lib/btp/equipe-par-jour'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
@@ -139,6 +140,8 @@ export function mapToSupabase(table: ShortName, item: any): any {
       if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
       // Alerte météo par notification (26/11/2026) : seulement quand la fiche la fournit, et toujours un booléen.
       if ('alerteMeteo' in item) mapped.alerte_meteo = item.alerteMeteo === true
+      // Équipe retouchée jour par jour (28/11/2026) : seulement quand la fiche la fournit, toujours un objet propre.
+      if ('equipe_par_jour' in item) mapped.equipe_par_jour = lireEquipeParJour(item.equipe_par_jour)
       return mapped
     }
     case 'membres':
@@ -287,6 +290,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
     geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'], alerte_meteo: ['alerteMeteo'],
+    equipe_par_jour: ['equipe_par_jour'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
@@ -335,7 +339,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
  * en base (une fiche reprise reçoit un nouvel identifiant) ; la route refuserait alors toute la reprise.
  */
 const RATTACHEMENTS_NON_REPRIS: Partial<Record<ShortName, readonly string[]>> = {
-  chantiers: ['membres_ids'],
+  chantiers: ['membres_ids', 'equipe_par_jour'],
   membres: ['equipe_id'],
   equipes: ['chantier_id'],
   pointages: ['membre_id', 'chantier_id'],
@@ -394,6 +398,7 @@ export function mapFromSupabase(table: ShortName, item: any): any {
         longitude: item.longitude,
         sousTaches: Array.isArray(item.sous_taches) ? item.sous_taches : [],
         alerteMeteo: item.alerte_meteo === true,
+        equipe_par_jour: lireEquipeParJour(item.equipe_par_jour),
       }
     case 'membres':
       return {

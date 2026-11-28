@@ -368,12 +368,14 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
         }, 0)
         const ouvriersUniques = new Set(pointCh.map(p => p.employe)).size
 
-        const expCh = expenses.filter(e =>
-          e.chantier_id === ch.id ||
-          e.chantierId === ch.id ||
-          e.chantier?.toLowerCase().trim() === titre ||
-          (e.notes && e.notes.toLowerCase().includes(titre))
-        )
+        // Une dépense rattachée à une obra (chantier_id) ne compte que pour elle. Les rapprochements par le nom ou par la
+        // note ne servent qu'aux anciennes dépenses sans rattachement : chaque achat de matériaux saisi dans une obra porte
+        // une note (« Valor pago com IVA 23%: … »), qu'une obra au titre court (« IVA ») aurait comptée une seconde fois.
+        const expCh = expenses.filter(e => {
+          const rattachement = e.chantier_id || e.chantierId
+          if (rattachement) return rattachement === ch.id
+          return e.chantier?.toLowerCase().trim() === titre || !!(e.notes && e.notes.toLowerCase().includes(titre))
+        })
         const coutMateriaux = expCh
           .filter(e => EXPENSE_CATEGORIES_MATERIAUX.includes(e.category))
           .reduce((sum, e) => sum + (typeof e.amount === 'string' ? parseFloat(e.amount) || 0 : e.amount), 0)

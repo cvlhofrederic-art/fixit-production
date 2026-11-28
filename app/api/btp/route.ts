@@ -14,8 +14,10 @@ import {
 import {
   lirePerimetreBtp, peutEcrireTable, projeter, visibiliteListe, type PerimetreBtp, type Visibilite,
 } from '@/lib/btp/perimetre-compte'
+import { figerJoursPasses, lireEquipeParJour } from '@/lib/btp/equipe-par-jour'
+import { jourOuvreDans, paysDeLaLangue, paysDuCodePostal, type PaysObra } from '@/lib/btp/jours-feries'
 import {
-  chantiersAffectes, membreDuCompte,
+  FUSEAU_PAR_DEFAUT, chantiersAffectes, heureLocale, membreDuCompte,
   type ChantierBtp, type EquipeBtp, type MembreBtp, type ResolutionMembre,
 } from '@/lib/btp/pointage-regles'
 
@@ -112,10 +114,12 @@ async function chantiersDuSalarie(
   ])
   const resolution = membreDuCompte(membres.lignes as unknown as MembreBtp[], perimetre.email)
   if (resolution.statut !== 'relie') return { lignes: [], rattachement: resolution.statut }
+  // Jour de la consultation : un renfort ajouté à l'équipe d'aujourd'hui voit l'obra où il est envoyé (equipe_par_jour).
   const siens = chantiersAffectes(
     resolution.membre,
     chantiers as unknown as ChantierBtp[],
     equipes.lignes as unknown as EquipeBtp[],
+    heureLocale(Date.now(), FUSEAU_PAR_DEFAUT).date,
   )
   return { lignes: siens as unknown as Record<string, unknown>[], rattachement: 'relie' }
 }
@@ -386,7 +390,50 @@ async function lierMembresDeLaNouvelleEquipe(userId: string, equipeId: string, m
 async function rattachementsNouveaux(etrangeres: Reference[], enBase: Ligne, equipeId: string): Promise<Reference[]> {
   if (etrangeres.length === 0) return []
   const lies = etrangeres.some(r => r.colonne === 'membreIds') ? await lireMembresLies(equipeId) : new Set<string>()
-  return etrangeres.filter(r => (r.colonne === 'membreIds' ? !lies.has(r.id.toLowerCase()) : !dejaEnregistre(r.id, enBase[r.colonne])))
+  return etrangeres.filter(r => {
+    if (r.colonne === 'membreIds') return !lies.has(r.id.toLowerCase())
+    // Un employé supprimé depuis, encore dans l'équipe habituelle du chantier, reste inscrit aux jours où l'écran le
+    // garde (relecture adverse du 28/11/2026) : sinon décocher un AUTRE employé ce jour-là faisait refuser la fiche.
+    if (r.colonne === 'equipe_par_jour' && dejaEnregistre(r.id, enBase.membres_ids)) return false
+    return !dejaEnregistre(r.id, enBase[r.colonne])
+  })
+}
+
+/**
+ * Équipe par jour : forme normalisée à l'écriture (identifiants en minuscules, sans doublon, jours triés), pour que le
+ * pointage la relise telle quelle (lib/btp/equipe-par-jour.ts). Appelée après verifierLigne, qui en a contrôlé la forme.
+ */
+function normaliserLigne(table: TableEcrivable, ligne: Ligne): void {
+  if (table === 'chantiers_btp' && 'equipe_par_jour' in ligne) ligne.equipe_par_jour = lireEquipeParJour(ligne.equipe_par_jour)
+}
+
+/**
+ * L'équipe habituelle d'un chantier change : ses jours passés gardent l'ancienne équipe (figerJoursPasses). Fait ici
+ * pour tous les écrans qui écrivent membres_ids (fiche de l'obra, onglet Affectations du pointage). Rien à figer si la
+ * colonne equipe_par_jour manque encore (migration 20261128f) ou si la fiche est introuvable ; une lecture en échec
+ * n'empêche pas l'enregistrement (le passé n'est alors pas figé, et le journal le dit).
+ */
+async function figerPasseDuChantier(userId: string, id: string, ligne: Ligne, paysDeLEcran: PaysObra | null): Promise<void> {
+  let enBase: Ligne | null
+  try {
+    enBase = await lireFiche('chantiers_btp', id, userId)
+  } catch (err) {
+    logger.warn('[btp] équipe habituelle changée sans figer les jours passés : fiche illisible', { id, error: err instanceof Error ? err.message : err })
+    return
+  }
+  if (!enBase || !('equipe_par_jour' in enBase)) return
+  const actuelle = lireEquipeParJour('equipe_par_jour' in ligne ? ligne.equipe_par_jour : enBase.equipe_par_jour)
+  const figee = figerJoursPasses({
+    debut: typeof enBase.date_debut === 'string' ? enBase.date_debut : null,
+    aujourdhui: heureLocale(Date.now(), FUSEAU_PAR_DEFAUT).date,
+    ancienneEquipe: Array.isArray(enBase.membres_ids) ? enBase.membres_ids.map(String) : [],
+    nouvelleEquipe: Array.isArray(ligne.membres_ids) ? ligne.membres_ids.map(String) : [],
+    equipeParJour: actuelle,
+    // Mêmes jours chômés que l'écran : week-end et fériés nationaux du pays de l'obra (son code postal, sinon la langue
+    // de l'écran qui envoie la modification, comme ChantiersBTPV2).
+    ouvre: jourOuvreDans(paysDuCodePostal(enBase.code_postal) ?? paysDeLEcran),
+  })
+  if ('equipe_par_jour' in ligne || JSON.stringify(figee) !== JSON.stringify(actuelle)) ligne.equipe_par_jour = figee
 }
 
 const refus = (message: string, status = 400) => NextResponse.json({ error: message }, { status })
@@ -436,11 +483,23 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
  * - alerte_meteo (alerte météo par notification, migration 20261126b) : décochée (valeur par défaut de la colonne),
  *   elle est retirée et le reste de la fiche est enregistré ; cochée, toute l'écriture est refusée (409) et rien n'est
  *   enregistré (ecrireSansColonnesAbsentes).
+ * - equipe_par_jour (équipe retouchée jour par jour, migration 20261128f) : vide (aucun jour retouché, valeur par
+ *   défaut de la colonne), elle est retirée ; avec au moins un jour retouché, toute l'écriture est refusée (409).
  */
 const COLONNES_RECENTES_CHANTIER: Readonly<Record<string, string>> = {
   membres_ids: 'chantier enregistré sans ses employés (migration 20261116 à appliquer)',
   alerte_meteo: 'chantier enregistré sans son alerte météo (migration 20261126b à appliquer)',
+  equipe_par_jour: 'chantier enregistré sans équipe par jour (migration 20261128f à appliquer)',
 }
+
+/** Jours retouchés alors que la colonne manque : refus plutôt que perte en silence (comme l'alerte météo cochée). */
+const MESSAGE_EQUIPE_PAR_JOUR_EN_ATTENTE = 'Chantier non enregistré : l’équipe par jour attend une mise à jour de la base. '
+  + 'Remettez l’équipe habituelle sur chaque jour pour enregistrer le reste, ou réessayez plus tard. — Obra não guardada: '
+  + 'a equipa por dia aguarda uma atualização da base de dados. Reponha a equipa habitual em cada dia para guardar o '
+  + 'resto, ou tente mais tarde.'
+
+/** La valeur demande au moins un jour retouché (objet non vide). */
+const joursRetouches = (valeur: unknown) => typeof valeur === 'object' && valeur !== null && Object.keys(valeur).length > 0
 
 /** Colonne récente absente de la base que nomme l'erreur, si la ligne la porte ; sinon null. */
 function colonneRecenteAbsente(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): string | null {
@@ -469,6 +528,9 @@ async function ecrireSansColonnesAbsentes<R extends { error: ErreurBase | null }
     if (absente === 'alerte_meteo' && ligne.alerte_meteo === true) {
       throw new ErreurEcriture(resultat.error as ErreurBase, MESSAGE_ALERTE_METEO_EN_ATTENTE, 409)
     }
+    if (absente === 'equipe_par_jour' && joursRetouches(ligne.equipe_par_jour)) {
+      throw new ErreurEcriture(resultat.error as ErreurBase, MESSAGE_EQUIPE_PAR_JOUR_EN_ATTENTE, 409)
+    }
     logger.warn(`[btp] chantiers_btp.${absente} absente : ${COLONNES_RECENTES_CHANTIER[absente]}`)
     delete ligne[absente]
     resultat = await ecrire()
@@ -483,6 +545,7 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
   const { ligne, membreIds } = preparer(donnees)
   const raison = verifierLigne(table, ligne, 'creation')
   if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+  normaliserLigne(table, ligne)
   const hors = valeursHorsBornes(table, ligne)
   if (hors.length > 0) return refus(hors.map(h => h.message).join(' '))
 
@@ -522,13 +585,16 @@ async function refusFaceALaFiche(
   return null
 }
 
-async function modifier(userId: string, table: TableEcrivable, id: string, donnees: unknown): Promise<NextResponse> {
+async function modifier(
+  userId: string, table: TableEcrivable, id: string, donnees: unknown, paysDeLEcran: PaysObra | null = null,
+): Promise<NextResponse> {
   if (!estObjet(donnees)) return refus('Données invalides')
   const contrat = verifierContrat(table, donnees)
   if (contrat) return contrat
   const { ligne, membreIds } = preparer(donnees)
   const raison = verifierLigne(table, ligne, 'modification')
   if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+  normaliserLigne(table, ligne)
 
   const membres = table === 'equipes_btp' ? membresDeLEquipe(membreIds) : undefined
   if (membres === null) return refus(MESSAGE_LISTE_MEMBRES_INVALIDE)
@@ -540,6 +606,8 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   }
 
   if (table === 'chantiers_btp') ligne.updated_at = new Date().toISOString()
+  // Après les contrôles : les jours figés ne reprennent que l'équipe déjà enregistrée sur la fiche.
+  if (table === 'chantiers_btp' && 'membres_ids' in ligne) await figerPasseDuChantier(userId, id, ligne, paysDeLEcran)
 
   // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
   // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient
@@ -681,7 +749,7 @@ export async function POST(request: NextRequest) {
       case 'import': return await reprendre(societeId, table, data)
       case 'upsert_settings': return await enregistrerReglages(societeId, data)
       case 'insert': return await creer(societeId, table, data)
-      case 'update': return id ? await modifier(societeId, table, id, data) : refus('Action invalide')
+      case 'update': return id ? await modifier(societeId, table, id, data, paysDeLaLangue(request.cookies.get('locale')?.value)) : refus('Action invalide')
       case 'delete': return id ? await supprimer(societeId, table, id) : refus('Action invalide')
       default: return refus('Action invalide')
     }

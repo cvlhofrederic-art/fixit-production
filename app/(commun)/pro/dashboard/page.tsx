@@ -1405,7 +1405,8 @@ function DashboardPage() {
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'} locale={isPt ? 'pt' : 'fr'}>
-            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} lectureSeule={!isProGerant && !proCanWrite('chantiers')} />
+            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} lectureSeule={!isProGerant && !proCanWrite('chantiers')}
+              gestionMateriaux={isProGerant || (proCanWrite('chantiers') && proCanWrite('compta_btp'))} />
             </FiletSocieteBtp>
           )}
 
