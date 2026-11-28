@@ -15,7 +15,7 @@ import {
   lirePerimetreBtp, peutEcrireTable, projeter, visibiliteListe, type PerimetreBtp, type Visibilite,
 } from '@/lib/btp/perimetre-compte'
 import {
-  chantiersAffectes, membreDuCompte,
+  FUSEAU_PAR_DEFAUT, chantiersAffectes, heureLocale, membreDuCompte,
   type ChantierBtp, type EquipeBtp, type MembreBtp, type ResolutionMembre,
 } from '@/lib/btp/pointage-regles'
 
@@ -112,10 +112,12 @@ async function chantiersDuSalarie(
   ])
   const resolution = membreDuCompte(membres.lignes as unknown as MembreBtp[], perimetre.email)
   if (resolution.statut !== 'relie') return { lignes: [], rattachement: resolution.statut }
+  // Jour de la consultation : un renfort ajouté à l'équipe d'aujourd'hui voit l'obra où il est envoyé (equipe_par_jour).
   const siens = chantiersAffectes(
     resolution.membre,
     chantiers as unknown as ChantierBtp[],
     equipes.lignes as unknown as EquipeBtp[],
+    heureLocale(Date.now(), FUSEAU_PAR_DEFAUT).date,
   )
   return { lignes: siens as unknown as Record<string, unknown>[], rattachement: 'relie' }
 }
@@ -436,11 +438,23 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
  * - alerte_meteo (alerte météo par notification, migration 20261126b) : décochée (valeur par défaut de la colonne),
  *   elle est retirée et le reste de la fiche est enregistré ; cochée, toute l'écriture est refusée (409) et rien n'est
  *   enregistré (ecrireSansColonnesAbsentes).
+ * - equipe_par_jour (équipe retouchée jour par jour, migration 20261128c) : vide (aucun jour retouché, valeur par
+ *   défaut de la colonne), elle est retirée ; avec au moins un jour retouché, toute l'écriture est refusée (409).
  */
 const COLONNES_RECENTES_CHANTIER: Readonly<Record<string, string>> = {
   membres_ids: 'chantier enregistré sans ses employés (migration 20261116 à appliquer)',
   alerte_meteo: 'chantier enregistré sans son alerte météo (migration 20261126b à appliquer)',
+  equipe_par_jour: 'chantier enregistré sans équipe par jour (migration 20261128c à appliquer)',
 }
+
+/** Jours retouchés alors que la colonne manque : refus plutôt que perte en silence (comme l'alerte météo cochée). */
+const MESSAGE_EQUIPE_PAR_JOUR_EN_ATTENTE = 'Chantier non enregistré : l’équipe par jour attend une mise à jour de la base. '
+  + 'Remettez l’équipe habituelle sur chaque jour pour enregistrer le reste, ou réessayez plus tard. — Obra não guardada: '
+  + 'a equipa por dia aguarda uma atualização da base de dados. Reponha a equipa habitual em cada dia para guardar o '
+  + 'resto, ou tente mais tarde.'
+
+/** La valeur demande au moins un jour retouché (objet non vide). */
+const joursRetouches = (valeur: unknown) => typeof valeur === 'object' && valeur !== null && Object.keys(valeur).length > 0
 
 /** Colonne récente absente de la base que nomme l'erreur, si la ligne la porte ; sinon null. */
 function colonneRecenteAbsente(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): string | null {
@@ -468,6 +482,9 @@ async function ecrireSansColonnesAbsentes<R extends { error: ErreurBase | null }
     if (!absente) break
     if (absente === 'alerte_meteo' && ligne.alerte_meteo === true) {
       throw new ErreurEcriture(resultat.error as ErreurBase, MESSAGE_ALERTE_METEO_EN_ATTENTE, 409)
+    }
+    if (absente === 'equipe_par_jour' && joursRetouches(ligne.equipe_par_jour)) {
+      throw new ErreurEcriture(resultat.error as ErreurBase, MESSAGE_EQUIPE_PAR_JOUR_EN_ATTENTE, 409)
     }
     logger.warn(`[btp] chantiers_btp.${absente} absente : ${COLONNES_RECENTES_CHANTIER[absente]}`)
     delete ligne[absente]

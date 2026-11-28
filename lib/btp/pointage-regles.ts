@@ -8,6 +8,7 @@
 // Utilisées par app/api/btp/pointage/route.ts et l'écran Pointage ; tests : tests/lib/btp-pointage-regles.test.ts.
 
 import { coordonneesValides, rayonEffectifM, type ChantierPointable } from './pointage-geo'
+import { ajouteCeJour } from './equipe-par-jour'
 
 /** Fuseau retenu quand le téléphone n'en annonce pas un de la liste. */
 export const FUSEAU_PAR_DEFAUT = 'Europe/Paris'
@@ -52,6 +53,8 @@ export interface ChantierBtp {
   longitude?: number | null
   geo_rayon_m?: number | null
   membres_ids?: string[] | null
+  /** Équipe retouchée jour par jour ({ "AAAA-MM-JJ": [membres] }, migration 20261128c ; lib/btp/equipe-par-jour.ts). */
+  equipe_par_jour?: unknown
 }
 
 export interface EquipeBtp {
@@ -156,18 +159,25 @@ export function estAffecte(membre: MembreBtp, chantier: ChantierBtp, equipes: re
   return equipes.some(e => sesEquipes.has(e.id) && e.chantier_id === chantier.id)
 }
 
-/** Chantiers « En cours » affectés au membre : directement (membres_ids) ou par l'une de ses équipes (chantier_id). */
+/**
+ * Chantiers « En cours » affectés au membre : directement (membres_ids), par l'une de ses équipes (chantier_id) ou,
+ * si `jour` (« AAAA-MM-JJ », date locale) est donné, parce qu'il a été ajouté à l'équipe de ce jour-là (renfort d'un
+ * jour, 28/11/2026). Une retouche du jour n'enlève jamais un chantier : un membre de l'équipe habituelle retiré d'un
+ * jour peut toujours y pointer, le pointage enregistre ce qui s'est passé.
+ */
 export function chantiersAffectes(
   membre: MembreBtp,
   chantiers: readonly ChantierBtp[],
   equipes: readonly EquipeBtp[],
+  jour?: string,
 ): ChantierBtp[] {
   const sesEquipes = equipesDuMembre(membre, equipes)
   const parEquipe = new Set(
     equipes.filter(e => sesEquipes.has(e.id) && e.chantier_id).map(e => e.chantier_id as string),
   )
   return chantiers.filter(c =>
-    c.statut === STATUT_EN_COURS && ((c.membres_ids ?? []).includes(membre.id) || parEquipe.has(c.id)),
+    c.statut === STATUT_EN_COURS && ((c.membres_ids ?? []).includes(membre.id) || parEquipe.has(c.id)
+      || (jour !== undefined && ajouteCeJour(membre.id, jour, c.equipe_par_jour))),
   )
 }
 

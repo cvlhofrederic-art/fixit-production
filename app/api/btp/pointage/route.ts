@@ -236,13 +236,15 @@ export async function GET(request: NextRequest) {
     const ctx = await lireContexte(user)
     if (!ctx) return refus(403, 'Accès réservé aux sociétés BTP')
     const membre = ctx.resolution.statut === 'relie' ? ctx.resolution.membre : null
-    const chantiers = membre ? chantiersAffectes(membre, ctx.chantiersEnCours, ctx.equipes) : []
     const maintenant = Date.now()
+    const fuseau = fuseauValide(request.nextUrl.searchParams.get('fuseau'))
+    // Jour local du téléphone : un renfort ajouté à l'équipe du jour peut pointer sur cette obra (equipe_par_jour).
+    const chantiers = membre ? chantiersAffectes(membre, ctx.chantiersEnCours, ctx.equipes, heureLocale(maintenant, fuseau).date) : []
 
     let ouverts: Ligne[] = []
     let historique: Ligne[] = []
     if (membre) {
-      const depuis = heureLocale(maintenant - JOURS_HISTORIQUE * 86_400_000, fuseauValide(request.nextUrl.searchParams.get('fuseau'))).date
+      const depuis = heureLocale(maintenant - JOURS_HISTORIQUE * 86_400_000, fuseau).date
       const [lus, histo] = await Promise.all([
         pointagesOuverts(ctx.societeId, membre.id),
         supabaseAdmin
@@ -374,7 +376,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ pointage: pointagePourEcran(clos) })
     }
 
-    const chantier = chantiersAffectes(membre, ctx.chantiersEnCours, ctx.equipes).find(c => c.id === corps.chantierId)
+    const jour = heureLocale(maintenant, fuseauValide(corps.fuseau)).date
+    const chantier = chantiersAffectes(membre, ctx.chantiersEnCours, ctx.equipes, jour).find(c => c.id === corps.chantierId)
     if (!chantier) return refus(403, 'chantier_non_affecte')
     if (corps.mode === 'geo_auto' && chantierPourTelephone(chantier).latitude === null) {
       return refus(422, 'chantier_sans_position')

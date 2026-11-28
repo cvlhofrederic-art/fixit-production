@@ -21,6 +21,8 @@ const h = vi.hoisted(() => {
     autreColonneAbsente: false,
     /** Colonne alerte_meteo (migration 20261126b) absente : le chantier s'enregistre sans la case. */
     alerteAbsente: false,
+    /** Colonne equipe_par_jour (migration 20261128c) absente : une obra sans jour retouché s'enregistre sans elle. */
+    equipeAbsente: false,
     chantiers: [] as Ligne[],
     /** Employés (membres_btp) : la route vérifie que ceux affectés au chantier sont du compte. */
     membres: [] as Ligne[],
@@ -54,6 +56,9 @@ const h = vi.hoisted(() => {
       }
       if (table === 'chantiers_btp' && etat.alerteAbsente && 'alerte_meteo' in valeur) {
         return { data: null, error: { code: 'PGRST204', message: "Could not find the 'alerte_meteo' column of 'chantiers_btp' in the schema cache" } }
+      }
+      if (table === 'chantiers_btp' && etat.equipeAbsente && 'equipe_par_jour' in valeur) {
+        return { data: null, error: { code: 'PGRST204', message: "Could not find the 'equipe_par_jour' column of 'chantiers_btp' in the schema cache" } }
       }
       if (operation === 'insert') return { data: { id: 'nouveau', ...valeur }, error: null }
       const ligne = etat.chantiers.find(l => Object.entries(filtres).every(([c, v]) => l[c] === v))
@@ -94,6 +99,7 @@ beforeEach(() => {
   h.etat.colonneAbsente = true
   h.etat.autreColonneAbsente = false
   h.etat.alerteAbsente = false
+  h.etat.equipeAbsente = false
   h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours' }]
   h.etat.membres = [
     { id: M1, owner_id: SOCIETE }, { id: M2, owner_id: SOCIETE }, { id: M_AUTRE, owner_id: AUTRE_SOCIETE },
@@ -211,5 +217,56 @@ describe('POST /api/btp — alerte météo d’un chantier (alerte_meteo)', () =
     const res = await ecrire({ action: 'update', id: 'villa', data: { alerte_meteo: true } })
     expect(res.status).toBe(200)
     expect(h.etat.envois).toEqual([{ operation: 'update', valeur: { alerte_meteo: true, updated_at: expect.any(String) } }])
+  })
+})
+
+// Équipe jour par jour (migration 20261128c, 28/11/2026). Même règle que l'alerte météo : sans la colonne, une obra sans
+// jour retouché (objet vide, valeur par défaut, envoyé par toute nouvelle fiche) s'enregistre sans elle ; une retouche
+// n'est jamais perdue en silence. Et chaque employé désigné un jour doit être un employé de la société.
+describe('POST /api/btp — équipe d’une obra jour par jour (equipe_par_jour)', () => {
+  it('colonne absente, aucun jour retouché : la création réussit sans la colonne, avec un avertissement', async () => {
+    h.etat.colonneAbsente = false
+    h.etat.equipeAbsente = true
+    const res = await ecrire({ action: 'insert', data: { titre: 'Moradia', membres_ids: [M1], equipe_par_jour: {} } })
+    expect(res.status).toBe(201)
+    expect(h.etat.envois.map(e => 'equipe_par_jour' in e.valeur)).toEqual([true, false])
+    expect(h.etat.avertissements).toEqual([expect.stringContaining('migration 20261128c')])
+  })
+
+  it('colonne absente, un jour retouché : refus 409 qui le dit (français et portugais), rien n’est réécrit', async () => {
+    h.etat.colonneAbsente = false
+    h.etat.equipeAbsente = true
+    const res = await ecrire({ action: 'update', id: 'villa', data: { equipe_par_jour: { '2026-12-01': [M1, M2] } } })
+    expect(res.status).toBe(409)
+    expect(String(res.json.error)).toContain('l’équipe par jour attend une mise à jour de la base')
+    expect(String(res.json.error)).toContain('a equipa por dia aguarda uma atualização')
+    expect(h.etat.envois).toHaveLength(1)
+  })
+
+  it('colonne présente : les jours retouchés sont écrits tels quels', async () => {
+    h.etat.colonneAbsente = false
+    const equipe = { '2026-12-01': [M1, M2], '2026-12-06': [] }
+    const res = await ecrire({ action: 'update', id: 'villa', data: { equipe_par_jour: equipe } })
+    expect(res.status).toBe(200)
+    expect(h.etat.envois).toEqual([{ operation: 'update', valeur: { equipe_par_jour: equipe, updated_at: expect.any(String) } }])
+  })
+
+  it('employé d’une autre société désigné un jour : refus 400, rien n’est écrit', async () => {
+    h.etat.colonneAbsente = false
+    // À la création (la modification relit d'abord la fiche, que ce banc ne simule pas).
+    const res = await ecrire({ action: 'insert', data: { titre: 'Moradia', equipe_par_jour: { '2026-12-01': [M1, M_AUTRE] } } })
+    expect(res.status).toBe(400)
+    expect(String(res.json.error)).toContain('membre de l\'équipe introuvable dans votre compte')
+    expect(h.etat.envois).toEqual([])
+  })
+
+  it('jour impossible ou identifiant mal formé : refus 400 qui nomme la colonne', async () => {
+    h.etat.colonneAbsente = false
+    for (const equipe of [{ '2026-02-30': [M1] }, { '2026-12-01': ['m1'] }, [M1]]) {
+      const res = await ecrire({ action: 'update', id: 'villa', data: { equipe_par_jour: equipe } })
+      expect(res.status).toBe(400)
+      expect(String(res.json.error)).toContain('equipe_par_jour')
+    }
+    expect(h.etat.envois).toEqual([])
   })
 })

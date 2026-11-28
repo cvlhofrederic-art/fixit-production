@@ -213,7 +213,8 @@ async function contexteDuTelephone(appareil: Ligne, maintenant: number): Promise
 
 /** Chantier en cours affecté à l'employé et localisé ; sinon la raison d'ignorer l'arrivée. */
 function chantierPointable(ctx: Contexte, chantierId: string): ChantierBtp | string {
-  const chantier = chantiersAffectes(ctx.membre, ctx.donnees.chantiersEnCours, ctx.donnees.equipes).find(c => c.id === chantierId)
+  const jour = heureLocale(ctx.maintenant, ctx.fuseau).date
+  const chantier = chantiersAffectes(ctx.membre, ctx.donnees.chantiersEnCours, ctx.donnees.equipes, jour).find(c => c.id === chantierId)
   if (!chantier) return 'chantier_non_affecte'
   if (chantierPourTelephone(chantier).latitude === null) return 'chantier_sans_position'
   return chantier

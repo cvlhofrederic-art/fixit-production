@@ -83,6 +83,21 @@ describe('chantiersAffectes — directement ou par une équipe, et seulement « 
     const sansColonne = chantiers.map(({ membres_ids: _ignore, ...reste }) => reste)
     expect(chantiersAffectes(PAUL, sansColonne, equipes).map(c => c.id)).toEqual(['c-villa'])
   })
+
+  it('renfort d’un jour (equipe_par_jour, 28/11/2026) : ce jour-là seulement ; une retouche n’enlève jamais un chantier', () => {
+    const avecJours: ChantierBtp[] = [
+      ...chantiers,
+      { id: 'c-renfort', titre: 'Renfort', statut: 'En cours', membres_ids: [], equipe_par_jour: { '2026-12-01': ['m-jean'] } },
+      // Paul fait partie de l'équipe habituelle du garage mais n'y figure pas le 01/12 : il peut toujours y pointer.
+      { id: 'c-garage-2', titre: 'Garage 2', statut: 'En cours', membres_ids: ['m-paul'], equipe_par_jour: { '2026-12-01': [] } },
+      { id: 'c-fini-2', titre: 'Fini 2', statut: 'Terminé', membres_ids: [], equipe_par_jour: { '2026-12-01': ['m-jean'] } },
+    ]
+    expect(chantiersAffectes(JEAN, avecJours, equipes, '2026-12-01').map(c => c.id)).toEqual(['c-immeuble', 'c-renfort'])
+    expect(chantiersAffectes(JEAN, avecJours, equipes, '2026-12-02').map(c => c.id)).toEqual(['c-immeuble'])
+    // Sans jour donné (appel d'avant ce lot) : rien ne change.
+    expect(chantiersAffectes(JEAN, avecJours, equipes).map(c => c.id)).toEqual(['c-immeuble'])
+    expect(chantiersAffectes(PAUL, avecJours, equipes, '2026-12-01').map(c => c.id)).toEqual(['c-villa', 'c-garage', 'c-garage-2'])
+  })
 })
 
 describe('chantier vers le téléphone', () => {

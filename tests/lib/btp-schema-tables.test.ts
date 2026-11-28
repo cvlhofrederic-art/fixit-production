@@ -22,9 +22,11 @@ import { SOURCES_DES_COLONNES, colonnesModifiees, mapToSupabase } from '@/lib/ho
 // `!` = NOT NULL, `*` = valeur par défaut. Plus chantiers_btp.membres_ids (uuid[] NOT NULL, vide par défaut), ajoutée
 // par la migration 20261116 du pointage géolocalisé (PR #703), appliquée en production le 16/11/2026, et
 // chantiers_btp.alerte_meteo (boolean NOT NULL, false par défaut), ajoutée par la migration 20261126b de l'alerte météo
-// par chantier (26/11/2026), à appliquer en production AVANT la fusion de la PR qui l'apporte.
+// par chantier (26/11/2026), à appliquer en production AVANT la fusion de la PR qui l'apporte, et
+// chantiers_btp.equipe_par_jour (jsonb NOT NULL, objet vide par défaut), ajoutée par la migration 20261128c de l'équipe
+// jour par jour (28/11/2026) ; sans elle, la route enregistre une obra sans jour retouché et refuse une retouche (409).
 const RELEVE_PRODUCTION: Record<TableEcrivable, string> = {
-  chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*, membres_ids:uuid[]!*, alerte_meteo:boolean!*',
+  chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*, membres_ids:uuid[]!*, alerte_meteo:boolean!*, equipe_par_jour:jsonb!*',
   charges_fixes: 'id:uuid!*, owner_id:uuid!, label:text!, montant:numeric!, frequence:text!, categorie:text!, date_debut:date, date_fin:date, created_at:timestamptz*, updated_at:timestamptz*',
   dc4_btp: 'id:uuid!*, owner_id:uuid!, entreprise:text!*, siret:text*, responsable:text*, email:text*, telephone:text*, adresse:text*, chantier:text*, lot:text*, montant_marche:numeric*, taux_tva:numeric*, statut:text!*, date_agrement:date, dc4_genere:boolean*, created_at:timestamptz*, updated_at:timestamptz*, chantier_id:uuid',
   dce_analyses_btp: 'id:uuid!*, owner_id:uuid!, titre:text!*, country:text*, project_type:text*, status:text!*, result:jsonb*, created_at:timestamptz*',
@@ -43,6 +45,8 @@ const TYPE_DU_RELEVE: Record<string, string> = {
   text: 'texte', uuid: 'uuid', 'uuid[]': 'liste_uuid', numeric: 'nombre', integer: 'nombre', 'double precision': 'nombre',
   boolean: 'booleen', date: 'date', time: 'heure', jsonb: 'json',
 }
+/** Colonnes jsonb dont la forme est contrôlée de près (au lieu de « tout JSON ») : leur type de liste blanche. */
+const TYPE_PARTICULIER: Record<string, string> = { 'chantiers_btp.equipe_par_jour': 'equipe_jours' }
 
 function colonnesDuReleve(table: TableEcrivable) {
   return RELEVE_PRODUCTION[table].split(', ').map(entree => {
@@ -60,7 +64,7 @@ describe('schéma des tables BTP — aligné sur le relevé de production', () =
       expect(Object.keys(COLONNES_BTP[table]).sort()).toEqual(releve.map(c => c.nom).sort())
       for (const c of releve) {
         const spec = COLONNES_BTP[table][c.nom]
-        expect({ colonne: c.nom, type: spec.type }).toEqual({ colonne: c.nom, type: TYPE_DU_RELEVE[c.type] })
+        expect({ colonne: c.nom, type: spec.type }).toEqual({ colonne: c.nom, type: TYPE_PARTICULIER[`${table}.${c.nom}`] ?? TYPE_DU_RELEVE[c.type] })
         expect({ colonne: c.nom, nonNul: !!spec.nonNul }).toEqual({ colonne: c.nom, nonNul: c.nonNul })
         expect({ colonne: c.nom, requis: !!spec.requis }).toEqual({ colonne: c.nom, requis: c.requis })
       }
@@ -88,7 +92,7 @@ const EQUIPE = 'c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f'
 // écran se met à envoyer une colonne que la liste blanche ne connaît pas, ce test échoue : sinon chaque enregistrement
 // serait refusé (relecture adverse du 16/11/2026).
 const FICHES_DES_FORMULAIRES: Record<keyof typeof TABLES_DU_HOOK, Record<string, unknown>> = {
-  chantiers: { titre: 'Rénovation cuisine', client: 'M. Martin', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13001', latitude: 43.3, longitude: 5.4, dateDebut: '2026-11-01', dateFin: '2026-12-01', budget: '12000', statut: 'En cours', description: 'Cuisine complète', equipe: 'Maçons', sousTaches: [{ id: 't1', nom: 'Dépose' }], geoRayonM: 250, devis_id: null, membres_ids: [] },
+  chantiers: { titre: 'Rénovation cuisine', client: 'M. Martin', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13001', latitude: 43.3, longitude: 5.4, dateDebut: '2026-11-01', dateFin: '2026-12-01', budget: '12000', statut: 'En cours', description: 'Cuisine complète', equipe: 'Maçons', sousTaches: [{ id: 't1', nom: 'Dépose' }], geoRayonM: 250, devis_id: null, membres_ids: [], equipe_par_jour: {} },
   membres: { prenom: 'Paul', nom: 'Durand', telephone: '0600000000', email: 'paul@example.test', typeCompte: 'ouvrier', rolePerso: 'Maçon', equipeId: EQUIPE, coutHoraire: 25, chargesPct: 45, salaire_brut_mensuel: 2100, salaire_net_mensuel: 1650, charges_salariales_pct: 22, charges_patronales_pct: 45, type_contrat: 'cdi', heures_hebdo: 35, panier_repas_jour: 10, indemnite_trajet_jour: 5, prime_mensuelle: 0, actif: true },
   equipes: { nom: 'Maçons', metier: 'Maçonnerie', chantierId: CHANTIER, membreIds: [] },
   pointages: { employe: 'Paul Durand', membreId: MEMBRE, poste: 'ouvrier', chantier: 'Rénovation cuisine', chantierId: CHANTIER, date: '2026-11-15', heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, heuresTravaillees: 8, notes: '' },
@@ -155,6 +159,22 @@ describe('verifierLigne — refus clairs', () => {
     expect(verifierLigne('chantiers_btp', { membres_ids: `{${MEMBRE}}` }, 'modification')).toBe('valeur au mauvais format pour membres_ids')
     expect(verifierLigne('chantiers_btp', { membres_ids: null }, 'modification')).toBe('ces champs ne peuvent pas être vides (membres_ids)')
   })
+
+  it('équipe par jour (equipe_par_jour) : des jours réels, une liste d’identifiants par jour, jamais null', () => {
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: {} }, 'modification')).toBeNull()
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: { '2026-12-01': [MEMBRE], '2026-12-06': [] } }, 'modification')).toBeNull()
+    const refus = 'valeur au mauvais format pour equipe_par_jour'
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: { '2026-02-30': [MEMBRE] } }, 'modification')).toBe(refus)
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: { '01/12/2026': [MEMBRE] } }, 'modification')).toBe(refus)
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: { '2026-12-01': ['m1'] } }, 'modification')).toBe(refus)
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: { '2026-12-01': MEMBRE } }, 'modification')).toBe(refus)
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: [MEMBRE] }, 'modification')).toBe(refus)
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: 'x' }, 'modification')).toBe(refus)
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: null }, 'modification')).toBe('ces champs ne peuvent pas être vides (equipe_par_jour)')
+    // Au plus un peu plus de trois ans de jours retouchés.
+    const trop = Object.fromEntries(Array.from({ length: 1101 }, (_, i) => [new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10), []]))
+    expect(verifierLigne('chantiers_btp', { equipe_par_jour: trop }, 'modification')).toBe(refus)
+  })
 })
 
 describe('valeursHorsBornes', () => {
@@ -191,6 +211,17 @@ describe('referencesDeLigne et memeValeur', () => {
     expect(dejaEnregistre(MEMBRE, [EQUIPE])).toBe(false)
     expect(dejaEnregistre(MEMBRE, MEMBRE)).toBe(true)
     expect(dejaEnregistre(MEMBRE, null)).toBe(false)
+  })
+
+  it('équipe par jour : un rattachement par employé désigné (sans doublon) ; déjà enregistré s’il figure à un jour en base', () => {
+    expect(referencesDeLigne('chantiers_btp', { equipe_par_jour: { '2026-12-01': [MEMBRE, EQUIPE], '2026-12-02': [MEMBRE] } })).toEqual([
+      { colonne: 'equipe_par_jour', cible: 'membres_btp', id: MEMBRE },
+      { colonne: 'equipe_par_jour', cible: 'membres_btp', id: EQUIPE },
+    ])
+    expect(referencesDeLigne('chantiers_btp', { equipe_par_jour: {} })).toEqual([])
+    expect(dejaEnregistre(MEMBRE, { '2026-12-01': [EQUIPE], '2026-12-05': [MEMBRE.toUpperCase()] })).toBe(true)
+    expect(dejaEnregistre(MEMBRE, { '2026-12-01': [EQUIPE] })).toBe(false)
+    expect(dejaEnregistre(MEMBRE, {})).toBe(false)
   })
 
   it('même valeur au sens de la base', () => {

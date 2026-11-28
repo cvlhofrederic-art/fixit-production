@@ -19,6 +19,7 @@
  */
 
 import { z } from 'zod'
+import { JOURS_MAX_PAR_CHANTIER, jourValide, lireEquipeParJour, membresDesignes } from '@/lib/btp/equipe-par-jour'
 
 // Tables écrivables par le POST. `ref_taux` (taux de référence globaux, posés par migration) n'y figure pas :
 // la route le sert seulement en lecture (`GET /api/btp?table=ref_taux`).
@@ -31,8 +32,11 @@ export type TableCible = 'chantiers_btp' | 'membres_btp' | 'equipes_btp'
 /** Colonnes posées par la base ou par la route, jamais par l'écran : retirées sans erreur avant tout contrôle. */
 export const COLONNES_SYSTEME = ['id', 'owner_id', 'created_at', 'updated_at'] as const
 
-/** `liste_uuid` : tableau d'identifiants (colonne uuid[]), envoyé en liste JSON. */
-type TypeColonne = 'texte' | 'uuid' | 'liste_uuid' | 'nombre' | 'booleen' | 'date' | 'heure' | 'json'
+/**
+ * `liste_uuid` : tableau d'identifiants (colonne uuid[]), envoyé en liste JSON.
+ * `equipe_jours` : objet JSON { "AAAA-MM-JJ": [identifiants] } (colonne jsonb equipe_par_jour d'un chantier).
+ */
+type TypeColonne = 'texte' | 'uuid' | 'liste_uuid' | 'equipe_jours' | 'nombre' | 'booleen' | 'date' | 'heure' | 'json'
 
 export interface SpecColonne {
   type: TypeColonne
@@ -92,6 +96,9 @@ export const COLONNES_BTP: Record<TableEcrivable, Record<string, SpecColonne>> =
     membres_ids: { type: 'liste_uuid', nonNul: true, cible: 'membres_btp' },
     // Chantier soumis à l'alerte météo par notification (migration 20261126b, décision du 26/11/2026).
     alerte_meteo: { type: 'booleen', nonNul: true },
+    // Équipe retouchée jour par jour ({ "AAAA-MM-JJ": [uuid…] }, objet vide par défaut ; migration 20261128c,
+    // lib/btp/equipe-par-jour.ts) : chaque employé désigné doit être un membre du compte, comme dans membres_ids.
+    equipe_par_jour: { type: 'equipe_jours', nonNul: true, cible: 'membres_btp' },
   },
   membres_btp: {
     prenom: texteRequis, nom: texteRequis, telephone: texte, email: texte,
@@ -215,6 +222,9 @@ const SCHEMAS_TYPES: Record<TypeColonne, z.ZodType> = {
   // Seulement une liste JSON : la base lirait aussi un littéral de tableau en texte (« {…} »), mais la route doit
   // pouvoir contrôler chaque identifiant (même compte).
   liste_uuid: z.array(z.string().regex(FORMAT_UUID)),
+  // Un vrai jour du calendrier par clé, une liste d'identifiants par jour, au plus JOURS_MAX_PAR_CHANTIER jours.
+  equipe_jours: z.record(z.string().refine(jourValide), z.array(z.string().regex(FORMAT_UUID)))
+    .refine(jours => Object.keys(jours).length <= JOURS_MAX_PAR_CHANTIER),
   nombre: z.union([z.number(), z.string().regex(FORMAT_NOMBRE)]),
   booleen: z.union([z.boolean(), z.string(), z.number()]),
   date: z.union([z.string(), z.number()]),
@@ -287,17 +297,22 @@ export function referencesDeLigne(table: TableEcrivable, ligne: Record<string, u
     const spec = colonnes[colonne]
     const cible = spec?.cible
     if (!cible) return []
-    const ids: unknown[] = spec.type === 'liste_uuid' && Array.isArray(valeur) ? valeur : [valeur]
+    const ids: unknown[] = spec.type === 'equipe_jours' ? membresDesignes(lireEquipeParJour(valeur))
+      : spec.type === 'liste_uuid' && Array.isArray(valeur) ? valeur : [valeur]
     return ids.filter((id): id is string => typeof id === 'string' && id !== '').map(id => ({ colonne, cible, id }))
   })
 }
 
 /**
- * L'identifiant `id` est déjà enregistré dans cette colonne de la fiche : c'est sa valeur, ou un élément de sa liste
- * (membres_ids d'un chantier).
+ * L'identifiant `id` est déjà enregistré dans cette colonne de la fiche : c'est sa valeur, un élément de sa liste
+ * (membres_ids d'un chantier), ou un employé d'un de ses jours (equipe_par_jour d'un chantier, seul objet concerné).
  */
 export function dejaEnregistre(id: string, valeurEnBase: unknown): boolean {
-  return Array.isArray(valeurEnBase) ? valeurEnBase.some(v => memeValeur(id, v)) : memeValeur(id, valeurEnBase)
+  if (Array.isArray(valeurEnBase)) return valeurEnBase.some(v => memeValeur(id, v))
+  if (typeof valeurEnBase === 'object' && valeurEnBase !== null) {
+    return membresDesignes(lireEquipeParJour(valeurEnBase)).some(v => memeValeur(id, v))
+  }
+  return memeValeur(id, valeurEnBase)
 }
 
 /** Même valeur, au sens de la base : 150 et « 150 » sont égaux, un identifiant se compare sans la casse. */
