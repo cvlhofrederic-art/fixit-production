@@ -103,7 +103,9 @@ describe('rb-c04 A : une fiche par relevé ou par arrêté sur téléphone', () 
       expect(getComputedStyle(entete).position).toBe('absolute')
       expect(getComputedStyle(entete).width).toBe('1px')
     }
-    expect(correctifs()).toContain('#aj-root .tbl.vfx-fiches tbody td::before{content:attr(data-label)')
+    expect(correctifs()).toContain(
+      '#aj-root .tbl.vfx-fiches tbody td::before,#aj-root table.vfx-comptes.vfx-fiches tbody td::before{content:attr(data-label)',
+    )
   })
 
   it('à 769 px et au-dessus : le tableau reste un tableau', () => {

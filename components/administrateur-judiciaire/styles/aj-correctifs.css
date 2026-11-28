@@ -137,14 +137,52 @@
  * portent la classe vfx-fiches changent ; au-dessus de 768 px, rien ne change.
  */
 @media (max-width: 768px){
-#aj-root .tbl.vfx-fiches{min-width:0}
-#aj-root .tbl.vfx-fiches,#aj-root .tbl.vfx-fiches tbody,#aj-root .tbl.vfx-fiches tbody tr{display:block}
-#aj-root .tbl.vfx-fiches thead{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-#aj-root .tbl.vfx-fiches tbody tr{padding:10px 14px;border-bottom:1px solid var(--line)}
-#aj-root .tbl.vfx-fiches tbody tr:last-child{border-bottom:none}
-#aj-root .tbl.vfx-fiches tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;border-bottom:none;text-align:right}
-#aj-root .tbl.vfx-fiches tbody td:first-child{position:static;box-shadow:none;background:transparent}
-#aj-root .tbl.vfx-fiches tbody td::before{content:attr(data-label);flex:none;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-300);text-align:left}
+#aj-root .tbl.vfx-fiches,#aj-root table.vfx-comptes.vfx-fiches{min-width:0}
+#aj-root .tbl.vfx-fiches,#aj-root .tbl.vfx-fiches tbody,#aj-root .tbl.vfx-fiches tbody tr,#aj-root table.vfx-comptes.vfx-fiches,#aj-root table.vfx-comptes.vfx-fiches tbody,#aj-root table.vfx-comptes.vfx-fiches tbody tr{display:block}
+#aj-root .tbl.vfx-fiches thead,#aj-root table.vfx-comptes.vfx-fiches thead{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#aj-root .tbl.vfx-fiches tbody tr,#aj-root table.vfx-comptes.vfx-fiches tbody tr{padding:10px 14px;border-bottom:1px solid var(--line)}
+#aj-root .tbl.vfx-fiches tbody tr:last-child,#aj-root table.vfx-comptes.vfx-fiches tbody tr:last-child{border-bottom:none}
+#aj-root .tbl.vfx-fiches tbody td,#aj-root table.vfx-comptes.vfx-fiches tbody td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;border-bottom:none;text-align:right}
+#aj-root .tbl.vfx-fiches tbody td:first-child,#aj-root table.vfx-comptes.vfx-fiches tbody td:first-child{position:static;box-shadow:none;background:transparent}
+#aj-root .tbl.vfx-fiches tbody td::before,#aj-root table.vfx-comptes.vfx-fiches tbody td::before{content:attr(data-label);flex:none;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-300);text-align:left}
+#aj-root .tbl.vfx-fiches tbody td>.vfx-fiche-valeur,#aj-root table.vfx-comptes.vfx-fiches tbody td>.vfx-fiche-valeur{min-width:0;max-width:100%}
+/* IBAN : l'écriture en ligne (nowrap) cède sur la fiche, il se coupe entre ses groupes de 4 chiffres plutôt que de défiler dans un cadre caché. */
+#aj-root table.vfx-comptes.vfx-fiches tbody td .vfx-fiche-iban .mono{white-space:normal!important}
+#aj-root .tbl.vfx-fiches tbody td>select{min-width:0;max-width:65%}
+}
+
+/*
+ * Suite de la PR 799 (décision du 26/11/2026, points c05 B et c06) : « Comptes bancaires du mandat », « Lignes de relevé »
+ * et le tableau des lignes retenues de l'analyse d'un relevé passent, sous 769 px, en une fiche par ligne, comme les deux
+ * tableaux ci-dessus (tests : correctifs-tableaux-telephone.test.tsx). Les deux derniers utilisent DataTable (prop fiches) ;
+ * les comptes ont leur propre tableau, qui n'a pas la classe .tbl : sa mise en page de bureau (jusqu'ici écrite en ligne dans
+ * ComptesBancairesPanel.tsx, largeur minimale de 640 px dans le cadre qui défile) passe ici, à l'identique, pour que
+ * le téléphone puisse la changer. Les boutons d'une ligne (Modifier, Clôturer, Imputer à…) restent dans leur cellule, qui
+ * garde son étiquette. Au-dessus de 768 px, rien ne change.
+ */
+#aj-root table.vfx-comptes{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+/*
+ * Détails de la fiche d'un compte (relecture du 27/11/2026) : l'étiquette « Solde » reprenait la police à chasse fixe de sa
+ * cellule (elle garde sa police sur ordinateur, seule l'étiquette de la fiche revient à celle du module) ; une cellule vide
+ * (« Actions » d'un compte clôturé) n'affiche pas son étiquette seule ; les pastilles de « Nature » se calent à droite,
+ * comme le texte de leur cellule.
+ */
+@media (max-width: 768px){
+#aj-root table.vfx-comptes.vfx-fiches tbody td::before{font-family:Manrope,system-ui,sans-serif}
+#aj-root table.vfx-comptes.vfx-fiches tbody td:empty::before{display:none}
+#aj-root table.vfx-comptes.vfx-fiches tbody td .vfx-fiche-pastilles{justify-content:flex-end}
+}
+
+/*
+ * Analyse d'un relevé, fiche d'une ligne retenue (décision du 28/11/2026, point 856 · 2 A) : « Copropriétaire » (liste) et
+ * « Imputation proposée » passent sous leur étiquette, sur toute la largeur de la fiche (la liste n'était lisible qu'à 65 %,
+ * « Exemple Alpha · L » sans le lot ni le solde ; l'imputation tenait sur 3 lignes à côté de la pastille). Sur toute
+ * la largeur, le lot devient lisible ; la liste native coupe encore la fin de l'option, donc le solde, à 375 px. Colonnes portant
+ * pleineLargeur (DataTable) : classe vfx-fiche-pleine. Les autres champs et le bureau (au-dessus de 768 px) ne changent pas.
+ */
+@media (max-width: 768px){
+#aj-root .tbl.vfx-fiches tbody td.vfx-fiche-pleine{flex-direction:column;align-items:stretch;gap:4px;text-align:left}
+#aj-root .tbl.vfx-fiches tbody td.vfx-fiche-pleine>select{width:100%;max-width:100%}
 }
 
 /*

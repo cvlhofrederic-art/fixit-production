@@ -187,19 +187,20 @@ function CelluleCoproprietaire({ ligne, personnes, selections, setSelections }: 
 function CelluleImputationProposee({ ligne }: Readonly<{ ligne: LigneRetenue }>) {
   if (!ligne.confiance) return <span style={STYLE_DISCRET}>{ligne.motif}</span>
   return (
-    <>
+    <span className="vfx-fiche-valeur">
       <Pill kind={PILL_CONFIANCE_RAPPROCHEMENT[ligne.confiance].kind} noDot>
         {PILL_CONFIANCE_RAPPROCHEMENT[ligne.confiance].label}
       </Pill>{' '}
       <span style={STYLE_DISCRET}>{ligne.motif}</span>
-    </>
+    </span>
   )
 }
 
-/** Lignes retenues avec le copropriétaire proposé. */
+/** Lignes retenues avec le copropriétaire proposé ; sur téléphone, une fiche par ligne (DataTable, prop fiches). */
 function TableauLignesRetenues({ analyse, personnes, selections, setSelections }: Readonly<ResultatAnalyseReleveProps>) {
   return (
     <DataTable
+      fiches="Lignes retenues du relevé"
       rowKey="i"
       columns={[
         {
@@ -220,11 +221,13 @@ function TableauLignesRetenues({ analyse, personnes, selections, setSelections }
         },
         {
           h: 'Copropriétaire',
+          pleineLargeur: true,
           render: (ligne) => <CelluleCoproprietaire ligne={ligne} personnes={personnes} selections={selections} setSelections={setSelections} />,
         },
         {
           // Imputation proposée à un copropriétaire : « Rapprochement » désigne le rapprochement bancaire (rb-19 A, décision du 26/11/2026).
           h: 'Imputation proposée',
+          pleineLargeur: true,
           render: (ligne) => <CelluleImputationProposee ligne={ligne} />,
         },
       ]}

@@ -231,6 +231,7 @@ export function TresorerieModule() {
           </div>
         ) : (
           <DataTable
+            fiches="Lignes de relevé"
             rowKey="id"
             columns={[
               {
