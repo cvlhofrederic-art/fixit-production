@@ -10,6 +10,7 @@ import { generateRapportPDF } from '@/lib/rapport-pdf'
 import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
 import { documentsPourSynthese } from '@/lib/documents/liste-effective'
+import { modeleRapportSociete } from '@/lib/pdf/modeles-societes'
 import { carteDocumentsLies } from '@/components/dashboard/rapports/document-lie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
@@ -241,6 +242,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   // BTP pro : nouveaux rapports enregistrés dans rapports_btp par /api/btp (voir ligneRapport plus haut). L'artisan garde
   // l'écriture d'avant.
   const enregistrementBTP = orgRole === 'pro_societe'
+  // Gabarit de relatório propre à la société (BTP pro seulement, règle n° 1) ; fiche de la société pour un salarié invité.
+  const modeleRapport = orgRole === 'pro_societe' ? modeleRapportSociete(idFicheDocuments(artisan)) : undefined
 
   const [rapports, setRapports] = useState<RapportIntervention[]>([])
 
@@ -445,21 +448,26 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     return {}
   }
 
-  // Load available photos chantier for linking
-  const loadAvailablePhotos = async () => {
-    if (!artisan?.id) return
+  // Load available photos chantier for linking. Rend la liste lue : le PDF lancé juste après ne voit pas encore l'état.
+  const loadAvailablePhotos = async (): Promise<PhotoRecord[]> => {
+    if (!artisan?.id) return []
     setPhotosLoading(true)
+    let lues: PhotoRecord[] = []
     try {
       const headers = await getAuthHeaders()
       // Compte invité dans une société : photos et identité sont celles de la fiche de la société (idFicheDocuments).
       const res = await fetch(`/api/artisan-photos?artisan_id=${idFicheDocuments(artisan)}`, { headers })
       const json = await res.json()
-      if (json.data) setAvailablePhotos(json.data)
+      if (json.data) {
+        lues = json.data
+        setAvailablePhotos(json.data)
+      }
     } catch (e) {
       console.error('Error loading photos for rapport:', e)
     } finally {
       setPhotosLoading(false)
     }
+    return lues
   }
 
   // Fetch artisan company data once (with auth). Fiche des documents : la sienne, ou celle de la société pour un compte
@@ -826,10 +834,10 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const handleGeneratePDF = async (r: RapportIntervention) => {
     setPdfLoading(r.id)
     try {
-      if (r.linkedPhotoIds?.length && availablePhotos.length === 0) {
-        await loadAvailablePhotos()
-      }
-      await generateRapportPDF(r, availablePhotos, dateFmtLocale, orgRole)
+      // Photos lues ici quand l'écran ne les a pas encore : l'état `availablePhotos` de ce rendu resterait vide, et le
+      // PDF sortait sans les photos liées.
+      const photos = r.linkedPhotoIds?.length && availablePhotos.length === 0 ? await loadAvailablePhotos() : availablePhotos
+      await generateRapportPDF(r, photos, dateFmtLocale, orgRole, modeleRapport)
     } catch (e) {
       console.error('PDF error:', e)
     } finally {

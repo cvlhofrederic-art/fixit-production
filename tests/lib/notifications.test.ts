@@ -25,6 +25,10 @@ const natif = {
   appels: [] as Appel[],
   /** Réponse du système à la demande d'autorisation. */
   affichage: 'granted',
+  /** État lu sans dialogue (checkPermissions) : 'prompt' tant que la question n'a jamais été posée. */
+  etat: 'granted',
+  /** Identifiants des notifications encore en attente (getPending) ; null : la lecture échoue. */
+  enAttente: [] as number[] | null,
 }
 
 function moduleNatifSimule() {
@@ -35,8 +39,13 @@ function moduleNatifSimule() {
   }
   const reponses: Record<string, () => unknown> = {
     requestPermissions: () => ({ display: natif.affichage }),
+    checkPermissions: () => ({ display: natif.etat }),
     schedule: () => ({ notifications: [] }),
     cancel: () => undefined,
+    getPending: () => {
+      if (natif.enAttente === null) throw new Error('lecture impossible')
+      return { notifications: natif.enAttente.map(id => ({ id })) }
+    },
   }
   // Comme le proxy de registerPlugin : toute propriété lue est une méthode, « then » compris. Une méthode que le code
   // natif ne connaît pas rend une promesse rejetée et ne rappelle jamais les fonctions reçues : un module rendu par une
@@ -100,7 +109,7 @@ beforeEach(() => {
   // Horloge figée (seule la date : la minuterie de sansBlocage reste réelle).
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 10, 17, 8, 0, 0))
-  Object.assign(natif, { chargements: 0, lectures: 0, echecsDeChargement: 0, appels: [], affichage: 'granted' })
+  Object.assign(natif, { chargements: 0, lectures: 0, echecsDeChargement: 0, appels: [], affichage: 'granted', etat: 'granted', enAttente: [] })
   vi.resetModules()
   vi.doMock('@capacitor/local-notifications', moduleNatifSimule)
 })
@@ -200,14 +209,116 @@ describe('rappels J-1 dans l’appli : le module natif est le proxy de registerP
   })
 })
 
+// ── Alerte météo des chantiers BTP (programmerNotification, annulerNotification, notificationEnAttente, 26/11/2026) ──
+
+const ALERTE = { cle: 'alerte-meteo:c-dalle:2026-11-18', titre: '🌧️ Alerte météo demain : Dalle', corps: 'Prévu demain : pluie 12 mm.' }
+
+describe('alerte météo dans l’appli', () => {
+  it('heure future : programmée à cette heure, sous l’identifiant de la clé, sans dialogue d’autorisation', async () => {
+    dansLAppli()
+    const { programmerNotification } = await notifications()
+    const a = new Date(2026, 10, 17, 18, 0, 0)
+
+    expect(await sansBlocage(programmerNotification({ ...ALERTE, a, extra: { chantierId: 'c-dalle' } }))).toBe(true)
+
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions', 'schedule'])
+    const [notification] = notificationsProgrammees(natif.appels[1])
+    expect(notification).toMatchObject({
+      title: ALERTE.titre, body: ALERTE.corps, schedule: { at: a, allowWhileIdle: true }, extra: { chantierId: 'c-dalle' },
+    })
+    expect(Number.isInteger(notification.id)).toBe(true)
+  })
+
+  it('heure absente, passée ou à moins d’une seconde : affichée tout de suite, sans heure', async () => {
+    dansLAppli()
+    const { programmerNotification } = await notifications()
+    for (const a of [undefined, new Date(2026, 10, 17, 7, 0), new Date(Date.now() + 500), new Date(Number.NaN)]) {
+      natif.appels = []
+      expect(await sansBlocage(programmerNotification({ ...ALERTE, a }))).toBe(true)
+      expect(notificationsProgrammees(natif.appels[1])[0].schedule).toBeUndefined()
+    }
+  })
+
+  it('la même clé donne le même identifiant pour programmer, annuler et chercher en attente', async () => {
+    dansLAppli()
+    const { programmerNotification, annulerNotification, notificationEnAttente } = await notifications()
+    await sansBlocage(programmerNotification({ ...ALERTE, a: new Date(2026, 10, 17, 18, 0) }))
+    const id = notificationsProgrammees(natif.appels[1])[0].id
+
+    await sansBlocage(annulerNotification(ALERTE.cle))
+    expect(natif.appels[2]).toEqual({ methode: 'cancel', options: { notifications: [{ id }] } })
+
+    natif.enAttente = [id]
+    expect(await sansBlocage(notificationEnAttente(ALERTE.cle))).toBe(true)
+    natif.enAttente = [id + 1]
+    expect(await sansBlocage(notificationEnAttente(ALERTE.cle))).toBe(false)
+  })
+
+  it('lecture des notifications en attente impossible : vrai (l’alerte est remontrée sous le même identifiant)', async () => {
+    dansLAppli()
+    const { notificationEnAttente } = await notifications()
+    natif.enAttente = null
+    expect(await sansBlocage(notificationEnAttente(ALERTE.cle))).toBe(true)
+  })
+
+  it('autorisation refusée : false, rien n’est programmé, et aucun dialogue n’est rouvert', async () => {
+    dansLAppli()
+    natif.etat = 'denied'
+    const { programmerNotification } = await notifications()
+    expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
+  })
+
+  it('autorisationNotifications : le dialogue ne s’ouvre que si la question n’a jamais été posée', async () => {
+    dansLAppli()
+    const { autorisationNotifications } = await notifications()
+    natif.etat = 'prompt'
+    expect(await sansBlocage(autorisationNotifications())).toBe(true)
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions', 'requestPermissions'])
+    natif.etat = 'prompt'
+    natif.affichage = 'denied'
+    expect(await sansBlocage(autorisationNotifications())).toBe(false)
+    // Après un refus : plus aucun dialogue (sous Android 13+, un second refus serait définitif).
+    for (const etat of ['denied', 'prompt-with-rationale']) {
+      natif.appels = []
+      natif.etat = etat
+      expect(await sansBlocage(autorisationNotifications())).toBe(false)
+      expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
+    }
+    natif.appels = []
+    natif.etat = 'granted'
+    expect(await sansBlocage(autorisationNotifications())).toBe(true)
+    expect(natif.appels.map(x => x.methode)).toEqual(['checkPermissions'])
+  })
+
+  it('module natif introuvable : false et aucune exception (programmer comme annuler)', async () => {
+    dansLAppli()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    natif.echecsDeChargement = 3
+    const { programmerNotification, annulerNotification, autorisationNotifications } = await notifications()
+    expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
+    expect(await sansBlocage(annulerNotification(ALERTE.cle))).toBe(false)
+    expect(await sansBlocage(autorisationNotifications())).toBe(false)
+    expect(natif.appels).toEqual([])
+    expect(await sansBlocage(annulerNotification(ALERTE.cle))).toBe(true)
+  })
+})
+
 describe('hors de l’appli (site web)', () => {
   it('rien n’est chargé ni appelé', async () => {
     expect(Capacitor.isNativePlatform()).toBe(false)
-    const { scheduleInterventionReminder, cancelInterventionReminder, sendImmediateNotification } = await notifications()
+    const {
+      scheduleInterventionReminder, cancelInterventionReminder, sendImmediateNotification,
+      programmerNotification, annulerNotification, notificationEnAttente, autorisationNotifications,
+    } = await notifications()
 
     await sansBlocage(scheduleInterventionReminder(RDV))
     await sansBlocage(cancelInterventionReminder(RDV.id))
     await sansBlocage(sendImmediateNotification('Nouveau RDV', 'Débouchage'))
+    expect(await sansBlocage(programmerNotification(ALERTE))).toBe(false)
+    expect(await sansBlocage(annulerNotification(ALERTE.cle))).toBe(false)
+    expect(await sansBlocage(notificationEnAttente(ALERTE.cle))).toBe(false)
+    expect(await sansBlocage(autorisationNotifications())).toBe(false)
 
     expect(natif.chargements).toBe(0)
     expect(natif.lectures).toBe(0)
