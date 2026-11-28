@@ -418,6 +418,39 @@ describe('messages (toasts) sur le bouton Fixy', () => {
     })
 })
 
+/**
+ * Réponse du référent métier du 28/11/2026 (PR 848, point 9, choix A : « Dans cette PR : faire passer ces messages
+ * au-dessus des fenêtres du module »). Le message d'un refus (« Enregistrement impossible »…) s'affichait sous le voile
+ * de la fenêtre restée ouverte : flou sur ordinateur, caché par la fenêtre sur téléphone.
+ */
+describe('messages (toasts) au-dessus des fenêtres du module', () => {
+  const z = (selecteur: string) => Number(style(selecteur).zIndex)
+  const variable = (nom: string) => Number(style('#aj-root').getPropertyValue(nom).trim())
+
+  it('sans le correctif, les messages passent sous le voile des fenêtres (constat du 27/11/2026)', () => {
+    feuillesALargeur(1440, SANS_CORRECTIF)
+    monterCadre()
+    expect(derniereDeclaration('#aj-root .vfx-toast-viewport', 'z-index')).toBe('var(--z-toast)')
+    expect(variable('--z-toast')).toBe(500)
+    expect(variable('--z-toast')).toBeLessThan(z('.modal-backdrop'))
+  })
+
+  for (const largeur of [375, 1440])
+    it(`à ${largeur} px : au-dessus du voile des fenêtres, de la palette de commandes et des infobulles`, () => {
+      feuillesALargeur(largeur)
+      monterCadre()
+      const messages = Number(derniereDeclaration('#aj-root .vfx-toast-viewport', 'z-index'))
+      expect(z('.modal-backdrop')).toBe(1000)
+      expect(messages).toBe(1001)
+      expect(z('.vfx-toast-viewport')).toBe(1001)
+      expect(messages).toBeGreaterThan(variable('--z-cmdk'))
+      expect(messages).toBeGreaterThan(variable('--z-tooltip'))
+      // Rien d'autre ne change : le bandeau du mode reste sous les voiles, les messages gardent leur place.
+      expect(z('.vfx-demo-banner')).toBe(101)
+      expect(parseFloat(style('.vfx-toast-viewport').bottom)).toBe(largeur <= 768 ? 74 : 24)
+    })
+})
+
 describe('en-tête de l’avis d’appel coincé à côté de son sélecteur', () => {
   /** Sélecteur de aj-correctifs.css : enfant de l'en-tête qui n'est ni le pictogramme ni le bloc de droite. */
   const ENFANT_TITRE = 'div:not(.h-ico):not(.right)'

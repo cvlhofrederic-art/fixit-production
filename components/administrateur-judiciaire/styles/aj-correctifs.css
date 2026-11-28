@@ -106,6 +106,18 @@
 @media (max-width: 768px){#aj-root .vfx-toast-viewport{bottom:74px}}
 
 /*
+ * Messages (toasts) au-dessus des fenêtres du module (réponse du référent métier du 28/11/2026, PR 848, point 9, choix A) :
+ * leur z-index (--z-toast : 500) passait sous le voile des fenêtres (.modal-backdrop : 1000, flou de 2 px). Le message
+ * d'un refus affiché pendant qu'une fenêtre reste ouverte (« Enregistrement impossible » d'un compte bancaire, IBAN
+ * invalide, « Ouverture refusée » d'un arrêté…) était flou et assombri sur ordinateur, caché par la fenêtre sur téléphone.
+ * 1001 : juste au-dessus du voile des fenêtres, donc aussi de la palette ⌘K (--z-cmdk : 600) et des infobulles
+ * (--z-tooltip : 700) ; sous le lien d'évitement (9999). Rien d'autre ne change : place, taille et aspect des messages.
+ * Sur téléphone, le message (pleine largeur, à 74 px du bas) couvre le bas de la fenêtre le temps de son affichage (4 à
+ * 6 s, × pour fermer).
+ */
+#aj-root .vfx-toast-viewport{z-index:1001}
+
+/*
  * En-tête de l'avis d'appel coincé (« Avis d'appel par copropriétaire ») : sous 769 px, le titre se réduisait à côté du
  * sélecteur de l'appel (trois lignes à 375 px). Le bloc du titre garde au moins 120 px ; sinon, les contrôles passent à la
  * ligne, toujours à droite. Seulement pour les en-têtes qui le demandent (Panel, propriété controlesALaLigne) : la décision
