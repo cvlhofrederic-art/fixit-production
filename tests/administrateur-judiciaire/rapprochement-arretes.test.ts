@@ -112,6 +112,27 @@ describe('ouverture d’un arrêté', () => {
   })
 })
 
+describe('compte clôturé : arrêtés en lecture seule (PR de suite de la 799, point 18, décision du 26/11/2026)', () => {
+  it('clôture, déclôture et abandon refusés sur un compte clôturé ; lecture et état des arrêtés intacts', async () => {
+    const clos = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(clos.id)
+    const enCours = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    // Réponse du référent métier du 28/11/2026 (point #857 · 1, choix A) : un compte ne se clôture plus avec un arrêté
+    // en cours. Ce cas ne vient donc plus que d'un compte clôturé avant cette règle, écrit ici directement dans la base.
+    await expect(cloturerCompteBancaire(banqueId)).rejects.toThrow(/Un arrêté est en cours sur ce compte/)
+    await ajDb.banques.update(banqueId, { actif: false })
+    const avant = await ajDb.rapprochements.toArray()
+    const refus = /Compte bancaire clôturé : aucune écriture d’arrêté/
+    await expect(cloturerArreteCompte(enCours.id)).rejects.toThrow(refus)
+    await expect(abandonnerArreteCompte(enCours.id)).rejects.toThrow(refus)
+    await expect(decloturerArreteCompte(clos.id)).rejects.toThrow(refus)
+    await expect(ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-30', soldeBanqueCentimes: 0 })).rejects.toThrow(/Compte bancaire clôturé/)
+    expect(await ajDb.rapprochements.toArray()).toEqual(avant)
+    const lus = await listerArretes(banqueId)
+    expect(lus.arretes.map((arrete) => arrete.statut)).toEqual(['Clôturé', 'En cours'])
+  })
+})
+
 describe('clôture et déclôture', () => {
   it('clôture refusée hors équilibre (écart dit par le domaine) ; acceptée à l’équilibre', async () => {
     await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])

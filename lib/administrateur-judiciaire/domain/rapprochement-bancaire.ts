@@ -236,3 +236,14 @@ export function decloturerArrete(arretes: ArreteRapprochement[], id: string): Ar
   if (dernier?.id !== id) throw new Error('Déclôture refusée : seul le dernier arrêté clôturé du compte peut être déclôturé.')
   return { ...cible, statut: 'En cours' }
 }
+
+/**
+ * Contrôle avant la clôture d'un compte bancaire (réponse du référent métier du 28/11/2026, PR 857, point 1, choix A) :
+ * refusée tant qu'un arrêté du compte est en cours, avec ce qu'il faut faire d'abord (le clôturer ou l'abandonner). Sur
+ * un compte clôturé, les arrêtés sont en lecture seule : l'arrêté resterait « En cours » pour toujours. Règle de gestion
+ * VitFix. Les arrêtés clôturés ne bloquent pas ; un arrêté abandonné n'est pas reçu (autre type).
+ */
+export function verifierClotureCompteBancaire(banqueId: string, arretes: readonly ArreteRapprochement[]): void {
+  if (arretes.some((a) => a.banqueId === banqueId && a.statut === 'En cours'))
+    throw new Error('Un arrêté est en cours sur ce compte : le clôturer ou l’abandonner d’abord.')
+}

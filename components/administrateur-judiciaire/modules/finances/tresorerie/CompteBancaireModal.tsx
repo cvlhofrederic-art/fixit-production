@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { ibanGroupe, type CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { CaseModifiable } from '@/components/administrateur-judiciaire/modules/technique/sinistres/ChampsFiche'
+import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
 import type { SaisieCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { NATURES_COMPTE_BANCAIRE, type NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 
 /**
  * Formulaires du panneau « Comptes bancaires du mandat » (absents de la maquette, sur les composants des formulaires du
@@ -150,6 +152,12 @@ export interface ClotureCompteModalProps {
 /**
  * Confirmation « Clôturer » : le compte reste en base, inactif. Aucune action ne le rouvre depuis l'écran (le tableau
  * n'en propose que pour les comptes actifs) : la confirmation le dit avant le clic.
+ * Réponse du référent métier du 28/11/2026 (PR 857, point 5, choix A) : pour un compte au solde non nul, un
+ * avertissement donne ce solde, sans bloquer la clôture. Le solde est celui du tableau des comptes
+ * (CompteAffiche.soldeCentimes, calculé par comptes-bancaires-vue.ts), affiché de la même façon ; solde inconnu
+ * (null : aucune ligne de relevé importée) : pas d'avertissement. Un arrêté en cours sur le compte (point 1, choix A)
+ * est refusé avant cette confirmation, dès le clic sur « Clôturer » (ComptesBancairesPanel.tsx), puis encore par
+ * l'écriture.
  */
 export function ClotureCompteModal({ compte, onClose, onConfirmer }: Readonly<ClotureCompteModalProps>) {
   const [enCours, setEnCours] = useState(false)
@@ -158,6 +166,8 @@ export function ClotureCompteModal({ compte, onClose, onConfirmer }: Readonly<Cl
     setEnCours(true)
     if (!(await onConfirmer())) setEnCours(false)
   }
+  // Solde du tableau des comptes ; null : inconnu (aucune ligne importée), distinct d'un solde nul.
+  const solde = compte.soldeCentimes
   return (
     <Modal open onClose={onClose} labelledBy="cloture-compte-titre">
       <ModalHeader id="cloture-compte-titre" icon="archive" title="Clôturer le compte" onClose={onClose} />
@@ -170,6 +180,13 @@ export function ClotureCompteModal({ compte, onClose, onConfirmer }: Readonly<Cl
           Le compte reste dans la liste, marqué « Clôturé ». Il ne compte plus dans les contrôles du mandat. Sans retour
           depuis cet écran.
         </p>
+        {solde !== null && solde !== 0 && (
+          <div style={{ marginTop: 12 }}>
+            <Alert kind="warn" icon="alert" title={`Solde du compte non nul : ${formatEurosCentimes(solde / 100)}`}>
+              Avertissement, sans blocage : la clôture reste possible. Vérifier qu’aucun relevé ne manque.
+            </Alert>
+          </div>
+        )}
       </ModalBody>
       <ModalFooter>
         <button type="button" className="btn ghost" onClick={onClose}>
