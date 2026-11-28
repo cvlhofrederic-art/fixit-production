@@ -137,6 +137,8 @@ export function mapToSupabase(table: ShortName, item: any): any {
       if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
       else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
       if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
+      // Alerte météo par notification (26/11/2026) : seulement quand la fiche la fournit, et toujours un booléen.
+      if ('alerteMeteo' in item) mapped.alerte_meteo = item.alerteMeteo === true
       return mapped
     }
     case 'membres':
@@ -284,7 +286,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
-    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'], alerte_meteo: ['alerteMeteo'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
@@ -391,6 +393,7 @@ export function mapFromSupabase(table: ShortName, item: any): any {
         latitude: item.latitude,
         longitude: item.longitude,
         sousTaches: Array.isArray(item.sous_taches) ? item.sous_taches : [],
+        alerteMeteo: item.alerte_meteo === true,
       }
     case 'membres':
       return {
@@ -568,6 +571,19 @@ function marquerEcriture(cacheKey: string, oublierCopie = true): void {
   if (oublierCopie) delete _dataCache[cacheKey]
 }
 
+/**
+ * Émis sur `window` après une écriture confirmée sur les chantiers (ajout, modification, suppression) : les instances
+ * du hook ne se préviennent pas entre elles, et l'alerte météo du téléphone (AlertesMeteoTelephone, 27/11/2026) doit
+ * relire tout de suite une case cochée ou décochée dans l'appli. Émis avant la relecture de l'instance qui écrit : les
+ * deux relectures partagent la même requête.
+ */
+export const EVENEMENT_CHANTIERS_ECRITS = 'vitfix:chantiers-ecrits'
+
+function annoncerEcriture(table: ShortName): void {
+  if (table !== 'chantiers' || typeof window === 'undefined') return
+  window.dispatchEvent(new Event(EVENEMENT_CHANTIERS_ECRITS))
+}
+
 /** Options d'une modification : `keepalive` laisse la requête aboutir même si la page se ferme (onglet fermé, rechargement). */
 export interface OptionsModification {
   keepalive?: boolean
@@ -727,9 +743,15 @@ interface UseBTPDataOptions {
    * au BTP pro l'omettent.
    */
   orgRole?: string
+  /**
+   * Faux pour un composant qui n'affiche rien (alerte météo du téléphone) : un chargement en échec ou une liste coupée
+   * ne s'annoncent pas à l'écran (le message parlerait d'une liste que l'écran ouvert ne montre pas, et une liste coupée
+   * ne serait plus signalée à l'écran qui l'affiche). Vrai par défaut.
+   */
+  annoncerEchecs?: boolean
 }
 
-export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true, orgRole }: UseBTPDataOptions) {
+export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true, orgRole, annoncerEchecs = true }: UseBTPDataOptions) {
   const cacheKey = `${table}_${userId}`
   const cached = _dataCache[cacheKey]
   const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
@@ -759,12 +781,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.warn(`[btp] refresh ${table} failed:`, err)
       setError('Erreur de chargement')
-      if (ecranBTP) signalerChargementImpossible()
+      if (ecranBTP && annoncerEchecs) signalerChargementImpossible()
       return null // null = erreur réseau (distinct de [] = table vide)
     } finally {
       setLoading(false)
     }
-  }, [table, cacheKey, ecranBTP])
+  }, [table, cacheKey, ecranBTP, annoncerEchecs])
 
   // ── Auto-import from localStorage on first load ─────────────────────────
   useEffect(() => {
@@ -837,8 +859,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   // Liste coupée par la route : prévenir quand la section qui l'affiche est à l'écran, y compris si la liste a été
   // chargée d'avance par le tableau de bord (une seule fois par liste et par session).
   useEffect(() => {
-    signalerPlafondAtteint(table, _plafonds[cacheKey])
-  }, [items, table, cacheKey])
+    if (annoncerEchecs) signalerPlafondAtteint(table, _plafonds[cacheKey])
+  }, [items, table, cacheKey, annoncerEchecs])
 
   // ── CRUD operations ─────────────────────────────────────────────────────
 
@@ -856,6 +878,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       }
       // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
       marquerEcriture(cacheKey)
+      annoncerEcriture(table)
       const json = await res.json()
       await refresh()
       return json.row ? mapFromSupabase(table, json.row) : null
@@ -889,6 +912,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         throw new EcritureRefusee(`Update ${tableName} failed: ${res.status}`)
       }
       marquerEcriture(cacheKey)
+      annoncerEcriture(table)
       await refresh()
       return true
     } catch (err) {
@@ -911,6 +935,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         throw new EcritureRefusee(`Delete ${tableName} failed: ${res.status}`)
       }
       marquerEcriture(cacheKey)
+      annoncerEcriture(table)
       await refresh()
       return true
     } catch (err) {
@@ -919,7 +944,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.suppression, { id: `btp-ecriture-${tableName}` })
       return false
     }
-  }, [tableName, cacheKey, refresh])
+  }, [table, tableName, cacheKey, refresh])
 
   return { items, loading, error, refresh, add, update, remove }
 }

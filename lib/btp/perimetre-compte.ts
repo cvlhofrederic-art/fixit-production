@@ -47,6 +47,12 @@ export interface PerimetreBtp {
   permissions: Record<string, AccessLevel>
   /** Adresse e-mail du compte, pour retrouver sa fiche employé (membres_btp) ; '' si absente. */
   email: string
+  /**
+   * Présent seulement quand la ligne d'équipe du compte n'a pas pu être lue (panne, délai dépassé) : `permissions` est
+   * alors vide par prudence, mais ce n'est pas un refus. Une route qui répondrait une liste vide répond une erreur à la
+   * place (GET /api/btp).
+   */
+  illisible?: true
 }
 
 /**
@@ -101,6 +107,8 @@ export const COLONNES_VUE_RESTREINTE: Record<string, readonly string[]> = {
   chantiers: [
     'id', 'titre', 'adresse', 'ville', 'code_postal', 'latitude', 'longitude', 'geo_rayon_m',
     'statut', 'date_debut', 'date_fin', 'description', 'membres_ids', 'created_at',
+    // Le téléphone du salarié programme l'alerte météo de ses chantiers soumis à l'alerte (26/11/2026).
+    'alerte_meteo',
   ],
 }
 
@@ -170,14 +178,18 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
     return { societeId: user.id, titulaire: true, roleEquipe: null, permissions: {}, email }
   }
 
-  const societeId = (await resolveCompanyId(user, admin)) ?? user.id
-  // Compte rattaché à une autre société mais sans ligne d'équipe active (retiré, désactivé, ou lecture en panne) :
-  // resolveCompanyId retombe sur son propre identifiant. Sans cette garde, un gérant ou une secrétaire gardait FULL
-  // sur cette « société » vide à son nom, et ses écritures y partaient sans erreur.
-  if (societeDunAutreCompte(user) && societeId === user.id) {
-    logger.warn('[btp] compte rattaché à une société sans ligne d’équipe active : aucun droit')
-    return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
+  const resolution = await resoudreSocieteDuCompte(user, admin)
+  // Ligne d'équipe illisible (panne) : aucun droit, mais signalé. Une route qui rendrait une liste vide répond une
+  // erreur à la place (GET /api/btp).
+  if (resolution.etat === 'illisible') {
+    return { societeId: user.id, titulaire: false, roleEquipe: null, permissions: {}, email, illisible: true }
   }
+  // Rattaché à une autre société sans ligne d'équipe active (retiré, désactivé) : aucun droit. Sans cette garde, un
+  // gérant ou une secrétaire gardait FULL sur une « société » vide à son nom, et ses écritures y partaient sans erreur.
+  if (resolution.etat === 'sans_rattachement') {
+    return { societeId: user.id, titulaire: false, roleEquipe: null, permissions: {}, email }
+  }
+  const { societeId } = resolution
   const roleBrut = user.app_metadata?.pro_team_role
   const roleEquipe = typeof roleBrut === 'string' && isValidProTeamRole(roleBrut) ? roleBrut : null
 
@@ -200,6 +212,61 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
   }
   const permissions = getEffectivePermissions(roleEquipe, derogations ?? [])
   return { societeId, titulaire: false, roleEquipe, permissions, email }
+}
+
+/** Société d'un compte : résolue, sans rattachement actif, ou illisible (panne de lecture). */
+export type ResolutionSociete =
+  | { etat: 'resolue'; societeId: string }
+  | { etat: 'sans_rattachement' }
+  | { etat: 'illisible' }
+
+/**
+ * Société du compte, comme resolveCompanyId, sans confondre une panne avec un retrait (signalement du 27/11/2026).
+ *
+ * Pour un compte rattaché à une autre société (app_metadata.company_id), resolveCompanyId rend le compte lui-même
+ * aussi bien quand sa ligne d'équipe active n'existe plus que quand elle n'a pas pu être lue : il avale l'erreur. Ses
+ * appelants en tiraient une société vide, et des écrans vides donnés pour vrais : « aucun chantier » (GET /api/btp),
+ * « compte non relié à une fiche » (pointage), équipe vide (Comptes utilisateurs). Dans ce cas seulement, la ligne est
+ * relue par la même requête :
+ *   - trouvée au second essai, vers une autre société → `resolue`, avec cette société (la première lecture avait échoué) ;
+ *   - encore illisible → `illisible`, à rendre comme une erreur à réessayer ;
+ *   - aucune ligne active, deux rattachements actifs (PGRST116), ligne vers le compte lui-même → `sans_rattachement` :
+ *     des états durables, qu'un « réessayez » ne résoudrait jamais.
+ * La relecture ne vaut que pour un compte pro_societe, le seul rôle pour lequel resolveCompanyId lit la table : un
+ * super_admin qui porterait la société d'un autre compte garde son propre identifiant, comme avant. Tout autre compte
+ * reçoit telle quelle la société de resolveCompanyId, son propre identifiant compris. resolveCompanyId reste inchangé :
+ * lib/auth-helpers.ts sert tout le site, et des bancs le simulent.
+ */
+export async function resoudreSocieteDuCompte(user: User, admin: SupabaseClient): Promise<ResolutionSociete> {
+  const societeId = (await resolveCompanyId(user, admin)) ?? user.id
+  const retombe = getUserRole(user) === 'pro_societe' && societeDunAutreCompte(user) && societeId === user.id
+  return retombe ? relireRattachement(user.id, admin) : { etat: 'resolue', societeId }
+}
+
+/** Seconde lecture de la ligne d'équipe active du compte, quand resolveCompanyId est retombé sur lui. */
+async function relireRattachement(userId: string, admin: SupabaseClient): Promise<ResolutionSociete> {
+  try {
+    const { data, error } = await admin
+      .from('pro_team_members').select('company_id').eq('user_id', userId).eq('is_active', true).maybeSingle()
+    if (error?.code === 'PGRST116') {
+      logger.warn('[btp] deux rattachements d’équipe actifs pour ce compte : aucune société retenue')
+      return { etat: 'sans_rattachement' }
+    }
+    if (error) {
+      logger.warn('[btp] ligne d’équipe du compte illisible', { code: error.code })
+      return { etat: 'illisible' }
+    }
+    const societe = (data as { company_id?: unknown } | null)?.company_id
+    if (typeof societe === 'string' && societe !== '' && societe !== userId) {
+      logger.warn('[btp] ligne d’équipe du compte lue au second essai seulement')
+      return { etat: 'resolue', societeId: societe }
+    }
+    logger.warn('[btp] compte rattaché à une société sans ligne d’équipe active : aucune société retenue')
+    return { etat: 'sans_rattachement' }
+  } catch (erreur) {
+    logger.warn('[btp] ligne d’équipe du compte illisible', { error: erreur instanceof Error ? erreur.message : String(erreur) })
+    return { etat: 'illisible' }
+  }
 }
 
 /**

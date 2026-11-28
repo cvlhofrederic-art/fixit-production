@@ -2,7 +2,10 @@
  * PDF generator for Rapport d'Intervention — Vitfix Pro
  * Pixel-perfect reproduction of build_rapport.py (PyMuPDF) using jsPDF.
  * A4, 2 pages, Helvetica only, 7-color palette.
+ * Une société qui a son propre gabarit de relatório (modeleRapportSociete) reçoit celui-ci à la place.
  */
+
+import type { ModeleRapport } from '@/lib/pdf/modeles-societes'
 
 export interface RapportPDFData {
   rapportNumber: string
@@ -161,8 +164,16 @@ export async function generateRapportPDF(
   dateFmtLocale: string,
   /** Rôle du compte : en portugais, le titre est « Relatório de obra » pour une société BTP. */
   orgRole?: string,
+  /** Gabarit propre à la société (lib/pdf/modeles-societes.ts) ; absent : le PDF ci-dessous. */
+  modele?: ModeleRapport,
 ): Promise<void> {
   const { jsPDF } = await import('jspdf')
+  if (modele === 'vitfix-relatorio') {
+    const { rendreRelatorioVitfix } = await import('@/lib/pdf/modele-vitfix-relatorio')
+    const documento = await rendreRelatorioVitfix(jsPDF, r, availablePhotos)
+    documento.save(`${r.rapportNumber}.pdf`)
+    return
+  }
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PW, PH] })
 
   // Langue du PDF : celle de l'interface (dateFmtLocale « pt-PT » ou « fr-FR »).
@@ -221,6 +232,28 @@ export async function generateRapportPDF(
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7.5)
     pdf.text(`${T.page} ${pageNum} / ${totalPages}`, PW - MR - 46, fy + 12)
+  }
+
+  // ─── Pagination ────────────────────────────────────────────────────
+  // Bas de la zone utile, au-dessus du filet du pied de page (PH - 28). Avant, rien ne passait à la page suivante :
+  // au-delà de six photos liées, ou d'une longue liste de travaux, la suite sortait de la page sous le pied.
+  const BAS_UTILE = PH - 40
+
+  /** Nouvelle page avec l'en-tête réduit des pages 2 et suivantes ; rend l'ordonnée du contenu. */
+  const pageSuivante = (): number => {
+    pdf.addPage([PW, PH])
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.setTextColor(NOIR)
+    pdf.text(titreRapport, ML, MT + 20)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.setTextColor(GRIS_T)
+    pdf.text(`${r.rapportNumber}${T.separateurPage2}${r.artisanName}`, ML, MT + 34)
+    pdf.setDrawColor(GRIS_B)
+    pdf.setLineWidth(0.3)
+    pdf.line(ML, MT + 44, PW - MR, MT + 44)
+    return MT + 58
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -391,8 +424,10 @@ export async function generateRapportPDF(
   // ─── 04 — TRAVAUX RÉALISÉS ─────────────────────────────────────────
   const travaux = (r.travaux || []).filter(t => t.trim())
   if (travaux.length > 0) {
+    if (y + 28 + 20 > BAS_UTILE) y = pageSuivante()
     y = sectionLabel(y, T.travaux)
     for (let i = 0; i < travaux.length; i++) {
+      if (y + 20 > BAS_UTILE) y = pageSuivante()
       const fill = i % 2 === 0 ? GRIS_F : BLANC
       pdf.setFillColor(fill)
       pdf.setDrawColor(GRIS_B)
@@ -410,20 +445,28 @@ export async function generateRapportPDF(
   // ─── 05 — MATÉRIAUX UTILISÉS ───────────────────────────────────────
   const materiaux = (r.materiaux || []).filter(m => m.trim())
   if (materiaux.length > 0) {
+    if (y + 28 + 18 + 18 > BAS_UTILE) y = pageSuivante()
     y = sectionLabel(y, T.materiaux)
 
-    // Black header row
-    pdf.setFillColor(NOIR)
-    pdf.rect(ML, y, CONTENT_W, 18, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7.5)
-    pdf.setTextColor(BLANC)
-    pdf.text(T.designation, ML + 11, y + 13)
-    pdf.text(T.quantite, PW - MR - 70, y + 13)
-    y += 18
+    // Black header row (répété en haut d'une page suivante)
+    const enteteMateriaux = () => {
+      pdf.setFillColor(NOIR)
+      pdf.rect(ML, y, CONTENT_W, 18, 'F')
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(7.5)
+      pdf.setTextColor(BLANC)
+      pdf.text(T.designation, ML + 11, y + 13)
+      pdf.text(T.quantite, PW - MR - 70, y + 13)
+      y += 18
+    }
+    enteteMateriaux()
 
     // Data rows (zebra)
     for (let i = 0; i < materiaux.length; i++) {
+      if (y + 18 > BAS_UTILE) {
+        y = pageSuivante()
+        enteteMateriaux()
+      }
       const { nom, qte } = parseMaterial(materiaux[i])
       const fill = i % 2 === 0 ? GRIS_F : BLANC
       pdf.setFillColor(fill)
@@ -443,22 +486,7 @@ export async function generateRapportPDF(
   // ═══════════════════════════════════════════════════════════════════
   // PAGE 2
   // ═══════════════════════════════════════════════════════════════════
-  pdf.addPage([PW, PH])
-
-  // Mini header
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(14)
-  pdf.setTextColor(NOIR)
-  pdf.text(titreRapport, ML, MT + 20)
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor(GRIS_T)
-  pdf.text(`${r.rapportNumber}${T.separateurPage2}${r.artisanName}`, ML, MT + 34)
-  pdf.setDrawColor(GRIS_B)
-  pdf.setLineWidth(0.3)
-  pdf.line(ML, MT + 44, PW - MR, MT + 44)
-
-  let y2 = MT + 58
+  let y2 = pageSuivante()
 
   // ─── 06 — OBSERVATIONS / RECOMMANDATIONS ───────────────────────────
   y2 = sectionLabel(y2, T.observationsRecommandations)
@@ -511,6 +539,7 @@ export async function generateRapportPDF(
     let photoCol = 0
 
     for (let i = 0; i < linkedPhotos.length; i++) {
+      if (photoCol === 0 && y2 + photoH > BAS_UTILE) y2 = pageSuivante()
       const photo = linkedPhotos[i]
       const px = ML + photoCol * (photoColW + GAP)
 
@@ -563,9 +592,11 @@ export async function generateRapportPDF(
   }
 
   // ─── 08 — VALIDATION ET SIGNATURES ─────────────────────────────────
+  const sigH = 90
+  // Le bloc des signatures ne se coupe pas : il passe entier à la page suivante.
+  if (y2 + 28 + sigH > BAS_UTILE) y2 = pageSuivante()
   y2 = sectionLabel(y2, T.signatures)
 
-  const sigH = 90
   const sigW = (PW - ML - MR - GAP) / 2
 
   // Prestataire signature

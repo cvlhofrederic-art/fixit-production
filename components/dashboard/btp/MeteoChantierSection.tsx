@@ -7,6 +7,7 @@ import { adresseComplete, geocoderAdresse, type Pays } from '@/lib/btp/geocodage
 import { supabase } from '@/lib/supabase'
 import { lireDocumentsDesChantiers } from '@/lib/documents/societe-client'
 import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
+import { SEUILS_ALERTE_METEO } from '@/lib/btp/alerte-meteo'
 import {
   COLONNES_LIEU_DEVIS, PREFIXE_CARTE_DEVIS, ajouterLieuMeteo, champsAdresseDuLieu, cleLieuxMeteo, libelleChoixDevis,
   lieuDuDevis, lieuxMeteoValides, type LieuDevis, type LieuMeteoDevis,
@@ -79,19 +80,19 @@ function classifyAlert(forecast: DayForecast[]): {
     const dayReasons: string[] = []
     let dayLevel: AlertLevel = 'ok'
 
-    if (day.windMax > 60) {
+    if (day.windMax > SEUILS_ALERTE_METEO.ventKmh) {
       dayLevel = 'rouge'
       dayReasons.push(`Vent ${Math.round(day.windMax)} km/h`)
     }
-    if (day.tempMin < 0) {
+    if (day.tempMin < SEUILS_ALERTE_METEO.gelC) {
       dayLevel = dayLevel === 'rouge' ? 'rouge' : 'vigilance'
       dayReasons.push(`Gel ${Math.round(day.tempMin)}°C`)
     }
-    if (day.rain > 5) {
+    if (day.rain > SEUILS_ALERTE_METEO.pluieMm) {
       dayLevel = dayLevel === 'rouge' ? 'rouge' : 'vigilance'
       dayReasons.push(`Pluie ${day.rain}mm`)
     }
-    if (day.tempMax > 33) {
+    if (day.tempMax > SEUILS_ALERTE_METEO.chaleurC) {
       dayLevel = dayLevel === 'rouge' ? 'rouge' : 'vigilance'
       dayReasons.push(`Chaleur ${Math.round(day.tempMax)}°C`)
     }

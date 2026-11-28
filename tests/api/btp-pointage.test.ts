@@ -511,3 +511,74 @@ describe('POST /api/btp/pointage — téléphone en poche (appareil, appareil_re
     expect(etat.tables.pointage_appareils_btp[0].retire_le).toBeNull()
   })
 })
+
+describe('/api/btp/pointage — ligne d’équipe illisible (signalement du 27/11/2026)', () => {
+  // resolveCompanyId avale l'erreur de lecture de pro_team_members et rend le compte lui-même. Le salarié recevait
+  // alors 200 « compte non relié à une fiche employé », sur l'écran où s'ouvre son appli, au lieu d'une erreur à
+  // réessayer ; et un pointage d'arrivée était refusé pour « fiche absente ».
+  /** Paul sous un compte neuf (resolveCompanyId garde 60 s une société lue), avec sa ligne d'équipe active dans A. */
+  const paulSousUnCompteNeuf = () => {
+    const id = randomUUID()
+    etat.user = { ...OUVRIER_PAUL, id }
+    etat.tables.pro_team_members.push({ id: randomUUID(), company_id: SOC_A, user_id: id, email: 'paul@a.example', role: 'OUVRIER', is_active: true })
+    return id
+  }
+
+  it('lecture en panne : GET répond 500 à réessayer, jamais « compte non relié »', async () => {
+    paulSousUnCompteNeuf()
+    etat.pannes.set('pro_team_members', 2)
+    const { status, json } = await lire()
+    expect(status).toBe(500)
+    expect(json).not.toHaveProperty('rattachement')
+  })
+
+  it('lecture en panne : l’arrivée répond 500 (à réessayer), pas « fiche absente », et rien n’est écrit', async () => {
+    paulSousUnCompteNeuf()
+    etat.pannes.set('pro_team_members', 2)
+    const { status, json } = await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })
+    expect(status).toBe(500)
+    expect(json.error).not.toBe('fiche_absente')
+    expect(etat.ecritures).toEqual([])
+  })
+
+  it('panne passagère : la relecture retrouve la société, l’écran est celui de Paul', async () => {
+    paulSousUnCompteNeuf()
+    etat.pannes.set('pro_team_members', 1)
+    const { status, json } = await lire()
+    expect(status).toBe(200)
+    expect(json).toMatchObject({ rattachement: 'relie', moi: { id: M_PAUL, nom: 'Paul Exemple' } })
+    expect(json.chantiers.map((c: { id: string }) => c.id)).toEqual([C_VILLA, C_GARAGE, C_IMMEUBLE])
+  })
+
+  it('lecture en panne : « Couper » retire quand même ce téléphone-là côté serveur', async () => {
+    const compte = paulSousUnCompteNeuf()
+    const appareil = randomUUID()
+    etat.tables.pointage_appareils_btp = [{ id: appareil, owner_id: SOC_A, membre_id: M_PAUL, user_id: compte, empreinte: 'f'.repeat(64), plateforme: 'android', retire_le: null }]
+    etat.pannes.set('pro_team_members', 2)
+    expect(await envoyer({ action: 'appareil_retirer', appareil })).toEqual({ status: 200, json: { retires: 1 } })
+    expect(etat.tables.pointage_appareils_btp[0].retire_le).not.toBeNull()
+  })
+
+  it('compte artisan : « Couper » reste refusé (403), comme avant', async () => {
+    const id = randomUUID()
+    etat.user = { id, email: 'artisan@example.test', app_metadata: { role: 'artisan' } }
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
+  })
+
+  it('co-gérant désactivé : « Couper » reste refusé (403), comme avant, avec ou sans panne', async () => {
+    etat.user = { ...OUVRIER_INACTIF, app_metadata: { ...OUVRIER_INACTIF.app_metadata, pro_team_role: 'GERANT' } }
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
+    etat.pannes.set('pro_team_members', 2)
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
+  })
+
+  it('super_admin portant la société d’un autre compte : refusé (403) comme avant, sans relecture qui le ferait gérant', async () => {
+    const id = randomUUID()
+    etat.user = { id, email: 'admin@exemple.test', app_metadata: { role: 'super_admin', pro_team_role: 'GERANT', company_id: SOC_A } }
+    etat.tables.pro_team_members.push({ id: randomUUID(), company_id: SOC_A, user_id: id, email: 'admin@exemple.test', role: 'GERANT', is_active: true })
+    expect((await lire()).status).toBe(403)
+    expect((await envoyer({ action: 'reglage_auto', actif: false })).status).toBe(403)
+    expect((await envoyer({ action: 'appareil_retirer', appareil: randomUUID() })).status).toBe(403)
+    expect(etat.ecritures).toEqual([])
+  })
+})

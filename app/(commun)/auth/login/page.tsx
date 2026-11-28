@@ -7,6 +7,8 @@ import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
 import { estAppMobile } from '@/lib/app-mobile'
 import { ouvrirConnexionGoogleAppMobile } from '@/lib/auth/google-app-mobile'
+import { annulerAlertesProgrammees } from '@/lib/btp/alerte-meteo-telephone'
+import { annulerNotification } from '@/lib/notifications'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
@@ -54,6 +56,10 @@ export default function LoginPage() {
       // Sentry du 28/10/2026). Session indisponible (verrou d'auth, réseau) : le formulaire reste affiché.
       const verdict = await verifierSessionNavigateur(supabase.auth)
       if (annule || connexionEnCours.current) return
+      // Alerte météo du téléphone (27/11/2026) : arrivé ici sans session dans l'appli (session révoquée ou expirée,
+      // démarrage sans session), les notifications encore programmées ne sonnent plus. Session seulement
+      // indisponible : rien n'est annulé. Sans alerte retenue sur l'appareil (artisan, client), l'appel ne fait rien.
+      if (verdict.statut === 'refusee' && estAppMobile()) void annulerAlertesProgrammees(annulerNotification)
       if (verdict.statut === 'valide') {
         window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale, { appMobile: estAppMobile(), proTeamRole: verdict.user.app_metadata?.pro_team_role })
       } else if (verdict.statut === 'refusee' && verdict.motif === 'authentification') {
