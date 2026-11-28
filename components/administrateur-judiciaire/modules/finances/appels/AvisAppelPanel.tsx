@@ -156,6 +156,12 @@ function DroitsLots({ droits, date }: Readonly<{ droits: readonly DroitsLot[]; d
 
 const COULEUR_GRAVITE = { bloquant: 'var(--rust-700)', avertissement: 'var(--amber-700)' } as const
 
+/**
+ * Début des anomalies bloquantes, pour un compte (ap-04 du 22/11/2026) comme pour l'avis entier (question 11 du
+ * 26/11/2026) : ce qui est bloqué est la diffusion de l'avis, pas l'écriture de l'appel, dont le bouton reste actif.
+ */
+const DEBUT_BLOQUANT = 'Bloque la diffusion de l’avis'
+
 function ListeAvis({ vue, donnees, segment }: Readonly<{ vue: VueAvisAppel; donnees: DonneesAppelsLues; segment: string }>) {
   if (!vue.avis || vue.avis.parCompte.length === 0) return null
   const libelleEcheance = (id: string) => vue.echeances.find((e) => e.id === id)?.libelle ?? id
@@ -189,7 +195,7 @@ function ListeAvis({ vue, donnees, segment }: Readonly<{ vue: VueAvisAppel; donn
             )}
             {signalees.map((x, index) => (
               <div key={`${index}-${x.code}`} style={{ fontSize: 12, color: COULEUR_GRAVITE[x.gravite as keyof typeof COULEUR_GRAVITE] }}>
-                {`${x.gravite === 'bloquant' ? 'Bloque la diffusion de l’avis' : 'À vérifier'} : ${x.message}`}
+                {`${x.gravite === 'bloquant' ? DEBUT_BLOQUANT : 'À vérifier'} : ${x.message}`}
               </div>
             ))}
           </div>
@@ -343,7 +349,12 @@ function CorpsAvis({ vue, donnees, segment, mandatPresent, datePrelevement, onDa
       )}
       <ListeAvis vue={vue} donnees={donnees} segment={segment} />
       {signalees.map((a) => (
-        <Alert key={a.code} kind={a.gravite === 'bloquant' ? 'rust' : 'warn'} icon="alert" title={a.message} />
+        <Alert
+          key={a.code}
+          kind={a.gravite === 'bloquant' ? 'rust' : 'warn'}
+          icon="alert"
+          title={a.gravite === 'bloquant' ? `${DEBUT_BLOQUANT} : ${a.message}` : a.message}
+        />
       ))}
       <div className="card-grid cols-2" style={{ marginTop: 12, fontSize: 12.5 }}>
         <EcritureAppel
