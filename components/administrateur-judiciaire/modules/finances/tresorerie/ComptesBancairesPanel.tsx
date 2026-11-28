@@ -73,10 +73,9 @@ const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
 
 /**
  * Tableau des comptes, repris de la maquette (Nature, IBAN, Solde ; mêmes styles en ligne), complété du libellé, du BIC
- * et de l'établissement, des pastilles (fonds de travaux, clôture) et des actions ; sous le solde, la part du solde
- * d'ouverture quand le compte en a un (réponse du référent métier du 28/11/2026, PR 848, point 7). Dans un cadre
- * .tbl-wrap : sur téléphone, il garde une largeur minimale de 640 px et défile dans ce cadre, l'IBAN jamais renvoyé à la
- * ligne, sans faire déborder la page.
+ * et de l'établissement, des pastilles (fonds de travaux, clôture) et des actions. Dans un cadre .tbl-wrap : sur
+ * téléphone, il garde une largeur minimale de 640 px et défile dans ce cadre, l'IBAN jamais renvoyé à la ligne, sans
+ * faire déborder la page.
  */
 function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly CompteAffiche[]; ouvrir: (edition: Edition) => void }>) {
   return (
@@ -125,6 +124,7 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
                   </span>
                 )}
               </td>
+              {/* Sous le solde, la part du solde d'ouverture du compte, quand il en a un (PR 848, point 7 ; voir l'en-tête). */}
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <span className="mono">{compte.soldeCentimes === null ? '—' : formatEurosCentimes(compte.soldeCentimes / 100)}</span>
                 {compte.soldeOuverture && (
