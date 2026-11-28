@@ -30,24 +30,27 @@ export function buildSubTypeLabel(
     return null
   }
   const pourcentage = (n: number): string => (formaterNombre ? `${formaterNombre(n)} %` : `${n}%`)
+  // Document portugais (28/11/2026) : « N.º » et non « N° », « NOTA DE CRÉDITO » sans « (AVOIR) », et
+  // « sobre orçamento » quand le parent d'un adiantamento est un orçamento (comme devis-pdf-v3.ts).
   if (devis.factureSubType === 'acompte') {
     const base = isPt ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE'
-    const ordreSuffix = (devis.acompteOrdre && devis.acompteTotal)
-      ? ` N°${devis.acompteOrdre} ${isPt ? 'de' : 'sur'} ${devis.acompteTotal}`
-      : ''
+    let ordreSuffix = ''
+    if (devis.acompteOrdre && devis.acompteTotal) {
+      ordreSuffix = isPt ? ` N.º ${devis.acompteOrdre} de ${devis.acompteTotal}` : ` N°${devis.acompteOrdre} sur ${devis.acompteTotal}`
+    }
     const pctSuffix = devis.acomptePourcentage != null ? ` — ${pourcentage(devis.acomptePourcentage)}` : ''
-    const refSuffix = devis.parentInvoiceNumber
-      ? ` (${isPt ? 'sobre fatura' : 'sur facture'} ${devis.parentInvoiceNumber})`
-      : ''
+    let refLabel = 'sur facture'
+    if (isPt) refLabel = /^(?:DEV|ORC)-/i.test(devis.parentInvoiceNumber || '') ? 'sobre orçamento' : 'sobre fatura'
+    const refSuffix = devis.parentInvoiceNumber ? ` (${refLabel} ${devis.parentInvoiceNumber})` : ''
     return `${base}${ordreSuffix}${pctSuffix}${refSuffix}`
   }
   if (devis.factureSubType === 'situation') {
     return `${isPt ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}`
-      + `${devis.situationNumber ? ` N° ${devis.situationNumber}` : ''}`
+      + `${devis.situationNumber ? ` ${isPt ? 'N.º' : 'N°'} ${devis.situationNumber}` : ''}`
       + `${devis.situationAvancement != null ? ` — ${pourcentage(devis.situationAvancement)}` : ''}`
   }
   if (devis.factureSubType === 'avoir') {
-    const base = isPt ? 'NOTA DE CRÉDITO (AVOIR)' : 'AVOIR'
+    const base = isPt ? 'NOTA DE CRÉDITO' : 'AVOIR'
     return devis.parentInvoiceNumber
       ? `${base} ${isPt ? 'sobre fatura' : 'sur facture'} ${devis.parentInvoiceNumber}`
       : base
