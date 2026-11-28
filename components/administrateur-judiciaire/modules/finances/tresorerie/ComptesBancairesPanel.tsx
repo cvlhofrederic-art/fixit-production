@@ -314,6 +314,7 @@ export function ComptesBancairesPanel({ copro, lus, ecrituresBanque }: Readonly<
       title="Comptes bancaires du mandat"
       sub="Choix du cabinet, remplaçable mandat par mandat"
       icon="bank"
+      controlesALaLigne
       right={
         <button type="button" className="btn gold sm" disabled={!pret} onClick={() => setEdition({ type: 'nouveau' })}>
           <Icon name="plus" />

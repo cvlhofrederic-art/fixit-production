@@ -10,9 +10,11 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
 
+// Langue de l'écran : français, sauf dans les cas « langue de la société » (lib/btp/langue-documents.ts)
+const ecran = vi.hoisted(() => ({ locale: 'fr' as 'fr' | 'pt' }))
 vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (key: string) => key, locale: 'fr' }),
-  useLocale: () => 'fr',
+  useTranslation: () => ({ t: (key: string) => key, locale: ecran.locale }),
+  useLocale: () => ecran.locale,
 }))
 vi.mock('@/lib/supabase', () => ({
   supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
@@ -126,3 +128,36 @@ function baseProps(openFactureForm: ReturnType<typeof vi.fn>, setSavedDocuments 
     openFactureForm,
   } as unknown as Parameters<typeof FacturesSection>[0]
 }
+
+// « → Acompte » d'une société BTP : dans la langue de sa fiche, pas dans celle de l'écran (lib/btp/langue-documents.ts).
+describe('FacturesSection — « → Acompte » dans la langue de la société (BTP)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { cleanup(); ecran.locale = 'fr' })
+
+  async function acompteTrentePourCent(artisan: unknown) {
+    const setSavedDocuments = vi.fn()
+    render(<FacturesSection {...baseProps(vi.fn(), setSavedDocuments)} artisan={artisan as typeof ARTISAN} />)
+    await waitFor(() => expect(screen.getByText('FACT-2026-009')).toBeInTheDocument())
+    fireEvent.click(screen.getByTitle('proDash.factures.toAcompteTitle'))
+    fireEvent.click(screen.getByRole('button', { name: '30 %' }))
+    fireEvent.click(screen.getByText("Émettre l'acompte"))
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalled())
+    const emitted = (setSavedDocuments.mock.calls[0][0] as (p: unknown[]) => unknown[])([])[0] as Record<string, unknown>
+    return (emitted.lines as { description: string }[]).map((l) => l.description)
+  }
+
+  it('société française sur écran portugais : en français', async () => {
+    ecran.locale = 'pt'
+    expect(await acompteTrentePourCent({ ...ARTISAN, language: 'fr' })).toEqual([
+      'Acompte de 30 % sur travaux soumis à la TVA au taux de 20 %',
+      'Acompte de 30 % sur travaux soumis à la TVA au taux de 10 %',
+    ])
+  })
+
+  it('société portugaise sur écran français : en portugais', async () => {
+    expect(await acompteTrentePourCent({ ...ARTISAN, language: 'pt' })).toEqual([
+      'Adiantamento de 30 % por conta dos trabalhos sujeitos a IVA à taxa de 20 %',
+      'Adiantamento de 30 % por conta dos trabalhos sujeitos a IVA à taxa de 10 %',
+    ])
+  })
+})

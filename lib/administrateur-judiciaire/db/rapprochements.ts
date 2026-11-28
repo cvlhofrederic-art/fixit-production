@@ -4,16 +4,19 @@ import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/reposit
 import { ajDb, type Ecriture, type Rapprochement } from '@/lib/administrateur-judiciaire/db/schema'
 import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { refuserImportEnPeriodeArretee } from '@/lib/administrateur-judiciaire/domain/periode-arretee'
 import {
   abandonnerArrete,
   cloturerArrete,
   decloturerArrete,
   ouvrirArrete,
+  refusArretesIllisibles,
   STATUT_ARRETE_ABANDONNE,
   type ArreteAbandonne,
   type ArreteRapprochement,
   type StatutArrete,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Arrêtés de rapprochement d'un compte bancaire, écrits par l'écran « Banque et recouvrement » (« Nouvel arrêté »,
@@ -23,8 +26,9 @@ import {
  * (sa forme est figée par l'oracle de la base locale), comme db/sinistres.ts et db/comptes-bancaires.ts.
  * Les règles sont celles du domaine (rapprochement-bancaire.ts), qui lève l'erreur affichée : un seul arrêté en cours
  * par compte, date postérieure au dernier, clôture à l'équilibre, déclôture du dernier arrêté clôturé, abandon d'un
- * arrêté en cours seulement. Chaque écriture relit les arrêtés du compte dans sa transaction : deux écritures qui se
- * chevauchent passent l'une après l'autre.
+ * arrêté en cours seulement ; et deux règles jusqu'ici propres à l'écran (décision du 26/11/2026, rb-16 A) : date
+ * d'arrêté ni future ni improbable, aucune écriture tant qu'un arrêté illisible reste sur le compte. Chaque écriture
+ * relit les arrêtés du compte dans sa transaction : deux écritures qui se chevauchent passent l'une après l'autre.
  * Solde compta : celui du sous-compte 512 du compte à la date de l'arrêté (db/sous-comptes-banque.ts) ; aucune
  * écriture : 0. Décision du 26/11/2026 (PR 799, rb-01 C et rb-03 A) : il n'est plus figé à l'ouverture. Tant que
  * l'arrêté est en cours, la valeur enregistrée n'est que celle de l'ouverture : le solde qui vaut est recalculé sur les
@@ -34,6 +38,10 @@ import {
  * l'écriture étant tracée au journal d'activité comme les autres (repository). Elle est lue à part (`abandonnes`) :
  * aucune règle ne la reçoit, elle ne compte ni comme arrêté en cours, ni comme dernier arrêté, ni dans un solde.
  * Aucun élément n'est encore rattaché à l'arrêté (côté compta indépendant du relevé non branché) : `elements` reste vide.
+ * Période arrêtée protégée (décision du 26/11/2026, rb-04 A) : refuserImportSurPeriodeArretee, appelée par l'import d'un
+ * relevé dans sa transaction d'écriture, refuse le relevé dont une ligne est datée au plus tard du dernier arrêté clôturé
+ * du compte (domain/periode-arretee.ts). Comme les autres écritures, elle refuse aussi tant qu'un arrêté illisible reste
+ * sur le compte (arretesSurs).
  */
 
 export interface ArretesLus {
@@ -81,14 +89,32 @@ export async function listerArretes(banqueId: string): Promise<ArretesLus> {
   }
 }
 
-/** Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours ou plus récent. */
+/**
+ * Arrêtés du compte, refusés tant qu'une ligne illisible pourrait cacher un arrêté en cours, plus récent ou clôturé. La
+ * règle et son message sont ceux du domaine (refusArretesIllisibles, décision du 26/11/2026, rb-16 A) ; c'est ici, seul
+ * endroit qui lit les lignes de la base, qu'elle s'applique : toute écriture sur les arrêtés d'un compte, et l'import
+ * d'un relevé, passe par cette lecture.
+ */
 async function arretesSurs(banqueId: string): Promise<ArreteRapprochement[]> {
   const { arretes, illisibles } = await listerArretes(banqueId)
-  if (illisibles > 0) {
-    const s = illisibles > 1 ? 's' : ''
-    throw new Error(`${illisibles} arrêté${s} illisible${s} sur ce compte (écrit${s} hors de l’écran) : à reprendre dans la base locale d’abord.`)
-  }
+  const refus = refusArretesIllisibles(illisibles)
+  if (refus) throw new Error(refus)
   return arretes
+}
+
+/**
+ * Refuse l'import, sur un compte, d'un relevé dont une ligne est datée au plus tard du dernier arrêté clôturé de ce
+ * compte (décision du 26/11/2026, rb-04 A ; règle et message du domaine). `dates` : date de chaque ligne à écrire
+ * (AAAA-MM-JJ). Le contrôle qui fait foi est celui fait DANS la transaction qui écrit les lignes (importerReleve du
+ * store), la table « rapprochements » dans sa portée : une clôture faite entre-temps ailleurs (autre onglet) passe avant
+ * ou après elle, jamais au milieu. Les arrêtés lus sont ceux qui comptent : un arrêté abandonné ne protège rien.
+ * Arrêté illisible sur le compte (écrit hors de l'écran) : l'import est refusé tant qu'il reste, quelles que soient les
+ * dates, comme l'ouverture, la clôture, la déclôture et l'abandon (retour de relecture de la suite rb-04, à confirmer
+ * par le référent métier). Une ligne clôturée mais mal formée ne dit pas quelle période elle arrête : la laisser de côté
+ * laisserait entrer une ligne dans une période peut-être arrêtée.
+ */
+export async function refuserImportSurPeriodeArretee(banqueId: string, dates: readonly string[]): Promise<void> {
+  refuserImportEnPeriodeArretee(await arretesSurs(banqueId), banqueId, dates)
 }
 
 /** Solde compta d'un compte bancaire à une date (ce jour compris) : celui de son sous-compte 512 ; aucune écriture : 0. */
@@ -115,7 +141,11 @@ export interface SaisieArrete {
   soldeBanqueCentimes: number
 }
 
-/** Ouvre un arrêté « En cours » sur un compte actif ; solde compta du moment, recalculé ensuite (voir l'en-tête). */
+/**
+ * Ouvre un arrêté « En cours » sur un compte actif ; solde compta du moment, recalculé ensuite (voir l'en-tête). La date
+ * est refusée après le jour de l'application (date figée en démonstration), comme à l'écran (ouvrirArrete, rb-16 A) :
+ * ce jour n'est pas un paramètre, aucun appelant ne peut assouplir la règle.
+ */
 export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete, options: OptionsEcriture = {}): Promise<ArreteRapprochement> {
   return ajDb.transaction('rw', [ajDb.rapprochements, ajDb.banques, ajDb.ecritures, ajDb.activityLog], async () => {
     const compte = await repoBanques.get(banqueId)
@@ -124,7 +154,7 @@ export async function ouvrirArreteCompte(banqueId: string, saisie: SaisieArrete,
     const existants = await arretesSurs(banqueId)
     // Date invalide : solde provisoire sans objet, ouvrirArrete refuse la saisie.
     const soldeComptaCentimes = estDateIsoValide(saisie.dateArrete) ? soldeComptaAu(await ajDb.ecritures.toArray(), banqueId, saisie.dateArrete) : 0
-    const arrete = ouvrirArrete(existants, { id: genererId(), banqueId, ...saisie, soldeComptaCentimes })
+    const arrete = ouvrirArrete(existants, { id: genererId(), banqueId, ...saisie, soldeComptaCentimes }, AUJOURDHUI_ISO)
     const { id, banqueId: bancaireId, ...champs } = arrete
     await repoRapprochements.create({ bancaireId, ...champs }, { id, actor: options.actor ?? null })
     return arrete
