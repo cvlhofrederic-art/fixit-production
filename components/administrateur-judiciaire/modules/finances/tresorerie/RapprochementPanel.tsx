@@ -25,6 +25,7 @@ import {
 } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { useArretesRapprochement, type ArretesLusEcran } from '@/lib/administrateur-judiciaire/db/use-arretes'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { ReleveImporte } from '@/lib/administrateur-judiciaire/domain/import/releves-importes'
 import { etatArrete, refusArretesIllisibles, type ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
@@ -48,6 +49,8 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  *   montrer, et le panneau le dit. Décision du 26/11/2026 (rb-13 B) : les taux « Rapproché auto » et « manuel », toujours
  *   à 0 % sans pointage, sont masqués tant qu'aucun élément n'est pointé ; ils reviendront avec le pointage.
  * - Décision du 26/11/2026 (rb-c02 A) : montants avec un séparateur des milliers visible (eurosArrete).
+ * - Décision du 26/11/2026 (rb-03 C) : « Nouvel arrêté » propose comme solde banque le solde de clôture du dernier relevé
+ *   importé du compte à la date de l'arrêté (relevés gardés reçus de l'écran), modifiable.
  * - Sur téléphone : statut et actions secondaires dans le corps (l'en-tête ne garde qu'un bouton), indicateurs en une
  *   colonne (card-grid cols-4), liste des arrêtés en une fiche par arrêté (rb-c04 A : classe vfx-fiches, étiquette de
  *   chaque valeur dans data-label, règles de aj-correctifs.css).
@@ -296,9 +299,11 @@ export interface RapprochementPanelProps {
   etatComptes: EtatComptes
   /** Écritures du journal de banque de la copropriété : solde compta montré dans « Nouvel arrêté ». */
   ecrituresBanque: readonly EcritureSolde[]
+  /** Relevés importés gardés de la copropriété : solde banque proposé dans « Nouvel arrêté ». */
+  relevesImportes: readonly ReleveImporte[]
 }
 
-export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Readonly<RapprochementPanelProps>) {
+export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque, relevesImportes }: Readonly<RapprochementPanelProps>) {
   const { push } = useToast()
   const [choix, setChoix] = useState('')
   const [modale, setModale] = useState<null | 'nouvel-arrete' | 'abandon'>(null)
@@ -367,6 +372,7 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
           key={compte.id}
           compte={compte}
           ecrituresBanque={ecrituresBanque}
+          relevesImportes={relevesImportes}
           onClose={fermer}
           onEnregistrer={(valeurs) => ecritures.ouvrir(compte, valeurs)}
         />

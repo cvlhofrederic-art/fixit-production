@@ -39,8 +39,8 @@ function rendreSansCompte() {
   document.body.appendChild(racine)
   render(
     <ToastContext.Provider value={{ push, dismiss: vi.fn() }}>
-      <RapprochementPanel comptes={[]} etatComptes="lu" ecrituresBanque={[]} />
-      <ImportRelevePanel copro={COPRO} comptes={[]} etatComptes="lu" personnes={[]} lignesBanque={[]} />
+      <RapprochementPanel comptes={[]} etatComptes="lu" ecrituresBanque={[]} relevesImportes={[]} />
+      <ImportRelevePanel copro={COPRO} comptes={[]} etatComptes="lu" personnes={[]} lignesBanque={[]} relevesImportes={[]} relireReleves={() => undefined} />
     </ToastContext.Provider>,
     { container: racine },
   )
@@ -128,7 +128,7 @@ describe('rb-c06 A : « Importer N lignes » sous la phrase, en entier, sur tél
     await act(async () => {
       render(
         <ToastContext.Provider value={{ push, dismiss: vi.fn() }}>
-          <ImportRelevePanel copro={COPRO} comptes={[]} etatComptes="lu" personnes={[]} lignesBanque={[]} />
+          <ImportRelevePanel copro={COPRO} comptes={[]} etatComptes="lu" personnes={[]} lignesBanque={[]} relevesImportes={[]} relireReleves={() => undefined} />
         </ToastContext.Provider>,
         { container: racine },
       )

@@ -20,6 +20,7 @@ import { creerTraitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  * lectures de l'écran Appels ; les index uniques refusent les doublons ; les échéances, dont l'identifiant n'est unique
  * qu'au sein du syndicat (D1), sont rangées sous la clé [syndicat + identifiant]. Données fictives.
  * Version 4 (imputation des encaissements aux comptes D2) : une table de plus, « encaissements », après ces six tables.
+ * Version 5 (décision du 26/11/2026 du référent métier, PR 799, point 10 B) : la table des relevés importés, à la suite.
  */
 
 const SUIVI: ChampsSuivi = { createdAt: '2026-11-19T09:00:00.000Z', updatedAt: '2026-11-19T09:00:00.000Z', createdBy: null, updatedBy: null }
@@ -37,6 +38,9 @@ const TABLES_V3: [string, string][] = [
 /** Table de la version 4 : les encaissements des copropriétaires, lus par syndicat (D1). */
 const TABLES_V4: [string, string][] = [['encaissements', 'id, coproprieteId']]
 
+/** Table de la version 5 : les relevés importés, lus par syndicat (D1) et par compte bancaire. */
+const TABLES_V5: [string, string][] = [['relevesImportes', 'id, coproprieteId, banqueId']]
+
 const indexDe = (t: (typeof ajDb.tables)[number]): string => [t.schema.primKey.src, ...t.schema.indexes.map((i) => i.src)].join(', ')
 
 /** Tables des versions 1 et 2, figées par l'oracle (scénario « schema »). */
@@ -46,7 +50,7 @@ function tablesV1V2(): [string, string][] {
   }
   const schema = oracle.cas.find((c) => c.id === 'schema')
   if (!schema) throw new Error('Scénario « schema » absent de l’oracle.')
-  return schema.attendu.tables.filter(([nom]) => ![...TABLES_V3, ...TABLES_V4].some(([apres]) => apres === nom))
+  return schema.attendu.tables.filter(([nom]) => ![...TABLES_V3, ...TABLES_V4, ...TABLES_V5].some(([apres]) => apres === nom))
 }
 
 const cle = (coproprieteId: string, surcharge: Partial<CleRepartition> = {}): CleRepartition =>
@@ -108,11 +112,11 @@ beforeEach(async () => {
   await viderBaseLocale()
 })
 
-describe('version 3 : six tables ajoutées, versions 1 et 2 inchangées ; version 4 : la table des encaissements', () => {
-  it('version 4 : les six tables de la version 3 dans l’ordre du bloc, puis « encaissements », avec leurs index exacts', () => {
-    expect(ajDb.verno).toBe(4)
+describe('version 3 : six tables ajoutées, versions 1 et 2 inchangées ; version 4 : les encaissements ; version 5 : les relevés importés', () => {
+  it('version 5 : les six tables de la version 3 dans l’ordre du bloc, puis « encaissements », puis « relevesImportes », avec leurs index exacts', () => {
+    expect(ajDb.verno).toBe(5)
     const toutes = ajDb.tables.map((t): [string, string] => [t.name, indexDe(t)])
-    expect(toutes.slice(-(TABLES_V3.length + TABLES_V4.length))).toEqual([...TABLES_V3, ...TABLES_V4])
+    expect(toutes.slice(-(TABLES_V3.length + TABLES_V4.length + TABLES_V5.length))).toEqual([...TABLES_V3, ...TABLES_V4, ...TABLES_V5])
   })
 
   it('les tables des versions 1 et 2 sont toutes là, dans le même ordre, index inchangés', () => {

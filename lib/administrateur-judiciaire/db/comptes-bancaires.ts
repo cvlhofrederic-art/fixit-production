@@ -11,6 +11,7 @@ import {
   lireModeComptes,
   resoudreModeComptes,
   validerIban,
+  verifierIbanSansAutreFicheActive,
   verifierMarquesFondsTravaux,
   type ModeComptesLu,
   type ModeTenueComptes,
@@ -27,6 +28,10 @@ import {
  * Volontairement hors du store (aucune action ajoutée à EtatDonneesStore : sa forme est figée par l'oracle de la base
  * locale), comme db/sinistres.ts. Les règles (natures, IBAN, marques, modes) sont celles du domaine
  * (domain/comptes-bancaires.ts), qui lève l'erreur affichée : rien n'est écrit quand il refuse.
+ * Réponse du référent métier du 28/11/2026 (point #858 · 7, choix A) : une seconde fiche active du même IBAN dans la
+ * copropriété est refusée, à la création comme au changement d'IBAN (verifierIbanSansAutreFicheActive). Les fiches de la
+ * copropriété sont relues et la fiche écrite dans une seule transaction : deux enregistrements lancés ensemble (double
+ * clic) passent l'un après l'autre, et le second est refusé.
  */
 
 /** Saisie d'un compte bancaire. Les textes vides (ou faits d'espaces) sont enregistrés à null. */
@@ -88,7 +93,8 @@ function champsCompte(saisie: SaisieCompteBancaire): ChampsCompte {
 /**
  * Crée ou modifie un compte de la copropriété. Une modification garde l'état du compte (actif ou clôturé) ; une marque
  * devenue sans objet (changement de nature) est remise à false. Refusé, sans écriture, pour une copropriété
- * introuvable, une nature inconnue, un IBAN invalide ou une marque du fonds portée par une autre nature.
+ * introuvable, une nature inconnue, un IBAN invalide, une marque du fonds portée par une autre nature, ou un IBAN déjà
+ * porté par une autre fiche active de la copropriété (réponse du 28/11/2026, point #858 · 7 A).
  */
 export async function enregistrerCompteBancaire(
   coproprieteId: string,
@@ -98,9 +104,12 @@ export async function enregistrerCompteBancaire(
   if (!(await repoCoproprietes.get(coproprieteId))) throw new Error(`Copropriété introuvable (id=${coproprieteId}).`)
   const champs = champsCompte(saisie)
   const ecriture = { actor: options.actor ?? null }
-  return options.id
-    ? repoBanques.update(options.id, champs, ecriture)
-    : repoBanques.create({ ...champs, coproprieteId, actif: true }, ecriture)
+  const id = options.id ?? null
+  const enregistre = await ajDb.transaction('rw', ajDb.banques, ajDb.activityLog, async () => {
+    verifierIbanSansAutreFicheActive(champs.iban ?? null, await repoBanques.list({ coproprieteId }), id)
+    return id ? repoBanques.update(id, champs, ecriture) : repoBanques.create({ ...champs, coproprieteId, actif: true }, ecriture)
+  })
+  return enregistre
 }
 
 /** Clôture un compte : il reste en base, inactif, et ne compte plus dans les contrôles du mandat. */

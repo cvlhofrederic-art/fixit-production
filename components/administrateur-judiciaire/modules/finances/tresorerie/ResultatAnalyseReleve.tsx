@@ -3,10 +3,12 @@
 import type { Dispatch, SetStateAction } from 'react'
 import {
   LIBELLES_FORMAT_RELEVE,
+  MARCHES_A_SUIVRE_RELEVE_A_VERIFIER,
   PILL_CONFIANCE_RAPPROCHEMENT,
   textePourEcran,
   texteBlocage,
   type AnalyseReleve,
+  type LimiteEmpreintes,
   type ReleveLu,
   type SelectionsImputation,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/analyse-releve'
@@ -21,8 +23,22 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
  * Résultat de l'analyse d'un relevé (panneau « Importer un relevé ») : lignes non lues, doublons écartés, lignes
  * retenues avec le copropriétaire proposé (rendu déplacé tel quel de TresorerieModule.tsx) ; pour un relevé CFONB 120
  * ou camt.053 (mémo de branchement du 20/11/2026), en plus : format lu, relevés lus avec leurs soldes, blocage de
- * l'import et toutes les erreurs du fichier (un relevé refusé reste lisible en entier), avertissements, limite des
- * empreintes (un relevé importé lors d'un import précédent n'est pas reconnu).
+ * l'import et toutes les erreurs du fichier (un relevé refusé reste lisible en entier), avertissements.
+ * Décision du 26/11/2026 du référent métier (PR 799, point 10 B) : un relevé déjà importé sur le compte lors d'un import
+ * précédent est reconnu ; un bandeau sur le modèle de « Import bloqué » le dit, un message par relevé, avec la date de
+ * cet import, et sa ligne de « Relevés lus » porte « Déjà importé ». L'ancien bandeau « non reconnu » ne reste que pour
+ * un compte qui porte des lignes sans relevé gardé (CSV, import antérieur), avec un texte qui dit cette limite.
+ * Retours de la relecture du 27/11/2026 : le message d'un relevé déjà importé dit sur quel compte (un autre compte de la
+ * copropriété peut porter le même IBAN) ; un relevé de même identifiant qu'un relevé gardé, mais de contenu différent, a
+ * son bandeau (« Relevé non repris, à vérifier ») et sa pastille : ce n'est pas un relevé déjà importé ; le bandeau des
+ * lignes sans relevé gardé dit si elles sont de ce compte, non rattachées à un compte, ou les deux.
+ * Réponses du référent métier du 28/11/2026 : point #858 · 2 A, le bandeau « Relevé non repris, à vérifier » dit quoi faire
+ * après ses messages (une marche à suivre par motif : même identifiant, ou même période pour un relevé sans identifiant
+ * commun, comme un CFONB 120) ; point #858 · 6 A, le bandeau des lignes sans relevé gardé ne s'affiche que si une de ces
+ * lignes est datée dans la période d'un relevé analysé (analyse-releve.ts, `limiteEmpreintes`).
+ * Retour de la relecture du 28/11/2026 : un relevé de même période ou de même identifiant qu'un relevé placé plus haut dans
+ * le même fichier, mais d'un autre contenu, a le même bandeau et la même pastille « Non repris, à vérifier » ; « Déjà dans
+ * le fichier » ne désigne plus que le même relevé répété.
  */
 
 const STYLE_DISCRET = { fontSize: 11, color: 'var(--navy-300)' } as const
@@ -37,7 +53,23 @@ const enLignes = (textes: readonly string[]) =>
     </span>
   ))
 
-/** Bandeaux de la lecture du fichier : blocage et erreurs, lignes non lues d'un CSV, avertissements, limite. */
+/** « Relevé déjà importé », « 2 relevés déjà importés ». */
+const titreDejaImportes = (nombre: number): string => (nombre > 1 ? `${nombre} relevés déjà importés` : 'Relevé déjà importé')
+
+/** « Relevé non repris, à vérifier », « 2 relevés non repris, à vérifier ». */
+const titreAVerifier = (nombre: number): string => (nombre > 1 ? `${nombre} relevés non repris, à vérifier` : 'Relevé non repris, à vérifier')
+
+/** Lignes sans relevé gardé, telles que le bandeau les nomme. */
+const LIGNES_SANS_RELEVE: Record<LimiteEmpreintes, string> = {
+  compte: 'Des lignes de ce compte',
+  non_rattachees: 'Des lignes non rattachées à un compte',
+  compte_et_non_rattachees: 'Des lignes de ce compte et des lignes non rattachées à un compte',
+}
+
+/**
+ * Bandeaux de la lecture du fichier : blocage et erreurs, relevés déjà importés, relevés à vérifier, lignes non lues d'un
+ * CSV, avertissements, limite.
+ */
 function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
   const structure = analyse.format !== 'csv'
   const pluriel = (nombre: number) => (nombre > 1 ? 's' : '')
@@ -47,6 +79,20 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
         <Alert kind="rust" icon="alert" title="Import bloqué">
           <span style={STYLE_LIGNE}>{texteBlocage(analyse.blocage)}</span>
           {structure && enLignes(analyse.erreurs)}
+        </Alert>
+      )}
+      {analyse.relevesDejaImportes.length > 0 && (
+        <Alert kind="rust" icon="alert" title={titreDejaImportes(analyse.relevesDejaImportes.length)}>
+          {enLignes(analyse.relevesDejaImportes)}
+          {analyse.relevesAImporter.length === 0 && analyse.relevesAVerifier.length === 0 && (
+            <span style={STYLE_LIGNE}>Rien à importer : tous les relevés de ce fichier sont déjà enregistrés.</span>
+          )}
+        </Alert>
+      )}
+      {analyse.relevesAVerifier.length > 0 && (
+        <Alert kind="rust" icon="alert" title={titreAVerifier(analyse.relevesAVerifier.length)}>
+          {enLignes(analyse.relevesAVerifier)}
+          {enLignes(analyse.motifsAVerifier.map((motif) => MARCHES_A_SUIVRE_RELEVE_A_VERIFIER[motif]))}
         </Alert>
       )}
       {!structure && analyse.erreurs.length > 0 && (
@@ -64,13 +110,22 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
         </Alert>
       )}
       {analyse.limiteEmpreintes && (
-        <Alert kind="" icon="info" title="Relevé déjà importé lors d’un import précédent : non reconnu">
-          Les relevés importés ne sont pas encore mémorisés : seul un relevé présent deux fois dans ce fichier est reconnu.
-          Vérifier la période avant d’importer : un relevé importé deux fois compterait deux fois dans le solde du compte.
+        <Alert kind="" icon="info" title="Lignes enregistrées sans relevé gardé">
+          {LIGNES_SANS_RELEVE[analyse.limiteEmpreintes]} viennent d’un CSV ou d’un import fait avant que les relevés soient
+          gardés : un relevé qui les contient n’est pas reconnu. Vérifier la période avant d’importer : un relevé importé deux
+          fois compterait deux fois dans le solde du compte.
         </Alert>
       )}
     </>
   )
+}
+
+/** Pastille de l'état d'un relevé lu. */
+const PILL_ETAT_RELEVE: Record<ReleveLu['etat'], { kind: string; label: string }> = {
+  nouveau: { kind: 'sage', label: 'Contrôlé' },
+  deja_importe: { kind: 'amber', label: 'Déjà dans le fichier' },
+  importe_avant: { kind: 'amber', label: 'Déjà importé' },
+  a_verifier: { kind: 'amber', label: 'Non repris, à vérifier' },
 }
 
 /**
@@ -109,16 +164,10 @@ function TableauRelevesLus({ releves }: Readonly<{ releves: readonly ReleveLu[] 
               <td role="cell" className="num-cell" style={{ textAlign: 'right' }} data-label="Mouvements">
                 {releve.mouvements}
               </td>
-              <td role="cell" data-label="État">
-                {releve.etat === 'nouveau' ? (
-                  <Pill kind="sage" noDot>
-                    Contrôlé
-                  </Pill>
-                ) : (
-                  <Pill kind="amber" noDot>
-                    Déjà dans le fichier
-                  </Pill>
-                )}
+              <td role="cell" className="vfx-etat-releve" data-label="État">
+                <Pill kind={PILL_ETAT_RELEVE[releve.etat].kind} noDot>
+                  {PILL_ETAT_RELEVE[releve.etat].label}
+                </Pill>
               </td>
             </tr>
           ))}

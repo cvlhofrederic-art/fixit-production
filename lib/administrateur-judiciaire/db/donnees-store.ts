@@ -16,6 +16,7 @@ import {
   repoSinistres,
   repoTaches,
 } from '@/lib/administrateur-judiciaire/db/repositories'
+import { enregistrerRelevesImportes, type RelevesDeLImport } from '@/lib/administrateur-judiciaire/db/releves-importes'
 import type { DonneesCreation, DonneesModification } from '@/lib/administrateur-judiciaire/db/repository'
 import { refuserImportSurPeriodeArretee } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { banqueDuCompte, COMPTE_BANQUE_NON_RATTACHE, estCompteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
@@ -108,11 +109,13 @@ export interface EtatDonneesStore {
   /**
    * Écritures 512 (renvoyées) et, pour chaque sortie, une écriture 471 « À ventiler ». Dates reçues en ISO. `compte` :
    * sous-compte 512 du compte bancaire choisi (db/releves-bancaires.ts) ; absent, « 512 » non rattaché, comme avant.
+   * `releves` : relevés CFONB 120 ou camt.053 dont viennent ces lignes, gardés dans la même transaction avec les
+   * informations de chaque mouvement sur sa ligne (db/releves-importes.ts) ; absent (CSV), rien n'est gardé, comme avant.
    * Sur le sous-compte d'un compte bancaire : refusé en entier si une ligne est datée au plus tard du dernier arrêté
    * clôturé de ce compte (période arrêtée protégée, décision du 26/11/2026, rb-04 A), ou tant qu'un arrêté illisible
-   * reste sur ce compte. Un refus ne laisse ni écriture ni journal ouvert pour l'occasion.
+   * reste sur ce compte. Un refus ne laisse ni écriture, ni relevé gardé, ni journal ouvert pour l'occasion.
    */
-  importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string) => Promise<Ecriture[]>
+  importerReleve: (coproprieteId: string, lignes: LigneReleve[], compte?: string, releves?: RelevesDeLImport) => Promise<Ecriture[]>
   imputerEncaissement: (ecritureId: string, coproprietaireId: string, dateIso: string) => Promise<void>
   avancerRecouvrement: (coproprietaireId: string, etape: string, dateIso: string) => Promise<Impaye>
   importerCoproprietaires: (
@@ -316,7 +319,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     }))
     return prestataire
   },
-  importerReleve: async (coproprieteId, lignes, compte = COMPTE_BANQUE_NON_RATTACHE) => {
+  importerReleve: async (coproprieteId, lignes, compte = COMPTE_BANQUE_NON_RATTACHE, releves) => {
     if (!estCompteBanque(compte)) throw new Error(`Compte « ${compte} » : sous-compte 512 attendu pour un relevé bancaire.`)
     const journalExistant = get().journaux.find((existant) => existant.coproprieteId === coproprieteId),
       journauxCrees: Journal[] = [],
@@ -331,13 +334,17 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
     // Le journal d'une copropriété qui n'en a pas est ouvert dans la même transaction, après ce contrôle (retour de
     // relecture de la suite rb-04) : un refus, ou une erreur en cours de boucle, ne laisse pas de journal vide en base.
     // L'état n'est mis à jour qu'une fois la transaction validée.
+    // Relevés CFONB 120 ou camt.053 (décision du 26/11/2026, PR 799, points 10 B et 11 B) : gardés dans la même
+    // transaction que leurs lignes, tout ou rien ; un relevé déjà gardé pour la copropriété annule l'import. Ils sont
+    // gardés après le contrôle de la période arrêtée : un import refusé pour cette raison ne garde aucun relevé.
     const banqueId = banqueDuCompte(compte),
       dateEcriture = (ligne: LigneReleve): Date => {
         const [annee, mois, jour] = ligne.date.split('-').map(Number)
         return new Date(annee, mois - 1, jour)
       }
-    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.rapprochements, ajDb.journaux], async () => {
+    await ajDb.transaction('rw', [ajDb.ecritures, ajDb.activityLog, ajDb.rapprochements, ajDb.journaux, ajDb.relevesImportes], async () => {
       if (banqueId !== null) await refuserImportSurPeriodeArretee(banqueId, lignes.map((ligne) => dateVersIso(dateEcriture(ligne)) ?? ''))
+      const origines = releves ? await enregistrerRelevesImportes(coproprieteId, compte, releves, lignes) : null
       let journalId = journalExistant?.id
       if (journalId === undefined) {
         const cree = await repoJournaux.create({
@@ -348,6 +355,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
       }
       for (const ligne of lignes) {
         const date = dateEcriture(ligne),
+          origine = origines?.get(ligne),
           ecriture = await repoEcritures.create({
             journalId,
             date,
@@ -355,6 +363,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
             libelle: ligne.libelle,
             montant: Math.abs(ligne.montant),
             sens: ligne.montant >= 0 ? 'debit' : 'credit',
+            ...(origine ? { releve: origine } : {}),
           })
         ecrituresBanque.push(ecriture)
         if (ligne.montant < 0)

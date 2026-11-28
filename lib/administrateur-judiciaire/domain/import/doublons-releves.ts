@@ -8,7 +8,9 @@ import {
 /**
  * Doublons des relevés structurés (CFONB 120, camt.053) à l'import : ce qui a déjà été importé est reconnu par relevé,
  * puis par mouvement, jamais à l'intérieur d'un relevé. Fonctions pures, montants en UNITÉS MINEURES ENTIÈRES, sans
- * écran ni stockage : les empreintes à garder (empreinteReleve, empreintesMouvements) attendent les tables de Frédéric.
+ * écran ni stockage. Les empreintes sont gardées depuis la décision du 26/11/2026 du référent métier (PR 799, points
+ * 10 B et 11 B) : table locale « relevesImportes » et informations du mouvement sur chaque ligne importée ; ce qui est
+ * gardé et ce qui en est relu : releves-importes.ts.
  *
  * Pourquoi pas dedoublonnerReleve (releve-bancaire.ts, import CSV) : sa clé date + montant + libellé écarte aussi les
  * répétitions internes au fichier. Or un relevé structuré n'est retenu que si ancien solde + mouvements = nouveau solde
@@ -41,6 +43,23 @@ import {
  *   fichier compte comme déjà importé (un fichier qui contient deux fois le même relevé).
  * 🔴 Non traité : un mouvement importé d'un CSV (sans référence) n'est pas reconnu ; relevés qui se chevauchent sans être
  *   identiques (relevé intrajournalier puis relevé de fin de journée) : seuls les mouvements à référence sont écartés.
+ *
+ * Réponse du référent métier du 28/11/2026 (point #858 · 2, choix A) : « CFONB : traiter de même un relevé de même compte
+ * et même période dont les soldes diffèrent d'un relevé gardé. » Le CFONB 120 n'a pas d'identifiant de relevé : un
+ * relevé corrigé par la banque passait pour un relevé nouveau, et ses mouvements sans référence entraient une seconde
+ * fois. Désormais, quand les deux relevés ne portent pas chacun un identifiant (comparaison « periode ») : même compte,
+ * même devise, même période, mais ancien solde, nouveau solde ou totaux différents → relevé non repris, à vérifier,
+ * comme un relevé camt.053 de même identifiant et de contenu différent.
+ * - « Même période », au sens strict : mêmes dates de début et de fin (dateOuverture et dateCloture égales). Deux
+ *   périodes qui se chevauchent sans être égales restent deux relevés distincts (non traité, voir ci-dessus).
+ * - 🔵 Choix déduits, à valider : les totaux comptent comme les soldes (même période, mêmes soldes, totaux différents :
+ *   ce n'est pas le même relevé, et ce n'est pas un relevé d'une autre période) ; la règle vaut aussi quand un seul des
+ *   deux relevés porte un identifiant (relevé gardé d'un CFONB 120, relevé analysé en camt.053, ou l'inverse), et pour
+ *   un relevé vu plus haut dans le même fichier ; des numéros de séquence contraires désignent toujours deux relevés
+ *   distincts ; deux relevés camt.053 d'identifiants différents restent distincts, même sur la même période (c'est la
+ *   marche à suivre dite à l'écran : un relevé sous un nouvel identifiant).
+ * - Plusieurs relevés gardés peuvent faire reconnaître le même relevé : le même relevé (« identique ») l'emporte sur le
+ *   même identifiant, qui l'emporte sur la même période.
  */
 
 /** Ce qu'il faut garder d'un relevé importé pour le reconnaître à un import suivant. */
@@ -80,6 +99,30 @@ export interface ResultatDedoublonnageReleves {
   /** Mouvements d'un relevé nouveau écartés comme déjà importés (référence de la banque ou numéro d'écriture). */
   doublons: MouvementReleve[]
   avertissements: string[]
+  /** Un par relevé de `dejaImportes`, dans le même ordre : ce qui l'a fait reconnaître et l'avertissement qui le dit. */
+  reconnus: ReleveReconnu[]
+}
+
+/**
+ * Façon dont un relevé est reconnu : « identique » (même relevé), « identifiant » (même identifiant, contenu différent)
+ * ou « periode » (sans identifiant commun : même compte et même période, soldes ou totaux différents).
+ */
+export type ComparaisonReleve = 'identique' | 'identifiant' | 'periode'
+
+/** Du plus sûr au moins sûr : le relevé gardé retenu quand plusieurs font reconnaître le même relevé. */
+const ORDRE_COMPARAISONS: readonly ComparaisonReleve[] = ['identique', 'identifiant', 'periode']
+
+/** Relevé reconnu comme déjà importé. */
+export interface ReleveReconnu {
+  releve: ReleveCompte
+  /**
+   * Empreinte qui l'a fait reconnaître, telle que reçue dans `deja.releves` (même objet : l'appelant y retrouve le relevé
+   * gardé et sa date d'import) ; pour un relevé déjà vu plus haut dans le fichier, l'empreinte de ce relevé.
+   */
+  connu: EmpreinteReleve
+  comparaison: ComparaisonReleve
+  /** Avertissement de ce relevé, présent tel quel dans `avertissements`. */
+  avertissement: string
 }
 
 export const empreinteReleve = (releve: ReleveCompte): EmpreinteReleve => ({
@@ -125,8 +168,14 @@ const memeContenu = (a: EmpreinteReleve, b: EmpreinteReleve): boolean =>
   a.totalCreditsMineur === b.totalCreditsMineur &&
   a.totalDebitsMineur === b.totalDebitsMineur
 
-/** « identique » : même relevé ; « identifiant » : même identifiant mais contenu différent ; null : relevés distincts. */
-function comparerReleves(a: EmpreinteReleve, b: EmpreinteReleve): 'identique' | 'identifiant' | null {
+/** Même période, au sens strict : mêmes dates de début et de fin (réponse du 28/11/2026, point #858 · 2 A). */
+const memePeriode = (a: EmpreinteReleve, b: EmpreinteReleve): boolean => a.dateOuverture === b.dateOuverture && a.dateCloture === b.dateCloture
+
+/**
+ * « identique » : même relevé ; « identifiant » : même identifiant mais contenu différent ; « periode » : sans identifiant
+ * commun, même période mais soldes ou totaux différents ; null : relevés distincts.
+ */
+function comparerReleves(a: EmpreinteReleve, b: EmpreinteReleve): ComparaisonReleve | null {
   const compte = identifiantCompte(a.compte)
   if (compte === null || compte !== identifiantCompte(b.compte) || a.devise !== b.devise) return null
   if (a.identifiant && b.identifiant) {
@@ -134,7 +183,28 @@ function comparerReleves(a: EmpreinteReleve, b: EmpreinteReleve): 'identique' | 
     return memeContenu(a, b) ? 'identique' : 'identifiant'
   }
   const sequencesContraires = a.numeroSequence !== null && b.numeroSequence !== null && a.numeroSequence !== b.numeroSequence
-  return !sequencesContraires && memeContenu(a, b) ? 'identique' : null
+  if (sequencesContraires) return null
+  if (memeContenu(a, b)) return 'identique'
+  return memePeriode(a, b) ? 'periode' : null
+}
+
+/**
+ * Relevé connu qui fait reconnaître ce relevé, et comment ; null : relevé inconnu. Entre plusieurs relevés connus, le
+ * plus sûr l'emporte (même relevé, puis même identifiant, puis même période), et le premier de la liste à comparaison
+ * égale. Le relevé connu est rendu tel que reçu (même objet).
+ */
+export function reconnaitreReleve<E extends EmpreinteReleve>(
+  empreinte: EmpreinteReleve,
+  connus: readonly E[],
+): { connu: E; comparaison: ComparaisonReleve } | null {
+  let reconnu: { connu: E; comparaison: ComparaisonReleve } | null = null
+  for (const connu of connus) {
+    const comparaison = comparerReleves(empreinte, connu)
+    if (comparaison === 'identique') return { connu, comparaison }
+    if (comparaison && (reconnu === null || ORDRE_COMPARAISONS.indexOf(comparaison) < ORDRE_COMPARAISONS.indexOf(reconnu.comparaison)))
+      reconnu = { connu, comparaison }
+  }
+  return reconnu
 }
 
 /** Mouvements déjà vus : par référence de la banque, et par numéro d'écriture avec les références qui l'accompagnent. */
@@ -172,12 +242,14 @@ function dejaVu(index: IndexMouvements, mouvement: EmpreinteMouvement): boolean 
 const pluriel = (nombre: number, mot: string): string => `${nombre} ${mot}${nombre > 1 ? 's' : ''}`
 
 /** Avertissement d'un relevé reconnu comme déjà importé. */
-function avertissementDejaImporte(releve: ReleveCompte, designation: string, comparaison: 'identique' | 'identifiant'): string {
+function avertissementDejaImporte(releve: ReleveCompte, designation: string, comparaison: ComparaisonReleve): string {
   if (comparaison === 'identifiant')
     return (
       `${designation} : même identifiant « ${releve.identifiant ?? ''} » qu’un relevé déjà importé, mais période, soldes ou ` +
       'totaux différents ; relevé non repris, à vérifier.'
     )
+  if (comparaison === 'periode')
+    return `${designation} : même période qu’un relevé déjà importé, mais soldes ou totaux différents ; relevé non repris, à vérifier.`
   const nombre = releve.mouvements.length
   return `${designation} déjà importé : ${nombre === 0 ? 'aucun mouvement' : `${pluriel(nombre, 'mouvement')} non repris`}.`
 }
@@ -189,15 +261,17 @@ function avertissementDejaImporte(releve: ReleveCompte, designation: string, com
 export function dedoublonnerRelevesStructures(releves: readonly ReleveCompte[], deja: DejaImporte): ResultatDedoublonnageReleves {
   const connus = [...deja.releves],
     index: IndexMouvements = { parReference: new Set(), parNumero: new Map() },
-    resultat: ResultatDedoublonnageReleves = { lignes: [], nouveaux: [], dejaImportes: [], doublons: [], avertissements: [] }
+    resultat: ResultatDedoublonnageReleves = { lignes: [], nouveaux: [], dejaImportes: [], doublons: [], avertissements: [], reconnus: [] }
   for (const mouvement of deja.mouvements) indexer(index, mouvement)
   for (const releve of releves) {
     const designation = designationReleve(releve.rang, releve.compte, releve.dateOuverture, releve.dateCloture),
       empreinte = empreinteReleve(releve),
-      comparaison = connus.map((connu) => comparerReleves(empreinte, connu)).find((resultatComparaison) => resultatComparaison !== null)
-    if (comparaison) {
+      reconnu = reconnaitreReleve(empreinte, connus)
+    if (reconnu) {
+      const avertissement = avertissementDejaImporte(releve, designation, reconnu.comparaison)
       resultat.dejaImportes.push(releve)
-      resultat.avertissements.push(avertissementDejaImporte(releve, designation, comparaison))
+      resultat.avertissements.push(avertissement)
+      resultat.reconnus.push({ releve, ...reconnu, avertissement })
       continue
     }
     reprendreReleve(releve, designation, index, resultat)

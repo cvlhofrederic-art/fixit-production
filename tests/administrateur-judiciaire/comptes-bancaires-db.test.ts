@@ -139,6 +139,86 @@ describe('Comptes bancaires — création, modification, clôture', () => {
   })
 })
 
+describe('Comptes bancaires — seconde fiche active du même IBAN refusée (réponse du référent métier du 28/11/2026, point #858 · 7 A)', () => {
+  const REFUS = /IBAN déjà enregistré sur un autre compte actif de la copropriété \(« Compte courant »\) : un IBAN désigne un seul compte\./
+
+  it('création d’une seconde fiche active du même IBAN (autre casse, sans espace, autre nature) : refusée, rien n’est écrit', async () => {
+    const premier = await enregistrerCompteBancaire(coproprieteId, saisie())
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: 'fr7630006000011234567890189' }))).rejects.toThrow(REFUS)
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second' }))).rejects.toThrow(
+      'Modifier ce compte, ou le clôturer avant de créer une nouvelle fiche.',
+    )
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ nature: 'fonds_travaux', libelle: 'Fonds' }))).rejects.toThrow(REFUS)
+    expect((await ajDb.banques.toArray()).map((ligne) => ligne.id)).toEqual([premier.id])
+    const journal = await ajDb.activityLog.where('entite').equals('banques').toArray()
+    expect(journal.map((entree) => entree.action)).toEqual(['create'])
+  })
+
+  it('fiche clôturée puis recréée sous le même IBAN : acceptée', async () => {
+    const premier = await enregistrerCompteBancaire(coproprieteId, saisie())
+    await cloturerCompteBancaire(premier.id)
+    const recree = await enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Compte recréé' }))
+    expect(recree.id).not.toBe(premier.id)
+    expect((await listerComptesBancaires(coproprieteId)).map((compte) => [compte.libelle, compte.actif])).toEqual([
+      ['Compte courant', false],
+      ['Compte recréé', true],
+    ])
+    // Une troisième fiche active du même IBAN est refusée : la fiche recréée le porte.
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Troisième' }))).rejects.toThrow(/« Compte recréé »/)
+  })
+
+  it('même IBAN dans une autre copropriété, comptes sans IBAN : acceptés (la règle vaut par copropriété, pour un IBAN saisi)', async () => {
+    const autre = await useDonneesStore.getState().createCopropriete({
+      nom: 'Villa Bleue',
+      adresse: '2 rue de l’Exemple, 75000 Paris',
+      nbLots: 4,
+      rg: '26/00002',
+      fondement: 'art. 46 — carence',
+    })
+    await enregistrerCompteBancaire(coproprieteId, saisie())
+    await enregistrerCompteBancaire(autre.id, saisie())
+    await enregistrerCompteBancaire(coproprieteId, saisie({ nature: 'caisse_depots', iban: '' }))
+    await enregistrerCompteBancaire(coproprieteId, saisie({ nature: 'sous_compte_centralisateur', iban: null }))
+    expect(await ajDb.banques.count()).toBe(4)
+  })
+
+  it('modification : IBAN changé pour celui d’une autre fiche active : refusé, la ligne garde son IBAN', async () => {
+    await enregistrerCompteBancaire(coproprieteId, saisie())
+    const second = await enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: IBAN_B }))
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: IBAN_A }), { id: second.id })).rejects.toThrow(REFUS)
+    // Retour de la relecture du 28/11/2026 : à la modification, le message ne parle pas de créer une fiche.
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second', iban: IBAN_A }), { id: second.id })).rejects.toThrow(
+      'Saisir un autre IBAN pour le compte modifié, ou clôturer d’abord « Compte courant ».',
+    )
+    expect(await ajDb.banques.get(second.id)).toMatchObject({ libelle: 'Second', iban: 'FR1420041010050500013M02606' })
+  })
+
+  it('modification sans changer l’IBAN (libellé, IBAN ressaisi avec d’autres espaces) : acceptée', async () => {
+    const premier = await enregistrerCompteBancaire(coproprieteId, saisie())
+    await enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Compte principal', iban: 'fr76 30006000 0112 3456 7890189' }), { id: premier.id })
+    expect(await ajDb.banques.get(premier.id)).toMatchObject({ libelle: 'Compte principal', iban: 'FR7630006000011234567890189', actif: true })
+  })
+
+  it('deux fiches actives du même IBAN écrites avant cette règle : chacune reste modifiable, sans changer son IBAN', async () => {
+    const premier = await enregistrerCompteBancaire(coproprieteId, saisie())
+    const { id: _id, ...champs } = premier
+    await ajDb.banques.add({ ...champs, id: 'banque-en-double', libelle: 'Compte en double' })
+    await enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Compte en double, renommé' }), { id: 'banque-en-double' })
+    expect((await ajDb.banques.get('banque-en-double'))?.libelle).toBe('Compte en double, renommé')
+    // Une nouvelle fiche active de cet IBAN reste refusée.
+    await expect(enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Troisième' }))).rejects.toThrow(/IBAN déjà enregistré/)
+  })
+
+  it('deux créations du même IBAN lancées ensemble (double clic) : une seule fiche écrite', async () => {
+    const resultats = await Promise.allSettled([
+      enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Premier' })),
+      enregistrerCompteBancaire(coproprieteId, saisie({ libelle: 'Second' })),
+    ])
+    expect(resultats.map((resultat) => resultat.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(await ajDb.banques.count()).toBe(1)
+  })
+})
+
 describe('Comptes bancaires — marques du fonds de travaux (J71)', () => {
   it('« tenait le fonds de travaux » sur un compte repris : enregistrée, le compte tient le fonds', async () => {
     await enregistrerCompteBancaire(

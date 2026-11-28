@@ -161,6 +161,12 @@
 }
 
 /*
+ * PR 799, relevés importés : les pastilles de la colonne « État » de « Relevés lus » (« Déjà importé », « Non repris, à vérifier »)
+ * passaient sur deux lignes à 1440 px. Elles restent sur une ligne, à toute largeur (la fiche du téléphone les aligne à droite).
+ */
+#aj-root .vfx-etat-releve .pill{white-space:nowrap}
+
+/*
  * Première cellule d'en-tête des tableaux restée blanche (décision du 26/11/2026, page de validation de la PR 799, point
  * rb-c07 A ; test : correctifs-entetes-affichage.test.tsx) : sous 1025 px, la première colonne est collante et aj.css lui
  * donne un fond blanc opaque, pour cacher ce qui défile dessous, en-tête compris, alors que les autres cellules d'en-tête
