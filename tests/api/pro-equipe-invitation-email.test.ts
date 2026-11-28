@@ -159,6 +159,15 @@ describe('volume : plafond d\'invitations par compte et par 24 heures', () => {
     expect((await inviter()).status).toBe(409)
     expect(h.limites.filter((l) => l.cle.startsWith('pro_team_invite_jour_'))).toHaveLength(0)
   })
+
+  it('membre déjà présent : 409 avec le message français d\'avant et le code « deja_membre » que l\'écran traduit', async () => {
+    h.base.lignes.pro_team_members = [{ id: 'm1', company_id: ID_SOCIETE, email: 'claire@exemple.test' }]
+    const res = await inviter({ email: 'Claire@Exemple.test' })
+    expect(res.status).toBe(409)
+    expect(res.json).toEqual({ error: 'Cet email est déjà membre de votre équipe', code: 'deja_membre' })
+    expect(ecritures()).toHaveLength(0)
+    expect(h.envois).toHaveLength(0)
+  })
 })
 
 describe('catégorie professionnelle à l\'invitation (25/11/2026)', () => {

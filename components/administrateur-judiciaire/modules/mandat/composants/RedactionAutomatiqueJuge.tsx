@@ -124,6 +124,7 @@ export function RedactionAutomatiqueJuge({ fiche, impayes }: RedactionAutomatiqu
       title="Mode IA · rédaction automatique"
       sub="Un clic : Fixy analyse le dossier, choisit le document et les demandes, rédige tout ; tu relis, tu corriges, tu envoies"
       icon="sparkle"
+      controlesALaLigne
       right={
         redaction ? (
           <Pill kind={pointsACompleter ? 'amber' : 'sage'} noDot>
